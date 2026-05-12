@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  website:
+    build:
+      context: ./website
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${WEBSITE_NEXT_PUBLIC_API_URL:-/api/v1}
+        NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID}
+        GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY}
+        ADMIN_SECRET_KEY: ${ADMIN_SECRET_KEY}
+        ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-travelorai_admin_session_change_me}
+        ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+        ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+        ADMIN_API_URL: ${ADMIN_API_URL:-http://host.containers.internal:4000/api/v1}
+    container_name: travelorai_website
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${WEBSITE_NEXT_PUBLIC_API_URL:-/api/v1}
+      NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID}
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY}
+      ADMIN_SECRET_KEY: ${ADMIN_SECRET_KEY}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-travelorai_admin_session_change_me}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      ADMIN_API_URL: ${ADMIN_API_URL:-http://host.containers.internal:4000/api/v1}
+    ports:
+      - "127.0.0.1:3000:3000"

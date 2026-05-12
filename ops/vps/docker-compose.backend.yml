@@ -1,0 +1,88 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: travelorai_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-travelorai_db}
+      POSTGRES_USER: ${POSTGRES_USER:-travelorai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-travelorai} -d ${POSTGRES_DB:-travelorai_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: travelorai_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: travelorai_backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-travelorai}:${POSTGRES_PASSWORD}@host.containers.internal:5433/${POSTGRES_DB:-travelorai_db}
+      REDIS_URL: redis://host.containers.internal:6380
+      NODE_ENV: production
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  website:
+    build:
+      context: ./website
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${WEBSITE_NEXT_PUBLIC_API_URL:-/api/v1}
+        NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID}
+        NEXTAUTH_URL: ${NEXTAUTH_URL}
+        NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+        ADMIN_EMAIL: ${ADMIN_EMAIL}
+        ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+        GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY}
+    container_name: travelorai_website
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${WEBSITE_NEXT_PUBLIC_API_URL:-/api/v1}
+      NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID}
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
