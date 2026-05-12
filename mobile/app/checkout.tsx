@@ -36,9 +36,11 @@ export default function CheckoutScreen() {
             <Ionicons name="shield-checkmark-outline" size={27} color={colors.success} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontFamily: FONTS.display, fontSize: 22, color: colors.text }}>To'lov keyingi bosqichda ulanadi</Text>
+            <Text style={{ fontFamily: FONTS.display, fontSize: 22, color: colors.text }}>
+              {"To'lov keyingi bosqichda ulanadi"}
+            </Text>
             <Text style={{ fontFamily: FONTS.regular, fontSize: 12, color: colors.textMuted }}>
-              Hozircha booking so'rovlari agency bilan aloqa orqali tasdiqlanadi.
+              {"Hozircha booking so'rovlari agency bilan aloqa orqali tasdiqlanadi."}
             </Text>
           </View>
         </View>
@@ -47,7 +49,7 @@ export default function CheckoutScreen() {
       <StitchCard>
         <Text style={{ fontFamily: FONTS.display, fontSize: 19, color: colors.text }}>Keyingi oqim</Text>
         <Text style={{ fontFamily: FONTS.regular, fontSize: 13, lineHeight: 20, color: colors.textMuted, marginTop: 8 }}>
-          User booking yuboradi, agency kabinetida request ko'rinadi, admin esa statusni nazorat qiladi.
+          {"User booking yuboradi, agency kabinetida request ko'rinadi, admin esa statusni nazorat qiladi."}
           Payment provider tanlangandan keyin bu sahifa real checkoutga ulanadi.
         </Text>
       </StitchCard>

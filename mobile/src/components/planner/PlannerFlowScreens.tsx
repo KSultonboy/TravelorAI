@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FONTS } from '../../constants/fonts';
-import { RADIUS, SPACING } from '../../constants/spacing';
+import { SPACING } from '../../constants/spacing';
 import { type AppColors, useAppTheme } from '../../theme/app-theme';
 import { bookingsAPI } from '../../utils/api';
 import type { HomeTourItem } from '../../utils/homeContent';

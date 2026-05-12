@@ -2,7 +2,7 @@
   "expo": {
     "name": "TravelorAI",
     "slug": "voyageai",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -19,6 +19,7 @@
       "bundleIdentifier": "com.komiljonov.voyageai"
     },
     "android": {
+      "versionCode": 22,
       "adaptiveIcon": {
         "backgroundColor": "#041A0F",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
