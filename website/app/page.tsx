@@ -32,14 +32,25 @@ type LandingData = {
 
 async function getLandingData(): Promise<LandingData> {
   try {
-    const response = await fetch(`${API_URL}/home?limit=8`, {
-      next: { revalidate: 60 },
-    });
-    if (!response.ok) throw new Error("Landing API failed");
-    const payload = await response.json();
+    const [homeResult, heroResult] = await Promise.allSettled([
+      fetch(`${API_URL}/home?limit=8`, {
+        next: { revalidate: 60 },
+      }),
+      fetch(`${API_URL}/home/hero-slides?limit=8`, {
+        next: { revalidate: 60 },
+      }),
+    ]);
+
+    const homeResponse = homeResult.status === "fulfilled" ? homeResult.value : null;
+    const heroResponse = heroResult.status === "fulfilled" ? heroResult.value : null;
+    if (!homeResponse?.ok && !heroResponse?.ok) throw new Error("Landing API failed");
+
+    const payload = homeResponse?.ok ? await homeResponse.json() : {};
+    const heroPayload = heroResponse?.ok ? await heroResponse.json() : {};
     const data = payload?.data || {};
+    const directHeroSlides = Array.isArray(heroPayload?.data?.items) ? heroPayload.data.items : [];
     return {
-      heroSlides: Array.isArray(data.heroSlides) ? data.heroSlides : [],
+      heroSlides: directHeroSlides.length > 0 ? directHeroSlides : Array.isArray(data.heroSlides) ? data.heroSlides : [],
       places: Array.isArray(data.places) ? data.places : [],
       agencies: Array.isArray(data.agencies) ? data.agencies : [],
       stories: Array.isArray(data.stories) ? data.stories : [],
