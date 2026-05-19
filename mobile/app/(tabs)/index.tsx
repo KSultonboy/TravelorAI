@@ -37,6 +37,10 @@ import {
   type PopularPlaceItem,
 } from '../../src/utils/homeContent';
 
+type HeroSlidesPayload = {
+  items?: unknown[];
+};
+
 function firstNameFromUser(user: AuthUser | null) {
   if (!user) return 'Sayohatchi';
   const displayName = getUserDisplayName(user).trim();
@@ -83,12 +87,30 @@ export default function HomeScreen() {
     if (cachedAgencies.length > 0) setHomeAgencies(cachedAgencies);
     if (cachedHeroSlides.length > 0) setHeroSlides(cachedHeroSlides);
 
+    const [homeResult, heroSlidesResult] = await Promise.allSettled([
+      homeAPI.getHome({ limit: 48 }),
+      homeAPI.getHeroSlides({ limit: 8 }),
+    ]);
+
     try {
-      const payload = extractApiData<HomePayload>(await homeAPI.getHome({ limit: 48 })) || {};
-      const nextPlaces = normalizePopularPlaces(payload.places || []);
-      const nextTours = normalizeTours(payload.tours || []);
-      const nextAgencies = normalizeAgencies(payload.agencies || []);
-      const nextHeroSlides = normalizeHeroSlides(payload.heroSlides || []);
+      if (homeResult.status === 'rejected' && heroSlidesResult.status === 'rejected') {
+        throw homeResult.reason || heroSlidesResult.reason;
+      }
+
+      const hasFreshHomePayload = homeResult.status === 'fulfilled';
+      const payload: Partial<HomePayload> =
+        homeResult.status === 'fulfilled'
+          ? extractApiData<HomePayload>(homeResult.value) || {}
+          : {};
+      const heroPayload: HeroSlidesPayload =
+        heroSlidesResult.status === 'fulfilled'
+          ? extractApiData<HeroSlidesPayload>(heroSlidesResult.value) || {}
+          : {};
+      const nextPlaces = hasFreshHomePayload ? normalizePopularPlaces(payload.places || []) : cachedPlaces;
+      const nextTours = hasFreshHomePayload ? normalizeTours(payload.tours || []) : cachedTours;
+      const nextAgencies = hasFreshHomePayload ? normalizeAgencies(payload.agencies || []) : cachedAgencies;
+      const directHeroSlides = normalizeHeroSlides(heroPayload.items || []);
+      const nextHeroSlides = directHeroSlides.length > 0 ? directHeroSlides : normalizeHeroSlides(payload.heroSlides || []);
 
       setPopularPlaces(nextPlaces);
       setHomeTours(nextTours);
