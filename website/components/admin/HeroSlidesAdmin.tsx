@@ -1,7 +1,10 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
+
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ExternalLink, ImagePlus, Loader2, LogOut, Pencil, Plus, Trash2 } from "lucide-react";
+import { publicImageSrc } from "@/lib/imageUrls";
 
 type HeroSlide = {
   id: string;
@@ -43,6 +46,43 @@ const emptyForm: HeroSlideForm = {
   confidenceScore: "0.9",
 };
 
+const MAX_HERO_IMAGE_BYTES = 8 * 1024 * 1024;
+
+function isImageDataUrl(value: string) {
+  return /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(value);
+}
+
+function AdminPreviewImage({ src, alt }: { src: string; alt: string }) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const failed = Boolean(src && failedSrc === src);
+
+  if (!src || failed) {
+    return (
+      <div className="admin-preview__empty">
+        <ImagePlus size={28} />
+        {src ? "Rasm ochilmadi, URL yoki faylni tekshiring" : "Rasm URL kiriting yoki fayl tanlang"}
+      </div>
+    );
+  }
+
+  return <img src={publicImageSrc(src)} alt={alt} onError={() => setFailedSrc(src)} />;
+}
+
+function AdminThumbImage({ src, alt }: { src: string; alt: string }) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const failed = Boolean(src && failedSrc === src);
+
+  if (!src || failed) {
+    return (
+      <div className="admin-list-placeholder">
+        <ImagePlus size={22} />
+      </div>
+    );
+  }
+
+  return <img src={publicImageSrc(src)} alt={alt} onError={() => setFailedSrc(src)} />;
+}
+
 function toForm(item: HeroSlide): HeroSlideForm {
   return {
     title: item.title,
@@ -74,6 +114,14 @@ export default function HeroSlidesAdmin({ username }: { username: string }) {
     setLoading(true);
     setError("");
     try {
+      const healthResponse = await fetch("/api/agency-proxy/health", { cache: "no-store" });
+      const health = await healthResponse.json().catch(() => ({}));
+      if (!healthResponse.ok || health?.db !== "connected") {
+        throw new Error(
+          `Backend DB ulanmagan (db: ${health?.db || "unknown"}, cache: ${health?.cache || "unknown"}).`
+        );
+      }
+
       const response = await fetch("/api/admin-proxy/admin/hero-slides", { cache: "no-store" });
       const payload = await response.json();
       if (!response.ok || !payload.success) throw new Error(payload.message || "Slaydlar yuklanmadi");
@@ -91,6 +139,33 @@ export default function HeroSlidesAdmin({ username }: { username: string }) {
 
   function updateField<K extends keyof HeroSlideForm>(key: K, value: HeroSlideForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function handleImageFile(file: File | null) {
+    setMessage("");
+    setError("");
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Faqat rasm fayl tanlang");
+      return;
+    }
+    if (file.size > MAX_HERO_IMAGE_BYTES) {
+      setError("Rasm hajmi 8 MB dan oshmasin. Kichikroq rasm tanlang yoki URL kiriting.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = typeof reader.result === "string" ? reader.result : "";
+      if (!isImageDataUrl(value)) {
+        setError("Rasm faylini o'qib bo'lmadi");
+        return;
+      }
+      updateField("imageUrl", value);
+      setMessage("Rasm yuklandi. Saqlashni bosing.");
+    };
+    reader.onerror = () => setError("Rasm faylini o'qishda xatolik");
+    reader.readAsDataURL(file);
   }
 
   function resetForm() {
@@ -209,14 +284,7 @@ export default function HeroSlidesAdmin({ username }: { username: string }) {
             </div>
 
             <div className="admin-preview">
-              {form.imageUrl ? (
-                <img src={form.imageUrl} alt={form.title || "Hero preview"} />
-              ) : (
-                <div className="admin-preview__empty">
-                  <ImagePlus size={28} />
-                  Rasm URL kiriting
-                </div>
-              )}
+              <AdminPreviewImage src={form.imageUrl} alt={form.title || "Hero preview"} />
               <div>
                 <span>#{form.sortOrder || 0}</span>
                 <strong>{form.title || "Hero sarlavha"}</strong>
@@ -251,7 +319,16 @@ export default function HeroSlidesAdmin({ username }: { username: string }) {
                   required
                   value={form.imageUrl}
                   onChange={(event) => updateField("imageUrl", event.target.value)}
-                  placeholder="https://..."
+                  placeholder="https://... yoki data:image..."
+                />
+              </label>
+
+              <label>
+                Rasm fayl yuklash
+                <input
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  type="file"
+                  onChange={(event) => handleImageFile(event.target.files?.[0] || null)}
                 />
               </label>
 
@@ -282,7 +359,7 @@ export default function HeroSlidesAdmin({ username }: { username: string }) {
                 <input
                   value={form.actionUrl}
                   onChange={(event) => updateField("actionUrl", event.target.value)}
-                  placeholder="https://travelorai.com/#destinations"
+                  placeholder="https://travelorai.com/#features"
                 />
               </label>
 
@@ -331,7 +408,7 @@ export default function HeroSlidesAdmin({ username }: { username: string }) {
               <div className="admin-slide-list">
                 {items.map((item) => (
                   <article className={item.id === selectedId ? "is-selected" : ""} key={item.id}>
-                    <img src={item.imageUrl} alt={item.title} />
+                    <AdminThumbImage src={item.imageUrl} alt={item.title} />
                     <div>
                       <div className="admin-slide-list__meta">
                         <span>#{item.sortOrder}</span>
@@ -344,7 +421,7 @@ export default function HeroSlidesAdmin({ username }: { username: string }) {
                           <Pencil size={15} />
                           Edit
                         </button>
-                        <a href={item.imageUrl} target="_blank" rel="noreferrer">
+                        <a href={publicImageSrc(item.imageUrl)} target="_blank" rel="noreferrer">
                           <ExternalLink size={15} />
                           Rasm
                         </a>

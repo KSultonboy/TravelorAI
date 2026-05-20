@@ -1,4 +1,5 @@
 const { prisma } = require('../config/database');
+const { logger } = require('../config/logger');
 const { success, error } = require('../utils/response');
 
 const HOME_TYPES = ['landmark', 'restaurant', 'hotel', 'transport'];
@@ -536,20 +537,31 @@ async function recordInteraction(req, res) {
     const source = req.body?.source ? String(req.body.source).slice(0, 80) : 'website';
     const metadata = req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : undefined;
 
-    await prisma.landingInteraction.create({
-      data: {
+    const interactionData = {
+      entityType,
+      entityId,
+      eventType,
+      weight: EVENT_WEIGHTS[eventType],
+      sessionId,
+      userId,
+      source,
+      metadata,
+    };
+
+    try {
+      await prisma.landingInteraction.create({ data: interactionData });
+    } catch (err) {
+      logger.warn('Landing interaction was not stored', {
         entityType,
         entityId,
         eventType,
-        weight: EVENT_WEIGHTS[eventType],
-        sessionId,
-        userId,
-        source,
-        metadata,
-      },
-    });
+        message: err.message,
+      });
 
-    return success(res, { ok: true });
+      return success(res, { ok: true, stored: false }, 202);
+    }
+
+    return success(res, { ok: true, stored: true });
   } catch (err) {
     return error(res, err.message, 500);
   }

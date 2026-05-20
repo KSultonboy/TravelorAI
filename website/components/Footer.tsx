@@ -5,45 +5,45 @@ const FOOTER_COLUMNS = [
   {
     title: "Platform",
     links: [
-      ["AI Trip Planner", "#how"],
-      ["Explore Destinations", "#destinations"],
-      ["Traveler Stories", "#stories"],
-      ["Mobile App", "#"],
+      ["AI Trip Planner", "#about"],
+      ["Explore Destinations", "#features"],
+      ["Traveler Stories", "#about"],
+      ["Mobile App", "#features"],
     ],
   },
   {
     title: "Company",
     links: [
-      ["About Us", "#"],
-      ["Careers", "#"],
-      ["Press", "#"],
-      ["Blog", "#"],
+      ["About Us", "#about"],
+      ["Careers", "#contact"],
+      ["Press", "#contact"],
+      ["Blog", "#about"],
     ],
   },
   {
     title: "Support",
     links: [
-      ["Help Center", "#"],
-      ["Contact Us", "#"],
-      ["Privacy Policy", "#"],
-      ["Terms of Service", "#"],
+      ["Help Center", "#contact"],
+      ["Contact Us", "#contact"],
+      ["Privacy Policy", "#home"],
+      ["Terms of Service", "#home"],
     ],
   },
 ];
 
 const SOCIALS = [
-  { label: "Facebook", icon: Facebook },
-  { label: "Telegram", icon: Send },
-  { label: "Instagram", icon: Instagram },
+  { label: "Facebook", href: "#contact", icon: Facebook },
+  { label: "Telegram", href: "#contact", icon: Send },
+  { label: "Instagram", href: "#contact", icon: Instagram },
 ];
 
 export default function Footer() {
   return (
-    <footer className="lp-footer">
+    <footer id="contact" className="lp-footer">
       <div className="lp-wrap">
         <div className="lp-footer__grid">
           <div className="lp-footer__brand">
-            <Link href="/" className="site-brand">
+            <Link href="#home" className="site-brand">
               <span className="site-brand__mark">
                 <Compass size={16} />
               </span>
@@ -56,8 +56,8 @@ export default function Footer() {
               travel companion, available 24/7.
             </p>
             <div className="lp-footer__socials">
-              {SOCIALS.map(({ label, icon: Icon }) => (
-                <a key={label} href="#" aria-label={label}>
+              {SOCIALS.map(({ label, href, icon: Icon }) => (
+                <a key={label} href={href} aria-label={label}>
                   <Icon size={15} />
                 </a>
               ))}
@@ -80,7 +80,13 @@ export default function Footer() {
 
         <div className="lp-footer__bottom">
           <span>&copy; 2026 TravelorAI. All rights reserved.</span>
-          <span>Privacy · Terms · Cookies</span>
+          <span className="lp-footer__legal">
+            <Link href="#home">Privacy</Link>
+            <span>&middot;</span>
+            <Link href="#home">Terms</Link>
+            <span>&middot;</span>
+            <Link href="#home">Cookies</Link>
+          </span>
         </div>
       </div>
     </footer>

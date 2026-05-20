@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const path = require('path');
 const { loggerMiddleware } = require('./src/middleware/logger.middleware');
 const { rateLimiter } = require('./src/middleware/rateLimit.middleware');
 const routes = require('./src/routes/index');
@@ -282,9 +283,15 @@ if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
 
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') || '*' }));
-app.use(express.json({ limit: '5mb' }));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  fallthrough: false,
+  maxAge: process.env.NODE_ENV === 'production' ? '30d' : 0,
+}));
+app.use(express.json({ limit: '12mb' }));
 app.use(loggerMiddleware);
 
 app.get(['/account-deletion', '/delete-account'], (req, res) => {
