@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Compass, Facebook, Instagram, Send } from "lucide-react";
+import { Compass, Instagram, Youtube } from "lucide-react";
 
 const FOOTER_COLUMNS = [
   {
@@ -32,9 +32,8 @@ const FOOTER_COLUMNS = [
 ];
 
 const SOCIALS = [
-  { label: "Facebook", href: "#contact", icon: Facebook },
-  { label: "Telegram", href: "#contact", icon: Send },
-  { label: "Instagram", href: "#contact", icon: Instagram },
+  { label: "TravelorAI Instagram", href: "https://www.instagram.com/traveloraai/", icon: Instagram },
+  { label: "TravelorAI YouTube", href: "https://www.youtube.com/@TravelorAI", icon: Youtube },
 ];
 
 export default function Footer() {
@@ -57,7 +56,7 @@ export default function Footer() {
             </p>
             <div className="lp-footer__socials">
               {SOCIALS.map(({ label, href, icon: Icon }) => (
-                <a key={label} href={href} aria-label={label}>
+                <a key={label} href={href} aria-label={label} target="_blank" rel="noopener noreferrer">
                   <Icon size={15} />
                 </a>
               ))}
