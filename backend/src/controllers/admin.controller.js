@@ -3,6 +3,9 @@ const { success, error } = require('../utils/response');
 const { adminReviewSchema } = require('../schemas/agency.schema');
 const { bookingStatusSchema } = require('../schemas/booking.schema');
 const { formatBooking } = require('./bookings.controller');
+const crypto = require('crypto');
+const fs = require('fs/promises');
+const path = require('path');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -531,8 +534,124 @@ function formatAdminHeroSlide(item) {
   };
 }
 
+const MAX_HERO_IMAGE_BYTES = 8 * 1024 * 1024;
+const HERO_UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR || path.join(__dirname, '../../uploads'), 'hero');
+const IMAGE_EXTENSION_BY_MIME = {
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+};
+
 function isValidExternalUrl(value) {
   return /^https?:\/\/\S+$/i.test(String(value || '').trim());
+}
+
+function isValidActionUrl(value) {
+  const text = String(value || '').trim();
+  return isValidExternalUrl(text) || text.startsWith('/') || text.startsWith('#');
+}
+
+function isValidImageUrl(value) {
+  const text = String(value || '').trim();
+  if (/^\/uploads\/hero\/[a-z0-9._-]+\.(png|jpe?g|webp|gif)$/i.test(text)) return true;
+  if (isValidExternalUrl(text)) return true;
+  if (text.length > 4_500_000) return false;
+  return /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=]+$/i.test(text);
+}
+
+function getMimeExtension(contentType) {
+  const mime = String(contentType || '').split(';')[0].trim().toLowerCase();
+  return IMAGE_EXTENSION_BY_MIME[mime] || null;
+}
+
+function getExtensionFromUrl(value) {
+  try {
+    const pathname = new URL(value).pathname.toLowerCase();
+    const ext = path.extname(pathname).replace('.', '');
+    if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext)) return ext === 'jpeg' ? 'jpg' : ext;
+  } catch {}
+  return null;
+}
+
+function normalizeRemoteImageUrl(value) {
+  const text = String(value || '').trim();
+  try {
+    const url = new URL(text);
+    const host = url.hostname.toLowerCase();
+
+    if (host === 'drive.google.com') {
+      const fileId = url.pathname.match(/\/file\/d\/([^/]+)/)?.[1] || url.searchParams.get('id');
+      if (fileId) return `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`;
+    }
+
+    if (host.endsWith('dropbox.com')) {
+      url.searchParams.delete('dl');
+      url.searchParams.set('raw', '1');
+      return url.toString();
+    }
+  } catch {}
+  return text;
+}
+
+async function saveHeroImageBuffer(buffer, extension) {
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+    throw new Error('Rasm fayli bo\'sh');
+  }
+  if (buffer.length > MAX_HERO_IMAGE_BYTES) {
+    throw new Error('Hero rasmi 8 MB dan oshmasin');
+  }
+
+  await fs.mkdir(HERO_UPLOAD_DIR, { recursive: true });
+  const hash = crypto.createHash('sha256').update(buffer).digest('hex').slice(0, 18);
+  const filename = `${Date.now()}-${hash}.${extension}`;
+  const diskPath = path.join(HERO_UPLOAD_DIR, filename);
+  await fs.writeFile(diskPath, buffer);
+  return `/uploads/hero/${filename}`;
+}
+
+async function materializeHeroImage(value) {
+  const text = String(value || '').trim();
+  if (!text) return text;
+  if (/^\/uploads\/hero\//i.test(text)) return text;
+
+  const dataMatch = text.match(/^data:image\/(png|jpe?g|webp|gif);base64,([a-z0-9+/=]+)$/i);
+  if (dataMatch) {
+    const extension = dataMatch[1].toLowerCase().replace('jpeg', 'jpg');
+    return saveHeroImageBuffer(Buffer.from(dataMatch[2], 'base64'), extension);
+  }
+
+  if (!isValidExternalUrl(text)) {
+    throw new Error('Rasm URL http/https link yoki rasm fayl bo\'lishi kerak');
+  }
+
+  const remoteUrl = normalizeRemoteImageUrl(text);
+  const response = await fetch(remoteUrl, {
+    headers: {
+      accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      'user-agent': 'TravelorAI/1.0 (+https://travelorai.com)',
+    },
+    redirect: 'follow',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Rasm URL ochilmadi (${response.status})`);
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  const extension = getMimeExtension(contentType) || getExtensionFromUrl(remoteUrl);
+  if (!extension) {
+    throw new Error('Rasm URL bevosita PNG/JPG/WEBP/GIF faylga olib borishi kerak');
+  }
+
+  const contentLength = Number(response.headers.get('content-length') || 0);
+  if (contentLength > MAX_HERO_IMAGE_BYTES) {
+    throw new Error('Hero rasmi 8 MB dan oshmasin');
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return saveHeroImageBuffer(buffer, extension);
 }
 
 function normalizeBoolean(value) {
@@ -586,8 +705,9 @@ async function createHeroSlide(req, res) {
   try {
     const data = normalizeHeroSlideBody(req.body || {});
     if (!data.title || !data.imageUrl) return error(res, 'title va imageUrl majburiy', 400);
-    if (!isValidExternalUrl(data.imageUrl)) return error(res, 'imageUrl http yoki https URL bolishi kerak', 400);
-    if (data.actionUrl && !isValidExternalUrl(data.actionUrl)) return error(res, 'actionUrl http yoki https URL bolishi kerak', 400);
+    data.imageUrl = await materializeHeroImage(data.imageUrl);
+    if (!isValidImageUrl(data.imageUrl)) return error(res, "imageUrl http/https URL yoki data:image bo'lishi kerak", 400);
+    if (data.actionUrl && !isValidActionUrl(data.actionUrl)) return error(res, 'actionUrl http/https, /path yoki #anchor bolishi kerak', 400);
     if (data.sourceUrl && !isValidExternalUrl(data.sourceUrl)) return error(res, 'sourceUrl http yoki https URL bolishi kerak', 400);
 
     const requestedSlug = req.body && req.body.slug ? slugify(req.body.slug) : slugify(data.title);
@@ -607,8 +727,9 @@ async function updateHeroSlide(req, res) {
 
     const data = normalizeHeroSlideBody(req.body || {}, true);
     if (data.title !== undefined && !data.title) return error(res, 'title bosh bolmasligi kerak', 400);
-    if (data.imageUrl !== undefined && !isValidExternalUrl(data.imageUrl)) return error(res, 'imageUrl http yoki https URL bolishi kerak', 400);
-    if (data.actionUrl && !isValidExternalUrl(data.actionUrl)) return error(res, 'actionUrl http yoki https URL bolishi kerak', 400);
+    if (data.imageUrl !== undefined) data.imageUrl = await materializeHeroImage(data.imageUrl);
+    if (data.imageUrl !== undefined && !isValidImageUrl(data.imageUrl)) return error(res, "imageUrl http/https URL yoki data:image bo'lishi kerak", 400);
+    if (data.actionUrl && !isValidActionUrl(data.actionUrl)) return error(res, 'actionUrl http/https, /path yoki #anchor bolishi kerak', 400);
     if (data.sourceUrl && !isValidExternalUrl(data.sourceUrl)) return error(res, 'sourceUrl http yoki https URL bolishi kerak', 400);
 
     if (req.body && req.body.slug) {

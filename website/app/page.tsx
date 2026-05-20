@@ -19,9 +19,33 @@ export const metadata: Metadata = {
   },
 };
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "https://travelorai.com/api/v1").replace(/\/$/, "");
+function normalizeApiUrl(value: string) {
+  return value.replace(/\/$/, "");
+}
+
+function getServerApiUrl() {
+  const configured =
+    process.env.HOME_API_URL ||
+    process.env.ADMIN_API_URL ||
+    process.env.AGENCY_API_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    "";
+
+  if (/^https?:\/\//i.test(configured)) return normalizeApiUrl(configured);
+
+  if (configured.startsWith("/")) {
+    if (process.env.NODE_ENV !== "production") return `http://localhost:4000${configured}`;
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://travelorai.com";
+    return `${normalizeApiUrl(siteUrl)}${configured}`;
+  }
+
+  if (process.env.NODE_ENV !== "production") return "http://localhost:4000/api/v1";
+  if (!process.env.NEXT_PUBLIC_SITE_URL) return "http://localhost:4000/api/v1";
+  return "https://travelorai.com/api/v1";
+}
 
 type LandingData = {
   heroSlides: LandingHeroSlide[];
@@ -32,12 +56,13 @@ type LandingData = {
 
 async function getLandingData(): Promise<LandingData> {
   try {
+    const apiUrl = getServerApiUrl();
     const [homeResult, heroResult] = await Promise.allSettled([
-      fetch(`${API_URL}/home?limit=8`, {
-        next: { revalidate: 60 },
+      fetch(`${apiUrl}/home?limit=8`, {
+        cache: "no-store",
       }),
-      fetch(`${API_URL}/home/hero-slides?limit=8`, {
-        next: { revalidate: 60 },
+      fetch(`${apiUrl}/home/hero-slides?limit=8`, {
+        cache: "no-store",
       }),
     ]);
 

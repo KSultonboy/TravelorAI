@@ -49,6 +49,8 @@ services:
       NODE_ENV: production
     ports:
       - "4000:4000"
+    volumes:
+      - ./backend/uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,6 +69,8 @@ services:
         ADMIN_EMAIL: ${ADMIN_EMAIL}
         ADMIN_PASSWORD: ${ADMIN_PASSWORD}
         GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY}
+        ADMIN_API_URL: ${ADMIN_API_URL:-http://host.containers.internal:4000/api/v1}
+        AGENCY_API_URL: ${AGENCY_API_URL:-http://host.containers.internal:4000/api/v1}
     container_name: travelorai_website
     restart: unless-stopped
     environment:
@@ -78,6 +82,8 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY}
+      ADMIN_API_URL: ${ADMIN_API_URL:-http://host.containers.internal:4000/api/v1}
+      AGENCY_API_URL: ${AGENCY_API_URL:-http://host.containers.internal:4000/api/v1}
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:

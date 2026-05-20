@@ -3,6 +3,10 @@ import "./globals.scss";
 import "../styles/landing-v2.scss";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://travelorai.com";
+const SOCIAL_LINKS = [
+  "https://www.instagram.com/traveloraai/",
+  "https://www.youtube.com/@TravelorAI",
+];
 
 export const viewport: Viewport = {
   themeColor: "#087a56",
@@ -83,6 +87,7 @@ const jsonLd = {
   inLanguage: ["uz", "ru", "en"],
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   author: { "@type": "Organization", name: "TravelorAI", url: BASE_URL },
+  sameAs: SOCIAL_LINKS,
   areaServed: { "@type": "Place", name: "Worldwide" },
 };
 

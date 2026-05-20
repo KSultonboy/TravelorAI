@@ -22,6 +22,14 @@ function getSessionSecret() {
   );
 }
 
+function shouldUseSecureCookie() {
+  if (process.env.ADMIN_COOKIE_SECURE !== undefined) {
+    return process.env.ADMIN_COOKIE_SECURE === "true";
+  }
+
+  return /^https:\/\//i.test(process.env.NEXT_PUBLIC_SITE_URL || "");
+}
+
 function base64url(value: string | Buffer) {
   return Buffer.from(value)
     .toString("base64")
@@ -71,7 +79,7 @@ export async function getAdminSession() {
 export function setAdminSession(response: NextResponse, username: string) {
   response.cookies.set(COOKIE_NAME, createAdminSessionToken(username), {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: shouldUseSecureCookie(),
     sameSite: "lax",
     path: "/",
     maxAge: SESSION_TTL_SECONDS,
@@ -81,7 +89,7 @@ export function setAdminSession(response: NextResponse, username: string) {
 export function clearAdminSession(response: NextResponse) {
   response.cookies.set(COOKIE_NAME, "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: shouldUseSecureCookie(),
     sameSite: "lax",
     path: "/",
     maxAge: 0,

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import {
   ArrowRight,
   BadgeCheck,
@@ -281,7 +281,24 @@ export default function AgencyPortal() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function loadMe(nextToken = token) {
+  const loadTours = useCallback(async (nextToken = token) => {
+    if (!nextToken) return;
+    const result = await api<{ items: Tour[]; total: number }>("/tours", {}, nextToken);
+    if (result.success) setTours(result.data.items);
+  }, [token]);
+
+  const loadBookings = useCallback(async (nextToken = token) => {
+    if (!nextToken) return;
+    const result = await api<{ items: BookingItem[]; total: number; stats?: BookingStats }>("/bookings?status=all", {}, nextToken);
+    if (result.success) {
+      setBookings(result.data.items);
+      if (result.data.stats) {
+        setMe((current) => (current ? { ...current, bookingStats: result.data.stats } : current));
+      }
+    }
+  }, [token]);
+
+  const loadMe = useCallback(async (nextToken = token) => {
     if (!nextToken) return;
     const result = await api<MeData>("/auth/me", {}, nextToken);
     if (!result.success) {
@@ -296,24 +313,7 @@ export default function AgencyPortal() {
     if (result.data.account.status === "approved") {
       await Promise.all([loadTours(nextToken), loadBookings(nextToken)]);
     }
-  }
-
-  async function loadTours(nextToken = token) {
-    if (!nextToken) return;
-    const result = await api<{ items: Tour[]; total: number }>("/tours", {}, nextToken);
-    if (result.success) setTours(result.data.items);
-  }
-
-  async function loadBookings(nextToken = token) {
-    if (!nextToken) return;
-    const result = await api<{ items: BookingItem[]; total: number; stats?: BookingStats }>("/bookings?status=all", {}, nextToken);
-    if (result.success) {
-      setBookings(result.data.items);
-      if (result.data.stats) {
-        setMe((current) => (current ? { ...current, bookingStats: result.data.stats } : current));
-      }
-    }
-  }
+  }, [loadBookings, loadTours, token]);
 
   useEffect(() => {
     const saved = localStorage.getItem(TOKEN_KEY);
@@ -321,7 +321,7 @@ export default function AgencyPortal() {
       setToken(saved);
       loadMe(saved);
     }
-  }, []);
+  }, [loadMe]);
 
   async function handleAuth(event: FormEvent) {
     event.preventDefault();

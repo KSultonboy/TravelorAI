@@ -1,4 +1,11 @@
 require('dotenv').config();
+
+if (process.env.NODE_ENV !== 'production') {
+  process.env.DATABASE_URL ||= 'postgresql://travelorai:travelorai_pass@localhost:5433/travelorai_db';
+  process.env.REDIS_URL ||= 'redis://localhost:6380';
+  process.env.ADMIN_SECRET_KEY ||= 'change_me';
+}
+
 const app = require('./app');
 const { logger } = require('./src/config/logger');
 const { connectRedis } = require('./src/config/redis');

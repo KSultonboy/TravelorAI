@@ -47,6 +47,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-travelorai}:${POSTGRES_PASSWORD}@127.0.0.1:5433/${POSTGRES_DB:-travelorai_db}
       REDIS_URL: redis://127.0.0.1:6380
       NODE_ENV: production
+    volumes:
+      - ./backend/uploads:/app/uploads
     network_mode: host
     depends_on:
       postgres:

@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
+
 import { FormEvent, useEffect, useState } from "react";
 import {
   Building2,
@@ -20,6 +22,7 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
+import { publicImageSrc } from "@/lib/imageUrls";
 
 type SectionKey = "applications" | "tourReviews" | "bookings" | "hero" | "places" | "agencies" | "stories";
 
@@ -270,6 +273,73 @@ const emptyStoryForm: StoryForm = {
   active: true,
 };
 
+const MAX_HERO_IMAGE_BYTES = 8 * 1024 * 1024;
+
+type BackendHealthState = {
+  status: string;
+  db: string;
+  cache: string;
+};
+
+type FetchResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; message: string };
+
+async function fetchApiData<T>(path: string): Promise<FetchResult<T>> {
+  try {
+    const response = await fetch(path, { cache: "no-store" });
+    const rawText = await response.text();
+    const payload = rawText ? JSON.parse(rawText) as { success?: boolean; message?: string; data?: T } : {};
+    if (!response.ok || !payload.success) {
+      return {
+        ok: false,
+        message: payload.message || `${response.status} xatolik`,
+      };
+    }
+    return { ok: true, data: payload.data as T };
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : "Tarmoq xatoligi",
+    };
+  }
+}
+
+function isImageDataUrl(value: string) {
+  return /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(value);
+}
+
+function AdminPreviewImage({ src, alt }: { src: string; alt: string }) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const failed = Boolean(src && failedSrc === src);
+
+  if (!src || failed) {
+    return (
+      <div className="admin-preview__empty">
+        <ImagePlus size={28} />
+        {src ? "Rasm ochilmadi, URL yoki faylni tekshiring" : "Rasm URL kiriting yoki fayl tanlang"}
+      </div>
+    );
+  }
+
+  return <img src={publicImageSrc(src)} alt={alt} onError={() => setFailedSrc(src)} />;
+}
+
+function AdminThumbImage({ src, alt }: { src?: string; alt: string }) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const failed = Boolean(src && failedSrc === src);
+
+  if (!src || failed) {
+    return (
+      <div className="admin-list-placeholder">
+        <Sparkles size={22} />
+      </div>
+    );
+  }
+
+  return <img src={publicImageSrc(src)} alt={alt} onError={() => setFailedSrc(src)} />;
+}
+
 function heroToForm(item: HeroSlide): HeroForm {
   return {
     title: item.title,
@@ -489,6 +559,12 @@ export default function LandingContentAdmin({ username }: { username: string }) 
   const [reviewNote, setReviewNote] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [syncWarnings, setSyncWarnings] = useState<string[]>([]);
+  const [backendHealth, setBackendHealth] = useState<BackendHealthState>({
+    status: "unknown",
+    db: "unknown",
+    cache: "unknown",
+  });
 
   function toggle(section: SectionKey) {
     setOpenSections((current) => ({ ...current, [section]: !current[section] }));
@@ -511,32 +587,56 @@ export default function LandingContentAdmin({ username }: { username: string }) 
   async function loadAll() {
     setLoading(true);
     setError("");
+    setSyncWarnings([]);
     try {
+      const healthResponse = await fetch("/api/agency-proxy/health", { cache: "no-store" });
+      const health = await healthResponse.json().catch(() => ({}));
+      const dbState = health?.db || "unknown";
+      const cacheState = health?.cache || "unknown";
+      setBackendHealth({
+        status: health?.status || (healthResponse.ok ? "ok" : "degraded"),
+        db: dbState,
+        cache: cacheState,
+      });
+
       const [applications, tourReviews, bookings, hero, places, agencies, stories] = await Promise.all([
-        fetch("/api/admin-proxy/admin/agency-applications?status=pending", { cache: "no-store" }).then((res) => res.json()),
-        fetch("/api/admin-proxy/admin/tours?status=pending_review", { cache: "no-store" }).then((res) => res.json()),
-        fetch("/api/admin-proxy/admin/bookings?status=pending", { cache: "no-store" }).then((res) => res.json()),
-        fetch("/api/admin-proxy/admin/hero-slides", { cache: "no-store" }).then((res) => res.json()),
-        fetch("/api/admin-proxy/admin/places?limit=300", { cache: "no-store" }).then((res) => res.json()),
-        fetch("/api/admin-proxy/admin/agencies", { cache: "no-store" }).then((res) => res.json()),
-        fetch("/api/admin-proxy/admin/stories", { cache: "no-store" }).then((res) => res.json()),
+        fetchApiData<{ items: AgencyApplicationItem[] }>("/api/admin-proxy/admin/agency-applications?status=pending"),
+        fetchApiData<{ items: TourReviewItem[] }>("/api/admin-proxy/admin/tours?status=pending_review"),
+        fetchApiData<{ items: BookingItem[] }>("/api/admin-proxy/admin/bookings?status=pending"),
+        fetchApiData<{ items: HeroSlide[] }>("/api/admin-proxy/admin/hero-slides"),
+        fetchApiData<{ items: PlaceItem[] }>("/api/admin-proxy/admin/places?limit=300"),
+        fetchApiData<{ items: AgencyItem[] }>("/api/admin-proxy/admin/agencies"),
+        fetchApiData<{ items: StoryItem[] }>("/api/admin-proxy/admin/stories"),
       ]);
 
-      if (!applications.success) throw new Error(applications.message || "Agency arizalar yuklanmadi");
-      if (!tourReviews.success) throw new Error(tourReviews.message || "Tour reviewlar yuklanmadi");
-      if (!bookings.success) throw new Error(bookings.message || "Bookinglar yuklanmadi");
-      if (!hero.success) throw new Error(hero.message || "Hero slaydlar yuklanmadi");
-      if (!places.success) throw new Error(places.message || "Joylar yuklanmadi");
-      if (!agencies.success) throw new Error(agencies.message || "Agencylar yuklanmadi");
-      if (!stories.success) throw new Error(stories.message || "Stories yuklanmadi");
+      const warnings: string[] = [];
+      const applyList = <T,>(
+        result: FetchResult<{ items: T[] }>,
+        setter: (items: T[]) => void,
+        label: string,
+      ) => {
+        if (result.ok) {
+          setter(Array.isArray(result.data.items) ? result.data.items : []);
+          return;
+        }
+        warnings.push(`${label}: ${result.message}`);
+      };
 
-      setApplicationItems(applications.data.items || []);
-      setTourReviewItems(tourReviews.data.items || []);
-      setBookingItems(bookings.data.items || []);
-      setHeroItems(hero.data.items || []);
-      setPlaceItems(places.data.items || []);
-      setAgencyItems(agencies.data.items || []);
-      setStoryItems(stories.data.items || []);
+      applyList(applications, setApplicationItems, "Agency applications");
+      applyList(tourReviews, setTourReviewItems, "Tour reviews");
+      applyList(bookings, setBookingItems, "Bookinglar");
+      applyList(hero, setHeroItems, "Hero slaydlar");
+      applyList(places, setPlaceItems, "Joylar");
+      applyList(agencies, setAgencyItems, "Agencylar");
+      applyList(stories, setStoryItems, "Stories");
+
+      setSyncWarnings(warnings);
+
+      if (dbState !== "connected") {
+        setError(`Backend DB ulanmagan (db: ${dbState}, cache: ${cacheState}). Avval backend/PostgreSQL ni ishga tushiring.`);
+      } else if (warnings.length > 0) {
+        setError("Ba'zi bo'limlar yuklanmadi. Pastdagi ogohlantirishlarni tekshiring.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ma'lumot yuklanmadi");
     } finally {
@@ -548,19 +648,56 @@ export default function LandingContentAdmin({ username }: { username: string }) 
     loadAll();
   }, []);
 
-  async function request(path: string, method: "POST" | "PUT" | "PATCH" | "DELETE", body?: unknown) {
+  async function request<T>(path: string, method: "POST" | "PUT" | "PATCH" | "DELETE", body?: unknown): Promise<T> {
     const response = await fetch(path, {
       method,
       headers: body ? { "content-type": "application/json" } : undefined,
       body: body ? JSON.stringify(body) : undefined,
     });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || !payload.success) throw new Error(payload.message || "So'rov bajarilmadi");
-    return payload.data;
+    const rawText = await response.text();
+    let payload: { success?: boolean; message?: string; data?: unknown } = {};
+    if (rawText) {
+      try {
+        payload = JSON.parse(rawText) as { success?: boolean; message?: string; data?: unknown };
+      } catch {
+        payload = { success: false, message: rawText.slice(0, 160) || "Noto'g'ri JSON javob" };
+      }
+    }
+    if (!response.ok || !payload.success) {
+      throw new Error(payload.message || `${response.status} xatolik`);
+    }
+    return payload.data as T;
   }
 
   function updateHero<K extends keyof HeroForm>(name: K, value: FormValue) {
     setHeroForm((current) => ({ ...current, [name]: value }));
+  }
+
+  function handleHeroImageFile(file: File | null) {
+    setMessage("");
+    setError("");
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Faqat rasm fayl tanlang");
+      return;
+    }
+    if (file.size > MAX_HERO_IMAGE_BYTES) {
+      setError("Rasm hajmi 8 MB dan oshmasin. Kichikroq rasm tanlang yoki URL kiriting.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = typeof reader.result === "string" ? reader.result : "";
+      if (!isImageDataUrl(value)) {
+        setError("Rasm faylini o'qib bo'lmadi");
+        return;
+      }
+      updateHero("imageUrl", value);
+      setMessage("Hero rasmi yuklandi. Saqlashni bosing.");
+    };
+    reader.onerror = () => setError("Rasm faylini o'qishda xatolik");
+    reader.readAsDataURL(file);
   }
 
   function updatePlace<K extends keyof PlaceForm>(name: K, value: FormValue) {
@@ -600,7 +737,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
     setMessage("");
     setError("");
     try {
-      const data = await request(
+      const data = await request<HeroSlide>(
         selectedHero
           ? `/api/admin-proxy/admin/hero-slides/${encodeURIComponent(selectedHero)}`
           : "/api/admin-proxy/admin/hero-slides",
@@ -628,7 +765,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
     setMessage("");
     setError("");
     try {
-      const data = await request(
+      const data = await request<PlaceItem>(
         selectedPlace ? `/api/admin-proxy/admin/places/${encodeURIComponent(selectedPlace)}` : "/api/admin-proxy/admin/places",
         selectedPlace ? "PUT" : "POST",
         {
@@ -663,7 +800,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
     setMessage("");
     setError("");
     try {
-      const data = await request(
+      const data = await request<AgencyItem>(
         selectedAgency
           ? `/api/admin-proxy/admin/agencies/${encodeURIComponent(selectedAgency)}`
           : "/api/admin-proxy/admin/agencies",
@@ -695,7 +832,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
     setMessage("");
     setError("");
     try {
-      const data = await request(
+      const data = await request<StoryItem>(
         selectedStory ? `/api/admin-proxy/admin/stories/${encodeURIComponent(selectedStory)}` : "/api/admin-proxy/admin/stories",
         selectedStory ? "PUT" : "POST",
         {
@@ -907,6 +1044,16 @@ export default function LandingContentAdmin({ username }: { username: string }) 
             {error || message}
           </div>
         )}
+        {!loading && (
+          <div className="admin-alert">
+            Backend holati: db <strong>{backendHealth.db}</strong>, cache <strong>{backendHealth.cache}</strong>
+          </div>
+        )}
+        {!loading && syncWarnings.length > 0 && (
+          <div className="admin-alert admin-alert--error">
+            {syncWarnings.join(" | ")}
+          </div>
+        )}
 
         {loading ? (
           <div className="admin-loading admin-loading--page">
@@ -985,7 +1132,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
                   {tourReviewItems.length === 0 ? <div className="admin-empty">Review kutilayotgan tour yo&apos;q.</div> : null}
                   {tourReviewItems.map((item) => (
                     <article className="admin-review-card" key={item.id}>
-                      {item.imageUrl ? <img src={item.imageUrl} alt={item.title} /> : null}
+                      {item.imageUrl ? <img src={publicImageSrc(item.imageUrl)} alt={item.title} /> : null}
                       <div>
                         <span className="admin-status-pill">{item.approvalStatus}</span>
                         <h3>{item.title}</h3>
@@ -1070,7 +1217,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
                     </button>
                   </div>
                   <div className="admin-preview">
-                    {heroForm.imageUrl ? <img src={heroForm.imageUrl} alt={heroForm.title || "Hero preview"} /> : null}
+                    <AdminPreviewImage src={heroForm.imageUrl} alt={heroForm.title || "Hero preview"} />
                     <div>
                       <span>#{heroForm.sortOrder || 0}</span>
                       <strong>{heroForm.title || "Hero sarlavha"}</strong>
@@ -1081,6 +1228,14 @@ export default function LandingContentAdmin({ username }: { username: string }) 
                     <FormInput form={heroForm} name="title" label="Sarlavha" required onChange={updateHero} />
                     <FormTextarea form={heroForm} name="subtitle" label="Subtitle" onChange={updateHero} />
                     <FormInput form={heroForm} name="imageUrl" label="Rasm URL" required onChange={updateHero} />
+                    <label>
+                      Rasm fayl yuklash
+                      <input
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        type="file"
+                        onChange={(event) => handleHeroImageFile(event.target.files?.[0] || null)}
+                      />
+                    </label>
                     <div className="admin-form__row">
                       <FormInput form={heroForm} name="sortOrder" label="Tartib" type="number" onChange={updateHero} />
                       <FormInput form={heroForm} name="confidenceScore" label="Ishonchlilik" type="number" onChange={updateHero} />
@@ -1333,13 +1488,7 @@ function ContentList({
     <div className="admin-slide-list">
       {items.map((item) => (
         <article className={item.selected ? "is-selected" : ""} key={item.id}>
-          {item.imageUrl ? (
-            <img src={item.imageUrl} alt={item.title} />
-          ) : (
-            <div className="admin-list-placeholder">
-              <Sparkles size={22} />
-            </div>
-          )}
+          <AdminThumbImage src={item.imageUrl} alt={item.title} />
           <div>
             <div className="admin-slide-list__meta">
               <span>{item.meta}</span>
@@ -1352,7 +1501,7 @@ function ContentList({
                 Edit
               </button>
               {item.imageUrl ? (
-                <a href={item.imageUrl} target="_blank" rel="noreferrer">
+                <a href={publicImageSrc(item.imageUrl)} target="_blank" rel="noreferrer">
                   <ExternalLink size={15} />
                   Rasm
                 </a>
