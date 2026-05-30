@@ -17,7 +17,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import AiSpark from '../../src/components/AiSpark';
+import LottieAnim from '../../src/components/LottieAnim';
 import { FONTS } from '../../src/constants/fonts';
 import { RADIUS, SPACING } from '../../src/constants/spacing';
 import { primaryGlow } from '../../src/constants/effects';
@@ -1188,7 +1188,7 @@ export default function PlannerScreen() {
       {loading && (
         <View style={styles.loadingOverlay}>
           <View style={styles.loadingCard}>
-            <AiSpark size={46} glow animated />
+            <LottieAnim name="ai-loading" size={96} />
             <Text style={styles.loadingTitle}>{tt('planner.loadingTitle', 'Creating AI trip plan')}</Text>
             <Text style={styles.loadingStage}>{analysisStages[loadingStageIndex] || analysisStages[0]}</Text>
             <Text style={styles.loadingSub}>

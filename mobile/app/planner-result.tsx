@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 
 import BudgetBreakdownChart from '../src/components/BudgetBreakdownChart';
 import DayItineraryCard from '../src/components/DayItineraryCard';
+import LottieAnim from '../src/components/LottieAnim';
 import { FONTS } from '../src/constants/fonts';
 import { RADIUS, SPACING } from '../src/constants/spacing';
 import { primaryGlow } from '../src/constants/effects';
@@ -115,6 +116,7 @@ export default function PlanResultScreen() {
   const { saveTrip } = useTrips(userId);
   const [plan, setPlan] = useState<TripPlan | null>(null);
   const [saving, setSaving] = useState(false);
+  const [savedOk, setSavedOk] = useState(false);
   const [showConfetti, setShowConfetti] = useState(true);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const firstPlanLoaded = useRef(false);
@@ -178,14 +180,19 @@ export default function PlanResultScreen() {
     const result = await saveTrip(plan);
     setSaving(false);
 
-    const message =
-      result.syncStatus === 'pending'
-        ? t('plannerResult.savedPendingMsg', {
-            defaultValue: "Trip saqlandi. Internet qaytgach server bilan sinxronlanadi.",
-          })
-        : t('plannerResult.savedMsg');
+    if (result.syncStatus === 'pending') {
+      Alert.alert(
+        t('plannerResult.saved'),
+        t('plannerResult.savedPendingMsg', {
+          defaultValue: "Trip saqlandi. Internet qaytgach server bilan sinxronlanadi.",
+        }),
+        [{ text: t('common.ok'), onPress: () => router.push('/(tabs)/planner') }]
+      );
+      return;
+    }
 
-    Alert.alert(t('plannerResult.saved'), message, [{ text: t('common.ok'), onPress: () => router.push('/(tabs)/planner') }]);
+    setSavedOk(true);
+    setTimeout(() => router.push('/(tabs)/planner'), 1700);
   };
 
   if (!plan) {
@@ -369,6 +376,13 @@ export default function PlanResultScreen() {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+
+      {savedOk && (
+        <View style={styles.savedOverlay}>
+          <LottieAnim name="success" size={150} loop={false} />
+          <Text style={styles.savedText}>{t('plannerResult.saved')}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -496,5 +510,12 @@ function createStyles(colors: AppColors) {
       justifyContent: 'center',
     },
     saveBtnTxt: { fontFamily: FONTS.semibold, fontSize: 15, color: colors.onGradient },
+    savedOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: colors.overlay,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    savedText: { fontFamily: FONTS.semibold, fontSize: 18, color: colors.textInverse, marginTop: SPACING.sm },
   });
 }
