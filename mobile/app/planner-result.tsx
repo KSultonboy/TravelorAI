@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Alert, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -8,6 +9,7 @@ import BudgetBreakdownChart from '../src/components/BudgetBreakdownChart';
 import DayItineraryCard from '../src/components/DayItineraryCard';
 import { FONTS } from '../src/constants/fonts';
 import { RADIUS, SPACING } from '../src/constants/spacing';
+import { primaryGlow } from '../src/constants/effects';
 import { type AppColors, useAppTheme } from '../src/theme/app-theme';
 import { useTrips } from '../src/hooks/useTrips';
 import { type AuthUser } from '../src/utils/auth';
@@ -15,7 +17,7 @@ import { formatSum } from '../src/utils/formatter';
 import { KEYS, getItem, getJSON } from '../src/utils/storage';
 import type { TransportLeg, TripPlan } from '../src/utils/tripPlanner';
 
-const CONFETTI_COLORS = ['#1A6B3C', '#C8933A', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'];
+const CONFETTI_COLORS = ['#56E0D8', '#2D9CDB', '#F2D6A2', '#5BB4E5', '#3DD9A0', '#F2C14E'];
 const PLAN_REFRESH_INTERVAL_MS = 1500;
 
 function Confetti() {
@@ -352,12 +354,19 @@ export default function PlanResultScreen() {
         <TouchableOpacity style={styles.outlineBtn} onPress={() => router.back()} activeOpacity={0.75}>
           <Text style={styles.outlineBtnTxt}>{t('common.cancel', { defaultValue: 'Bekor' })}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving} activeOpacity={0.85}>
-          <Text style={styles.saveBtnTxt}>
-            {saving
-              ? t('plannerResult.saving', { defaultValue: 'Saqlanmoqda...' })
-              : t('common.save', { defaultValue: 'Saqlash' })}
-          </Text>
+        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving} activeOpacity={0.9}>
+          <LinearGradient
+            colors={colors.gradientPrimary as unknown as [string, string]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.saveBtnFill}
+          >
+            <Text style={styles.saveBtnTxt}>
+              {saving
+                ? t('plannerResult.saving', { defaultValue: 'Saqlanmoqda...' })
+                : t('common.save', { defaultValue: 'Saqlash' })}
+            </Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </View>
@@ -478,15 +487,14 @@ function createStyles(colors: AppColors) {
       flex: 2,
       height: 52,
       borderRadius: RADIUS.full,
-      backgroundColor: colors.primary,
+      overflow: 'hidden',
+      ...primaryGlow(colors),
+    },
+    saveBtnFill: {
+      flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      shadowColor: colors.primary,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 4,
     },
-    saveBtnTxt: { fontFamily: FONTS.semibold, fontSize: 15, color: '#fff' },
+    saveBtnTxt: { fontFamily: FONTS.semibold, fontSize: 15, color: colors.onGradient },
   });
 }

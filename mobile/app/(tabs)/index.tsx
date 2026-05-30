@@ -11,11 +11,14 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import AiSpark from '../../src/components/AiSpark';
 import { FONTS } from '../../src/constants/fonts';
 import { RADIUS, SPACING } from '../../src/constants/spacing';
+import { primaryGlow } from '../../src/constants/effects';
 import { type AppColors, useAppTheme } from '../../src/theme/app-theme';
 import { extractApiData, getUserDisplayName, type AuthUser } from '../../src/utils/auth';
 import { homeAPI } from '../../src/utils/api';
@@ -311,6 +314,30 @@ export default function HomeScreen() {
           </Animated.View>
       </Animated.View>
 
+      <TouchableOpacity
+        activeOpacity={0.9}
+        style={styles.aiCtaWrap}
+        onPress={() => router.push('/(tabs)/planner' as any)}
+      >
+        <LinearGradient
+          colors={colors.gradientPrimary as unknown as [string, string]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.aiCta}
+        >
+          <View style={styles.aiCtaSpark}>
+            <AiSpark size={34} glow animated />
+          </View>
+          <View style={styles.aiCtaCopy}>
+            <Text style={styles.aiCtaTitle}>AI bilan sayohat rejasi</Text>
+            <Text style={styles.aiCtaSub}>Byudjet va qiziqishlaringizga mos reja — bir necha soniyada</Text>
+          </View>
+          <View style={styles.aiCtaArrow}>
+            <Ionicons name="arrow-forward" size={18} color={colors.onGradient} />
+          </View>
+        </LinearGradient>
+      </TouchableOpacity>
+
       <View style={styles.section}>
         <SectionHeader title="Joylarni filterlash" action="View all" onPress={() => router.push('/home-places' as any)} styles={styles} />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
@@ -598,7 +625,49 @@ function createStyles(colors: AppColors) {
       borderRadius: 21,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.success,
+      backgroundColor: colors.primary,
+    },
+    aiCtaWrap: {
+      marginHorizontal: SPACING.lg,
+      marginBottom: SPACING.xl,
+      borderRadius: RADIUS.card,
+      ...primaryGlow(colors),
+    },
+    aiCta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: RADIUS.card,
+      paddingVertical: SPACING.lg,
+      paddingHorizontal: SPACING.lg,
+      gap: SPACING.md,
+    },
+    aiCtaSpark: {
+      width: 44,
+      height: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    aiCtaCopy: { flex: 1 },
+    aiCtaTitle: {
+      fontFamily: FONTS.display,
+      fontSize: 17,
+      color: colors.onGradient,
+    },
+    aiCtaSub: {
+      fontFamily: FONTS.regular,
+      fontSize: 12.5,
+      color: colors.onGradient,
+      opacity: 0.82,
+      marginTop: 2,
+      lineHeight: 17,
+    },
+    aiCtaArrow: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: 'rgba(255,255,255,0.28)',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     heroDots: {
       flexDirection: 'row',
@@ -630,7 +699,7 @@ function createStyles(colors: AppColors) {
       fontSize: 22,
       color: colors.text,
     },
-    seeAll: { fontFamily: FONTS.semibold, fontSize: 12, color: colors.success },
+    seeAll: { fontFamily: FONTS.semibold, fontSize: 12, color: colors.primary },
     filterRow: {
       paddingLeft: SPACING.lg,
       paddingRight: SPACING.lg,

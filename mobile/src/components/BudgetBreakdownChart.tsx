@@ -16,11 +16,11 @@ interface Breakdown {
 }
 
 const SEGMENTS = [
-  { key: 'transport' as keyof Breakdown, i18nKey: 'plannerResult.transport', fallback: 'Transport', icon: '🚆', color: '#3B82F6', percent: 18 },
-  { key: 'accommodation' as keyof Breakdown, i18nKey: 'plannerResult.accommodation', fallback: 'Accommodation', icon: '🏨', color: '#8B5CF6', percent: 32 },
-  { key: 'food' as keyof Breakdown, i18nKey: 'plannerResult.food', fallback: 'Food', icon: '🍽️', color: '#F59E0B', percent: 27 },
-  { key: 'attractions' as keyof Breakdown, i18nKey: 'plannerResult.attractions', fallback: 'Attractions', icon: '🏛️', color: '#10B981', percent: 18 },
-  { key: 'misc' as keyof Breakdown, i18nKey: 'plannerResult.misc', fallback: 'Misc', icon: '💰', color: '#6B7280', percent: 5 },
+  { key: 'transport' as keyof Breakdown, i18nKey: 'plannerResult.transport', fallback: 'Transport', icon: '🚆', color: '#2D9CDB', percent: 18 },
+  { key: 'accommodation' as keyof Breakdown, i18nKey: 'plannerResult.accommodation', fallback: 'Accommodation', icon: '🏨', color: '#56E0D8', percent: 32 },
+  { key: 'food' as keyof Breakdown, i18nKey: 'plannerResult.food', fallback: 'Food', icon: '🍽️', color: '#F2D6A2', percent: 27 },
+  { key: 'attractions' as keyof Breakdown, i18nKey: 'plannerResult.attractions', fallback: 'Attractions', icon: '🏛️', color: '#3DD9A0', percent: 18 },
+  { key: 'misc' as keyof Breakdown, i18nKey: 'plannerResult.misc', fallback: 'Misc', icon: '💰', color: '#94A9B8', percent: 5 },
 ];
 
 export default function BudgetBreakdownChart({ breakdown, total }: { breakdown: Breakdown; total: number }) {

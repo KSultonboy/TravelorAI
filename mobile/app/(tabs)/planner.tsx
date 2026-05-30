@@ -12,12 +12,15 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import AiSpark from '../../src/components/AiSpark';
 import { FONTS } from '../../src/constants/fonts';
 import { RADIUS, SPACING } from '../../src/constants/spacing';
+import { primaryGlow } from '../../src/constants/effects';
 import { type AppColors, useAppTheme } from '../../src/theme/app-theme';
 import { citiesAPI, destinationsAPI, homeAPI, plannerAPI, poiAPI, type PoiPayload } from '../../src/utils/api';
 import { extractApiData } from '../../src/utils/auth';
@@ -1173,7 +1176,11 @@ export default function PlannerScreen() {
           </ScrollView>
           <View style={[styles.footer, { paddingBottom: safeBottom + 104 }]}>
             {step > 0 ? <TouchableOpacity style={styles.outlineBtn} onPress={onBack}><Text style={styles.outlineBtnTxt}>{t('planner.back')}</Text></TouchableOpacity> : null}
-            <TouchableOpacity style={[styles.primaryBtn, step === 0 && styles.full]} onPress={step < steps.length - 1 ? onNext : onGenerate} disabled={loading}><Text style={styles.primaryBtnTxt}>{step < steps.length - 1 ? t('planner.next') : loading ? t('planner.generating') : tt('planner.generateBtn', 'AI Reja yaratish')}</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.primaryBtn, step === 0 && styles.full]} onPress={step < steps.length - 1 ? onNext : onGenerate} disabled={loading} activeOpacity={0.9}>
+              <LinearGradient colors={colors.gradientPrimary as unknown as [string, string]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtnFill}>
+                <Text style={styles.primaryBtnTxt}>{step < steps.length - 1 ? t('planner.next') : loading ? t('planner.generating') : tt('planner.generateBtn', 'AI Reja yaratish')}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
         </>
       )}
@@ -1181,7 +1188,7 @@ export default function PlannerScreen() {
       {loading && (
         <View style={styles.loadingOverlay}>
           <View style={styles.loadingCard}>
-            <ActivityIndicator size="large" color={colors.primary} />
+            <AiSpark size={46} glow animated />
             <Text style={styles.loadingTitle}>{tt('planner.loadingTitle', 'Creating AI trip plan')}</Text>
             <Text style={styles.loadingStage}>{analysisStages[loadingStageIndex] || analysisStages[0]}</Text>
             <Text style={styles.loadingSub}>
@@ -1601,7 +1608,7 @@ function createStyles(colors: AppColors) {
     heroMetricValue: { fontFamily: FONTS.semibold, fontSize: 13, color: colors.textInverse },
     heroMetricLabel: { marginTop: 3, fontFamily: FONTS.regular, fontSize: 10, color: 'rgba(255,255,255,0.62)' },
     progressTrack: { height: 6, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: RADIUS.full, overflow: 'hidden' },
-    progressFill: { height: 6, backgroundColor: colors.success, borderRadius: RADIUS.full },
+    progressFill: { height: 6, backgroundColor: colors.aiAccent, borderRadius: RADIUS.full },
     stepRail: { flexDirection: 'row', gap: SPACING.sm, paddingHorizontal: SPACING.lg, marginBottom: SPACING.md },
     stepDot: {
       flex: 1,
@@ -1699,8 +1706,9 @@ function createStyles(colors: AppColors) {
       shadowRadius: 22,
       elevation: 12,
     },
-    primaryBtn: { flex: 2, height: 52, borderRadius: RADIUS.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-    primaryBtnTxt: { fontFamily: FONTS.semibold, fontSize: 15, color: '#fff' },
+    primaryBtn: { flex: 2, height: 52, borderRadius: RADIUS.button, overflow: 'hidden', ...primaryGlow(colors) },
+    primaryBtnFill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    primaryBtnTxt: { fontFamily: FONTS.semibold, fontSize: 15, color: colors.onGradient },
     outlineBtn: { flex: 1, height: 52, borderRadius: RADIUS.md, backgroundColor: colors.primaryPale, alignItems: 'center', justifyContent: 'center' },
     outlineBtnTxt: { fontFamily: FONTS.semibold, fontSize: 14, color: colors.primary },
     full: { flex: 1 },

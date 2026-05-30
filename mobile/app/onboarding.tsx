@@ -1,12 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Dimensions, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
+import Button from '../src/components/Button';
 import { FONTS } from '../src/constants/fonts';
 import { RADIUS, SPACING } from '../src/constants/spacing';
+import { aiGlowShadow } from '../src/constants/effects';
 import { LANGUAGE_OPTIONS, type Language } from '../src/i18n';
 import { type AppColors, useAppTheme } from '../src/theme/app-theme';
 import { KEYS, saveItem } from '../src/utils/storage';
@@ -130,70 +133,77 @@ export default function Onboarding() {
   const showSkip = current < slides.length - 1;
 
   return (
-    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      <FlatList
-        ref={flatRef}
-        data={slides}
-        horizontal
-        pagingEnabled
-        scrollEnabled={false}
-        showsHorizontalScrollIndicator={false}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.slide}>
-            <View style={styles.iconWrap}>
-              <Ionicons name={item.icon as any} size={58} color={colors.primary} />
+    <LinearGradient colors={[colors.background, colors.backgroundAccent, colors.background]} style={styles.fill}>
+      <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+        <FlatList
+          ref={flatRef}
+          data={slides}
+          horizontal
+          pagingEnabled
+          scrollEnabled={false}
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <View style={styles.slide}>
+              <View style={styles.iconWrap}>
+                <View style={styles.iconGlow} />
+                <Ionicons name={item.icon as any} size={56} color={colors.aiAccent} />
+              </View>
+              <Text style={styles.title}>{item.title}</Text>
+              <Text style={styles.desc}>{item.desc}</Text>
             </View>
-            <Text style={styles.title}>{item.title}</Text>
-            <Text style={styles.desc}>{item.desc}</Text>
-          </View>
-        )}
-      />
+          )}
+        />
 
-      <View style={styles.dots}>
-        {slides.map((_, index) => (
-          <View key={index} style={[styles.dot, index === current && styles.dotActive]} />
-        ))}
-      </View>
+        <View style={styles.dots}>
+          {slides.map((_, index) => (
+            <View key={index} style={[styles.dot, index === current && styles.dotActive]} />
+          ))}
+        </View>
 
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) + 20 }]}>
-        <TouchableOpacity onPress={next} style={styles.nextBtn} activeOpacity={0.85}>
-          <Text style={styles.nextText}>{current === slides.length - 1 ? t('onboarding.start') : t('onboarding.next')}</Text>
-        </TouchableOpacity>
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) + 20 }]}>
+          <Button
+            title={current === slides.length - 1 ? t('onboarding.start') : t('onboarding.next')}
+            onPress={next}
+            variant="primary"
+            size="lg"
+          />
 
-        <View style={styles.bottomRow}>
-          {showSkip ? (
-            <TouchableOpacity onPress={() => void finish()} style={styles.skipBtn} activeOpacity={0.82}>
-              <Text style={styles.skipText}>{t('onboarding.skip')}</Text>
-            </TouchableOpacity>
-          ) : null}
+          <View style={styles.bottomRow}>
+            {showSkip ? (
+              <TouchableOpacity onPress={() => void finish()} style={styles.skipBtn} activeOpacity={0.82}>
+                <Text style={styles.skipText}>{t('onboarding.skip')}</Text>
+              </TouchableOpacity>
+            ) : null}
 
-          <View style={[styles.languageGroup, !showSkip && styles.languageGroupFull]}>
-            {LANGUAGE_OPTIONS.map((option) => {
-              const active = option.key === language;
-              return (
-                <TouchableOpacity
-                  key={option.key}
-                  style={[styles.languageChip, active && styles.languageChipActive]}
-                  onPress={() => void handleLanguageChange(option.key)}
-                  activeOpacity={0.82}
-                >
-                  <Text style={[styles.languageText, active && styles.languageTextActive]}>
-                    {option.key.toUpperCase()}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+            <View style={[styles.languageGroup, !showSkip && styles.languageGroupFull]}>
+              {LANGUAGE_OPTIONS.map((option) => {
+                const active = option.key === language;
+                return (
+                  <TouchableOpacity
+                    key={option.key}
+                    style={[styles.languageChip, active && styles.languageChipActive]}
+                    onPress={() => void handleLanguageChange(option.key)}
+                    activeOpacity={0.82}
+                  >
+                    <Text style={[styles.languageText, active && styles.languageTextActive]}>
+                      {option.key.toUpperCase()}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         </View>
-      </View>
-    </Animated.View>
+      </Animated.View>
+    </LinearGradient>
   );
 }
 
 function createStyles(colors: AppColors) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.surface },
+    fill: { flex: 1 },
+    container: { flex: 1 },
     slide: {
       width,
       flex: 1,
@@ -203,17 +213,27 @@ function createStyles(colors: AppColors) {
       paddingBottom: 120,
     },
     iconWrap: {
-      width: 120,
-      height: 120,
+      width: 132,
+      height: 132,
       borderRadius: RADIUS.full,
-      backgroundColor: colors.primaryPale,
+      backgroundColor: colors.aiAccentPale,
+      borderWidth: 1,
+      borderColor: colors.aiAccent,
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: SPACING.xxl,
+      ...aiGlowShadow(colors),
+    },
+    iconGlow: {
+      position: 'absolute',
+      width: 100,
+      height: 100,
+      borderRadius: RADIUS.full,
+      backgroundColor: colors.aiGlow,
     },
     title: {
       fontFamily: FONTS.display,
-      fontSize: 26,
+      fontSize: 27,
       color: colors.text,
       textAlign: 'center',
       marginBottom: SPACING.lg,
@@ -235,27 +255,15 @@ function createStyles(colors: AppColors) {
       width: 8,
       height: 8,
       borderRadius: RADIUS.full,
-      backgroundColor: colors.borderLight,
+      backgroundColor: colors.border,
     },
     dotActive: {
       width: 24,
-      backgroundColor: colors.primary,
+      backgroundColor: colors.aiAccent,
     },
     footer: {
       paddingHorizontal: SPACING.xl,
       gap: SPACING.md,
-    },
-    nextBtn: {
-      backgroundColor: colors.primary,
-      paddingVertical: SPACING.md,
-      borderRadius: RADIUS.md,
-      width: '100%',
-      alignItems: 'center',
-    },
-    nextText: {
-      fontFamily: FONTS.semibold,
-      fontSize: 16,
-      color: colors.textInverse,
     },
     bottomRow: {
       width: '100%',
@@ -302,7 +310,7 @@ function createStyles(colors: AppColors) {
       paddingVertical: 8,
     },
     languageChipActive: {
-      backgroundColor: colors.primaryPale,
+      backgroundColor: colors.aiAccentPale,
     },
     languageText: {
       fontFamily: FONTS.semibold,
@@ -310,7 +318,7 @@ function createStyles(colors: AppColors) {
       color: colors.textMuted,
     },
     languageTextActive: {
-      color: colors.primary,
+      color: colors.aiAccent,
     },
   });
 }
