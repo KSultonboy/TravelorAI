@@ -3,9 +3,7 @@
     "name": "TravelorAI",
     "slug": "voyageai",
     "version": "1.0.7",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.7",
     "updates": {
       "url": "https://u.expo.dev/8e00aa9e-3ccd-42b8-80c3-3d221c05d2b6"
     },
