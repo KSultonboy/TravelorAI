@@ -4,9 +4,9 @@ import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider } from '@react-navigation/native';
 import {
   useFonts,
-  PlusJakartaSans_600SemiBold,
-  PlusJakartaSans_700Bold,
-} from '@expo-google-fonts/plus-jakarta-sans';
+  SpaceGrotesk_600SemiBold,
+  SpaceGrotesk_700Bold,
+} from '@expo-google-fonts/space-grotesk';
 import { Inter_400Regular, Inter_600SemiBold } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
 import 'react-native-reanimated';
@@ -24,8 +24,8 @@ export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_600SemiBold,
-    PlusJakartaSans_600SemiBold,
-    PlusJakartaSans_700Bold,
+    SpaceGrotesk_600SemiBold,
+    SpaceGrotesk_700Bold,
   });
 
   useEffect(() => {
@@ -80,8 +80,8 @@ function RootNavigator() {
         fonts: {
           regular: { fontFamily: 'Inter_400Regular', fontWeight: '400' },
           medium: { fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
-          bold: { fontFamily: 'PlusJakartaSans_700Bold', fontWeight: '700' },
-          heavy: { fontFamily: 'PlusJakartaSans_700Bold', fontWeight: '700' },
+          bold: { fontFamily: 'SpaceGrotesk_700Bold', fontWeight: '700' },
+          heavy: { fontFamily: 'SpaceGrotesk_700Bold', fontWeight: '700' },
         },
       }}
     >
