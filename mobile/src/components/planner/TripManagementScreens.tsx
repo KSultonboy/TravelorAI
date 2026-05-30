@@ -756,14 +756,14 @@ function OptionRow({
   const { colors, styles } = usePlannerStyles();
   return (
     <TouchableOpacity style={[styles.optionRow, dark && styles.optionRowDark]} onPress={onPress} activeOpacity={0.86}>
-      <View style={[styles.optionIcon, dark && { backgroundColor: 'rgba(255,255,255,0.14)' }]}>
-        <Ionicons name={icon} size={19} color={dark ? colors.textInverse : colors.success} />
+      <View style={[styles.optionIcon, dark && { backgroundColor: 'rgba(4,18,30,0.16)' }]}>
+        <Ionicons name={icon} size={19} color={dark ? colors.onGradient : colors.success} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.optionRowTitle, dark && { color: colors.textInverse }]}>{title}</Text>
-        <Text style={[styles.optionRowSub, dark && { color: 'rgba(255,255,255,0.68)' }]}>{subtitle}</Text>
+        <Text style={[styles.optionRowTitle, dark && { color: colors.onGradient }]}>{title}</Text>
+        <Text style={[styles.optionRowSub, dark && { color: 'rgba(4,18,30,0.72)' }]}>{subtitle}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={dark ? colors.textInverse : colors.textMuted} />
+      <Ionicons name="chevron-forward" size={18} color={dark ? colors.onGradient : colors.textMuted} />
     </TouchableOpacity>
   );
 }
@@ -1366,7 +1366,7 @@ function createStyles(colors: AppColors) {
     iconButtonGhost: { width: 40, height: 40 },
     heroCard: {
       borderRadius: 30,
-      backgroundColor: '#050814',
+      backgroundColor: colors.primaryDark,
       padding: SPACING.xl,
       gap: SPACING.lg,
       overflow: 'hidden',
@@ -1519,7 +1519,7 @@ function createStyles(colors: AppColors) {
       width: 56,
       height: 56,
       borderRadius: 28,
-      backgroundColor: '#050814',
+      backgroundColor: colors.primaryDark,
       alignItems: 'center',
       justifyContent: 'center',
       shadowColor: colors.shadow,
@@ -1531,7 +1531,7 @@ function createStyles(colors: AppColors) {
     optionHero: {
       margin: SPACING.lg,
       borderRadius: 28,
-      backgroundColor: '#050814',
+      backgroundColor: colors.primaryDark,
       padding: SPACING.xl,
     },
     optionTitle: { fontFamily: FONTS.display, fontSize: 27, lineHeight: 33, color: colors.textInverse },
@@ -1546,7 +1546,7 @@ function createStyles(colors: AppColors) {
       borderWidth: 1,
       borderColor: colors.borderLight,
     },
-    optionRowDark: { backgroundColor: '#050814', borderColor: '#050814' },
+    optionRowDark: { backgroundColor: colors.primary, borderColor: colors.primary },
     optionIcon: {
       width: 44,
       height: 44,
@@ -1668,7 +1668,7 @@ function createStyles(colors: AppColors) {
     aiFillButton: {
       height: 46,
       borderRadius: RADIUS.full,
-      backgroundColor: '#050814',
+      backgroundColor: colors.primaryDark,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',

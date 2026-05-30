@@ -43,10 +43,10 @@ export interface MapPoint {
 }
 
 export const CATEGORY_META: Record<POIType, { label: string; icon: string; color: string; markerColor: string }> = {
-  transport: { label: 'Transport', icon: 'bus-outline', color: '#3B82F6', markerColor: '#3B82F6' },
-  landmark: { label: 'Yodgorliklar', icon: 'location-outline', color: '#1A6B3C', markerColor: '#1A6B3C' },
-  restaurant: { label: 'Restoranlar', icon: 'restaurant-outline', color: '#EF4444', markerColor: '#EF4444' },
-  hotel: { label: 'Mehmonxona', icon: 'bed-outline', color: '#C8933A', markerColor: '#C8933A' },
+  transport: { label: 'Transport', icon: 'bus-outline', color: '#2D9CDB', markerColor: '#2D9CDB' },
+  landmark: { label: 'Yodgorliklar', icon: 'location-outline', color: '#14B8AE', markerColor: '#14B8AE' },
+  restaurant: { label: 'Restoranlar', icon: 'restaurant-outline', color: '#EF6B6B', markerColor: '#EF6B6B' },
+  hotel: { label: 'Mehmonxona', icon: 'bed-outline', color: '#E0A95A', markerColor: '#E0A95A' },
 };
 
 export interface SubCategoryMeta {
@@ -58,7 +58,7 @@ export interface SubCategoryMeta {
 
 export const SUB_CATEGORIES: Partial<Record<POIType, SubCategoryMeta[]>> = {
   landmark: [
-    { key: 'historical', label: 'Tarixiy', icon: 'business-outline', color: '#1A6B3C' },
+    { key: 'historical', label: 'Tarixiy', icon: 'business-outline', color: '#14B8AE' },
     { key: 'mosque', label: 'Masjidlar', icon: 'moon-outline', color: '#7C3AED' },
     { key: 'other', label: 'Boshqa joylar', icon: 'pin-outline', color: '#0EA5E9' },
   ],

@@ -58,7 +58,7 @@ async function ensureAndroidChannels(Notifications: NotificationsModule): Promis
         description: channel.description,
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 180, 80, 220],
-        lightColor: '#1A6B3C',
+        lightColor: '#2D9CDB',
         sound: 'default',
       })
     )
