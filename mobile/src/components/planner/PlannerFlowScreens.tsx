@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Alert, ImageBackground, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Alert, ImageBackground, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,7 +8,21 @@ import { FONTS } from '../../constants/fonts';
 import { SPACING } from '../../constants/spacing';
 import { type AppColors, useAppTheme } from '../../theme/app-theme';
 import { bookingsAPI } from '../../utils/api';
+import { getJSON, KEYS } from '../../utils/storage';
+import { getUserDisplayName, type AuthUser } from '../../utils/auth';
 import type { HomeTourItem } from '../../utils/homeContent';
+
+function digitsOnly(value?: string | null) {
+  return (value || '').replace(/[^0-9]/g, '');
+}
+
+async function openLink(url: string) {
+  try {
+    await Linking.openURL(url);
+  } catch {
+    Alert.alert('Ochib bo‘lmadi', 'Ushbu havolani ochishda xatolik.');
+  }
+}
 
 function parseTourParam(value: string | string[] | undefined): HomeTourItem | null {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -34,13 +48,33 @@ export function TourDetailsScreen() {
   const [bookingMessage, setBookingMessage] = useState('');
   const [bookingLoading, setBookingLoading] = useState(false);
 
+  // Prefill contact details from the logged-in user (low-friction lead)
+  useEffect(() => {
+    let mounted = true;
+    getJSON<AuthUser>(KEYS.USER)
+      .then((user) => {
+        if (!mounted || !user) return;
+        const name = getUserDisplayName(user);
+        if (name) setCustomerName((prev) => prev || name);
+        if (user.email) setCustomerEmail((prev) => prev || user.email);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   async function submitBooking() {
     if (!tour?.id) {
-      Alert.alert('Tour tanlanmagan', 'Booking yuborish uchun public tour katalogidan tour tanlang.');
+      Alert.alert('Tur tanlanmagan', 'So‘rov yuborish uchun katalogdan tur tanlang.');
       return;
     }
-    if (!customerName.trim() || !customerEmail.trim()) {
-      Alert.alert('Ma’lumot yetarli emas', 'Ism va email kiritilishi kerak.');
+    if (!customerName.trim()) {
+      Alert.alert('Ism kerak', 'Iltimos, ismingizni kiriting.');
+      return;
+    }
+    if (!customerEmail.trim() && !customerPhone.trim()) {
+      Alert.alert('Aloqa kerak', 'Telefon yoki email — kamida bittasini qoldiring.');
       return;
     }
 
@@ -83,6 +117,9 @@ export function TourDetailsScreen() {
   }
 
   const highlights = Array.isArray(tour.highlights) ? tour.highlights.filter(Boolean) : [];
+  const agencyTelegram = tour.agency?.telegram ? tour.agency.telegram.replace(/^@/, '').trim() : null;
+  const agencyPhone = tour.agency?.phone ? tour.agency.phone.trim() : null;
+  const agencyWebsite = tour.agency?.website ? tour.agency.website.trim() : null;
 
   return (
     <ScrollView style={[styles.screen, { paddingTop: insets.top }]} showsVerticalScrollIndicator={false}>
@@ -131,11 +168,39 @@ export function TourDetailsScreen() {
         ) : null}
       </View>
 
+      {tour.agency ? (
+        <View style={styles.formCard}>
+          <Text style={styles.sectionTitle}>Agentlik bilan bog‘lanish</Text>
+          <Text style={styles.muted}>
+            {tour.agency.name}
+            {tour.agency.city ? ` · ${tour.agency.city}` : ''}
+          </Text>
+          {agencyTelegram || agencyPhone || agencyWebsite ? (
+            <View style={styles.contactRow}>
+              {agencyTelegram ? (
+                <ContactBtn icon="paper-plane" label="Telegram" color="#229ED9" onPress={() => openLink(`https://t.me/${agencyTelegram}`)} styles={styles} />
+              ) : null}
+              {agencyPhone ? (
+                <ContactBtn icon="logo-whatsapp" label="WhatsApp" color="#25D366" onPress={() => openLink(`https://wa.me/${digitsOnly(agencyPhone)}`)} styles={styles} />
+              ) : null}
+              {agencyPhone ? (
+                <ContactBtn icon="call" label="Qo‘ng‘iroq" color={colors.primary} onPress={() => openLink(`tel:${agencyPhone}`)} styles={styles} />
+              ) : null}
+              {agencyWebsite ? (
+                <ContactBtn icon="globe-outline" label="Sayt" color={colors.textSecondary} onPress={() => openLink(agencyWebsite.startsWith('http') ? agencyWebsite : `https://${agencyWebsite}`)} styles={styles} />
+              ) : null}
+            </View>
+          ) : (
+            <Text style={styles.muted}>Bevosita aloqa hozircha yo‘q — quyida so‘rov qoldiring, agentlik siz bilan bog‘lanadi.</Text>
+          )}
+        </View>
+      ) : null}
+
       <View style={styles.formCard}>
-        <Text style={styles.sectionTitle}>Booking so‘rovi</Text>
-        <Text style={styles.muted}>Agency siz bilan bog‘lanishi uchun kontakt ma’lumotlaringizni qoldiring.</Text>
+        <Text style={styles.sectionTitle}>So‘rov qoldiring</Text>
+        <Text style={styles.muted}>Bepul — agentlik so‘rovingizni ko‘rib chiqadi va siz bilan bog‘lanadi.</Text>
         <Input label="Ism" icon="person-outline" value={customerName} onChangeText={setCustomerName} placeholder="Ismingiz" styles={styles} colors={colors} />
-        <Input label="Email" icon="mail-outline" value={customerEmail} onChangeText={setCustomerEmail} placeholder="email@example.com" styles={styles} colors={colors} keyboardType="email-address" />
+        <Input label="Email (ixtiyoriy)" icon="mail-outline" value={customerEmail} onChangeText={setCustomerEmail} placeholder="email@example.com" styles={styles} colors={colors} keyboardType="email-address" />
         <View style={styles.dateRow}>
           <Input label="Telefon" icon="call-outline" value={customerPhone} onChangeText={setCustomerPhone} placeholder="+998..." styles={styles} colors={colors} keyboardType="phone-pad" />
           <Input label="Kishi soni" icon="people-outline" value={travelers} onChangeText={setTravelers} placeholder="1" styles={styles} colors={colors} keyboardType="number-pad" />
@@ -151,7 +216,7 @@ export function TourDetailsScreen() {
         />
         <TouchableOpacity disabled={bookingLoading} style={[styles.primaryWide, bookingLoading && { opacity: 0.65 }]} onPress={submitBooking}>
           <Ionicons name="send-outline" size={15} color={colors.textInverse} />
-          <Text style={styles.primaryWideText}>{bookingLoading ? 'Yuborilmoqda...' : 'Booking so‘rov yuborish'}</Text>
+          <Text style={styles.primaryWideText}>{bookingLoading ? 'Yuborilmoqda...' : 'So‘rov yuborish'}</Text>
         </TouchableOpacity>
       </View>
       <View style={{ height: 140 + Math.max(insets.bottom, 22) }} />
@@ -206,6 +271,29 @@ function Stat({ label, value, styles }: { label: string; value: string; styles: 
   );
 }
 
+function ContactBtn({
+  icon,
+  label,
+  color,
+  onPress,
+  styles,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  color: string;
+  onPress: () => void;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  return (
+    <TouchableOpacity style={styles.contactBtn} onPress={onPress} activeOpacity={0.85}>
+      <View style={[styles.contactIcon, { backgroundColor: color }]}>
+        <Ionicons name={icon} size={19} color="#FFFFFF" />
+      </View>
+      <Text style={styles.contactLabel}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
 function createStyles(colors: AppColors) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.background },
@@ -242,6 +330,10 @@ function createStyles(colors: AppColors) {
     statBox: { flex: 1, borderRadius: 18, backgroundColor: colors.cardMuted, padding: SPACING.md },
     statValue: { fontFamily: FONTS.display, fontSize: 17, color: colors.text },
     tinyMuted: { fontFamily: FONTS.regular, fontSize: 10, color: colors.textMuted },
+    contactRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.md, marginTop: SPACING.xs },
+    contactBtn: { alignItems: 'center', width: 66, gap: 6 },
+    contactIcon: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
+    contactLabel: { fontFamily: FONTS.medium, fontSize: 11, color: colors.textSecondary, textAlign: 'center' },
     sectionTitle: { fontFamily: FONTS.display, fontSize: 18, color: colors.text },
     checkRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
     optionTitle: { flex: 1, fontFamily: FONTS.semibold, fontSize: 13, color: colors.text },

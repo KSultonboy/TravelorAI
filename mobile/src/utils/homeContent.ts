@@ -52,6 +52,9 @@ export type HomeTourItem = {
     name: string;
     city?: string | null;
     rating?: number | null;
+    phone?: string | null;
+    telegram?: string | null;
+    website?: string | null;
   } | null;
 };
 

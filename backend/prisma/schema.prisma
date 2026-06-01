@@ -357,6 +357,7 @@ model TourAgency {
   reviews         Int      @default(0)
   toursCount      Int      @default(0)
   phone           String?
+  telegram        String?
   website         String?
   imageUrl        String?
   active          Boolean  @default(true)
@@ -453,7 +454,7 @@ model TourBooking {
   userId        String?
   user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
   customerName  String
-  customerEmail String
+  customerEmail String?
   customerPhone String?
   travelers     Int         @default(1)
   travelDate    DateTime?

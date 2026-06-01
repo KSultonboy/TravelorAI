@@ -164,6 +164,9 @@ function formatTour(item) {
           name: item.agency.name,
           city: item.agency.city,
           rating: item.agency.rating,
+          phone: item.agency.phone || null,
+          telegram: item.agency.telegram || null,
+          website: item.agency.website || null,
         }
       : null,
     source: item.source || 'admin',
@@ -185,6 +188,7 @@ function formatAgency(item) {
     reviews: item.reviews ?? 0,
     tours: item.toursCount ?? item._count?.tours ?? 0,
     phone: item.phone || null,
+    telegram: item.telegram || null,
     website: item.website || null,
     imageUrl: item.imageUrl || null,
     source: item.source || 'admin',

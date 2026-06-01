@@ -41,6 +41,7 @@ function formatBooking(booking) {
           name: booking.agency.name,
           city: booking.agency.city,
           phone: booking.agency.phone,
+          telegram: booking.agency.telegram,
           website: booking.agency.website,
         }
       : null,
@@ -71,7 +72,7 @@ async function create(req, res) {
         agencyId: tour.agencyId,
         userId,
         customerName: input.customerName,
-        customerEmail: input.customerEmail.toLowerCase(),
+        customerEmail: input.customerEmail ? input.customerEmail.toLowerCase() : null,
         customerPhone: input.customerPhone || null,
         travelers: input.travelers,
         travelDate: input.travelDate ? new Date(input.travelDate) : null,
