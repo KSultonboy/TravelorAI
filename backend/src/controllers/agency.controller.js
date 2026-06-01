@@ -68,6 +68,7 @@ function publicAgency(agency) {
     reviews: agency.reviews,
     toursCount: agency.toursCount,
     phone: agency.phone,
+    telegram: agency.telegram,
     website: agency.website,
     imageUrl: agency.imageUrl,
     active: agency.active,
@@ -646,7 +647,7 @@ async function updateAgencyProfile(req, res) {
     const agency = await ensureApprovedAgency(req, res);
     if (!agency) return;
     const required = ['name', 'city', 'specialty'];
-    const nullable = ['description', 'phone', 'website', 'imageUrl'];
+    const nullable = ['description', 'phone', 'telegram', 'website', 'imageUrl'];
     const data = {};
     for (const key of required) {
       if (req.body?.[key] !== undefined) {

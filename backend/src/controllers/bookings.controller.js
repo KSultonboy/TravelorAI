@@ -1,6 +1,7 @@
 const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { createBookingSchema } = require('../schemas/booking.schema');
+const { sendBookingLeadEmail } = require('../services/email.service');
 
 function formatBooking(booking) {
   if (!booking) return null;
@@ -82,8 +83,24 @@ async function create(req, res) {
         source: input.source || 'mobile',
         status: 'pending',
       },
-      include: { tour: true, agency: true },
+      include: { tour: true, agency: { include: { ownerAccount: true } } },
     });
+
+    // Notify the agency about the new lead (free) — fire-and-forget
+    const agencyEmail = booking.agency?.ownerAccount?.email || null;
+    if (agencyEmail) {
+      sendBookingLeadEmail({
+        to: agencyEmail,
+        agencyName: booking.agency.name,
+        tourTitle: booking.tour?.title,
+        customerName: booking.customerName,
+        customerPhone: booking.customerPhone,
+        customerEmail: booking.customerEmail,
+        travelers: booking.travelers,
+        travelDate: booking.travelDate,
+        message: booking.message,
+      }).catch(() => {});
+    }
 
     return success(res, { booking: formatBooking(booking) }, 201);
   } catch (err) {

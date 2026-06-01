@@ -908,6 +908,7 @@ async function approveAgencyApplication(req, res) {
       description: application.description,
       specialty,
       phone: application.phone,
+      telegram: application.telegram || null,
       website: application.website,
       active: true,
       source: 'agency_portal',

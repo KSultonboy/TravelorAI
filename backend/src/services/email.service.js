@@ -211,8 +211,48 @@ async function sendSupportFeedbackEmail({
   });
 }
 
+async function sendBookingLeadEmail({ to, agencyName, tourTitle, customerName, customerPhone, customerEmail, travelers, travelDate, message }) {
+  if (!to) return { delivery: 'skipped' };
+  const t = (v) => safeText(String(v ?? '')).trim() || '-';
+  const subject = `[${APP_NAME}] Yangi so'rov: ${t(tourTitle)}`;
+  const html = `
+    <div style="font-family:Arial,sans-serif;background:#f4f7f5;padding:24px;">
+      <div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:20px;padding:28px;border:1px solid #eaf0eb;">
+        <p style="margin:0 0 8px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#2d9cdb;">${APP_NAME}</p>
+        <h1 style="margin:0 0 6px;font-size:22px;color:#122117;">Yangi sayohat so'rovi</h1>
+        <p style="margin:0 0 16px;font-size:14px;color:#4f6355;">${t(agencyName)} — <strong>${t(tourTitle)}</strong> turi bo'yicha yangi so'rov keldi.</p>
+        <div style="padding:14px;border-radius:12px;background:#f7faf8;border:1px solid #eaf0eb;">
+          <ul style="margin:0;padding-left:18px;color:#2f4136;font-size:14px;line-height:1.7;">
+            <li>Mijoz: <strong>${t(customerName)}</strong></li>
+            <li>Telefon: <strong>${t(customerPhone)}</strong></li>
+            <li>Email: ${t(customerEmail)}</li>
+            <li>Kishi soni: ${t(travelers)}</li>
+            <li>Sayohat sanasi: ${t(travelDate)}</li>
+          </ul>
+          ${message ? `<p style="margin:12px 0 0;font-size:14px;color:#1c2b22;white-space:pre-wrap;">"${safeText(message)}"</p>` : ''}
+        </div>
+        <p style="margin:18px 0 0;font-size:13px;color:#6f7b74;">Mijoz bilan telefon yoki Telegram orqali bog'laning. Portal: agency.travelorai.com</p>
+      </div>
+    </div>
+  `;
+  const text = [
+    `${APP_NAME} — yangi so'rov`,
+    `Tur: ${t(tourTitle)} (${t(agencyName)})`,
+    '',
+    `Mijoz: ${t(customerName)}`,
+    `Telefon: ${t(customerPhone)}`,
+    `Email: ${t(customerEmail)}`,
+    `Kishi: ${t(travelers)}`,
+    `Sana: ${t(travelDate)}`,
+    message ? `\nXabar: ${safeText(message)}` : '',
+  ].join('\n');
+
+  return sendMail({ to, subject, html, text, logMeta: { type: 'booking_lead', to } });
+}
+
 module.exports = {
   sendVerificationCodeEmail,
   sendPasswordResetCodeEmail,
   sendSupportFeedbackEmail,
+  sendBookingLeadEmail,
 };
