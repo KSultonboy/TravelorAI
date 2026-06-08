@@ -1,0 +1,15 @@
+[Unit]
+Description=TravelorAI Backend SSH Tunnel (gateway -> backend:4000)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/ssh -NT -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -i /root/.ssh/travelorai_backend_tunnel -L 127.0.0.1:14000:127.0.0.1:4000 root@178.18.245.174
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+

@@ -1,0 +1,99 @@
+version: '3.9'
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: travelorai_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: travelorai_db
+      POSTGRES_USER: travelorai
+      POSTGRES_PASSWORD: travelorai_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - '5433:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U travelorai -d travelorai_db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: travelorai_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - '6380:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: travelorai_backend
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      PORT: 4000
+      DATABASE_URL: postgresql://travelorai:travelorai_pass@postgres:5432/travelorai_db
+      REDIS_URL: redis://redis:6379
+      ALLOWED_ORIGINS: http://localhost,http://127.0.0.1,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8081,http://localhost:19006,https://travelorai.com,https://www.travelorai.com,https://admin.travelorai.com,https://agency.travelorai.com
+    ports:
+      - '4000:4000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  website:
+    build:
+      context: ./website
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SITE_URL: https://travelorai.com
+    container_name: travelorai_website
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      NEXT_PUBLIC_SITE_URL: https://travelorai.com
+      NEXT_PUBLIC_API_URL: https://travelorai.com/api/v1
+      ADMIN_API_URL: http://backend:4000/api/v1
+      AGENCY_API_URL: http://backend:4000/api/v1
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-travelorai_admin_session_change_me}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      NODE_ENV: production
+    depends_on:
+      - backend
+    expose:
+      - '3000'
+
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: travelorai_nginx
+    restart: unless-stopped
+    ports:
+      - '80:80'
+    depends_on:
+      - backend
+      - website
+
+volumes:
+  postgres_data:
+  redis_data:

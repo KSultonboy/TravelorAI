@@ -1,0 +1,77 @@
+# dependencies
+**/node_modules/
+**/.npm-cache/
+
+# env / secrets
+.env
+.env.*
+**/.env
+**/.env.*
+**/.env.local
+**/*.env.local
+!.env.example
+!**/.env.example
+**/credentials.json
+**/*.pem
+**/*.key
+**/*.p8
+**/*.p12
+**/*.jks
+**/*.keystore
+**/*.mobileprovision
+**/release-signing.properties
+**/service-account*.json
+**/google-services.json
+
+# logs / caches
+*.log
+*.tmp
+*.bak
+**/tmp/
+.DS_Store
+.codex-tmp/
+
+# Accidental local shell output files
+document.documentElement.clientWidth
+document.documentElement.clientWidth\}\)
+.claude/
+.expo/
+.expo-shared/
+.turbo/
+.next/
+.cache/
+coverage/
+
+# build outputs
+**/dist/
+**/build/
+**/.expo/
+**/web-build/
+**/.next/
+**/coverage/
+**/android/.gradle/
+**/android/app/build/
+**/ios/build/
+
+# generated release artifacts / local diagnostics
+*.tar.gz
+*.zip
+*.apk
+*.aab
+adb_test.png
+explore-screen.png
+window.xml
+window_dump.xml
+window_dump_attrs.txt
+tmp_ui.xml
+yandex-maps-ui.xml
+mobile/dist-check*/
+mobile/dist-*/
+mobile/metro*.log
+website/next
+website/website@0.1.0
+
+# editor / OS
+.idea/
+.vscode/
+Thumbs.db
