@@ -103,6 +103,7 @@ type AgencyApplicationItem = {
   website?: string | null;
   serviceTypes: string[];
   description: string;
+  imageUrl?: string | null;
   status: string;
   adminNote?: string | null;
   submittedAt?: string | null;
@@ -547,6 +548,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
   const [tourReviewItems, setTourReviewItems] = useState<TourReviewItem[]>([]);
   const [bookingItems, setBookingItems] = useState<BookingItem[]>([]);
   const [heroForm, setHeroForm] = useState<HeroForm>(emptyHeroForm);
+  const [heroFileInputKey, setHeroFileInputKey] = useState(0);
   const [placeForm, setPlaceForm] = useState<PlaceForm>(emptyPlaceForm);
   const [agencyForm, setAgencyForm] = useState<AgencyForm>(emptyAgencyForm);
   const [storyForm, setStoryForm] = useState<StoryForm>(emptyStoryForm);
@@ -716,6 +718,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
     if (section === "hero") {
       setSelectedHero(null);
       setHeroForm(emptyHeroForm);
+      setHeroFileInputKey((current) => current + 1);
     }
     if (section === "places") {
       setSelectedPlace(null);
@@ -737,7 +740,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
     setMessage("");
     setError("");
     try {
-      const data = await request<HeroSlide>(
+      await request<HeroSlide>(
         selectedHero
           ? `/api/admin-proxy/admin/hero-slides/${encodeURIComponent(selectedHero)}`
           : "/api/admin-proxy/admin/hero-slides",
@@ -748,8 +751,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
           confidenceScore: Number(heroForm.confidenceScore) || 0.8,
         }
       );
-      setSelectedHero(data.id);
-      setHeroForm(heroToForm(data));
+      reset("hero");
       setMessage("Hero slayd saqlandi");
       await loadAll();
     } catch (err) {
@@ -765,7 +767,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
     setMessage("");
     setError("");
     try {
-      const data = await request<PlaceItem>(
+      await request<PlaceItem>(
         selectedPlace ? `/api/admin-proxy/admin/places/${encodeURIComponent(selectedPlace)}` : "/api/admin-proxy/admin/places",
         selectedPlace ? "PUT" : "POST",
         {
@@ -779,12 +781,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
           landingSortOrder: Number(placeForm.landingSortOrder) || 0,
         }
       );
-      setSelectedPlace(data.id);
-      setPlaceForm(placeToForm(data));
-      setPlaceItems((current) => {
-        const withoutCurrent = current.filter((item) => item.id !== data.id);
-        return [data, ...withoutCurrent];
-      });
+      reset("places");
       setMessage("Joy saqlandi");
       await loadAll();
     } catch (err) {
@@ -800,7 +797,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
     setMessage("");
     setError("");
     try {
-      const data = await request<AgencyItem>(
+      await request<AgencyItem>(
         selectedAgency
           ? `/api/admin-proxy/admin/agencies/${encodeURIComponent(selectedAgency)}`
           : "/api/admin-proxy/admin/agencies",
@@ -815,8 +812,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
           landingSortOrder: Number(agencyForm.landingSortOrder) || 0,
         }
       );
-      setSelectedAgency(data.id);
-      setAgencyForm(agencyToForm(data));
+      reset("agencies");
       setMessage("Agency saqlandi");
       await loadAll();
     } catch (err) {
@@ -832,7 +828,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
     setMessage("");
     setError("");
     try {
-      const data = await request<StoryItem>(
+      await request<StoryItem>(
         selectedStory ? `/api/admin-proxy/admin/stories/${encodeURIComponent(selectedStory)}` : "/api/admin-proxy/admin/stories",
         selectedStory ? "PUT" : "POST",
         {
@@ -843,8 +839,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
           qualityScore: Number(storyForm.qualityScore) || 0,
         }
       );
-      setSelectedStory(data.id);
-      setStoryForm(storyToForm(data));
+      reset("stories");
       setMessage("Story saqlandi");
       await loadAll();
     } catch (err) {
@@ -1084,6 +1079,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
                   {applicationItems.map((item) => (
                     <article className="admin-review-card" key={item.id}>
                       <div>
+                        {item.imageUrl ? <AdminThumbImage src={item.imageUrl} alt={item.companyName} /> : null}
                         <span className="admin-status-pill">{item.status}</span>
                         <h3>{item.companyName}</h3>
                         <p>{item.description}</p>
@@ -1231,6 +1227,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
                     <label>
                       Rasm fayl yuklash
                       <input
+                        key={heroFileInputKey}
                         accept="image/png,image/jpeg,image/webp,image/gif"
                         type="file"
                         onChange={(event) => handleHeroImageFile(event.target.files?.[0] || null)}

@@ -2,11 +2,14 @@
 
 import { useState } from "react";
 import { Compass, Menu, X } from "lucide-react";
+import Link from "next/link";
 
 const NAV_LINKS = [
   { href: "#home", label: "Home" },
-  { href: "#features", label: "Features" },
-  { href: "#about", label: "About Us" },
+  { href: "#features", label: "Destinations" },
+  { href: "#tours", label: "Tours" },
+  { href: "#how-it-works", label: "How it works" },
+  { href: "#contact", label: "Contact" },
 ];
 
 export default function Navbar() {
@@ -58,16 +61,18 @@ export default function Navbar() {
         <button
           className="site-nav__toggle"
           type="button"
-          aria-label="Menyuni ochish"
+          aria-label={menuOpen ? "Menyuni yopish" : "Menyuni ochish"}
+          aria-controls="mobile-navigation"
           aria-expanded={menuOpen}
           onClick={() => setMenuOpen((open) => !open)}
         >
           {menuOpen ? <X size={17} /> : <Menu size={17} />}
         </button>
+        <Link className="site-nav__account" href="/login">Kirish</Link>
       </nav>
 
       {menuOpen && (
-        <div className="site-nav__mobile">
+        <div className="site-nav__mobile" id="mobile-navigation">
           <div className="site-nav__mobile-links">
             {NAV_LINKS.map((item) => (
               <a
@@ -81,6 +86,7 @@ export default function Navbar() {
                 {item.label}
               </a>
             ))}
+            <Link href="/login">Kirish / Ro‘yxatdan o‘tish</Link>
           </div>
         </div>
       )}

@@ -9,6 +9,9 @@ router.post('/auth/login', agency.login);
 router.use(agencyAuthMiddleware);
 
 router.get('/auth/me', agency.me);
+router.post('/auth/email-change/request', agency.requestEmailChange);
+router.post('/auth/email-change/resend', agency.resendEmailChange);
+router.post('/auth/email-change/confirm', agency.confirmEmailChange);
 router.get('/application', agency.getApplication);
 router.put('/application', agency.upsertApplication);
 router.post('/application/submit', agency.submitApplication);

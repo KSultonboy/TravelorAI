@@ -4,8 +4,8 @@ import Hero from "@/components/Hero";
 import Destinations from "@/components/Destinations";
 import HowItWorks from "@/components/HowItWorks";
 import AppPreview from "@/components/AppPreview";
+import LandingTours, { type LandingTour } from "@/components/LandingTours";
 import Footer from "@/components/Footer";
-import ScrollReveal from "@/components/ScrollReveal";
 import type { LandingHeroSlide } from "@/components/Hero";
 import type { LandingPlace } from "@/components/Destinations";
 import type { LandingAgency, LandingStory } from "@/components/AppPreview";
@@ -52,6 +52,7 @@ type LandingData = {
   places: LandingPlace[];
   agencies: LandingAgency[];
   stories: LandingStory[];
+  tours: LandingTour[];
 };
 
 async function getLandingData(): Promise<LandingData> {
@@ -79,9 +80,10 @@ async function getLandingData(): Promise<LandingData> {
       places: Array.isArray(data.places) ? data.places : [],
       agencies: Array.isArray(data.agencies) ? data.agencies : [],
       stories: Array.isArray(data.stories) ? data.stories : [],
+      tours: Array.isArray(data.tours) ? data.tours : [],
     };
   } catch {
-    return { heroSlides: [], places: [], agencies: [], stories: [] };
+    return { heroSlides: [], places: [], agencies: [], stories: [], tours: [] };
   }
 }
 
@@ -90,11 +92,11 @@ export default async function Home() {
 
   return (
     <>
-      <ScrollReveal />
       <Navbar />
       <main id="top" className="landing-site">
         <Hero slides={landingData.heroSlides} />
         <Destinations places={landingData.places} />
+        <LandingTours tours={landingData.tours} />
         <HowItWorks />
         <AppPreview agencies={landingData.agencies} stories={landingData.stories} />
       </main>

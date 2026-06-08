@@ -126,6 +126,7 @@ function RootNavigator() {
         <Stack.Screen name="promotions" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="payment-methods" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="checkout" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="bookings" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="search-filters" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="home-places" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="home-tours" options={{ animation: 'slide_from_right' }} />

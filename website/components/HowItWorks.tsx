@@ -29,7 +29,7 @@ const STEPS: Step[] = [
 
 export default function HowItWorks() {
   return (
-    <section id="about" className="section section--soft">
+    <section id="how-it-works" className="section section--soft">
       <div className="lp-wrap">
         <div className="section-head lp-reveal" style={{ justifyContent: "center", textAlign: "center" }}>
           <div>

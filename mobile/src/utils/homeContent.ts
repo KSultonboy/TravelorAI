@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { resolveMediaUrl } from './api';
 
 export type HomePlaceType = 'all' | 'landmark' | 'restaurant' | 'hotel' | 'transport';
 export type HomeTourBadge = 'Latest' | 'Popular';
@@ -36,6 +37,7 @@ export type HomeTourItem = {
   subtitle: string;
   description?: string | null;
   duration: string;
+  responseTimeMinutes?: number;
   price: string;
   priceMin?: number | null;
   rating: number;
@@ -134,7 +136,7 @@ export function normalizePopularPlaces(items: unknown[]) {
       city: String(item?.city || ''),
       type: String(item?.type || 'landmark').toLowerCase(),
       icon: String(item?.icon || 'pin'),
-      imageUrl: item?.imageUrl || null,
+      imageUrl: resolveMediaUrl(item?.imageUrl),
       subtype: item?.subtype || null,
       info: item?.info || '',
       description: item?.description || item?.info || '',
@@ -174,7 +176,8 @@ export function normalizeTours(items: unknown[]) {
       priceMin: Number.isFinite(Number(item?.priceMin)) ? Number(item.priceMin) : null,
       rating: Number.isFinite(Number(item?.rating)) ? Number(item.rating) : 0,
       badge: item?.badge === 'Popular' ? 'Popular' : 'Latest',
-      imageUrl: item?.imageUrl || null,
+      imageUrl: resolveMediaUrl(item?.imageUrl),
+      responseTimeMinutes: Number.isFinite(Number(item?.responseTimeMinutes)) ? Number(item.responseTimeMinutes) : 45,
       highlights: Array.isArray(item?.highlights) ? item.highlights : [],
       source: item?.source || '',
       sourceUrl: item?.sourceUrl || null,

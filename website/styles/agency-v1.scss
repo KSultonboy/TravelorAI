@@ -12,6 +12,11 @@
   font-family: "Poppins", "Segoe UI", sans-serif;
 }
 
+.agency-shell,
+.agency-shell * {
+  box-sizing: border-box;
+}
+
 .agency-hero {
   position: sticky;
   top: 32px;
@@ -90,6 +95,67 @@
 
 .agency-panel {
   position: relative;
+  min-width: 0;
+}
+
+.agency-session-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(20, 24, 31, 0.08);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 14px 38px rgba(20, 26, 35, 0.09);
+}
+
+.agency-session-bar > div {
+  display: grid;
+  min-width: 0;
+  margin-right: auto;
+}
+
+.agency-session-bar span {
+  color: #79808a;
+  font-size: 0.7rem;
+  font-weight: 850;
+}
+
+.agency-session-bar b {
+  overflow: hidden;
+  color: #151820;
+  font-size: 0.86rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agency-session-bar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: #087a56;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.agency-session-bar button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.agency-session-bar .agency-session-bar__logout {
+  color: #fff;
+  background: #a52525;
 }
 
 .agency-card {
@@ -235,6 +301,12 @@
   font-weight: 800;
 }
 
+.agency-alert--info {
+  border: 1px solid #c9dff7;
+  color: #24527a;
+  background: #eef6ff;
+}
+
 .agency-alert--success {
   color: #096947;
   background: #effbf5;
@@ -245,6 +317,92 @@
   color: #9f1d1d;
   background: #fff0f0;
   border: 1px solid #ffc7c7;
+}
+
+.agency-required {
+  color: #d93025;
+}
+
+.agency-image-preview {
+  display: block;
+  width: min(100%, 420px);
+  max-height: 240px;
+  object-fit: cover;
+  border: 1px solid #e2e3e8;
+  border-radius: 18px;
+  background: #f8f7f4;
+}
+
+.agency-countdown {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin-top: 8px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: #8a4b08;
+  background: #fff4df;
+  font-weight: 800;
+}
+
+.agency-email-change {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+  margin-top: 28px;
+  padding: 22px;
+  border: 1px solid #e2e3e8;
+  border-radius: 24px;
+  background: #f8f7f4;
+}
+
+.agency-email-change h4 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.agency-email-change p {
+  margin: 5px 0 0;
+  color: #68707c;
+  overflow-wrap: anywhere;
+}
+
+.agency-email-change__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.agency-email-change__row input {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.agency-email-change__row button {
+  min-height: 52px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: #087a56;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.agency-email-change__row button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.agency-email-support {
+  color: #9f1d1d !important;
+  font-weight: 800;
+}
+
+.agency-email-support a {
+  text-decoration: underline;
 }
 
 .agency-form-grid {
@@ -945,7 +1103,7 @@
 
 @media (max-width: 1080px) {
   .agency-shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .agency-hero {
@@ -997,6 +1155,11 @@
     padding: 14px;
   }
 
+  .agency-card,
+  .agency-dashboard-card {
+    border-radius: 20px;
+  }
+
   .agency-dashboard-topbar,
   .agency-section-heading,
   .agency-tour-body__title {
@@ -1006,6 +1169,19 @@
 
   .agency-dashboard-actions button {
     width: 100%;
+  }
+
+  .agency-session-bar {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .agency-session-bar > div {
+    flex-basis: 100%;
+  }
+
+  .agency-session-bar button {
+    flex: 1;
   }
 
   .agency-tour-card {
@@ -1019,5 +1195,22 @@
   .agency-logout {
     position: static;
     margin-bottom: 14px;
+  }
+}
+
+@media (max-width: 380px) {
+  .agency-shell,
+  .agency-dashboard-main {
+    padding: 10px;
+  }
+
+  .agency-hero,
+  .agency-card,
+  .agency-dashboard-card {
+    padding: 16px;
+  }
+
+  .agency-tour-thumb {
+    min-height: 180px;
   }
 }

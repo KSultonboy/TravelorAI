@@ -910,6 +910,7 @@ async function approveAgencyApplication(req, res) {
       phone: application.phone,
       telegram: application.telegram || null,
       website: application.website,
+      imageUrl: application.imageUrl,
       active: true,
       source: 'agency_portal',
       confidenceScore: 0.85,

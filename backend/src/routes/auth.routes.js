@@ -11,6 +11,9 @@ const {
   getMe,
   getPreferences,
   updatePreferences,
+  requestEmailChange,
+  verifyEmailChange,
+  requestAccountDeletion,
   deleteAccount,
 } = require('../controllers/auth.controller');
 const { authMiddleware } = require('../middleware/auth.middleware');
@@ -26,6 +29,9 @@ const {
   profileSchema,
   preferencesSchema,
   deleteAccountSchema,
+  requestEmailChangeSchema,
+  verifyEmailChangeSchema,
+  requestAccountDeletionSchema,
 } = require('../schemas/auth.schema');
 
 router.post('/register', validate(registerSchema), register);
@@ -39,6 +45,9 @@ router.get('/me', authMiddleware, getMe);
 router.put('/profile', authMiddleware, validate(profileSchema), updateProfile);
 router.get('/preferences', authMiddleware, getPreferences);
 router.put('/preferences', authMiddleware, validate(preferencesSchema), updatePreferences);
+router.post('/email-change/request', authMiddleware, validate(requestEmailChangeSchema), requestEmailChange);
+router.post('/email-change/verify', authMiddleware, validate(verifyEmailChangeSchema), verifyEmailChange);
+router.post('/account-deletion/request', authMiddleware, validate(requestAccountDeletionSchema), requestAccountDeletion);
 router.delete('/account', authMiddleware, validate(deleteAccountSchema), deleteAccount);
 
 module.exports = router;

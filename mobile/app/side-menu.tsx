@@ -16,10 +16,14 @@ import { type AuthUser, getUserDisplayName, getUserInitials } from '../src/utils
 import { getJSON, KEYS } from '../src/utils/storage';
 import { FONTS } from '../src/constants/fonts';
 import { SPACING } from '../src/constants/spacing';
+import { useTrips } from '../src/hooks/useTrips';
+import { useWishlist } from '../src/hooks/useWishlist';
 
 export default function SideMenuScreen() {
   const { colors } = useStitchMobileStyles();
   const [user, setUser] = useState<AuthUser | null>(null);
+  const { trips } = useTrips(user?.id || null);
+  const { wishlist } = useWishlist(user?.id || null);
 
   useEffect(() => {
     getJSON<AuthUser>(KEYS.USER).then((saved) => setUser(saved)).catch(() => {});
@@ -55,9 +59,9 @@ export default function SideMenuScreen() {
         </View>
         <StitchStatGrid
           items={[
-            { label: 'Rejalar', value: '12', icon: 'map-outline' },
-            { label: 'Joylar', value: '147+', icon: 'location-outline' },
-            { label: 'Saqlangan', value: '24', icon: 'heart-outline' },
+            { label: 'Rejalar', value: String(trips.length), icon: 'map-outline' },
+            { label: 'Shaharlar', value: String(new Set(trips.flatMap((trip) => trip.destinations || [])).size), icon: 'location-outline' },
+            { label: 'Saqlangan', value: String(wishlist.length), icon: 'heart-outline' },
           ]}
         />
       </StitchCard>

@@ -53,7 +53,7 @@ export const metadata: Metadata = {
     alternateLocale: ["ru_RU", "en_US"],
     images: [
       {
-        url: "/og-image.png",
+        url: "/og-image.svg",
         width: 1200,
         height: 630,
         alt: "TravelorAI - Global AI travel platform",
@@ -64,14 +64,13 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "TravelorAI - Global AI travel platform",
     description: "Create personal travel plans for destinations around the world.",
-    images: ["/og-image.png"],
+    images: ["/og-image.svg"],
   },
   alternates: {
     canonical: BASE_URL,
   },
   icons: {
     icon: "/favicon.ico",
-    apple: "/apple-touch-icon.png",
   },
 };
 

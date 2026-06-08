@@ -1028,7 +1028,8 @@ export default function ExploreScreen() {
   const insets     = useSafeAreaInsets();
   const safeBottom = Math.max(insets.bottom, 22);
   const styles     = useMemo(() => createStyles(colors), [colors]);
-  const { tripId } = useLocalSearchParams<{ tripId?: string }>();
+  const { tripId, q: routeQuery, category: routeCategory, radius: routeRadius } =
+    useLocalSearchParams<{ tripId?: string; q?: string; category?: string; radius?: string }>();
 
   const tt = useCallback(
     (key: string, fallback: string, values?: Record<string, unknown>) =>
@@ -1071,6 +1072,18 @@ export default function ExploreScreen() {
   const [activeDay,   setActiveDay]   = useState<number | null>(null);
   const [savingStopId, setSavingStopId] = useState<string | null>(null);
   const [listVersion, setListVersion] = useState(0);
+
+  useEffect(() => {
+    if (typeof routeQuery === 'string') setQuery(routeQuery);
+    if (typeof routeCategory === 'string' && ['all', 'restaurant', 'hotel', 'landmark', 'transport'].includes(routeCategory)) {
+      setCategory(routeCategory as CategoryFilter);
+    }
+    const nextRadius = Number(routeRadius);
+    if (RADIUS_OPTIONS.includes(nextRadius)) {
+      setRadiusKm(nextRadius);
+      setLoadMode('radius');
+    }
+  }, [routeCategory, routeQuery, routeRadius]);
 
   const subchipsAnim = useRef(new Animated.Value(0)).current;
   const locationWatcherRef = useRef<Location.LocationSubscription | null>(null);

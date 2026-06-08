@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { CalendarDays, MapPin, Search, Users } from "lucide-react";
+import { ArrowRight, MapPin, ShieldCheck, Sparkles } from "lucide-react";
 import { publicImageSrc } from "@/lib/imageUrls";
 
 export type LandingHeroSlide = {
@@ -30,6 +30,7 @@ export default function Hero({ slides = [] }: { slides?: LandingHeroSlide[] }) {
 
   useEffect(() => {
     if (heroSlides.length < 2) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const timer = window.setInterval(() => {
       setActiveIndex((current) => (current + 1) % heroSlides.length);
     }, 5200);
@@ -69,29 +70,29 @@ export default function Hero({ slides = [] }: { slides?: LandingHeroSlide[] }) {
           <div className="hero-card__content">
             <div className="hero-copy" key={activeSlide?.id || "empty"}>
               <div className="hero-kicker">AI powered travel</div>
-              <h1 className="hero-title">{activeSlide?.title || "TravelorAI"}</h1>
+              <h1 className="hero-title">{activeSlide?.title || "Plan smarter. Travel better."}</h1>
               <p className="hero-lead">
-                {activeSlide?.subtitle || "Hero slaydlar admin paneldan boshqariladi."}
+                {activeSlide?.subtitle || "Create a personalized itinerary, discover verified places and organize every day of your trip in one app."}
               </p>
             </div>
           </div>
 
-          <div className="hero-search" role="search">
+          <div className="hero-search" aria-label="TravelorAI benefits">
             <div className="hero-search__item">
-              <Search size={17} />
-              Where do you want to go?
+              <Sparkles size={17} />
+              AI itinerary
             </div>
             <div className="hero-search__item">
-              <CalendarDays size={16} />
-              Add dates
+              <ShieldCheck size={16} />
+              Verified places
             </div>
             <div className="hero-search__item">
-              <Users size={16} />
-              Guests
+              <MapPin size={16} />
+              Smart routes
             </div>
             <Link className="hero-search__button" href={actionHref}>
-              <MapPin size={16} />
-              Explore
+              Explore platform
+              <ArrowRight size={16} />
             </Link>
           </div>
         </div>

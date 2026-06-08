@@ -59,6 +59,19 @@ const preferencesSchema = z.object({
 
 const deleteAccountSchema = z.object({
   confirm: z.literal(true),
+  code: codeSchema,
+});
+
+const requestEmailChangeSchema = z.object({
+  newEmail: emailSchema,
+  password: z.string().min(1, 'Parol talab qilinadi').optional(),
+});
+
+const verifyEmailChangeSchema = z.object({
+  code: codeSchema,
+});
+
+const requestAccountDeletionSchema = z.object({
   password: z.string().min(1, 'Parol talab qilinadi').optional(),
 });
 
@@ -73,4 +86,7 @@ module.exports = {
   profileSchema,
   preferencesSchema,
   deleteAccountSchema,
+  requestEmailChangeSchema,
+  verifyEmailChangeSchema,
+  requestAccountDeletionSchema,
 };
