@@ -1,4 +1,4 @@
-const { hasValidSignature, materializeDataImage } = require('../src/utils/dataImage');
+const { deleteMaterializedImage, hasValidSignature, materializeDataImage } = require('../src/utils/dataImage');
 
 describe('data image validation', () => {
   test('recognizes supported image signatures', () => {
@@ -19,4 +19,15 @@ describe('data image validation', () => {
       materializeDataImage(`data:image/png;base64,${fakeImage}`, 'test')
     ).rejects.toThrow('Rasm tarkibi tanlangan formatga mos emas');
   });
+});
+
+test('deleteMaterializedImage only deletes managed agency uploads', async () => {
+  const pngBuffer = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const image = `data:image/png;base64,${pngBuffer.toString('base64')}`;
+  const storedPath = await materializeDataImage(image, 'agency');
+
+  await expect(deleteMaterializedImage(storedPath, 'agency')).resolves.toBe(true);
+  await expect(deleteMaterializedImage(storedPath, 'agency')).resolves.toBe(false);
+  await expect(deleteMaterializedImage('https://example.com/image.png', 'agency')).resolves.toBe(false);
+  await expect(deleteMaterializedImage('/uploads/agency/../secret.txt', 'agency')).resolves.toBe(false);
 });

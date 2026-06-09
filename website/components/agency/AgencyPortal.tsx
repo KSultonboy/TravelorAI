@@ -161,6 +161,8 @@ type ApplicationForm = {
   imageUrl: string;
 };
 
+type ApplicationFieldErrors = Partial<Record<keyof ApplicationForm, string>>;
+
 type TourForm = {
   title: string;
   city: string;
@@ -354,6 +356,7 @@ export default function AgencyPortal() {
   const [code, setCode] = useState("");
   const [me, setMe] = useState<MeData | null>(null);
   const [applicationForm, setApplicationForm] = useState<ApplicationForm>(emptyApplication);
+  const [applicationFieldErrors, setApplicationFieldErrors] = useState<ApplicationFieldErrors>({});
   const [tourForm, setTourForm] = useState<TourForm>(emptyTour);
   const [profileForm, setProfileForm] = useState<ProfileForm>(emptyProfile);
   const [newEmail, setNewEmail] = useState("");
@@ -365,6 +368,7 @@ export default function AgencyPortal() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const applicationImageInputRef = useRef<HTMLInputElement>(null);
+  const applicationFormRef = useRef<HTMLDivElement>(null);
   const tourImageInputRef = useRef<HTMLInputElement>(null);
 
   const loadTours = useCallback(async (nextToken = token) => {
@@ -394,7 +398,12 @@ export default function AgencyPortal() {
       return;
     }
     setMe(result.data);
-    setApplicationForm(fillApplicationForm(result.data.application, result.data.account));
+    setApplicationForm(
+      result.data.application?.status === "pending"
+        ? { ...emptyApplication }
+        : fillApplicationForm(result.data.application, result.data.account)
+    );
+    setApplicationFieldErrors({});
     setProfileForm(fillProfileForm(result.data.agency));
     if (result.data.account.status === "approved") {
       await Promise.all([loadTours(nextToken), loadBookings(nextToken)]);
@@ -489,7 +498,86 @@ export default function AgencyPortal() {
     setError(googleError);
   }, []);
 
+  function updateApplicationField(key: keyof ApplicationForm, value: string) {
+    setApplicationForm((current) => ({ ...current, [key]: value }));
+    setApplicationFieldErrors((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function resetApplicationForm() {
+    setApplicationForm({ ...emptyApplication });
+    setApplicationFieldErrors({});
+    if (applicationImageInputRef.current) applicationImageInputRef.current.value = "";
+  }
+
+  function validateApplicationForm() {
+    const nextErrors: ApplicationFieldErrors = {};
+    const fieldOrder: (keyof ApplicationForm)[] = [
+      "companyName",
+      "legalName",
+      "contactPerson",
+      "phone",
+      "email",
+      "city",
+      "country",
+      "website",
+      "telegram",
+      "instagram",
+      "serviceTypes",
+      "description",
+    ];
+    const requiredFields = fieldOrder.filter((key) => REQUIRED_APPLICATION_FIELDS.has(key) || key === "description");
+
+    requiredFields.forEach((key) => {
+      if (!applicationForm[key].trim()) nextErrors[key] = "Bu majburiy maydon";
+    });
+    if (applicationForm.companyName.trim() && applicationForm.companyName.trim().length < 2) {
+      nextErrors.companyName = "Kamida 2 ta belgi kiriting";
+    }
+    if (applicationForm.contactPerson.trim() && applicationForm.contactPerson.trim().length < 2) {
+      nextErrors.contactPerson = "Kamida 2 ta belgi kiriting";
+    }
+    if (applicationForm.phone.trim() && applicationForm.phone.trim().length < 5) {
+      nextErrors.phone = "Telefon raqamini to'liq kiriting";
+    }
+    if (applicationForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(applicationForm.email.trim())) {
+      nextErrors.email = "Email manzilini to'g'ri kiriting";
+    }
+    if (applicationForm.website.trim()) {
+      try {
+        new URL(applicationForm.website.trim());
+      } catch {
+        nextErrors.website = "Website URL manzilini http:// yoki https:// bilan kiriting";
+      }
+    }
+    if (applicationForm.description.trim() && applicationForm.description.trim().length < 20) {
+      nextErrors.description = "Tavsif kamida 20 ta belgidan iborat bo'lishi kerak";
+    }
+
+    setApplicationFieldErrors(nextErrors);
+    const firstInvalidField = fieldOrder.find((key) => nextErrors[key]);
+    if (firstInvalidField) {
+      window.requestAnimationFrame(() => {
+        const field = applicationFormRef.current?.querySelector<HTMLElement>(
+          `[data-agency-field="${firstInvalidField}"]`
+        );
+        field?.focus();
+        field?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+      return false;
+    }
+    return true;
+  }
+
   async function saveApplication(submit = false) {
+    if (!validateApplicationForm()) {
+      setError("Majburiy maydonlarni to'ldiring.");
+      return;
+    }
     setLoading(true);
     setError("");
     setMessage("");
@@ -519,9 +607,8 @@ export default function AgencyPortal() {
           method: "POST",
         }, token);
         if (!submitResult.success) throw new Error(submitResult.message);
-        setApplicationForm({ ...emptyApplication });
-        if (applicationImageInputRef.current) applicationImageInputRef.current.value = "";
         await loadMe();
+        resetApplicationForm();
         setMessage("Ariza admin tekshiruvi uchun yuborildi.");
       } else {
         setMessage("Ariza draft sifatida saqlandi.");
@@ -893,7 +980,7 @@ export default function AgencyPortal() {
               </div>
             ) : (
               <>
-                <div className="agency-form-grid">
+                <div className="agency-form-grid" ref={applicationFormRef}>
               {([
                 ["companyName", "Kompaniya nomi"],
                 ["legalName", "Yuridik nomi"],
@@ -907,18 +994,29 @@ export default function AgencyPortal() {
                 ["instagram", "Instagram"],
                 ["serviceTypes", "Xizmat turlari, vergul bilan"],
               ] as const).map(([key, label]) => (
-                <label key={key}>
+                <label className={applicationFieldErrors[key] ? "agency-field--invalid" : ""} key={key}>
                   <span>{label}{REQUIRED_APPLICATION_FIELDS.has(key) ? <b className="agency-required"> *</b> : null}</span>
                   <input
+                    aria-invalid={Boolean(applicationFieldErrors[key])}
+                    data-agency-field={key}
                     value={applicationForm[key]}
-                    onChange={(event) => setApplicationForm((prev) => ({ ...prev, [key]: event.target.value }))}
+                    onChange={(event) => updateApplicationField(key, event.target.value)}
                     required={REQUIRED_APPLICATION_FIELDS.has(key)}
                   />
+                  {applicationFieldErrors[key] ? <small className="agency-field-error">{applicationFieldErrors[key]}</small> : null}
                 </label>
               ))}
-              <label className="agency-wide">
+              <label className={`agency-wide ${applicationFieldErrors.description ? "agency-field--invalid" : ""}`}>
                 <span>Tavsif<b className="agency-required"> *</b></span>
-                <textarea required minLength={20} value={applicationForm.description} onChange={(event) => setApplicationForm((prev) => ({ ...prev, description: event.target.value }))} />
+                <textarea
+                  aria-invalid={Boolean(applicationFieldErrors.description)}
+                  data-agency-field="description"
+                  required
+                  minLength={20}
+                  value={applicationForm.description}
+                  onChange={(event) => updateApplicationField("description", event.target.value)}
+                />
+                {applicationFieldErrors.description ? <small className="agency-field-error">{applicationFieldErrors.description}</small> : null}
               </label>
               <label className="agency-wide">
                 Agentlik rasmi yoki logotipi
@@ -927,7 +1025,7 @@ export default function AgencyPortal() {
               </label>
               <label className="agency-wide">
                 Hujjat yoki rasm URLlari, har biri yangi qatorda
-                <textarea value={applicationForm.documents} onChange={(event) => setApplicationForm((prev) => ({ ...prev, documents: event.target.value }))} />
+                <textarea value={applicationForm.documents} onChange={(event) => updateApplicationField("documents", event.target.value)} />
               </label>
                 </div>
                 <div className="agency-actions">

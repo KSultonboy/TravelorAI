@@ -58,4 +58,23 @@ async function materializeDataImage(value, folder = 'agency') {
   return `/uploads/${safeFolder}/${filename}`;
 }
 
-module.exports = { materializeDataImage, hasValidSignature };
+async function deleteMaterializedImage(value, folder = 'agency') {
+  const safeFolder = String(folder || 'agency').replace(/[^a-z0-9_-]/gi, '') || 'agency';
+  const text = String(value || '').trim();
+  const match = text.match(new RegExp(`^/uploads/${safeFolder}/([a-z0-9._-]+)$`, 'i'));
+  if (!match) return false;
+
+  const uploadDir = path.resolve(__dirname, '../../uploads', safeFolder);
+  const filePath = path.resolve(uploadDir, match[1]);
+  if (!filePath.startsWith(`${uploadDir}${path.sep}`)) return false;
+
+  try {
+    await fs.unlink(filePath);
+    return true;
+  } catch (err) {
+    if (err.code === 'ENOENT') return false;
+    throw err;
+  }
+}
+
+module.exports = { materializeDataImage, deleteMaterializedImage, hasValidSignature };

@@ -323,6 +323,20 @@
   color: #d93025;
 }
 
+.agency-field--invalid input,
+.agency-field--invalid textarea {
+  border-color: #d93025 !important;
+  box-shadow: 0 0 0 3px rgba(217, 48, 37, 0.12);
+}
+
+.agency-field-error {
+  display: block;
+  margin-top: 6px;
+  color: #b42318;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
 .agency-image-preview {
   display: block;
   width: min(100%, 420px);
