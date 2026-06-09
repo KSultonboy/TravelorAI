@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, ImageBackground, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -8,6 +8,8 @@ import { FONTS } from '../../constants/fonts';
 import { SPACING } from '../../constants/spacing';
 import { type AppColors, useAppTheme } from '../../theme/app-theme';
 import { bookingsAPI } from '../../utils/api';
+import type { AuthUser } from '../../utils/auth';
+import { getJSON, KEYS } from '../../utils/storage';
 import type { HomeTourItem } from '../../utils/homeContent';
 
 function parseTourParam(value: string | string[] | undefined): HomeTourItem | null {
@@ -34,6 +36,14 @@ export function TourDetailsScreen() {
   const [bookingMessage, setBookingMessage] = useState('');
   const [bookingLoading, setBookingLoading] = useState(false);
 
+  useEffect(() => {
+    getJSON<AuthUser>(KEYS.USER).then((savedUser) => {
+      if (!savedUser) return;
+      setCustomerName([savedUser.name, savedUser.lastName].filter(Boolean).join(' '));
+      setCustomerEmail(savedUser.email);
+    }).catch(() => {});
+  }, []);
+
   async function submitBooking() {
     if (!tour?.id) {
       Alert.alert('Tour tanlanmagan', 'Booking yuborish uchun public tour katalogidan tour tanlang.');
@@ -56,7 +66,14 @@ export function TourDetailsScreen() {
         message: bookingMessage.trim(),
         source: 'mobile',
       });
-      Alert.alert('So‘rov yuborildi', 'Agency booking so‘rovingizni ko‘rib chiqadi va siz bilan bog‘lanadi.');
+      Alert.alert(
+        'So‘rov yuborildi',
+        'Agency booking so‘rovingizni ko‘rib chiqadi. Holat web va mobil akkauntingizda bir xil ko‘rinadi.',
+        [
+          { text: 'Yopish' },
+          { text: 'Bookinglarim', onPress: () => router.push('/bookings' as never) },
+        ]
+      );
       setBookingMessage('');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Booking yuborilmadi';
@@ -117,6 +134,10 @@ export function TourDetailsScreen() {
           <Stat label="Duration" value={tour.duration || '-'} styles={styles} />
           <Stat label="Rating" value={tour.rating ? tour.rating.toFixed(1) : '-'} styles={styles} />
           <Stat label="From" value={tour.price || (tour.priceMin ? `$${tour.priceMin}` : 'So‘rovda')} styles={styles} />
+        </View>
+        <View style={styles.responseTimeBox}>
+          <Ionicons name="timer-outline" size={18} color={colors.success} />
+          <Text style={styles.responseTimeText}>Agentlik odatda {tour.responseTimeMinutes || 45} daqiqada javob beradi.</Text>
         </View>
         {highlights.length > 0 ? (
           <>
@@ -238,6 +259,15 @@ function createStyles(colors: AppColors) {
     tourSub: { fontFamily: FONTS.regular, fontSize: 13, lineHeight: 19, color: colors.textMuted },
     tourSubOnImage: { color: 'rgba(255,255,255,0.86)' },
     formCard: { marginHorizontal: SPACING.lg, marginTop: SPACING.lg, borderRadius: 24, backgroundColor: colors.surface, padding: SPACING.lg, gap: SPACING.md },
+    responseTimeBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+      padding: SPACING.md,
+      borderRadius: 16,
+      backgroundColor: colors.successPale,
+    },
+    responseTimeText: { flex: 1, fontFamily: FONTS.semibold, fontSize: 12, color: colors.success },
     detailStats: { flexDirection: 'row', gap: SPACING.sm },
     statBox: { flex: 1, borderRadius: 18, backgroundColor: colors.cardMuted, padding: SPACING.md },
     statValue: { fontFamily: FONTS.display, fontSize: 17, color: colors.text },

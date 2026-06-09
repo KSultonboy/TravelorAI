@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#07171d"/>
+      <stop offset=".58" stop-color="#0c6d58"/>
+      <stop offset="1" stop-color="#c8a65a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" rx="40" fill="url(#bg)"/>
+  <path d="M0 520 275 300l175 165 230-250 270 280 250-155v290H0Z" fill="#071116" opacity=".82"/>
+  <text x="80" y="112" fill="#b7f3da" font-family="Arial, sans-serif" font-size="28" font-weight="700" letter-spacing="7">AI POWERED TRAVEL</text>
+  <text x="80" y="290" fill="#fff" font-family="Georgia, serif" font-size="112" font-weight="700">TravelorAI</text>
+  <text x="84" y="365" fill="#e5f4ee" font-family="Arial, sans-serif" font-size="34">Plan smarter. Travel better.</text>
+</svg>

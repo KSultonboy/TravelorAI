@@ -9,11 +9,9 @@ services:
     environment:
       POSTGRES_DB: travelorai_db
       POSTGRES_USER: travelorai
-      POSTGRES_PASSWORD: travelorai_pass
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - '5433:5432'
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U travelorai -d travelorai_db']
       interval: 10s
@@ -27,8 +25,6 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
-    ports:
-      - '6380:6379'
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
@@ -43,12 +39,13 @@ services:
     restart: unless-stopped
     env_file: ./backend/.env
     environment:
+      NODE_ENV: production
       PORT: 4000
-      DATABASE_URL: postgresql://travelorai:travelorai_pass@postgres:5432/travelorai_db
+      DATABASE_URL: postgresql://travelorai:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/travelorai_db
       REDIS_URL: redis://redis:6379
       ALLOWED_ORIGINS: http://localhost,http://127.0.0.1,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8081,http://localhost:19006,https://travelorai.com,https://www.travelorai.com,https://admin.travelorai.com,https://agency.travelorai.com
-    ports:
-      - '4000:4000'
+    expose:
+      - '4000'
     depends_on:
       postgres:
         condition: service_healthy
@@ -73,9 +70,9 @@ services:
       NEXT_PUBLIC_API_URL: https://travelorai.com/api/v1
       ADMIN_API_URL: http://backend:4000/api/v1
       AGENCY_API_URL: http://backend:4000/api/v1
-      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-travelorai_admin_session_change_me}
-      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:?ADMIN_SESSION_SECRET is required}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:?ADMIN_USERNAME is required}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
       NODE_ENV: production
     depends_on:
       - backend

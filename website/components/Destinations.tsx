@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { ArrowRight, Star } from "lucide-react";
 import { trackLandingEvent } from "@/lib/landingEvents";
@@ -25,8 +25,13 @@ function imageValue(item: LandingPlace) {
   return "linear-gradient(135deg, #0c8b63, #101217)";
 }
 
+function destinationHref(item: LandingPlace) {
+  const query = [item.name, item.city].filter(Boolean).join(", ");
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
 export default function Destinations({ places = [] }: { places?: LandingPlace[] }) {
-  const items = places.slice(0, 3);
+  const items = useMemo(() => places.slice(0, 3), [places]);
 
   useEffect(() => {
     items.forEach((item) => {
@@ -45,10 +50,10 @@ export default function Destinations({ places = [] }: { places?: LandingPlace[] 
         <div className="section-head lp-reveal">
           <div>
             <h2>Trending Destinations</h2>
-            <p>Backenddan kelayotgan real joylar va user signallari asosida global mashhur nuqtalar.</p>
+            <p>Discover highly rated places selected from verified travel data and community signals.</p>
           </div>
-          <Link className="view-link" href="#about">
-            Learn more
+          <Link className="view-link" href="#how-it-works">
+            How it works
             <ArrowRight size={15} />
           </Link>
         </div>
@@ -57,7 +62,9 @@ export default function Destinations({ places = [] }: { places?: LandingPlace[] 
           {items.length > 0 ? (
             items.map((item) => (
               <Link
-                href="#about"
+                href={destinationHref(item)}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="destination-card lp-reveal"
                 key={item.id || item.slug || item.name}
                 style={{ "--image": imageValue(item) } as CSSProperties}
@@ -82,7 +89,11 @@ export default function Destinations({ places = [] }: { places?: LandingPlace[] 
               </Link>
             ))
           ) : (
-            <div className="landing-empty lp-reveal">Featured destinations are being prepared.</div>
+            <div className="landing-empty lp-reveal">
+              <strong>New destinations are on the way.</strong>
+              <span>Use the mobile app to create an AI trip for any city while our featured collection grows.</span>
+              <Link href="#how-it-works">See how TravelorAI works <ArrowRight size={15} /></Link>
+            </div>
           )}
         </div>
       </div>

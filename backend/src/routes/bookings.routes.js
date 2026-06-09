@@ -1,8 +1,9 @@
 const router = require('express').Router();
 const bookings = require('../controllers/bookings.controller');
-const { optionalAuth } = require('../middleware/auth.middleware');
+const { authMiddleware, optionalAuth } = require('../middleware/auth.middleware');
+const { bookingLimiter } = require('../middleware/rateLimit.middleware');
 
-router.post('/', optionalAuth, bookings.create);
-router.get('/mine', optionalAuth, bookings.listMine);
+router.post('/', bookingLimiter, optionalAuth, bookings.create);
+router.get('/mine', authMiddleware, bookings.listMine);
 
 module.exports = router;

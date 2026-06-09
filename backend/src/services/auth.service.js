@@ -1,11 +1,18 @@
 const crypto = require('crypto');
 const axios = require('axios');
 const { prisma } = require('../config/database');
-const { sendPasswordResetCodeEmail, sendVerificationCodeEmail } = require('./email.service');
+const {
+  sendAccountDeleteCodeEmail,
+  sendEmailChangeCodeEmail,
+  sendPasswordResetCodeEmail,
+  sendVerificationCodeEmail,
+} = require('./email.service');
 
 const AuthCodeType = {
   EMAIL_VERIFICATION: 'EMAIL_VERIFICATION',
   PASSWORD_RESET: 'PASSWORD_RESET',
+  EMAIL_CHANGE: 'EMAIL_CHANGE',
+  ACCOUNT_DELETE: 'ACCOUNT_DELETE',
 };
 
 const AuthProvider = {
@@ -37,14 +44,14 @@ function buildPublicUser(user) {
 }
 
 function generateNumericCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(crypto.randomInt(100000, 1000000));
 }
 
 function hashCode(code) {
   return crypto.createHash('sha256').update(code).digest('hex');
 }
 
-async function issueAuthCode({ user, type }) {
+async function issueAuthCode({ user, type, newEmail }) {
   const code = generateNumericCode();
   const codeHash = hashCode(code);
   const ttlMinutes = type === AuthCodeType.EMAIL_VERIFICATION ? EMAIL_VERIFICATION_TTL_MINUTES : PASSWORD_RESET_TTL_MINUTES;
@@ -63,20 +70,22 @@ async function issueAuthCode({ user, type }) {
     },
   });
 
-  const emailResult =
-    type === AuthCodeType.EMAIL_VERIFICATION
-      ? await sendVerificationCodeEmail({
-          email: user.email,
-          name: user.name,
-          code,
-          expiresInMinutes: ttlMinutes,
-        })
-      : await sendPasswordResetCodeEmail({
-          email: user.email,
-          name: user.name,
-          code,
-          expiresInMinutes: ttlMinutes,
-        });
+  const mailPayload = {
+    email: user.email,
+    name: user.name,
+    code,
+    expiresInMinutes: ttlMinutes,
+  };
+  let emailResult;
+  if (type === AuthCodeType.EMAIL_VERIFICATION) {
+    emailResult = await sendVerificationCodeEmail(mailPayload);
+  } else if (type === AuthCodeType.EMAIL_CHANGE) {
+    emailResult = await sendEmailChangeCodeEmail({ ...mailPayload, newEmail });
+  } else if (type === AuthCodeType.ACCOUNT_DELETE) {
+    emailResult = await sendAccountDeleteCodeEmail(mailPayload);
+  } else {
+    emailResult = await sendPasswordResetCodeEmail(mailPayload);
+  }
 
   return {
     ...emailResult,
@@ -102,7 +111,12 @@ async function consumeAuthCode({ userId, type, code }) {
     throw new Error('CODE_EXPIRED');
   }
 
-  if (authCode.codeHash !== hashCode(code)) {
+  const expectedHash = Buffer.from(authCode.codeHash, 'hex');
+  const actualHash = Buffer.from(hashCode(code), 'hex');
+  if (
+    expectedHash.length !== actualHash.length ||
+    !crypto.timingSafeEqual(expectedHash, actualHash)
+  ) {
     throw new Error('CODE_INVALID');
   }
 

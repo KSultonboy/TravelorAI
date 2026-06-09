@@ -64,6 +64,13 @@ export default function RegisterScreen() {
 
       Alert.alert(t('auth.errorTitle'), data.message || t('auth.errorRegister'));
     } catch (error) {
+      if (error instanceof ApiError && error.data?.requiresVerification === true) {
+        router.replace({
+          pathname: '/verify-email',
+          params: { email: normalizedEmail },
+        });
+        return;
+      }
       const message = error instanceof ApiError ? error.message : t('auth.errorRegister');
       Alert.alert(t('auth.errorTitle'), message);
     } finally {

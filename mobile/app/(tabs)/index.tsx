@@ -20,6 +20,7 @@ import { type AppColors, useAppTheme } from '../../src/theme/app-theme';
 import { extractApiData, getUserDisplayName, type AuthUser } from '../../src/utils/auth';
 import { homeAPI } from '../../src/utils/api';
 import { KEYS, getJSON, saveJSON } from '../../src/utils/storage';
+import { useWishlist } from '../../src/hooks/useWishlist';
 import {
   HOME_DEFAULT_HERO,
   PLACE_FILTERS,
@@ -67,6 +68,7 @@ export default function HomeScreen() {
   const [placeFilter, setPlaceFilter] = useState<HomePlaceType>('all');
   const [heroIndex, setHeroIndex] = useState(0);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const { isWishlisted, toggle: toggleWishlist } = useWishlist(user?.id || null);
 
   const loadHomeData = useCallback(async () => {
     const [savedUser, cached] = await Promise.all([
@@ -202,8 +204,23 @@ export default function HomeScreen() {
     <TouchableOpacity style={styles.placeSlideCard} activeOpacity={0.88} onPress={() => openPlace(item)}>
       <PlaceCardMedia imageUrl={getPlaceImage(item)} styles={styles} colors={colors}>
         <View style={styles.cardScrim} />
-        <TouchableOpacity style={styles.cardHeart} activeOpacity={0.82}>
-          <Ionicons name="heart-outline" size={15} color={colors.text} />
+        <TouchableOpacity
+          style={styles.cardHeart}
+          activeOpacity={0.82}
+          onPress={(event) => {
+            event.stopPropagation();
+            void toggleWishlist({
+              id: item.id,
+              poiId: item.id,
+              name: item.name,
+              city: item.city || 'Global',
+              slug: item.slug,
+              type: item.type,
+              icon: '📍',
+            });
+          }}
+        >
+          <Ionicons name={isWishlisted(item.id) || isWishlisted(item.slug) ? 'heart' : 'heart-outline'} size={15} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.placeSlideBody}>
           <Text style={styles.placeSlideName} numberOfLines={2}>{item.name}</Text>

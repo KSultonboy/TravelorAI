@@ -230,7 +230,7 @@ export function StitchListRow({
         <Text style={[styles.listTitle, danger && { color: colors.error }]}>{title}</Text>
         {subtitle ? <Text style={styles.listSub} numberOfLines={2}>{subtitle}</Text> : null}
       </View>
-      {right || <Ionicons name="chevron-forward" size={17} color={colors.textMuted} />}
+      {right || (onPress ? <Ionicons name="chevron-forward" size={17} color={colors.textMuted} /> : null)}
     </Wrapper>
   );
 }

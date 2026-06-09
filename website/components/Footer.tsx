@@ -5,28 +5,27 @@ const FOOTER_COLUMNS = [
   {
     title: "Platform",
     links: [
-      ["AI Trip Planner", "#about"],
+      ["AI Trip Planner", "#how-it-works"],
       ["Explore Destinations", "#features"],
-      ["Traveler Stories", "#about"],
-      ["Mobile App", "#features"],
+      ["How It Works", "#how-it-works"],
+      ["Agency Portal", "/agency"],
     ],
   },
   {
     title: "Company",
     links: [
-      ["About Us", "#about"],
-      ["Careers", "#contact"],
-      ["Press", "#contact"],
-      ["Blog", "#about"],
+      ["About Us", "#how-it-works"],
+      ["Instagram", "https://www.instagram.com/traveloraai/"],
+      ["YouTube", "https://www.youtube.com/@TravelorAI"],
     ],
   },
   {
     title: "Support",
     links: [
-      ["Help Center", "#contact"],
-      ["Contact Us", "#contact"],
-      ["Privacy Policy", "#home"],
-      ["Terms of Service", "#home"],
+      ["Help Center", "mailto:support@travelorai.com"],
+      ["Contact Us", "mailto:support@travelorai.com"],
+      ["Privacy Policy", "__PRIVACY__"],
+      ["Delete Account", "__DELETE_ACCOUNT__"],
     ],
   },
 ];
@@ -37,6 +36,22 @@ const SOCIALS = [
 ];
 
 export default function Footer() {
+  const configuredApi = process.env.NEXT_PUBLIC_API_URL || "";
+  const backendOrigin = /^https?:\/\//i.test(configuredApi)
+    ? configuredApi.replace(/\/api\/v1\/?$/i, "")
+    : process.env.NODE_ENV === "production"
+      ? ""
+      : "http://localhost:4000";
+  const privacyUrl = `${backendOrigin}/privacy-policy`;
+  const deleteAccountUrl = `${backendOrigin}/account-deletion`;
+  const currentYear = new Date().getFullYear();
+
+  function resolveHref(href: string) {
+    if (href === "__PRIVACY__") return privacyUrl;
+    if (href === "__DELETE_ACCOUNT__") return deleteAccountUrl;
+    return href;
+  }
+
   return (
     <footer id="contact" className="lp-footer">
       <div className="lp-wrap">
@@ -69,7 +84,17 @@ export default function Footer() {
               <ul>
                 {column.links.map(([label, href]) => (
                   <li key={label}>
-                    <Link href={href}>{label}</Link>
+                    {/^(https?:|mailto:)/.test(resolveHref(href)) ? (
+                      <a
+                        href={resolveHref(href)}
+                        target={resolveHref(href).startsWith("http") ? "_blank" : undefined}
+                        rel={resolveHref(href).startsWith("http") ? "noopener noreferrer" : undefined}
+                      >
+                        {label}
+                      </a>
+                    ) : (
+                      <Link href={resolveHref(href)}>{label}</Link>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -78,13 +103,13 @@ export default function Footer() {
         </div>
 
         <div className="lp-footer__bottom">
-          <span>&copy; 2026 TravelorAI. All rights reserved.</span>
+          <span>&copy; {currentYear} TravelorAI. All rights reserved.</span>
           <span className="lp-footer__legal">
-            <Link href="#home">Privacy</Link>
+            <a href={privacyUrl} target="_blank" rel="noopener noreferrer">Privacy</a>
             <span>&middot;</span>
-            <Link href="#home">Terms</Link>
+            <Link href="#how-it-works">How it works</Link>
             <span>&middot;</span>
-            <Link href="#home">Cookies</Link>
+            <a href={deleteAccountUrl} target="_blank" rel="noopener noreferrer">Delete account</a>
           </span>
         </div>
       </div>

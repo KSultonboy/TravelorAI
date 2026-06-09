@@ -19,7 +19,6 @@ import {
 
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
-import { Search } from '@metamorph/react-native-yamap';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -35,6 +34,7 @@ import { extractApiData } from '../../src/utils/auth';
 import { poiAPI, transportAPI, tripsAPI, yandexAPI, type PoiPayload, type YandexPlacePointPayload, type YandexTransportPointPayload } from '../../src/utils/api';
 import { getItem, getJSON, getUserKey, KEYS, saveItem, saveJSON } from '../../src/utils/storage';
 import type { TripPlan } from '../../src/utils/tripPlanner';
+import { isYandexSearchAvailable, searchYandexText } from '../../src/utils/yandexSearch';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -815,7 +815,7 @@ async function fetchNativeYandexSearchPoints({
   subtype?: string;
   limit: number;
 }): Promise<MapPoint[]> {
-  if (Platform.OS === 'web' || !Search?.searchText) return [];
+  if (!isYandexSearchAvailable()) return [];
 
   const queries = nativeQueriesFor(type, subtype).slice(0, 6);
   const searchOrigins = (origins && origins.length > 0 ? origins : [origin]).slice(0, 5);
@@ -832,7 +832,7 @@ async function fetchNativeYandexSearchPoints({
           type: 'POINT',
           value: { lat: searchOrigin.latitude, lon: searchOrigin.longitude },
         } as any;
-        const items = await Search.searchText(query, figure, options);
+        const items = await searchYandexText(query, figure, options);
         const list = Array.isArray(items) ? items : items ? [items] : [];
         return list
               .map((item) => mapNativeYandexSearchPoint(item, query, type))
@@ -857,7 +857,7 @@ async function fetchNativeYandexTextSearchPoints({
   type?: 'landmark' | 'restaurant' | 'hotel' | 'transport';
   limit: number;
 }): Promise<MapPoint[]> {
-  if (Platform.OS === 'web' || !Search?.searchText || query.trim().length < 2) return [];
+  if (!isYandexSearchAvailable() || query.trim().length < 2) return [];
 
   const fallbackType = type || 'landmark';
   const figure = {
@@ -871,7 +871,7 @@ async function fetchNativeYandexTextSearchPoints({
   } as any;
 
   try {
-    const items = await Search.searchText(query, figure, options);
+    const items = await searchYandexText(query, figure, options);
     const list = Array.isArray(items) ? items : items ? [items] : [];
     const mapped = list
       .map((item) => mapNativeYandexSearchPoint(item, query, fallbackType))
@@ -1028,7 +1028,8 @@ export default function ExploreScreen() {
   const insets     = useSafeAreaInsets();
   const safeBottom = Math.max(insets.bottom, 22);
   const styles     = useMemo(() => createStyles(colors), [colors]);
-  const { tripId } = useLocalSearchParams<{ tripId?: string }>();
+  const { tripId, q: routeQuery, category: routeCategory, radius: routeRadius } =
+    useLocalSearchParams<{ tripId?: string; q?: string; category?: string; radius?: string }>();
 
   const tt = useCallback(
     (key: string, fallback: string, values?: Record<string, unknown>) =>
@@ -1071,6 +1072,18 @@ export default function ExploreScreen() {
   const [activeDay,   setActiveDay]   = useState<number | null>(null);
   const [savingStopId, setSavingStopId] = useState<string | null>(null);
   const [listVersion, setListVersion] = useState(0);
+
+  useEffect(() => {
+    if (typeof routeQuery === 'string') setQuery(routeQuery);
+    if (typeof routeCategory === 'string' && ['all', 'restaurant', 'hotel', 'landmark', 'transport'].includes(routeCategory)) {
+      setCategory(routeCategory as CategoryFilter);
+    }
+    const nextRadius = Number(routeRadius);
+    if (RADIUS_OPTIONS.includes(nextRadius)) {
+      setRadiusKm(nextRadius);
+      setLoadMode('radius');
+    }
+  }, [routeCategory, routeQuery, routeRadius]);
 
   const subchipsAnim = useRef(new Animated.Value(0)).current;
   const locationWatcherRef = useRef<Location.LocationSubscription | null>(null);

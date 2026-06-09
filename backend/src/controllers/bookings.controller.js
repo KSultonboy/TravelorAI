@@ -15,11 +15,16 @@ function formatBooking(booking) {
     travelDate: booking.travelDate,
     message: booking.message,
     status: booking.status,
+    responseDeadlineAt: booking.responseDeadlineAt,
     totalEstimate: booking.totalEstimate,
     currency: booking.currency,
     source: booking.source,
     agencyNote: booking.agencyNote,
     adminNote: booking.adminNote,
+    confirmedAt: booking.confirmedAt,
+    rejectedAt: booking.rejectedAt,
+    cancelledAt: booking.cancelledAt,
+    completedAt: booking.completedAt,
     createdAt: booking.createdAt,
     updatedAt: booking.updatedAt,
     tour: booking.tour
@@ -32,6 +37,7 @@ function formatBooking(booking) {
           price: booking.tour.price,
           priceMin: booking.tour.priceMin,
           imageUrl: booking.tour.imageUrl,
+          responseTimeMinutes: booking.tour.responseTimeMinutes ?? 45,
         }
       : null,
     agency: booking.agency
@@ -42,6 +48,7 @@ function formatBooking(booking) {
           city: booking.agency.city,
           phone: booking.agency.phone,
           website: booking.agency.website,
+          imageUrl: booking.agency.imageUrl,
         }
       : null,
   };
@@ -64,7 +71,16 @@ async function create(req, res) {
     if (!tour) return error(res, 'Tour topilmadi yoki hali public emas', 404);
 
     const userId = req.user?.id || null;
+    if (userId) {
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+      if (user && user.email.toLowerCase() !== input.customerEmail.toLowerCase()) {
+        return error(res, 'Booking emaili akkauntingiz emailiga mos bo‘lishi kerak', 400);
+      }
+    }
     const totalEstimate = tour.priceMin ? tour.priceMin * input.travelers : null;
+    const responseDeadlineAt = new Date(
+      Date.now() + Math.max(5, Number(tour.responseTimeMinutes || 45)) * 60 * 1000
+    );
     const booking = await prisma.tourBooking.create({
       data: {
         tourId: tour.id,
@@ -80,6 +96,7 @@ async function create(req, res) {
         currency: 'USD',
         source: input.source || 'mobile',
         status: 'pending',
+        responseDeadlineAt,
       },
       include: { tour: true, agency: true },
     });
@@ -92,12 +109,22 @@ async function create(req, res) {
 
 async function listMine(req, res) {
   try {
-    const email = String(req.query.email || '').trim().toLowerCase();
-    const where = req.user?.id ? { userId: req.user.id } : email ? { customerEmail: email } : null;
-    if (!where) return error(res, 'Token yoki email talab qilinadi', 401);
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { email: true },
+    });
+    if (!user) return error(res, 'Foydalanuvchi topilmadi', 404);
+
+    await prisma.tourBooking.updateMany({
+      where: {
+        userId: null,
+        customerEmail: user.email.toLowerCase(),
+      },
+      data: { userId: req.user.id },
+    });
 
     const items = await prisma.tourBooking.findMany({
-      where,
+      where: { userId: req.user.id },
       include: { tour: true, agency: true },
       orderBy: { createdAt: 'desc' },
       take: 100,

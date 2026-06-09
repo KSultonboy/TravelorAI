@@ -32,6 +32,14 @@ const DETECTED_METRO_HOST = detectMetroHost();
 const DETECTED_API_URL = DETECTED_METRO_HOST ? `http://${DETECTED_METRO_HOST}:${DEV_API_PORT}/api/v1` : undefined;
 const API_URL = ENV_API_URL || DETECTED_API_URL || FALLBACK_LOCAL_API_URL;
 
+export function resolveMediaUrl(value?: string | null): string | null {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  if (/^(https?:|data:|file:)/i.test(text)) return text;
+  const origin = API_URL.replace(/\/api\/v1\/?$/i, '');
+  return `${origin}${text.startsWith('/') ? text : `/${text}`}`;
+}
+
 const RETRY_BASE_URLS = Array.from(
   new Set([DETECTED_API_URL, FALLBACK_LOCAL_API_URL].filter((item): item is string => Boolean(item)))
 ).filter((url) => url !== API_URL);
@@ -238,7 +246,17 @@ export interface AchievementsPayload {
 
 export interface DeleteAccountPayload {
   confirm: true;
-  password?: string;
+  code: string;
+}
+
+export interface SecurityCodePayload {
+  message: string;
+  email?: string;
+  currentEmail?: string;
+  pendingEmail?: string;
+  attemptsRemaining: number;
+  delivery?: string;
+  devCode?: string;
 }
 
 export interface FeedbackPayload {
@@ -294,6 +312,7 @@ export interface TourBookingItemPayload {
   totalEstimate?: number | null;
   currency: string;
   createdAt?: string;
+  responseDeadlineAt?: string | null;
   tour?: {
     id: string;
     slug?: string | null;
@@ -303,6 +322,7 @@ export interface TourBookingItemPayload {
     price?: string | null;
     priceMin?: number | null;
     imageUrl?: string | null;
+    responseTimeMinutes?: number | null;
   } | null;
   agency?: {
     id: string;
@@ -395,6 +415,9 @@ export const authAPI = {
   getPreferences: () => api.get('/auth/preferences'),
   updatePreferences: (body: { style: 'budget' | 'mid' | 'luxury'; interests: string[] }) => api.put('/auth/preferences', body),
   updateProfile: (body: unknown) => api.put('/auth/profile', body),
+  requestEmailChange: (body: { newEmail: string; password?: string }) => api.post('/auth/email-change/request', body),
+  verifyEmailChange: (body: { code: string }) => api.post('/auth/email-change/verify', body),
+  requestAccountDeletion: (body: { password?: string }) => api.post('/auth/account-deletion/request', body),
   deleteAccount: (body: DeleteAccountPayload) => api.delete('/auth/account', { data: body }),
 };
 

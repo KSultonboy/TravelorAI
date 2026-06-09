@@ -6,6 +6,14 @@ type RouteContext = {
 
 const METHODS_WITH_BODY = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const DEFAULT_PROXY_TIMEOUT_MS = 15000;
+const AGENCY_TOKEN_COOKIE = "travelorai_agency_token";
+const AGENCY_SESSION_SECONDS = 60 * 60 * 24 * 7;
+const TOKEN_RESPONSE_PATHS = new Set([
+  "agency/auth/login",
+  "agency/auth/google",
+  "agency/auth/verify-email",
+  "agency/auth/email-change/confirm",
+]);
 
 function normalizeApiBase(value: string) {
   return value.replace(/\/$/, "");
@@ -31,15 +39,49 @@ function getAgencyApiBase(request: NextRequest) {
   return "https://travelorai.com/api/v1";
 }
 
+function secureCookie() {
+  return process.env.NODE_ENV === "production"
+    || /^https:\/\//i.test(process.env.NEXT_PUBLIC_SITE_URL || "");
+}
+
+function clearAgencyCookie(response: NextResponse) {
+  response.cookies.set(AGENCY_TOKEN_COOKIE, "", {
+    httpOnly: true,
+    secure: secureCookie(),
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
+}
+
+function validRequestOrigin(request: NextRequest) {
+  if (!METHODS_WITH_BODY.has(request.method)) return true;
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+  return origin === request.nextUrl.origin
+    || origin === process.env.NEXT_PUBLIC_SITE_URL
+    || origin === process.env.AGENCY_SITE_URL;
+}
+
 async function proxyAgencyRequest(request: NextRequest, context: RouteContext) {
   const params = await context.params;
   const rawPathParts = params.path || [];
   const path = rawPathParts.map(encodeURIComponent).join("/");
+  if (path === "agency/auth/logout" && request.method === "POST") {
+    const response = NextResponse.json({ success: true, data: { loggedOut: true } });
+    clearAgencyCookie(response);
+    return response;
+  }
+  if (!validRequestOrigin(request)) {
+    return NextResponse.json({ success: false, message: "So'rov manbasi ruxsat etilmagan" }, { status: 403 });
+  }
+
   const target = `${getAgencyApiBase(request)}/${path}${request.nextUrl.search}`;
   const isHealthCheck = rawPathParts.length === 1 && String(rawPathParts[0]).toLowerCase() === "health";
   const headers = new Headers();
 
-  const authorization = request.headers.get("authorization");
+  const cookieToken = request.cookies.get(AGENCY_TOKEN_COOKIE)?.value;
+  const authorization = request.headers.get("authorization") || (cookieToken ? `Bearer ${cookieToken}` : null);
   if (authorization) headers.set("authorization", authorization);
 
   const contentType = request.headers.get("content-type");
@@ -90,12 +132,32 @@ async function proxyAgencyRequest(request: NextRequest, context: RouteContext) {
   }
 
   const text = await backendResponse.text();
-  return new NextResponse(text, {
+  const responseContentType = backendResponse.headers.get("content-type") || "application/json";
+  if (TOKEN_RESPONSE_PATHS.has(path) && backendResponse.ok && responseContentType.includes("application/json")) {
+    const payload = JSON.parse(text);
+    const token = payload?.data?.token;
+    if (token) {
+      delete payload.data.token;
+      const response = NextResponse.json(payload, { status: backendResponse.status });
+      response.cookies.set(AGENCY_TOKEN_COOKIE, token, {
+        httpOnly: true,
+        secure: secureCookie(),
+        sameSite: "lax",
+        path: "/",
+        maxAge: AGENCY_SESSION_SECONDS,
+      });
+      return response;
+    }
+  }
+
+  const response = new NextResponse(text, {
     status: backendResponse.status,
     headers: {
-      "content-type": backendResponse.headers.get("content-type") || "application/json",
+      "content-type": responseContentType,
     },
   });
+  if (backendResponse.status === 401 && cookieToken) clearAgencyCookie(response);
+  return response;
 }
 
 export const GET = proxyAgencyRequest;
