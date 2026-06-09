@@ -10,6 +10,7 @@ const AGENCY_TOKEN_COOKIE = "travelorai_agency_token";
 const AGENCY_SESSION_SECONDS = 60 * 60 * 24 * 7;
 const TOKEN_RESPONSE_PATHS = new Set([
   "agency/auth/login",
+  "agency/auth/google",
   "agency/auth/verify-email",
   "agency/auth/email-change/confirm",
 ]);

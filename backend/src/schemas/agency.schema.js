@@ -47,6 +47,10 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+const googleAuthSchema = z.object({
+  idToken: z.string().trim().min(20),
+});
+
 const applicationSchema = z.object({
   companyName: z.string().trim().min(2),
   legalName: z.string().trim().optional().or(z.literal('')),
@@ -89,6 +93,7 @@ module.exports = {
   emailChangeRequestSchema,
   emailChangeConfirmSchema,
   loginSchema,
+  googleAuthSchema,
   applicationSchema,
   tourSchema,
   adminReviewSchema,

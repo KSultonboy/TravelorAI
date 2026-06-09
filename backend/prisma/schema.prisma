@@ -75,6 +75,7 @@ model AuthCode {
 model AgencyAccount {
   id                     String              @id @default(cuid())
   email                  String              @unique
+  googleId               String?             @unique
   pendingEmail           String?             @unique
   passwordHash           String
   emailVerified          Boolean             @default(false)

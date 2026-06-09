@@ -25,6 +25,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { publicImageSrc } from "@/lib/imageUrls";
+import GoogleContinueButton from "@/components/GoogleContinueButton";
 import Image from "next/image";
 
 type ApiResponse<T> = { success: true; data: T } | { success: false; message: string; code?: string };
@@ -422,6 +423,7 @@ export default function AgencyPortal() {
           body: JSON.stringify({ email, password }),
         });
         if (!result.success) throw new Error(result.message);
+        setPassword("");
         setMode("verify");
         setMessage(result.data.delivery?.devCode ? `Tasdiqlash kodi: ${result.data.delivery.devCode}` : "Tasdiqlash kodi emailingizga yuborildi.");
         return;
@@ -434,6 +436,8 @@ export default function AgencyPortal() {
         });
         if (!result.success) throw new Error(result.message);
         setToken(COOKIE_SESSION);
+        setPassword("");
+        setCode("");
         setMessage("Email tasdiqlandi. Endi agency arizasini to'ldiring.");
         await loadMe(COOKIE_SESSION);
         return;
@@ -448,6 +452,8 @@ export default function AgencyPortal() {
         throw new Error(result.message);
       }
       setToken(COOKIE_SESSION);
+      setPassword("");
+      setCode("");
       await loadMe(COOKIE_SESSION);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Xatolik yuz berdi");
@@ -455,6 +461,33 @@ export default function AgencyPortal() {
       setLoading(false);
     }
   }
+
+  const handleGoogleCredential = useCallback(async (idToken: string) => {
+    setLoading(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await api<{ account: Account }>("/auth/google", {
+        method: "POST",
+        body: JSON.stringify({ idToken }),
+      });
+      if (!result.success) throw new Error(result.message);
+      setToken(COOKIE_SESSION);
+      setEmail("");
+      setPassword("");
+      setCode("");
+      setMode("login");
+      await loadMe(COOKIE_SESSION);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google orqali kirib bo'lmadi");
+    } finally {
+      setLoading(false);
+    }
+  }, [loadMe]);
+
+  const handleGoogleError = useCallback((googleError: string) => {
+    setError(googleError);
+  }, []);
 
   async function saveApplication(submit = false) {
     setLoading(true);
@@ -486,9 +519,9 @@ export default function AgencyPortal() {
           method: "POST",
         }, token);
         if (!submitResult.success) throw new Error(submitResult.message);
-        await loadMe();
         setApplicationForm({ ...emptyApplication });
         if (applicationImageInputRef.current) applicationImageInputRef.current.value = "";
+        await loadMe();
         setMessage("Ariza admin tekshiruvi uchun yuborildi.");
       } else {
         setMessage("Ariza draft sifatida saqlandi.");
@@ -801,6 +834,16 @@ export default function AgencyPortal() {
               {loading ? <Loader2 className="agency-spin" size={18} /> : <ArrowRight size={18} />}
               {mode === "register" ? "Ro'yxatdan o'tish" : mode === "verify" ? "Tasdiqlash" : "Kirish"}
             </button>
+            {mode !== "verify" ? (
+              <>
+                <div className="account-divider"><span>yoki</span></div>
+                <GoogleContinueButton
+                  disabled={loading}
+                  onCredential={handleGoogleCredential}
+                  onError={handleGoogleError}
+                />
+              </>
+            ) : null}
             <button
               className="agency-link-button"
               type="button"

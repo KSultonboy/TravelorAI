@@ -6,6 +6,7 @@ const { authLimiter, securityCodeLimiter } = require('../middleware/rateLimit.mi
 router.post('/auth/register', authLimiter, agency.register);
 router.post('/auth/verify-email', authLimiter, agency.verifyEmail);
 router.post('/auth/login', authLimiter, agency.login);
+router.post('/auth/google', authLimiter, agency.googleAuth);
 
 router.use(agencyAuthMiddleware);
 
