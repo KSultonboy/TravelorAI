@@ -10,6 +10,26 @@ const IMAGE_TYPES = {
   'image/gif': 'gif',
 };
 
+function hasValidSignature(buffer, mime) {
+  if (mime === 'image/jpeg') {
+    return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  }
+  if (mime === 'image/png') {
+    return buffer.length >= 8
+      && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  }
+  if (mime === 'image/gif') {
+    const header = buffer.subarray(0, 6).toString('ascii');
+    return header === 'GIF87a' || header === 'GIF89a';
+  }
+  if (mime === 'image/webp') {
+    return buffer.length >= 12
+      && buffer.subarray(0, 4).toString('ascii') === 'RIFF'
+      && buffer.subarray(8, 12).toString('ascii') === 'WEBP';
+  }
+  return false;
+}
+
 async function materializeDataImage(value, folder = 'agency') {
   const text = String(value || '').trim();
   if (!text.startsWith('data:image/')) return text;
@@ -25,6 +45,9 @@ async function materializeDataImage(value, folder = 'agency') {
   if (!buffer.length || buffer.length > MAX_IMAGE_BYTES) {
     throw new Error('Rasm hajmi 5 MB dan oshmasligi kerak');
   }
+  if (!hasValidSignature(buffer, mime)) {
+    throw new Error('Rasm tarkibi tanlangan formatga mos emas');
+  }
 
   const safeFolder = String(folder || 'agency').replace(/[^a-z0-9_-]/gi, '') || 'agency';
   const uploadDir = path.resolve(__dirname, '../../uploads', safeFolder);
@@ -35,4 +58,4 @@ async function materializeDataImage(value, folder = 'agency') {
   return `/uploads/${safeFolder}/${filename}`;
 }
 
-module.exports = { materializeDataImage };
+module.exports = { materializeDataImage, hasValidSignature };

@@ -165,13 +165,12 @@ type SecurityCodeResult = {
   devCode?: string;
 };
 
-const TOKEN_KEY = "travelorai_token";
-const USER_KEY = "travelorai_user";
+const COOKIE_SESSION = "cookie-session";
 
 async function api<T>(path: string, init: RequestInit = {}, token?: string | null): Promise<ApiResult<T>> {
   const headers = new Headers(init.headers);
   if (init.body) headers.set("content-type", "application/json");
-  if (token) headers.set("authorization", `Bearer ${token}`);
+  if (token && token !== COOKIE_SESSION) headers.set("authorization", `Bearer ${token}`);
   const response = await fetch(`/api/backend${path}`, { ...init, headers, cache: "no-store" });
   return response.json();
 }
@@ -260,7 +259,6 @@ export default function AccountPortal() {
       setUser(me.value.data.user);
       setName(me.value.data.user.name);
       setEmail(me.value.data.user.email);
-      localStorage.setItem(USER_KEY, JSON.stringify(me.value.data.user));
     } else failed += 1;
     if (preferenceResult.status === "fulfilled" && preferenceResult.value.success) {
       setPreferences(preferenceResult.value.data.preferences);
@@ -281,20 +279,18 @@ export default function AccountPortal() {
   }, []);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem(TOKEN_KEY);
-    const savedUser = localStorage.getItem(USER_KEY);
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      try {
-        const parsed = JSON.parse(savedUser) as User;
-        setUser(parsed);
-        setEmail(parsed.email);
-        setName(parsed.name);
-        loadDashboard(savedToken);
-      } catch {
-        localStorage.removeItem(USER_KEY);
-      }
-    }
+    let active = true;
+    api<{ user: User }>("/auth/me").then((result) => {
+      if (!active || !result.success) return;
+      setToken(COOKIE_SESSION);
+      setUser(result.data.user);
+      setEmail(result.data.user.email);
+      setName(result.data.user.name);
+      void loadDashboard(COOKIE_SESSION);
+    });
+    return () => {
+      active = false;
+    };
   }, [loadDashboard]);
 
   useEffect(() => {
@@ -339,14 +335,12 @@ export default function AccountPortal() {
 
       const path = mode === "verify" ? "/auth/verify-email" : "/auth/login";
       const body = mode === "verify" ? { email, code } : { email, password };
-      const result = await api<{ token: string; user: User }>(path, { method: "POST", body: JSON.stringify(body) });
+      const result = await api<{ user: User }>(path, { method: "POST", body: JSON.stringify(body) });
       if (!result.success) throw new Error(result.message);
-      localStorage.setItem(TOKEN_KEY, result.data.token);
-      localStorage.setItem(USER_KEY, JSON.stringify(result.data.user));
-      setToken(result.data.token);
+      setToken(COOKIE_SESSION);
       setUser(result.data.user);
       setEmail(result.data.user.email);
-      await loadDashboard(result.data.token);
+      await loadDashboard(COOKIE_SESSION);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kirish amalga oshmadi");
     } finally {
@@ -371,18 +365,16 @@ export default function AccountPortal() {
     setError("");
     setMessage("");
     try {
-      const result = await api<{ token: string; user: User }>("/auth/google", {
+      const result = await api<{ user: User }>("/auth/google", {
         method: "POST",
         body: JSON.stringify({ idToken }),
       });
       if (!result.success) throw new Error(result.message);
-      localStorage.setItem(TOKEN_KEY, result.data.token);
-      localStorage.setItem(USER_KEY, JSON.stringify(result.data.user));
-      setToken(result.data.token);
+      setToken(COOKIE_SESSION);
       setUser(result.data.user);
       setEmail(result.data.user.email);
       setName(result.data.user.name);
-      await loadDashboard(result.data.token);
+      await loadDashboard(COOKIE_SESSION);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Google orqali kirib bo‘lmadi");
     } finally {
@@ -451,14 +443,12 @@ export default function AccountPortal() {
     if (!token) return;
     setLoading(true);
     setError("");
-    const result = await api<{ message: string; token: string; user: User }>("/auth/email-change/verify", {
+    const result = await api<{ message: string; user: User }>("/auth/email-change/verify", {
       method: "POST",
       body: JSON.stringify({ code: emailChangeCode }),
     }, token);
     if (result.success) {
-      localStorage.setItem(TOKEN_KEY, result.data.token);
-      localStorage.setItem(USER_KEY, JSON.stringify(result.data.user));
-      setToken(result.data.token);
+      setToken(COOKIE_SESSION);
       setUser(result.data.user);
       setEmail(result.data.user.email);
       setNewEmail("");
@@ -506,8 +496,7 @@ export default function AccountPortal() {
   }
 
   function logout() {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
+    void api("/auth/logout", { method: "POST" });
     setToken(null);
     setUser(null);
     setBookings([]);

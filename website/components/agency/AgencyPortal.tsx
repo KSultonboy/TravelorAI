@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   BadgeCheck,
@@ -185,7 +185,7 @@ type ProfileForm = {
   imageUrl: string;
 };
 
-const TOKEN_KEY = "travelorai_agency_token";
+const COOKIE_SESSION = "cookie-session";
 const REQUIRED_APPLICATION_FIELDS = new Set([
   "companyName",
   "contactPerson",
@@ -241,7 +241,7 @@ const emptyProfile: ProfileForm = {
 async function api<T>(path: string, init: RequestInit = {}, token?: string | null): Promise<ApiResponse<T>> {
   const headers = new Headers(init.headers);
   if (!headers.has("content-type") && init.body) headers.set("content-type", "application/json");
-  if (token) headers.set("authorization", `Bearer ${token}`);
+  if (token && token !== COOKIE_SESSION) headers.set("authorization", `Bearer ${token}`);
 
   const response = await fetch(`/api/agency-proxy/agency${path}`, {
     ...init,
@@ -363,6 +363,8 @@ export default function AgencyPortal() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const applicationImageInputRef = useRef<HTMLInputElement>(null);
+  const tourImageInputRef = useRef<HTMLInputElement>(null);
 
   const loadTours = useCallback(async (nextToken = token) => {
     if (!nextToken) return;
@@ -381,14 +383,13 @@ export default function AgencyPortal() {
     }
   }, [token]);
 
-  const loadMe = useCallback(async (nextToken = token) => {
+  const loadMe = useCallback(async (nextToken = token, silent = false) => {
     if (!nextToken) return;
     const result = await api<MeData>("/auth/me", {}, nextToken);
     if (!result.success) {
-      localStorage.removeItem(TOKEN_KEY);
       setToken(null);
       setMe(null);
-      setError(result.message);
+      if (!silent) setError(result.message);
       return;
     }
     setMe(result.data);
@@ -400,11 +401,7 @@ export default function AgencyPortal() {
   }, [loadBookings, loadTours, token]);
 
   useEffect(() => {
-    const saved = localStorage.getItem(TOKEN_KEY);
-    if (saved) {
-      setToken(saved);
-      loadMe(saved);
-    }
+    void loadMe(COOKIE_SESSION, true);
   }, [loadMe]);
 
   useEffect(() => {
@@ -431,19 +428,18 @@ export default function AgencyPortal() {
       }
 
       if (mode === "verify") {
-        const result = await api<{ token: string; account: Account }>("/auth/verify-email", {
+        const result = await api<{ account: Account }>("/auth/verify-email", {
           method: "POST",
           body: JSON.stringify({ email, code }),
         });
         if (!result.success) throw new Error(result.message);
-        localStorage.setItem(TOKEN_KEY, result.data.token);
-        setToken(result.data.token);
+        setToken(COOKIE_SESSION);
         setMessage("Email tasdiqlandi. Endi agency arizasini to'ldiring.");
-        await loadMe(result.data.token);
+        await loadMe(COOKIE_SESSION);
         return;
       }
 
-      const result = await api<{ token: string; account: Account }>("/auth/login", {
+      const result = await api<{ account: Account }>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
@@ -451,9 +447,8 @@ export default function AgencyPortal() {
         if (result.code === "EMAIL_NOT_VERIFIED") setMode("verify");
         throw new Error(result.message);
       }
-      localStorage.setItem(TOKEN_KEY, result.data.token);
-      setToken(result.data.token);
-      await loadMe(result.data.token);
+      setToken(COOKIE_SESSION);
+      await loadMe(COOKIE_SESSION);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Xatolik yuz berdi");
     } finally {
@@ -491,11 +486,14 @@ export default function AgencyPortal() {
           method: "POST",
         }, token);
         if (!submitResult.success) throw new Error(submitResult.message);
-      setMessage("Ariza admin tekshiruvi uchun yuborildi.");
+        await loadMe();
+        setApplicationForm({ ...emptyApplication });
+        if (applicationImageInputRef.current) applicationImageInputRef.current.value = "";
+        setMessage("Ariza admin tekshiruvi uchun yuborildi.");
       } else {
         setMessage("Ariza draft sifatida saqlandi.");
+        await loadMe();
       }
-      await loadMe();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ariza saqlanmadi");
     } finally {
@@ -579,18 +577,17 @@ export default function AgencyPortal() {
     setError("");
     setMessage("");
     try {
-      const result = await api<{ token: string; account: Account; message: string }>(
+      const result = await api<{ account: Account; message: string }>(
         "/auth/email-change/confirm",
         { method: "POST", body: JSON.stringify({ code: emailChangeCode }) },
         token
       );
       if (!result.success) throw new Error(result.message);
-      localStorage.setItem(TOKEN_KEY, result.data.token);
-      setToken(result.data.token);
+      setToken(COOKIE_SESSION);
       setNewEmail("");
       setEmailChangeCode("");
       setMessage(result.data.message);
-      await loadMe(result.data.token);
+      await loadMe(COOKIE_SESSION);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kod tasdiqlanmadi");
     } finally {
@@ -628,6 +625,7 @@ export default function AgencyPortal() {
       }
 
       setTourForm(emptyTour);
+      if (tourImageInputRef.current) tourImageInputRef.current.value = "";
       setMessage(submit ? "Tour admin tekshiruvi uchun yuborildi." : "Tour qoralama sifatida saqlandi.");
       await loadTours();
       await loadMe();
@@ -654,7 +652,7 @@ export default function AgencyPortal() {
   }
 
   function logout() {
-    localStorage.removeItem(TOKEN_KEY);
+    void api("/auth/logout", { method: "POST" });
     setToken(null);
     setMe(null);
     setTours([]);
@@ -722,6 +720,7 @@ export default function AgencyPortal() {
   }
 
   const isApproved = me?.account.status === "approved";
+  const isApplicationPending = me?.application?.status === "pending";
   const totalTours = tours.length;
   const approvedTours = tours.filter((tour) => tour.approvalStatus === "approved");
   const pendingTours = tours.filter((tour) => tour.approvalStatus === "pending_review");
@@ -817,16 +816,26 @@ export default function AgencyPortal() {
         ) : !isApproved ? (
           <div className="agency-card">
             <p className="agency-eyebrow">Agency arizasi</p>
-            <h2>Kompaniya ma&apos;lumotlarini tahrirlash</h2>
+            <h2>{isApplicationPending ? "Ariza admin tekshiruviga yuborilgan" : "Kompaniya ma'lumotlarini tahrirlash"}</h2>
             <p className="agency-muted">Status: <b>{statusLabel(me?.application?.status || me?.account.status)}</b></p>
             <div className="agency-alert agency-alert--info">
-              Bu bo‘limda agentlik rasmi, aloqa ma’lumotlari va ariza tafsilotlarini o‘zgartirishingiz mumkin. Public profil va tour boshqaruvi admin tasdiqlagandan keyin ochiladi.
+              {isApplicationPending
+                ? `Ariza ${formatDate(me?.application?.submittedAt)} kuni yuborilgan. Admin qarori chiqqach status shu sahifada yangilanadi.`
+                : "Bu bo'limda agentlik rasmi, aloqa ma'lumotlari va ariza tafsilotlarini o'zgartirishingiz mumkin. Public profil va tour boshqaruvi admin tasdiqlagandan keyin ochiladi."}
             </div>
             {me?.application?.adminNote && <div className="agency-alert agency-alert--error">Admin note: {me.application.adminNote}</div>}
             {message && <div className="agency-alert agency-alert--success">{message}</div>}
             {error && <div className="agency-alert agency-alert--error">{error}</div>}
 
-            <div className="agency-form-grid">
+            {isApplicationPending ? (
+              <div className="agency-actions">
+                <button disabled={loading} onClick={() => loadMe()} type="button">
+                  <RefreshCw size={18} /> Statusni yangilash
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="agency-form-grid">
               {([
                 ["companyName", "Kompaniya nomi"],
                 ["legalName", "Yuridik nomi"],
@@ -855,22 +864,24 @@ export default function AgencyPortal() {
               </label>
               <label className="agency-wide">
                 Agentlik rasmi yoki logotipi
-                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => chooseImage(event.target.files?.[0] || null, "application")} />
+                <input ref={applicationImageInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => chooseImage(event.target.files?.[0] || null, "application")} />
                 {applicationForm.imageUrl ? <Image unoptimized width={840} height={480} className="agency-image-preview" src={publicImageSrc(applicationForm.imageUrl)} alt="Agentlik rasmi preview" /> : null}
               </label>
               <label className="agency-wide">
                 Hujjat yoki rasm URLlari, har biri yangi qatorda
                 <textarea value={applicationForm.documents} onChange={(event) => setApplicationForm((prev) => ({ ...prev, documents: event.target.value }))} />
               </label>
-            </div>
-            <div className="agency-actions">
-              <button disabled={loading} onClick={() => saveApplication(false)} type="button">
-                <FileText size={18} /> Draft saqlash
-              </button>
-              <button disabled={loading} onClick={() => saveApplication(true)} type="button">
-                <Send size={18} /> Reviewga yuborish
-              </button>
-            </div>
+                </div>
+                <div className="agency-actions">
+                  <button disabled={loading} onClick={() => saveApplication(false)} type="button">
+                    <FileText size={18} /> Draft saqlash
+                  </button>
+                  <button disabled={loading} onClick={() => saveApplication(true)} type="button">
+                    <Send size={18} /> Reviewga yuborish
+                  </button>
+                </div>
+              </>
+            )}
             {renderEmailChangePanel()}
           </div>
         ) : (
@@ -1129,7 +1140,7 @@ export default function AgencyPortal() {
                   ))}
                   <label className="agency-wide">
                     Tour cover rasmini fayldan tanlash
-                    <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => chooseImage(event.target.files?.[0] || null, "tour")} />
+                    <input ref={tourImageInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => chooseImage(event.target.files?.[0] || null, "tour")} />
                     {tourForm.imageUrl ? <Image unoptimized width={840} height={480} className="agency-image-preview" src={publicImageSrc(tourForm.imageUrl)} alt="Tour cover preview" /> : null}
                   </label>
                   <label className="agency-wide">

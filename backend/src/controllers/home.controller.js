@@ -537,7 +537,7 @@ async function recordInteraction(req, res) {
     }
 
     const sessionId = req.body?.sessionId ? String(req.body.sessionId).slice(0, 120) : null;
-    const userId = req.user?.id || (req.body?.userId ? String(req.body.userId).slice(0, 120) : null);
+    const userId = req.user?.id || null;
     const source = req.body?.source ? String(req.body.source).slice(0, 80) : 'website';
     const metadata = req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : undefined;
 

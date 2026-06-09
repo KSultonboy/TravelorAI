@@ -44,7 +44,7 @@ function buildPublicUser(user) {
 }
 
 function generateNumericCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(crypto.randomInt(100000, 1000000));
 }
 
 function hashCode(code) {
@@ -111,7 +111,12 @@ async function consumeAuthCode({ userId, type, code }) {
     throw new Error('CODE_EXPIRED');
   }
 
-  if (authCode.codeHash !== hashCode(code)) {
+  const expectedHash = Buffer.from(authCode.codeHash, 'hex');
+  const actualHash = Buffer.from(hashCode(code), 'hex');
+  if (
+    expectedHash.length !== actualHash.length ||
+    !crypto.timingSafeEqual(expectedHash, actualHash)
+  ) {
     throw new Error('CODE_INVALID');
   }
 

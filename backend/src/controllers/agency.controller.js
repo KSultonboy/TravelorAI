@@ -37,7 +37,7 @@ function hashCode(code) {
 }
 
 function generateCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(crypto.randomInt(100000, 1000000));
 }
 
 function publicAccount(account) {
@@ -171,7 +171,13 @@ async function consumeAgencyCode(accountId, code, type = 'EMAIL_VERIFICATION') {
     orderBy: { createdAt: 'desc' },
   });
 
-  if (!item || item.codeHash !== hashCode(code)) return false;
+  if (!item) return false;
+  const expectedHash = Buffer.from(item.codeHash, 'hex');
+  const actualHash = Buffer.from(hashCode(code), 'hex');
+  if (
+    expectedHash.length !== actualHash.length ||
+    !crypto.timingSafeEqual(expectedHash, actualHash)
+  ) return false;
 
   await prisma.agencyAuthCode.update({
     where: { id: item.id },
@@ -525,6 +531,9 @@ async function upsertApplication(req, res) {
     if (existing?.status === 'approved') {
       return error(res, 'Tasdiqlangan arizani onboardingdan ozgartirib bolmaydi', 409);
     }
+    if (existing?.status === 'pending') {
+      return error(res, 'Ariza admin tekshiruvida. Qaror chiqmaguncha ozgartirib bolmaydi', 409);
+    }
 
     const data = {
       ...input,
@@ -554,6 +563,7 @@ async function submitApplication(req, res) {
     const application = await getLatestApplication(req.agencyAccount.id);
     if (!application) return error(res, 'Avval ariza formasini toldiring', 400);
     if (application.status === 'approved') return error(res, 'Ariza allaqachon tasdiqlangan', 409);
+    if (application.status === 'pending') return error(res, 'Ariza allaqachon admin tekshiruvida', 409);
 
     applicationSchema.parse({
       companyName: application.companyName,

@@ -109,28 +109,22 @@ async function create(req, res) {
 
 async function listMine(req, res) {
   try {
-    const email = String(req.query.email || '').trim().toLowerCase();
-    let where = email ? { customerEmail: email } : null;
-    if (req.user?.id) {
-      const user = await prisma.user.findUnique({
-        where: { id: req.user.id },
-        select: { email: true },
-      });
-      if (!user) return error(res, 'Foydalanuvchi topilmadi', 404);
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { email: true },
+    });
+    if (!user) return error(res, 'Foydalanuvchi topilmadi', 404);
 
-      await prisma.tourBooking.updateMany({
-        where: {
-          userId: null,
-          customerEmail: user.email.toLowerCase(),
-        },
-        data: { userId: req.user.id },
-      });
-      where = { userId: req.user.id };
-    }
-    if (!where) return error(res, 'Token yoki email talab qilinadi', 401);
+    await prisma.tourBooking.updateMany({
+      where: {
+        userId: null,
+        customerEmail: user.email.toLowerCase(),
+      },
+      data: { userId: req.user.id },
+    });
 
     const items = await prisma.tourBooking.findMany({
-      where,
+      where: { userId: req.user.id },
       include: { tour: true, agency: true },
       orderBy: { createdAt: 'desc' },
       take: 100,
