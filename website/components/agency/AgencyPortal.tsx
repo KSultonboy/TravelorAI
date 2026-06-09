@@ -821,13 +821,26 @@ export default function AgencyPortal() {
             {mode !== "verify" && (
               <label>
                 Parol
-                <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} required />
+                <input
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  type="password"
+                  minLength={8}
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  required
+                />
               </label>
             )}
             {mode === "verify" && (
               <label>
                 Tasdiqlash kodi
-                <input value={code} onChange={(event) => setCode(event.target.value)} inputMode="numeric" required />
+                <input
+                  value={code}
+                  onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
+                  inputMode="numeric"
+                  maxLength={6}
+                  required
+                />
               </label>
             )}
             <button disabled={loading} type="submit">
@@ -850,6 +863,8 @@ export default function AgencyPortal() {
               onClick={() => {
                 setError("");
                 setMessage("");
+                setPassword("");
+                setCode("");
                 setMode(mode === "login" ? "register" : "login");
               }}
             >
