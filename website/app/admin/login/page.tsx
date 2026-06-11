@@ -8,7 +8,7 @@ export const metadata = {
 
 export default async function AdminLoginPage() {
   const session = await getAdminSession();
-  if (session) redirect("/admin/hero");
+  if (session) redirect("/admin");
 
   return (
     <main className="admin-login-screen">

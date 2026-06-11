@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useState } from "react";
-import { ArrowRight, Loader2, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Loader2, Sparkles } from "lucide-react";
 import GoogleContinueButton from "@/components/GoogleContinueButton";
 import { agencyApi } from "@/lib/agency/api";
 import { useAgencySession } from "@/lib/agency/session";
@@ -100,15 +100,6 @@ export default function AuthScreen() {
           <span>TravelorAI Agency</span>
         </div>
         <h1>Tourlaringizni dunyo sayohatchilariga chiqaring.</h1>
-        <p>
-          Agency profilingizni yuboring, admin tekshiruvidan o&apos;ting va tasdiqlangan tourlarni TravelorAI
-          platformalarida ko&apos;rsating.
-        </p>
-        <ul className="agency-hero-points">
-          <li><ShieldCheck size={16} /> Bepul ro&apos;yxatdan o&apos;tish — komissiya yo&apos;q</li>
-          <li><ShieldCheck size={16} /> Leadlar to&apos;g&apos;ridan-to&apos;g&apos;ri sizga keladi</li>
-          <li><ShieldCheck size={16} /> Mobil ilova va webda bir vaqtda ko&apos;rinasiz</li>
-        </ul>
       </aside>
 
       <div className="agency-auth-pane">

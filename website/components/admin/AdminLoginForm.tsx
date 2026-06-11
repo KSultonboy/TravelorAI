@@ -41,10 +41,8 @@ export default function AdminLoginForm() {
         <Compass size={24} />
       </div>
       <p className="admin-eyebrow">TravelorAI Admin</p>
-      <h1>Hero rasmlarni boshqarish</h1>
-      <p className="admin-login-card__lead">
-        Website va mobile app hero slaydlarini tartib bilan boshqarish uchun kiring.
-      </p>
+      <h1>Boshqaruv paneliga kirish</h1>
+      <p className="admin-login-card__lead">Moderatsiya, leadlar va kontent — hammasi bitta joyda.</p>
 
       {error ? <div className="admin-alert admin-alert--error">{error}</div> : null}
 
