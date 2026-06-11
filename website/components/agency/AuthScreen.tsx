@@ -97,7 +97,7 @@ export default function AuthScreen() {
       <aside className="agency-hero">
         <div className="agency-brand">
           <span><Sparkles size={20} /></span>
-          <span>TravelorAI Agency</span>
+          TravelorAI Agency
         </div>
         <h1>Tourlaringizni dunyo sayohatchilariga chiqaring.</h1>
       </aside>
