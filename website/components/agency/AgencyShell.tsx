@@ -64,7 +64,7 @@ export default function AgencyShell({ children }: { children: ReactNode }) {
         <div className="agency-onboarding-topbar">
           <div className="agency-brand agency-brand--inline">
             <span><Sparkles size={18} /></span>
-            <span>TravelorAI Agency</span>
+            TravelorAI Agency
           </div>
           <button onClick={() => void logout()} type="button">
             <LogOut size={16} /> Chiqish
