@@ -15,7 +15,10 @@ import {
 import { adminApi, type AdminApplication, type AdminBooking, type AdminTour } from "@/lib/admin/api";
 
 type Stats = {
-  totals?: { places?: number; users?: number; trips?: number; feedback?: number };
+  totalPlaces?: number;
+  totalUsers?: number;
+  totalTrips?: number;
+  totalFeedback?: number;
   [key: string]: unknown;
 };
 
@@ -48,7 +51,12 @@ export default function AdminDashboard() {
     void loadAll();
   }, [loadAll]);
 
-  const totals = (stats?.totals || {}) as { places?: number; users?: number; trips?: number; feedback?: number };
+  const totals = {
+    users: stats?.totalUsers,
+    trips: stats?.totalTrips,
+    places: stats?.totalPlaces,
+    feedback: stats?.totalFeedback,
+  };
 
   const queues = [
     {
