@@ -2244,3 +2244,30 @@
     animation: none;
   }
 }
+
+/* --- Collapse tugma overridelari (sidebar umumiy button stilidan ajratish) --- */
+
+.agency-dashboard-sidebar .agency-collapse-btn {
+  width: 38px;
+  min-height: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  color: rgba(234, 244, 239, 0.85);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.agency-dashboard-sidebar .agency-collapse-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* Eski "birinchi link doim yorug'" qoidasini bekor qilish — faqat .agency-nav-active yoritiladi */
+.agency-dashboard-sidebar nav a:first-child:not(.agency-nav-active) {
+  color: #dfe8f2;
+  background: rgba(255, 255, 255, 0.04);
+}
