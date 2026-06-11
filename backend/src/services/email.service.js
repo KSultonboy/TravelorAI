@@ -133,6 +133,31 @@ async function sendEmailChangeCodeEmail({ email, name, code, expiresInMinutes, n
   });
 }
 
+// Email almashtirish YAKUNLANGANDA xabarnoma — eski va yangi manzilga (kodsiz)
+async function sendEmailChangedNoticeEmail({ oldEmail, newEmail }) {
+  const html = `
+    <div style="font-family:Arial,sans-serif;background:#f4f7f5;padding:24px;">
+      <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:20px;padding:32px;border:1px solid #eaf0eb;">
+        <p style="margin:0 0 8px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#1a6b3c;">${APP_NAME}</p>
+        <h1 style="margin:0 0 12px;font-size:24px;color:#122117;">Email muvaffaqiyatli o'zgartirildi ✅</h1>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#4f6355;">
+          Agency akkauntingiz login emaili <b>${safeText(oldEmail)}</b> dan <b>${safeText(newEmail)}</b> ga almashtirildi.
+          Endi tizimga yangi email bilan kirasiz.
+        </p>
+        <p style="margin:0;font-size:13px;line-height:1.7;color:#7c8a81;">
+          Agar bu o'zgarishni siz qilmagan bo'lsangiz, darhol support bilan bog'laning: ${SUPPORT_EMAIL}
+        </p>
+      </div>
+    </div>
+  `;
+  const text = `Agency login emailingiz ${safeText(oldEmail)} dan ${safeText(newEmail)} ga almashtirildi. Bu siz bo'lmasangiz: ${SUPPORT_EMAIL}`;
+  const results = await Promise.allSettled([
+    sendMail({ to: newEmail, subject: `${APP_NAME} — email o'zgartirildi`, html, text, logMeta: { type: 'agency_email_changed_notice', email: newEmail } }),
+    sendMail({ to: oldEmail, subject: `${APP_NAME} — email o'zgartirildi`, html, text, logMeta: { type: 'agency_email_changed_notice', email: oldEmail } }),
+  ]);
+  return results;
+}
+
 async function sendPasswordResetCodeEmail({ email, name, code, expiresInMinutes }) {
   return sendMail({
     to: email,
@@ -285,6 +310,7 @@ async function sendBookingLeadEmail({ to, agencyName, tourTitle, customerName, c
 module.exports = {
   sendVerificationCodeEmail,
   sendEmailChangeCodeEmail,
+  sendEmailChangedNoticeEmail,
   sendPasswordResetCodeEmail,
   sendAccountDeleteCodeEmail,
   sendSupportFeedbackEmail,

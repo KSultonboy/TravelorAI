@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { signAgencyToken } = require('../utils/agencyJwt');
-const { sendEmailChangeCodeEmail, sendVerificationCodeEmail } = require('../services/email.service');
+const { sendEmailChangeCodeEmail, sendEmailChangedNoticeEmail, sendVerificationCodeEmail } = require('../services/email.service');
 const { materializeDataImage } = require('../utils/dataImage');
 const { bookingStatusSchema } = require('../schemas/booking.schema');
 const { formatBooking } = require('./bookings.controller');
@@ -277,6 +277,9 @@ async function confirmEmailChange(req, res) {
         data: { email: account.pendingEmail },
       }),
     ]);
+
+    // Xabarnoma: eski va yangi manzilga (javobni kutmaymiz)
+    sendEmailChangedNoticeEmail({ oldEmail: account.email, newEmail: updated.email }).catch(() => {});
 
     const token = signAgencyToken({ id: updated.id, email: updated.email, role: 'agency' });
     return success(res, {
