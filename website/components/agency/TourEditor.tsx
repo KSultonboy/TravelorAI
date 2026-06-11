@@ -105,6 +105,7 @@ export default function TourEditor({ tourId }: { tourId?: string }) {
   const existing = useMemo(() => tours.find((tour) => tour.id === tourId) || null, [tours, tourId]);
 
   const [step, setStep] = useState(0);
+  const [direction, setDirection] = useState<"fwd" | "back">("fwd");
   const [form, setForm] = useState<TourForm>(() => (existing ? tourToForm(existing) : emptyForm));
   const [busy, setBusy] = useState<"" | "draft" | "submit">("");
   const [error, setError] = useState("");
@@ -134,11 +135,13 @@ export default function TourEditor({ tourId }: { tourId?: string }) {
 
   function goNext() {
     if (!validateStep(step)) return;
+    setDirection("fwd");
     setStep((value) => Math.min(value + 1, STEPS.length - 1));
   }
 
   function goBack() {
     setError("");
+    setDirection("back");
     setStep((value) => Math.max(value - 1, 0));
   }
 
@@ -235,7 +238,12 @@ export default function TourEditor({ tourId }: { tourId?: string }) {
           <li
             className={index === step ? "is-current" : index < step ? "is-done" : ""}
             key={title}
-            onClick={() => index < step && setStep(index)}
+            onClick={() => {
+              if (index < step) {
+                setDirection("back");
+                setStep(index);
+              }
+            }}
           >
             <span><Icon size={15} /></span>
             {title}
@@ -246,7 +254,7 @@ export default function TourEditor({ tourId }: { tourId?: string }) {
         {step + 1}/{STEPS.length} — {STEPS[step].hint}
       </p>
 
-      <div className="agency-form-grid">
+      <div className={`agency-form-grid agency-wizard-pane agency-wizard-pane--${direction}`} key={step}>
         {STEPS[step].fields.map(([key, label]) => (
           <label key={key}>
             <span>{label}</span>

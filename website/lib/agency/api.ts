@@ -36,19 +36,33 @@ export function formatMoney(value?: number | null) {
   return `$${new Intl.NumberFormat("en-US").format(Math.round(value))}`;
 }
 
+const UZ_MONTHS = [
+  "yanvar",
+  "fevral",
+  "mart",
+  "aprel",
+  "may",
+  "iyun",
+  "iyul",
+  "avgust",
+  "sentyabr",
+  "oktyabr",
+  "noyabr",
+  "dekabr",
+];
+
 export function formatDate(value?: string | null) {
   if (!value) return "—";
-  return new Intl.DateTimeFormat("uz-UZ", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
+  const date = new Date(value);
+  return `${date.getDate()}-${UZ_MONTHS[date.getMonth()]}, ${date.getFullYear()}-yil`;
 }
 
 export function formatDateTime(value?: string | null) {
   if (!value) return "—";
-  return new Intl.DateTimeFormat("uz-UZ", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
+  const date = new Date(value);
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${date.getDate()}-${UZ_MONTHS[date.getMonth()]}, ${hh}:${mm}`;
 }
 
 export function remainingTime(deadline?: string | null) {
@@ -73,15 +87,48 @@ export function codeCountdown(expiresAt: number | null) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+// Yuborish tez bo'lishi uchun katta rasmlar client tomonda siqiladi (max 1280px, JPEG 0.82)
 export function readImage(file: File | null): Promise<string> {
   return new Promise((resolve, reject) => {
     if (!file) return resolve("");
     if (!file.type.startsWith("image/")) return reject(new Error("Faqat rasm fayli tanlang"));
-    if (file.size > 5 * 1024 * 1024) return reject(new Error("Rasm 5 MB dan oshmasligi kerak"));
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("Rasmni o‘qib bo‘lmadi"));
-    reader.readAsDataURL(file);
+    if (file.size > 8 * 1024 * 1024) return reject(new Error("Rasm 8 MB dan oshmasligi kerak"));
+
+    // Kichik fayllarni asl holicha o'qiymiz (PNG shaffofligi saqlanadi)
+    if (file.size <= 300 * 1024) {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Rasmni o‘qib bo‘lmadi"));
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    const image = new window.Image();
+    image.onload = () => {
+      try {
+        const MAX = 1280;
+        const scale = Math.min(1, MAX / Math.max(image.width, image.height));
+        const width = Math.max(1, Math.round(image.width * scale));
+        const height = Math.max(1, Math.round(image.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Canvas mavjud emas");
+        context.drawImage(image, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      } catch (err) {
+        reject(err instanceof Error ? err : new Error("Rasmni qayta ishlab bo‘lmadi"));
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Rasmni o‘qib bo‘lmadi"));
+    };
+    image.src = objectUrl;
   });
 }
 

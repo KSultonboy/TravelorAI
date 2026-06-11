@@ -137,6 +137,7 @@ export default function OnboardingScreen() {
   const isPending = application?.status === "pending";
 
   const [step, setStep] = useState(0);
+  const [direction, setDirection] = useState<"fwd" | "back">("fwd");
   const [form, setForm] = useState<ApplicationForm>(() =>
     fillForm(isPending ? null : application, me?.account.email || "")
   );
@@ -200,11 +201,13 @@ export default function OnboardingScreen() {
   function goNext() {
     setError("");
     if (!validateFields(STEPS[step].fields)) return;
+    setDirection("fwd");
     setStep((value) => Math.min(value + 1, STEPS.length - 1));
   }
 
   function goBack() {
     setError("");
+    setDirection("back");
     setStep((value) => Math.max(value - 1, 0));
   }
 
@@ -326,7 +329,12 @@ export default function OnboardingScreen() {
                 <li
                   className={index === step ? "is-current" : index < step ? "is-done" : ""}
                   key={title}
-                  onClick={() => index < step && setStep(index)}
+                  onClick={() => {
+                    if (index < step) {
+                      setDirection("back");
+                      setStep(index);
+                    }
+                  }}
                 >
                   <span><Icon size={15} /></span>
                   {title}
@@ -337,7 +345,7 @@ export default function OnboardingScreen() {
               {step + 1}/{STEPS.length} — {STEPS[step].hint}
             </p>
 
-            <div className="agency-form-grid" ref={formRef}>
+            <div className={`agency-form-grid agency-wizard-pane agency-wizard-pane--${direction}`} key={step} ref={formRef}>
               {STEPS[step].fields.filter((key) => key !== "description").map((key) => renderField(key))}
 
               {isLastStep ? (

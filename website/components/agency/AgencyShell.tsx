@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -29,14 +29,62 @@ const NAV_ITEMS = [
 
 const COLLAPSE_KEY = "travelorai_agency_sidebar_collapsed";
 
+const CONFETTI_COLORS = ["#087a56", "#4fd1a5", "#f2c14e", "#e2574c", "#2c7be5", "#9b5de5"];
+
+type ConfettiPiece = {
+  id: number;
+  side: "left" | "right";
+  tx: number;
+  ty: number;
+  rot: number;
+  delay: number;
+  dur: number;
+  color: string;
+};
+
+function makeConfetti(count: number): ConfettiPiece[] {
+  return Array.from({ length: count }, (_, id) => {
+    const side: "left" | "right" = id % 2 === 0 ? "left" : "right";
+    const spread = 120 + Math.random() * 480;
+    return {
+      id,
+      side,
+      tx: side === "left" ? spread : -spread,
+      ty: -(260 + Math.random() * 480),
+      rot: (Math.random() - 0.5) * 720,
+      delay: Math.random() * 0.45,
+      dur: 1.4 + Math.random() * 1.1,
+      color: CONFETTI_COLORS[id % CONFETTI_COLORS.length],
+    };
+  });
+}
+
 export default function AgencyShell({ children }: { children: ReactNode }) {
   const { phase, me, bookings, logout } = useAgencySession();
   const pathname = usePathname() || "/agency";
   const [collapsed, setCollapsed] = useState(false);
+  const [welcome, setWelcome] = useState<"" | "show" | "leaving">("");
+  const prevPhase = useRef<typeof phase | null>(null);
+  const confetti = useMemo(() => makeConfetti(70), []);
 
   useEffect(() => {
     setCollapsed(window.localStorage.getItem(COLLAPSE_KEY) === "1");
   }, []);
+
+  // Onboarding -> approved: tabriklash sahnasi, so'ng kabinet
+  useEffect(() => {
+    const previous = prevPhase.current;
+    prevPhase.current = phase;
+    if (previous === "onboarding" && phase === "approved") {
+      setWelcome("show");
+      const leaveTimer = window.setTimeout(() => setWelcome("leaving"), 2900);
+      const endTimer = window.setTimeout(() => setWelcome(""), 3600);
+      return () => {
+        window.clearTimeout(leaveTimer);
+        window.clearTimeout(endTimer);
+      };
+    }
+  }, [phase]);
 
   function toggleCollapsed() {
     setCollapsed((value) => {
@@ -79,6 +127,29 @@ export default function AgencyShell({ children }: { children: ReactNode }) {
 
   return (
     <div className={`agency-dashboard-shell${collapsed ? " is-collapsed" : ""}`}>
+      {welcome ? (
+        <div aria-hidden className={`agency-welcome${welcome === "leaving" ? " agency-welcome--leaving" : ""}`}>
+          {confetti.map((piece) => (
+            <i
+              className={`agency-confetti agency-confetti--${piece.side}`}
+              key={piece.id}
+              style={{
+                ["--tx" as string]: `${piece.tx}px`,
+                ["--ty" as string]: `${piece.ty}px`,
+                ["--rot" as string]: `${piece.rot}deg`,
+                ["--delay" as string]: `${piece.delay}s`,
+                ["--dur" as string]: `${piece.dur}s`,
+                background: piece.color,
+              }}
+            />
+          ))}
+          <div className="agency-welcome__card">
+            <span>🎉</span>
+            <h2>Xush kelibsiz!</h2>
+            <p>{me?.agency?.name || "Agentligingiz"} tasdiqlandi — kabinet ochilmoqda…</p>
+          </div>
+        </div>
+      ) : null}
       <aside className="agency-dashboard-sidebar">
         <div className="agency-sidebar-top">
           <div className="agency-dashboard-brand">

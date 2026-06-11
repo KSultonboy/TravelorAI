@@ -2088,3 +2088,159 @@
 .agency-brand--inline {
   white-space: nowrap;
 }
+
+/* --- Wizard bosqich o'tish animatsiyasi --- */
+
+.agency-wizard-pane {
+  animation: agency-step-fwd 0.32s cubic-bezier(0.22, 0.8, 0.32, 1);
+}
+
+.agency-wizard-pane--back {
+  animation-name: agency-step-back;
+}
+
+@keyframes agency-step-fwd {
+  from {
+    opacity: 0;
+    transform: translateX(26px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes agency-step-back {
+  from {
+    opacity: 0;
+    transform: translateX(-26px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agency-wizard-pane {
+    animation: none;
+  }
+}
+
+/* --- Tasdiqlanganda tabriklash sahnasi --- */
+
+.agency-welcome {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: rgba(7, 22, 16, 0.66);
+  backdrop-filter: blur(8px);
+  animation: agency-welcome-in 0.4s ease;
+}
+
+.agency-welcome--leaving {
+  animation: agency-welcome-out 0.7s ease forwards;
+}
+
+@keyframes agency-welcome-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes agency-welcome-out {
+  to {
+    opacity: 0;
+  }
+}
+
+.agency-welcome__card {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 40px 56px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 32px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 40px 120px rgba(0, 0, 0, 0.35);
+  text-align: center;
+  animation: agency-welcome-pop 0.6s cubic-bezier(0.18, 1.2, 0.4, 1);
+}
+
+.agency-welcome__card span {
+  font-size: 2.6rem;
+}
+
+.agency-welcome__card h2 {
+  margin: 0;
+  color: #087a56;
+  font-size: clamp(2rem, 4vw, 3rem);
+  letter-spacing: -0.04em;
+}
+
+.agency-welcome__card p {
+  margin: 0;
+  color: #4a505c;
+  font-weight: 700;
+}
+
+@keyframes agency-welcome-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.78) translateY(26px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Konfeti: ikki pastki burchakdan otiladi */
+
+.agency-confetti {
+  position: absolute;
+  bottom: -22px;
+  width: 10px;
+  height: 16px;
+  border-radius: 3px;
+  opacity: 0;
+  animation: agency-confetti-burst var(--dur) ease-out var(--delay) forwards;
+}
+
+.agency-confetti--left {
+  left: 4%;
+}
+
+.agency-confetti--right {
+  right: 4%;
+}
+
+@keyframes agency-confetti-burst {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0deg);
+  }
+  72% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--tx), var(--ty)) rotate(var(--rot));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agency-confetti {
+    display: none;
+  }
+
+  .agency-welcome__card {
+    animation: none;
+  }
+}
