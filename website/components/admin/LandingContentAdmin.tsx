@@ -289,7 +289,18 @@ async function fetchApiData<T>(path: string): Promise<FetchResult<T>> {
   try {
     const response = await fetch(path, { cache: "no-store" });
     const rawText = await response.text();
-    const payload = rawText ? JSON.parse(rawText) as { success?: boolean; message?: string; data?: T } : {};
+    let payload: { success?: boolean; message?: string; data?: T } = {};
+    if (rawText) {
+      try {
+        payload = JSON.parse(rawText) as { success?: boolean; message?: string; data?: T };
+      } catch {
+        const isHtml = rawText.trim().startsWith("<");
+        payload = {
+          success: false,
+          message: isHtml ? `${response.status} endpoint javobi JSON emas` : rawText.slice(0, 160),
+        };
+      }
+    }
     if (!response.ok || !payload.success) {
       return {
         ok: false,

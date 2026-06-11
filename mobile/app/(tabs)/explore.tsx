@@ -1078,6 +1078,7 @@ export default function ExploreScreen() {
   const lastYandexRuntimeRequestKeyRef = useRef<string | null>(null);
   const lastYandexSearchRequestKeyRef = useRef<string | null>(null);
   const lastYandexTransportRequestKeyRef = useRef<string | null>(null);
+  const autoLocationBootstrappedRef = useRef(false);
   const placesRequestIdRef = useRef(0);
   const yandexRuntimeRequestIdRef = useRef(0);
   const yandexSearchRequestIdRef = useRef(0);
@@ -1251,6 +1252,34 @@ export default function ExploreScreen() {
       setLocating(false);
     }
   }, [tt]);
+
+  useEffect(() => {
+    if (tripId || autoLocationBootstrappedRef.current) return;
+
+    let cancelled = false;
+
+    (async () => {
+      const permission = await Location.getForegroundPermissionsAsync();
+      if (cancelled || permission.status !== 'granted') {
+        setLocationAccess(permission.status === 'granted' ? 'granted' : 'denied');
+        return;
+      }
+
+      autoLocationBootstrappedRef.current = true;
+      const granted = await ensureUserLocation();
+      if (cancelled || !granted) return;
+
+      lastPlacesRequestKeyRef.current = null;
+      setLoadMode('radius');
+      setRecenterToUserLocationSignal((value) => value + 1);
+    })().catch(() => {
+      if (!cancelled) setLocationAccess('error');
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ensureUserLocation, tripId]);
 
   useEffect(() => {
     if (locationAccess !== 'granted') {

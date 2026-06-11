@@ -71,6 +71,37 @@ const TYPE_ICON = {
   transport: 'car',
 };
 
+const FALLBACK_SUGGEST_QUERIES = {
+  landmark: {
+    all: ['landmark', 'museum', 'attraction', 'mosque'],
+    historical: ['museum', 'historical landmark', 'monument'],
+    mosque: ['mosque', 'masjid'],
+    other: ['landmark', 'attraction'],
+  },
+  restaurant: {
+    all: ['restaurant', 'cafe', 'uzbek restaurant'],
+    traditional: ['uzbek restaurant', 'national cuisine'],
+    cafe: ['cafe', 'coffee shop'],
+    budget: ['canteen', 'fast food'],
+    mid: ['restaurant'],
+    luxury: ['fine dining restaurant'],
+  },
+  hotel: {
+    all: ['hotel', 'hostel', 'guest house'],
+    budget: ['hostel', 'guest house'],
+    mid: ['hotel'],
+    luxury: ['luxury hotel', 'resort hotel'],
+  },
+  transport: {
+    all: ['bus stop', 'railway station', 'airport', 'taxi'],
+    bus: ['bus stop'],
+    train: ['railway station', 'train station'],
+    metro: ['metro station'],
+    airport: ['airport'],
+    taxi: ['taxi'],
+  },
+};
+
 function getYandexApiKey() {
   return (
     process.env.YANDEX_SEARCH_API_KEY ||
@@ -314,6 +345,198 @@ function dedupeItems(items) {
   return deduped;
 }
 
+function fallbackPlaceFromGeocode(geo, { query, type, subtype, source = 'yandex_geocoder_fallback' }) {
+  if (!geo || !Number.isFinite(Number(geo.lat)) || !Number.isFinite(Number(geo.lng))) return null;
+
+  const name = String(geo.name || query || '').trim();
+  if (!name) return null;
+
+  const address = String(geo.address || '').trim();
+  const normalizedType = normalizeCategory(type);
+  const normalizedSubtype = normalizeSubtype(subtype);
+  const lat = Number(geo.lat);
+  const lng = Number(geo.lng);
+  const slug = `yandex-${normalizedType}-${slugify(name) || `${lat.toFixed(4)}-${lng.toFixed(4)}`}`;
+  const info = address || 'Yandex geocoder result';
+
+  return {
+    id: `yandex:${normalizedType}:fallback:${slugify(name)}:${lat.toFixed(5)}:${lng.toFixed(5)}`,
+    name,
+    city: address || 'Yandex Maps',
+    slug,
+    type: normalizedType,
+    subtype: normalizedSubtype === 'all' ? detectSubtype({ properties: { name, description: address } }, query, normalizedType) : normalizedSubtype,
+    lat,
+    lng,
+    info,
+    description: info,
+    imageUrl: null,
+    rating: null,
+    ratingCount: null,
+    phone: null,
+    website: null,
+    priceLevel: null,
+    price: null,
+    icon: TYPE_ICON[normalizedType] || 'pin',
+    openingHours: null,
+    source,
+    sourceUrl: null,
+    lastVerifiedAt: new Date().toISOString(),
+    confidenceScore: source === 'yandex_suggest_geocode_fallback' ? 0.58 : 0.64,
+    verifiedBy: source,
+  };
+}
+
+async function fallbackSearchWithGeocoder({ query, lat, lng, type }) {
+  const category = type ? normalizeCategory(type) : 'landmark';
+  const suggestPayload = await fetchYandexSuggest({
+    query,
+    lat,
+    lng,
+    results: 10,
+  }).catch((err) => ({
+    configured: true,
+    items: [],
+    total: 0,
+    source: 'yandex_geosuggest',
+    warning: err.message || 'suggest failed',
+  }));
+
+  const suggestionQueries = dedupeItems(
+    (suggestPayload.items || []).map((item) => ({
+      name: [item.title, item.subtitle].filter(Boolean).join(' '),
+      type: category,
+      subtype: 'all',
+      lat: 0,
+      lng: 0,
+      info: item.subtitle || '',
+    }))
+  )
+    .map((item) => item.name)
+    .filter(Boolean)
+    .slice(0, 8);
+
+  const [suggestionGeocodes, geocodePayload] = await Promise.all([
+    Promise.all(
+      suggestionQueries.map((suggestionQuery) =>
+        fetchYandexGeocode({ query: suggestionQuery, results: 1 })
+          .then((payload) =>
+            fallbackPlaceFromGeocode(payload.items?.[0], {
+              query: suggestionQuery,
+              type: category,
+              subtype: 'all',
+              source: 'yandex_suggest_geocode_fallback',
+            })
+          )
+          .catch(() => null)
+      )
+    ),
+    fetchYandexGeocode({ query, results: 12 }),
+  ]);
+
+  const items = dedupeItems(
+    [
+      ...suggestionGeocodes.filter(Boolean),
+      ...(geocodePayload.items || []).map((geo) => fallbackPlaceFromGeocode(geo, { query, type: category, subtype: 'all' })),
+    ]
+      .filter(Boolean)
+  );
+
+  return {
+    configured: geocodePayload.configured || suggestPayload.configured,
+    items,
+    total: items.length,
+    source: suggestionQueries.length > 0 ? 'yandex_suggest_geocode_fallback' : 'yandex_geocoder_fallback',
+    cached: false,
+    warning: [suggestPayload.warning, geocodePayload.warning].filter(Boolean).join('; ') || undefined,
+  };
+}
+
+async function fallbackNearbyWithSuggest({ lat, lng, radiusKm, type, subtype, limit }) {
+  const category = normalizeCategory(type);
+  const normalizedSubtype = normalizeSubtype(subtype);
+  const normalizedLimit = clampLimit(limit);
+  const queryPool = FALLBACK_SUGGEST_QUERIES[category]?.[normalizedSubtype] ||
+    FALLBACK_SUGGEST_QUERIES[category]?.all ||
+    queriesFor(category, normalizedSubtype).slice(0, 3);
+
+  const suggestResponses = await Promise.all(
+    queryPool.slice(0, 4).map((query) =>
+      fetchYandexSuggest({
+        query,
+        lat,
+        lng,
+        results: Math.min(10, normalizedLimit),
+      }).catch((err) => ({
+        configured: true,
+        items: [],
+        total: 0,
+        source: 'yandex_geosuggest',
+        warning: err.message || 'suggest failed',
+      }))
+    )
+  );
+
+  const suggestions = dedupeItems(
+    suggestResponses
+      .flatMap((response) => response.items || [])
+      .map((item) => ({
+        name: item.title,
+        type: category,
+        subtype: normalizedSubtype,
+        lat: 0,
+        lng: 0,
+        info: item.subtitle || '',
+      }))
+  ).slice(0, normalizedLimit);
+
+  const geocoded = await Promise.all(
+    suggestions.map(async (item) => {
+      const query = [item.name, item.info].filter(Boolean).join(' ');
+      try {
+        const geocodePayload = await fetchYandexGeocode({ query, results: 1 });
+        return fallbackPlaceFromGeocode(geocodePayload.items?.[0], {
+          query: item.name,
+          type: category,
+          subtype: normalizedSubtype,
+          source: 'yandex_suggest_geocode_fallback',
+        });
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  const origin = { latitude: Number(lat), longitude: Number(lng) };
+  const items = dedupeItems(geocoded.filter(Boolean))
+    .filter((item) => {
+      if (!Number.isFinite(origin.latitude) || !Number.isFinite(origin.longitude)) return true;
+      return haversineKm(origin, { latitude: item.lat, longitude: item.lng }) <= clampRadiusKm(radiusKm) * 1.25;
+    })
+    .slice(0, normalizedLimit);
+
+  return {
+    configured: suggestResponses.some((response) => response.configured !== false),
+    items,
+    total: items.length,
+    source: 'yandex_suggest_geocode_fallback',
+    cached: false,
+    warning: suggestResponses.map((response) => response.warning).filter(Boolean).slice(0, 3).join('; ') || undefined,
+  };
+}
+
+function haversineKm(a, b) {
+  const R = 6371;
+  const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
+  const dLng = ((b.longitude - a.longitude) * Math.PI) / 180;
+  const lat1 = (a.latitude * Math.PI) / 180;
+  const lat2 = (b.latitude * Math.PI) / 180;
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h = sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
 async function fetchYandexPlacesNearby({ lat, lng, radiusKm, type, subtype, limit }) {
   const apiKey = getYandexApiKey();
   const category = normalizeCategory(type);
@@ -384,6 +607,25 @@ async function fetchYandexPlacesNearby({ lat, lng, radiusKm, type, subtype, limi
     warning: warnings.length > 0 ? warnings.slice(0, 4).join('; ') : undefined,
   };
 
+  if (items.length === 0 && warnings.length > 0) {
+    const fallback = await fallbackNearbyWithSuggest({
+      lat,
+      lng,
+      radiusKm: normalizedRadiusKm,
+      type: category,
+      subtype: normalizedSubtype,
+      limit: normalizedLimit,
+    });
+    if (fallback.items.length > 0) {
+      const fallbackPayload = {
+        ...fallback,
+        warning: warnings.slice(0, 3).join('; '),
+      };
+      cache.set(cacheKey, { createdAt: Date.now(), payload: fallbackPayload });
+      return fallbackPayload;
+    }
+  }
+
   cache.set(cacheKey, { createdAt: Date.now(), payload });
   return payload;
 }
@@ -439,23 +681,37 @@ async function fetchYandexPlacesSearch({ query, lat, lng, radiusKm, type }) {
     params.rspn = 1;
   }
 
-  const response = await axios.get(YANDEX_SEARCH_URL, {
-    timeout: 7000,
-    params,
-  });
+  let features = [];
+  let searchWarning;
+  try {
+    const response = await axios.get(YANDEX_SEARCH_URL, {
+      timeout: 7000,
+      params,
+    });
+    features = Array.isArray(response.data?.features) ? response.data.features : [];
+  } catch (err) {
+    searchWarning = `Yandex Search fallback: ${err.response?.status || err.message || 'request failed'}`;
+  }
 
-  const features = Array.isArray(response.data?.features) ? response.data.features : [];
   const fallbackType = category || 'landmark';
-  const items = dedupeItems(features.map((feature) => normalizeFeature(feature, searchText, fallbackType)).filter(Boolean))
+  let items = dedupeItems(features.map((feature) => normalizeFeature(feature, searchText, fallbackType)).filter(Boolean))
     .filter((item) => !category || item.type === category)
     .slice(0, 40);
+
+  let source = 'yandex_search';
+  if (items.length === 0 && searchWarning) {
+    const fallback = await fallbackSearchWithGeocoder({ query: searchText, lat, lng, type: fallbackType });
+    items = fallback.items;
+    source = fallback.source;
+  }
 
   const payload = {
     configured: true,
     items,
     total: items.length,
-    source: 'yandex_search',
+    source,
     cached: false,
+    warning: searchWarning,
   };
 
   cache.set(cacheKey, { createdAt: Date.now(), payload });

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, ImageBackground, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, ImageBackground, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,6 +44,11 @@ export function TourDetailsScreen() {
       return;
     }
 
+    if (travelDate.trim() && Number.isNaN(new Date(travelDate.trim()).getTime())) {
+      Alert.alert("Sana noto'g'ri", "Sayohat sanasini YYYY-MM-DD formatida kiriting yoki bo'sh qoldiring.");
+      return;
+    }
+
     setBookingLoading(true);
     try {
       await bookingsAPI.create({
@@ -58,6 +63,7 @@ export function TourDetailsScreen() {
       });
       Alert.alert('So‘rov yuborildi', 'Agency booking so‘rovingizni ko‘rib chiqadi va siz bilan bog‘lanadi.');
       setBookingMessage('');
+      setTravelDate('');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Booking yuborilmadi';
       Alert.alert('Xatolik', message);
@@ -83,6 +89,24 @@ export function TourDetailsScreen() {
   }
 
   const highlights = Array.isArray(tour.highlights) ? tour.highlights.filter(Boolean) : [];
+  const agencyName = tour.agency?.name || 'TravelorAI partner agency';
+  const agencyMeta = [tour.agency?.city, tour.agency?.specialty].filter(Boolean).join(' · ') || 'Tasdiqlangan agency';
+  const phone = tour.agency?.phone || '';
+  const website = tour.agency?.website || '';
+  const confidenceRaw = Number(tour.confidenceScore);
+  const confidence = Number.isFinite(confidenceRaw) ? Math.round(confidenceRaw <= 1 ? confidenceRaw * 100 : confidenceRaw) : null;
+  const sourceLabel = tour.source ? String(tour.source).replace(/_/g, ' ') : 'TravelorAI verified';
+  const verifiedDate = tour.lastVerifiedAt ? new Date(tour.lastVerifiedAt).toLocaleDateString() : null;
+  const openWebsite = () => {
+    if (!website) return;
+    const url = website.startsWith('http') ? website : `https://${website}`;
+    void Linking.openURL(url).catch(() => Alert.alert('Xatolik', 'Agency website ochilmadi.'));
+  };
+
+  const callAgency = () => {
+    if (!phone) return;
+    void Linking.openURL(`tel:${phone}`).catch(() => Alert.alert('Xatolik', 'Telefon ilovasi ochilmadi.'));
+  };
 
   return (
     <ScrollView style={[styles.screen, { paddingTop: insets.top }]} showsVerticalScrollIndicator={false}>
@@ -90,7 +114,7 @@ export function TourDetailsScreen() {
         <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()} activeOpacity={0.82}>
           <Ionicons name="close" size={17} color={colors.textSecondary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tour Details</Text>
+        <Text style={styles.headerTitle}>Tour tafsilotlari</Text>
         <View style={styles.iconBtnGhost} />
       </View>
 
@@ -114,13 +138,35 @@ export function TourDetailsScreen() {
 
       <View style={styles.formCard}>
         <View style={styles.detailStats}>
-          <Stat label="Duration" value={tour.duration || '-'} styles={styles} />
-          <Stat label="Rating" value={tour.rating ? tour.rating.toFixed(1) : '-'} styles={styles} />
-          <Stat label="From" value={tour.price || (tour.priceMin ? `$${tour.priceMin}` : 'So‘rovda')} styles={styles} />
+          <Stat label="Davomiylik" value={tour.duration || '-'} styles={styles} />
+          <Stat label="Reyting" value={tour.rating ? tour.rating.toFixed(1) : '-'} styles={styles} />
+          <Stat label="Narx" value={tour.price || (tour.priceMin ? `$${tour.priceMin}` : 'So‘rovda')} styles={styles} />
         </View>
+        <View style={styles.trustStrip}>
+          <View style={styles.trustPill}>
+            <Ionicons name="shield-checkmark-outline" size={14} color={colors.success} />
+            <Text style={styles.trustPillText}>{sourceLabel}</Text>
+          </View>
+          <View style={styles.trustPill}>
+            <Ionicons name="analytics-outline" size={14} color={colors.success} />
+            <Text style={styles.trustPillText}>{confidence ? `${confidence}% ishonch` : 'Tekshirilgan'}</Text>
+          </View>
+          {verifiedDate ? (
+            <View style={styles.trustPill}>
+              <Ionicons name="time-outline" size={14} color={colors.success} />
+              <Text style={styles.trustPillText}>{verifiedDate}</Text>
+            </View>
+          ) : null}
+        </View>
+        {tour.description ? (
+          <>
+            <Text style={styles.sectionTitle}>Batafsil ma’lumot</Text>
+            <Text style={styles.detailParagraph}>{tour.description}</Text>
+          </>
+        ) : null}
         {highlights.length > 0 ? (
           <>
-            <Text style={styles.sectionTitle}>Included</Text>
+            <Text style={styles.sectionTitle}>Nimalar kiradi</Text>
             {highlights.map((item) => (
               <View key={item} style={styles.checkRow}>
                 <Ionicons name="checkmark-circle" size={16} color={colors.success} />
@@ -129,6 +175,45 @@ export function TourDetailsScreen() {
             ))}
           </>
         ) : null}
+      </View>
+
+      <View style={styles.formCard}>
+        <Text style={styles.sectionTitle}>Agency</Text>
+        <View style={styles.agencyCard}>
+          <View style={styles.agencyAvatar}>
+            <Ionicons name="briefcase-outline" size={20} color={colors.success} />
+          </View>
+          <View style={styles.agencyCopy}>
+            <Text style={styles.agencyName}>{agencyName}</Text>
+            <Text style={styles.muted}>{agencyMeta}</Text>
+          </View>
+        </View>
+        <View style={styles.bookingFlow}>
+          <View style={styles.bookingStep}>
+            <Text style={styles.bookingStepNo}>1</Text>
+            <Text style={styles.bookingStepText}>So‘rov yuborasiz</Text>
+          </View>
+          <View style={styles.bookingStepDivider} />
+          <View style={styles.bookingStep}>
+            <Text style={styles.bookingStepNo}>2</Text>
+            <Text style={styles.bookingStepText}>Agency aloqaga chiqadi</Text>
+          </View>
+          <View style={styles.bookingStepDivider} />
+          <View style={styles.bookingStep}>
+            <Text style={styles.bookingStepNo}>3</Text>
+            <Text style={styles.bookingStepText}>Tafsilotlar tasdiqlanadi</Text>
+          </View>
+        </View>
+        <View style={styles.contactRow}>
+          <TouchableOpacity disabled={!phone} style={[styles.contactButton, !phone && styles.contactButtonDisabled]} onPress={callAgency} activeOpacity={0.84}>
+            <Ionicons name="call-outline" size={15} color={phone ? colors.text : colors.textMuted} />
+            <Text style={[styles.contactButtonText, !phone && { color: colors.textMuted }]}>Telefon</Text>
+          </TouchableOpacity>
+          <TouchableOpacity disabled={!website} style={[styles.contactButton, !website && styles.contactButtonDisabled]} onPress={openWebsite} activeOpacity={0.84}>
+            <Ionicons name="globe-outline" size={15} color={website ? colors.text : colors.textMuted} />
+            <Text style={[styles.contactButtonText, !website && { color: colors.textMuted }]}>Website</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.formCard}>
@@ -238,11 +323,46 @@ function createStyles(colors: AppColors) {
     tourSub: { fontFamily: FONTS.regular, fontSize: 13, lineHeight: 19, color: colors.textMuted },
     tourSubOnImage: { color: 'rgba(255,255,255,0.86)' },
     formCard: { marginHorizontal: SPACING.lg, marginTop: SPACING.lg, borderRadius: 24, backgroundColor: colors.surface, padding: SPACING.lg, gap: SPACING.md },
+    agencyCard: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, borderRadius: 20, backgroundColor: colors.cardMuted, padding: SPACING.md },
+    agencyAvatar: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primaryPale },
+    agencyCopy: { flex: 1, gap: 3 },
+    agencyName: { fontFamily: FONTS.display, fontSize: 17, color: colors.text },
+    bookingFlow: { flexDirection: 'row', alignItems: 'center', borderRadius: 18, backgroundColor: colors.cardMuted, padding: SPACING.sm },
+    bookingStep: { flex: 1, alignItems: 'center', gap: 5 },
+    bookingStepNo: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: colors.success,
+      color: colors.textInverse,
+      textAlign: 'center',
+      lineHeight: 22,
+      fontFamily: FONTS.semibold,
+      fontSize: 10,
+    },
+    bookingStepText: { textAlign: 'center', fontFamily: FONTS.semibold, fontSize: 9, lineHeight: 12, color: colors.textSecondary },
+    bookingStepDivider: { width: 1, height: 34, backgroundColor: colors.borderLight },
+    contactRow: { flexDirection: 'row', gap: SPACING.sm },
+    contactButton: { flex: 1, minHeight: 46, borderRadius: 16, backgroundColor: colors.cardMuted, borderWidth: 1, borderColor: colors.borderLight, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: SPACING.xs },
+    contactButtonDisabled: { opacity: 0.5 },
+    contactButtonText: { fontFamily: FONTS.semibold, fontSize: 12, color: colors.text },
     detailStats: { flexDirection: 'row', gap: SPACING.sm },
     statBox: { flex: 1, borderRadius: 18, backgroundColor: colors.cardMuted, padding: SPACING.md },
     statValue: { fontFamily: FONTS.display, fontSize: 17, color: colors.text },
     tinyMuted: { fontFamily: FONTS.regular, fontSize: 10, color: colors.textMuted },
+    trustStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs },
+    trustPill: {
+      minHeight: 32,
+      borderRadius: 16,
+      backgroundColor: colors.successPale,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: SPACING.sm,
+    },
+    trustPillText: { fontFamily: FONTS.semibold, fontSize: 10, color: colors.success, textTransform: 'capitalize' },
     sectionTitle: { fontFamily: FONTS.display, fontSize: 18, color: colors.text },
+    detailParagraph: { fontFamily: FONTS.regular, fontSize: 13, lineHeight: 20, color: colors.textSecondary },
     checkRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
     optionTitle: { flex: 1, fontFamily: FONTS.semibold, fontSize: 13, color: colors.text },
     muted: { fontFamily: FONTS.regular, fontSize: 12, lineHeight: 18, color: colors.textMuted },

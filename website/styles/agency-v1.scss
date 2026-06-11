@@ -1,9 +1,10 @@
 .agency-shell {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   grid-template-columns: minmax(360px, 0.78fr) minmax(0, 1.22fr);
   gap: clamp(22px, 4vw, 54px);
   padding: clamp(20px, 4vw, 56px);
+  overflow-x: clip;
   color: #11151c;
   background:
     radial-gradient(circle at 14% 12%, rgba(0, 128, 91, 0.16), transparent 30rem),
@@ -12,12 +13,17 @@
   font-family: "Poppins", "Segoe UI", sans-serif;
 }
 
+.agency-shell img,
+.agency-shell svg {
+  flex-shrink: 0;
+}
+
 .agency-hero {
   position: sticky;
   top: 32px;
   align-self: start;
   min-width: 0;
-  min-height: calc(100vh - 112px);
+  min-height: calc(100dvh - 112px);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -54,8 +60,8 @@
 .agency-hero h1 {
   max-width: 620px;
   margin: 0;
-  font-size: clamp(2.4rem, 4.8vw, 4.7rem);
-  line-height: 0.94;
+  font-size: clamp(2.2rem, 4.2vw, 4.15rem);
+  line-height: 0.98;
   letter-spacing: -0.065em;
   overflow-wrap: anywhere;
   text-wrap: balance;
@@ -90,10 +96,12 @@
 
 .agency-panel {
   position: relative;
+  min-width: 0;
 }
 
 .agency-card {
   min-width: 0;
+  overflow: hidden;
   padding: clamp(22px, 3vw, 34px);
   border: 1px solid rgba(20, 24, 31, 0.08);
   border-radius: 32px;
@@ -269,6 +277,26 @@
   margin-top: 20px;
 }
 
+.agency-actions .agency-actions__ghost,
+.agency-icon-action {
+  color: #323844;
+  background: #efeeeb;
+}
+
+.agency-icon-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 950;
+  cursor: pointer;
+}
+
 .agency-dashboard {
   display: grid;
   gap: 18px;
@@ -278,6 +306,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
 }
 
 .agency-dashboard__header svg {
@@ -333,6 +362,10 @@
   background: #fbfaf8;
 }
 
+.agency-tour > div {
+  min-width: 0;
+}
+
 .agency-tour div {
   display: grid;
   gap: 4px;
@@ -364,11 +397,11 @@
 }
 
 .agency-shell--dashboard .agency-panel {
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .agency-dashboard-shell {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   grid-template-columns: 286px minmax(0, 1fr);
 }
@@ -376,10 +409,11 @@
 .agency-dashboard-sidebar {
   position: sticky;
   top: 0;
-  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   gap: 28px;
+  overflow-y: auto;
   padding: 28px 22px;
   color: #eaf4ef;
   background: #0d1726;
@@ -392,6 +426,10 @@
   gap: 12px;
   padding-bottom: 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.agency-dashboard-brand > div {
+  min-width: 0;
 }
 
 .agency-dashboard-brand span {
@@ -411,12 +449,18 @@
 
 .agency-dashboard-brand b {
   font-size: 1.05rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .agency-dashboard-brand small {
   margin-top: 2px;
   color: #91a1b5;
   font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .agency-dashboard-sidebar nav {
@@ -437,6 +481,7 @@
   background: rgba(255, 255, 255, 0.04);
   font-weight: 950;
   text-decoration: none;
+  min-width: 0;
 }
 
 .agency-dashboard-sidebar a:first-child {
@@ -477,12 +522,18 @@
   padding: clamp(24px, 3vw, 38px);
 }
 
+.agency-dashboard-topbar > div {
+  min-width: 0;
+}
+
 .agency-dashboard-topbar h2,
 .agency-dashboard-section h3 {
   margin: 0;
   color: #151820;
   letter-spacing: -0.06em;
   line-height: 0.96;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .agency-dashboard-topbar h2 {
@@ -493,6 +544,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  flex: 0 0 auto;
 }
 
 .agency-dashboard-actions button,
@@ -530,6 +582,7 @@
   justify-content: space-between;
   gap: 14px;
   padding: 22px;
+  min-width: 0;
   border: 1px solid rgba(20, 24, 31, 0.08);
   border-radius: 28px;
   background: #fff;
@@ -551,6 +604,7 @@
   font-size: clamp(2rem, 3vw, 3.1rem);
   line-height: 1;
   letter-spacing: -0.06em;
+  overflow-wrap: anywhere;
 }
 
 .agency-kpi-card small {
@@ -586,6 +640,7 @@
 
 .agency-dashboard-section {
   min-width: 0;
+  overflow: hidden;
   padding: clamp(22px, 3vw, 32px);
 }
 
@@ -595,6 +650,10 @@
   justify-content: space-between;
   gap: 18px;
   margin-bottom: 22px;
+}
+
+.agency-section-heading > div {
+  min-width: 0;
 }
 
 .agency-section-heading svg {
@@ -615,6 +674,7 @@
   padding: 16px;
   border-radius: 22px;
   background: #f8f7f4;
+  min-width: 0;
 }
 
 .agency-sales-grid b {
@@ -623,6 +683,7 @@
   color: #11151c;
   font-size: 1.55rem;
   letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
 }
 
 .agency-empty-sales,
@@ -679,6 +740,60 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.agency-tour-editor-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 0 22px;
+  padding: 18px;
+  border: 1px solid rgba(8, 122, 86, 0.14);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(8, 122, 86, 0.13), transparent 14rem),
+    #f7fbf8;
+}
+
+.agency-tour-editor-banner div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.agency-tour-editor-banner span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #087a56;
+  font-size: 0.76rem;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.agency-tour-editor-banner b {
+  color: #121821;
+  font-size: clamp(1.25rem, 2vw, 1.8rem);
+  letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
+}
+
+.agency-tour-editor-banner small {
+  color: #68717d;
+  font-weight: 850;
+}
+
+.agency-tour-editor-banner em {
+  flex: 0 0 auto;
+  padding: 10px 13px;
+  border-radius: 999px;
+  color: #10151b;
+  background: #fff;
+  font-style: normal;
+  font-weight: 950;
+  box-shadow: 0 12px 25px rgba(20, 26, 35, 0.06);
+}
+
 .agency-tour-count {
   flex: 0 0 auto;
   padding: 10px 14px;
@@ -732,6 +847,11 @@
   display: flex;
   justify-content: space-between;
   gap: 14px;
+  min-width: 0;
+}
+
+.agency-tour-body__title > div {
+  min-width: 0;
 }
 
 .agency-tour-body h4 {
@@ -753,6 +873,9 @@
   flex: 0 0 auto;
   color: #087a56;
   font-size: 1.15rem;
+  max-width: 38%;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .agency-status,
@@ -830,6 +953,35 @@
   gap: 14px;
 }
 
+.agency-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: -8px 0 22px;
+}
+
+.agency-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid #e4e7eb;
+  border-radius: 999px;
+  color: #5b6471;
+  background: #fff;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.agency-filter-chip--active {
+  color: #fff;
+  border-color: #10151b;
+  background: #10151b;
+}
+
 .agency-booking-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -838,6 +990,10 @@
   border: 1px solid #ececf0;
   border-radius: 26px;
   background: #fbfaf8;
+}
+
+.agency-booking-card > div {
+  min-width: 0;
 }
 
 .agency-booking-card h4 {
@@ -855,10 +1011,17 @@
   line-height: 1.55;
 }
 
+.agency-booking-card small {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
 .agency-booking-side {
   display: grid;
   justify-items: end;
   gap: 12px;
+  min-width: min(320px, 32vw);
 }
 
 .agency-booking-side > b {
@@ -894,6 +1057,23 @@
 .agency-booking-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.agency-booking-note {
+  width: 100%;
+  display: grid;
+  gap: 7px;
+  color: #5f6976;
+  font-size: 0.74rem;
+  font-weight: 950;
+  text-align: left;
+}
+
+.agency-booking-note textarea {
+  min-height: 78px;
+  width: 100%;
+  border-radius: 18px;
+  font-size: 0.85rem;
 }
 
 .agency-tour-meta {
@@ -961,6 +1141,7 @@
   .agency-dashboard-sidebar {
     position: relative;
     height: auto;
+    overflow: visible;
   }
 
   .agency-dashboard-sidebar nav {
@@ -997,6 +1178,21 @@
     padding: 14px;
   }
 
+  .agency-hero {
+    min-height: 500px;
+    border-radius: 30px;
+    padding: 28px;
+  }
+
+  .agency-hero h1 {
+    font-size: clamp(2rem, 13vw, 3.1rem);
+  }
+
+  .agency-dashboard-sidebar {
+    gap: 16px;
+    padding: 18px;
+  }
+
   .agency-dashboard-topbar,
   .agency-section-heading,
   .agency-tour-body__title {
@@ -1008,8 +1204,42 @@
     width: 100%;
   }
 
+  .agency-dashboard-topbar h2 {
+    font-size: clamp(2.2rem, 14vw, 3.5rem);
+  }
+
+  .agency-kpi-card {
+    min-height: 148px;
+  }
+
+  .agency-sales-grid b {
+    font-size: 1.35rem;
+  }
+
   .agency-tour-card {
     grid-template-columns: 1fr;
+  }
+
+  .agency-tour-body__title > b {
+    max-width: none;
+    text-align: left;
+  }
+
+  .agency-booking-card,
+  .agency-tour-editor-banner {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .agency-booking-side {
+    min-width: 0;
+    justify-items: stretch;
+  }
+
+  .agency-booking-actions button,
+  .agency-tour-actions button,
+  .agency-icon-action {
+    width: 100%;
   }
 
   .agency-tour-thumb {

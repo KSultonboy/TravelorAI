@@ -8,6 +8,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock3,
+  Edit3,
   Eye,
   FileText,
   LayoutDashboard,
@@ -15,12 +16,15 @@ import {
   Loader2,
   LogOut,
   Mail,
+  MessageSquare,
   Plus,
   RefreshCw,
+  Search,
   Send,
   ShieldCheck,
   Sparkles,
   TrendingUp,
+  X,
   Wallet,
 } from "lucide-react";
 
@@ -125,6 +129,8 @@ type BookingStats = {
   conversion: number;
 };
 
+type BookingStatus = "all" | "pending" | "confirmed" | "completed" | "rejected" | "cancelled";
+
 type MeData = {
   account: Account;
   application: AgencyApplication | null;
@@ -195,6 +201,15 @@ const emptyTour: TourForm = {
   description: "",
 };
 
+const bookingStatusFilters: { key: BookingStatus; label: string }[] = [
+  { key: "all", label: "Barchasi" },
+  { key: "pending", label: "Yangi" },
+  { key: "confirmed", label: "Tasdiqlangan" },
+  { key: "completed", label: "Yakunlangan" },
+  { key: "rejected", label: "Rad etilgan" },
+  { key: "cancelled", label: "Bekor qilingan" },
+];
+
 async function api<T>(path: string, init: RequestInit = {}, token?: string | null): Promise<ApiResponse<T>> {
   const headers = new Headers(init.headers);
   if (!headers.has("content-type") && init.body) headers.set("content-type", "application/json");
@@ -245,6 +260,36 @@ function parseItinerary(text: string) {
   }));
 }
 
+function tourToForm(tour: Tour): TourForm {
+  let itineraryText = "";
+  if (Array.isArray(tour.itinerary)) {
+    itineraryText = tour.itinerary
+      .map((item: unknown, index) => {
+        const entry = item as { day?: string | number; title?: string; activity?: string; name?: string; description?: string };
+        const prefix = entry.day ? `${entry.day}-kun: ` : `${index + 1}-kun: `;
+        const title = entry.title || entry.activity || entry.name || "";
+        const description = entry.description ? ` - ${entry.description}` : "";
+        return `${prefix}${title}${description}`.trim();
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  return {
+    title: tour.title || "",
+    city: tour.city || "",
+    subtitle: tour.subtitle || "",
+    duration: tour.duration || "",
+    price: tour.price || "",
+    priceMin: tour.priceMin ? String(tour.priceMin) : "",
+    badge: tour.badge || "Latest",
+    imageUrl: tour.imageUrl || "",
+    highlights: Array.isArray(tour.highlights) ? tour.highlights.join(", ") : "",
+    itineraryText,
+    description: tour.description || "",
+  };
+}
+
 function fillApplicationForm(application: AgencyApplication | null, account?: Account): ApplicationForm {
   if (!application) {
     return { ...emptyApplication, email: account?.email || "" };
@@ -275,8 +320,11 @@ export default function AgencyPortal() {
   const [me, setMe] = useState<MeData | null>(null);
   const [applicationForm, setApplicationForm] = useState<ApplicationForm>(emptyApplication);
   const [tourForm, setTourForm] = useState<TourForm>(emptyTour);
+  const [editingTourId, setEditingTourId] = useState<string | null>(null);
   const [tours, setTours] = useState<Tour[]>([]);
   const [bookings, setBookings] = useState<BookingItem[]>([]);
+  const [bookingFilter, setBookingFilter] = useState<BookingStatus>("all");
+  const [bookingNotes, setBookingNotes] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -414,7 +462,22 @@ export default function AgencyPortal() {
     }
   }
 
-  async function createTour(submit = false) {
+  function resetTourEditor() {
+    setTourForm(emptyTour);
+    setEditingTourId(null);
+  }
+
+  function editTour(tour: Tour) {
+    setTourForm(tourToForm(tour));
+    setEditingTourId(tour.id);
+    setMessage("");
+    setError("");
+    if (typeof document !== "undefined") {
+      document.getElementById("agency-new-tour")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  async function saveTour(submit = false) {
     setLoading(true);
     setError("");
     setMessage("");
@@ -429,21 +492,28 @@ export default function AgencyPortal() {
           .filter(Boolean),
         itinerary: parseItinerary(itineraryText),
       };
-      const createResult = await api<Tour>("/tours", {
-        method: "POST",
+      const saveResult = await api<Tour>(editingTourId ? `/tours/${editingTourId}` : "/tours", {
+        method: editingTourId ? "PUT" : "POST",
         body: JSON.stringify(payload),
       }, token);
-      if (!createResult.success) throw new Error(createResult.message);
+      if (!saveResult.success) throw new Error(saveResult.message);
 
       if (submit) {
-        const submitResult = await api<Tour>(`/tours/${createResult.data.id}/submit`, {
+        const submitResult = await api<Tour>(`/tours/${saveResult.data.id}/submit`, {
           method: "POST",
         }, token);
         if (!submitResult.success) throw new Error(submitResult.message);
       }
 
-      setTourForm(emptyTour);
-      setMessage(submit ? "Tour admin tekshiruvi uchun yuborildi." : "Tour qoralama sifatida saqlandi.");
+      const wasEditing = Boolean(editingTourId);
+      resetTourEditor();
+      setMessage(
+        submit
+          ? "Tour admin tekshiruvi uchun yuborildi."
+          : wasEditing
+            ? "Tour yangilandi. Publicga chiqishi uchun reviewga yuboring."
+            : "Tour qoralama sifatida saqlandi."
+      );
       await loadTours();
       await loadMe();
     } catch (err) {
@@ -472,8 +542,10 @@ export default function AgencyPortal() {
     localStorage.removeItem(TOKEN_KEY);
     setToken(null);
     setMe(null);
+    resetTourEditor();
     setTours([]);
     setBookings([]);
+    setBookingNotes({});
     setMode("login");
   }
 
@@ -483,7 +555,7 @@ export default function AgencyPortal() {
     setMessage("");
     const result = await api<{ booking: BookingItem; stats?: BookingStats }>(`/bookings/${id}/status`, {
       method: "PATCH",
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, agencyNote: bookingNotes[id] || "" }),
     }, token);
 
     if (result.success) {
@@ -516,6 +588,10 @@ export default function AgencyPortal() {
   };
   const latestBookings = bookings.slice(0, 4);
   const activeTour = approvedTours[0] || tours[0] || null;
+  const filteredBookings = bookingFilter === "all"
+    ? bookings
+    : bookings.filter((booking) => booking.status === bookingFilter);
+  const editingTour = editingTourId ? tours.find((tour) => tour.id === editingTourId) : null;
 
   return (
     <main className={`agency-shell ${isApproved ? "agency-shell--dashboard" : ""}`}>
@@ -524,8 +600,8 @@ export default function AgencyPortal() {
           <span><Sparkles size={18} /></span>
           <b>TravelorAI Agency</b>
         </div>
-        <h1>Tourlaringizni dunyo sayohatchilariga chiqaring.</h1>
-        <p>Agency profilingizni yuboring, admin tekshiruvidan o&apos;ting va tasdiqlangan tourlarni TravelorAI platformalarida ko&apos;rsating.</p>
+        <h1>Tourlaringizni global bozorda ko&apos;rsating.</h1>
+        <p>Agency profilingizni yuboring, admin tekshiruvidan o&apos;ting va tasdiqlangan tourlarni TravelorAI platformalarida boshqaring.</p>
         <div className="agency-hero__steps">
           <span><Mail size={16} /> Ro&apos;yxatdan o&apos;tish</span>
           <span><FileText size={16} /> Ariza yuborish</span>
@@ -657,7 +733,7 @@ export default function AgencyPortal() {
                   <p className="agency-eyebrow">Tasdiqlangan agency dashboard</p>
                   <h2>{me?.agency?.name || "Agency dashboard"}</h2>
                   <p className="agency-muted">
-                    {me?.agency?.city || "Global"} · {me?.agency?.specialty || "Tours"} · Public tourlarni admin tasdiqlagandan keyin chiqaramiz.
+                    {me?.agency?.city || "Global"} - {me?.agency?.specialty || "Tours"} - Public tourlarni admin tasdiqlagandan keyin chiqaramiz.
                   </p>
                 </div>
                 <div className="agency-dashboard-actions">
@@ -682,7 +758,7 @@ export default function AgencyPortal() {
                 <article className="agency-kpi-card">
                   <span><FileText size={18} /> Jami tour</span>
                   <b>{totalTours}</b>
-                  <small>{draftTours.length} qoralama · {pendingTours.length} reviewda · {rejectedTours.length} rad etilgan</small>
+                  <small>{draftTours.length} qoralama - {pendingTours.length} reviewda - {rejectedTours.length} rad etilgan</small>
                 </article>
                 <article className="agency-kpi-card agency-kpi-card--success">
                   <span><CheckCircle2 size={18} /> Publicda</span>
@@ -729,7 +805,7 @@ export default function AgencyPortal() {
                         <div key={booking.id}>
                           <span>{booking.customerName}</span>
                           <b>{booking.tour?.title || "Tour"}</b>
-                          <em>{statusLabel(booking.status)} · {formatMoney(Number(booking.totalEstimate || 0))}</em>
+                          <em>{statusLabel(booking.status)} - {formatMoney(Number(booking.totalEstimate || 0))}</em>
                         </div>
                       ))}
                     </div>
@@ -749,7 +825,7 @@ export default function AgencyPortal() {
                   <h3>{activeTour ? activeTour.title : "Birinchi touringizni yarating"}</h3>
                   <p className="agency-muted">
                     {activeTour
-                      ? `${activeTour.city} · ${statusLabel(activeTour.approvalStatus)} · yangilangan: ${formatDate(activeTour.updatedAt)}`
+                      ? `${activeTour.city} - ${statusLabel(activeTour.approvalStatus)} - yangilangan: ${formatDate(activeTour.updatedAt)}`
                       : "Tour rasm, itinerary, narx va highlights bilan to'liq kiritilsa, admin review tezroq o'tadi."}
                   </p>
                   <ul className="agency-quality-list">
@@ -767,7 +843,19 @@ export default function AgencyPortal() {
                     <p className="agency-eyebrow">Mijoz so&apos;rovlari</p>
                     <h3>Bookinglar</h3>
                   </div>
-                  <span className="agency-tour-count">{bookings.length} ta</span>
+                  <span className="agency-tour-count">{filteredBookings.length} / {bookings.length} ta</span>
+                </div>
+                <div className="agency-filter-row">
+                  {bookingStatusFilters.map((item) => (
+                    <button
+                      key={item.key}
+                      className={bookingFilter === item.key ? "agency-filter-chip agency-filter-chip--active" : "agency-filter-chip"}
+                      onClick={() => setBookingFilter(item.key)}
+                      type="button"
+                    >
+                      <Search size={14} /> {item.label}
+                    </button>
+                  ))}
                 </div>
                 <div className="agency-booking-list">
                   {bookings.length === 0 && (
@@ -779,23 +867,44 @@ export default function AgencyPortal() {
                       </div>
                     </div>
                   )}
-                  {bookings.map((booking) => (
+                  {bookings.length > 0 && filteredBookings.length === 0 && (
+                    <div className="agency-empty-state">
+                      <Search size={28} />
+                      <div>
+                        <b>Bu statusda booking yo&apos;q.</b>
+                        <p>Yangi so&apos;rovlar kelganda ularni shu yerdan filterlab boshqarasiz.</p>
+                      </div>
+                    </div>
+                  )}
+                  {filteredBookings.map((booking) => (
                     <article className="agency-booking-card" key={booking.id}>
                       <div>
                         <span className={`agency-status agency-status--${booking.status}`}>{statusLabel(booking.status)}</span>
                         <h4>{booking.customerName}</h4>
-                        <p>{booking.tour?.title || "Tour"} · {booking.travelers} kishi · {formatDate(booking.travelDate || booking.createdAt)}</p>
-                        <small>{booking.customerEmail}{booking.customerPhone ? ` · ${booking.customerPhone}` : ""}</small>
-                        {booking.message ? <small>{booking.message}</small> : null}
+                        <p>{booking.tour?.title || "Tour"} - {booking.travelers} kishi - {formatDate(booking.travelDate || booking.createdAt)}</p>
+                        <small>{booking.customerEmail}{booking.customerPhone ? ` - ${booking.customerPhone}` : ""}</small>
+                        {booking.message ? <small><MessageSquare size={13} /> {booking.message}</small> : null}
+                        {booking.adminNote ? <small className="agency-admin-note">Admin note: {booking.adminNote}</small> : null}
                       </div>
                       <div className="agency-booking-side">
                         <b>{formatMoney(Number(booking.totalEstimate || 0))}</b>
+                        <label className="agency-booking-note">
+                          Agency izohi
+                          <textarea
+                            value={bookingNotes[booking.id] ?? booking.agencyNote ?? ""}
+                            onChange={(event) => setBookingNotes((prev) => ({ ...prev, [booking.id]: event.target.value }))}
+                            placeholder="Mijoz bilan gaplashildi, vaqt kelishildi..."
+                          />
+                        </label>
                         <div className="agency-booking-actions">
                           <button disabled={loading || booking.status === "confirmed"} onClick={() => updateBookingStatus(booking.id, "confirmed")} type="button">
                             Tasdiqlash
                           </button>
                           <button disabled={loading || booking.status === "completed"} onClick={() => updateBookingStatus(booking.id, "completed")} type="button">
                             Yakunlash
+                          </button>
+                          <button disabled={loading || booking.status === "cancelled"} onClick={() => updateBookingStatus(booking.id, "cancelled")} type="button">
+                            Bekor
                           </button>
                           <button disabled={loading || booking.status === "rejected"} onClick={() => updateBookingStatus(booking.id, "rejected")} type="button">
                             Rad etish
@@ -810,10 +919,31 @@ export default function AgencyPortal() {
               <section className="agency-dashboard-section" id="agency-new-tour">
                 <div className="agency-section-heading">
                   <div>
-                    <p className="agency-eyebrow">Yangi tour</p>
-                    <h3>Tour ma&apos;lumotlarini to&apos;liq qo&apos;shish</h3>
+                    <p className="agency-eyebrow">{editingTourId ? "Tour editor" : "Yangi tour"}</p>
+                    <h3>{editingTourId ? "Tourni professional tahrirlash" : <>Tour ma&apos;lumotlarini to&apos;liq qo&apos;shish</>}</h3>
+                    {editingTour ? (
+                      <p className="agency-muted">
+                        {editingTour.title} tahrirlanmoqda. Approved tour o&apos;zgarsa, qayta reviewdan o&apos;tadi.
+                      </p>
+                    ) : (
+                      <p className="agency-muted">Cover rasm, highlights va itinerary to&apos;liq bo&apos;lsa, admin tezroq tasdiqlaydi.</p>
+                    )}
                   </div>
-                  <Plus size={30} />
+                  {editingTourId ? (
+                    <button className="agency-icon-action" onClick={resetTourEditor} type="button">
+                      <X size={18} /> Yangi forma
+                    </button>
+                  ) : (
+                    <Plus size={30} />
+                  )}
+                </div>
+                <div className="agency-tour-editor-banner">
+                  <div>
+                    <span><Edit3 size={16} /> Tour studio</span>
+                    <b>{tourForm.title || "Yangi public tour"}</b>
+                    <small>{tourForm.city || "Destination"} - {tourForm.duration || "Duration"} - {tourForm.price || "Narx so'rovda"}</small>
+                  </div>
+                  <em>{editingTourId ? "Edit mode" : "Draft mode"}</em>
                 </div>
                 <div className="agency-form-grid agency-form-grid--wide">
                   {([
@@ -850,10 +980,13 @@ export default function AgencyPortal() {
                   </label>
                 </div>
                 <div className="agency-actions">
-                  <button disabled={loading} onClick={() => createTour(false)} type="button">
-                    <FileText size={18} /> Qoralama saqlash
+                  <button className="agency-actions__ghost" disabled={loading} onClick={resetTourEditor} type="button">
+                    <X size={18} /> Tozalash
                   </button>
-                  <button disabled={loading} onClick={() => createTour(true)} type="button">
+                  <button disabled={loading} onClick={() => saveTour(false)} type="button">
+                    <FileText size={18} /> {editingTourId ? "O'zgarishni saqlash" : "Qoralama saqlash"}
+                  </button>
+                  <button disabled={loading} onClick={() => saveTour(true)} type="button">
                     <Send size={18} /> Admin reviewga yuborish
                   </button>
                 </div>
@@ -903,6 +1036,9 @@ export default function AgencyPortal() {
                         </div>
                         {tour.adminNote && <small className="agency-admin-note">Admin note: {tour.adminNote}</small>}
                         <div className="agency-tour-actions">
+                          <button onClick={() => editTour(tour)} type="button">
+                            <Edit3 size={15} /> Tahrirlash
+                          </button>
                           {tour.approvalStatus === "approved" ? (
                             <span className="agency-public-chip"><CheckCircle2 size={15} /> Publicda ko&apos;rinadi</span>
                           ) : tour.approvalStatus === "pending_review" ? (

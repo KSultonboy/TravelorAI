@@ -39,6 +39,10 @@ export default function Destinations({ places = [] }: { places?: LandingPlace[] 
     });
   }, [items]);
 
+  if (items.length === 0) {
+    return <span id="features" aria-hidden="true" />;
+  }
+
   return (
     <section id="features" className="section">
       <div className="lp-wrap">
@@ -54,36 +58,32 @@ export default function Destinations({ places = [] }: { places?: LandingPlace[] 
         </div>
 
         <div className="destination-cards">
-          {items.length > 0 ? (
-            items.map((item) => (
-              <Link
-                href="#about"
-                className="destination-card lp-reveal"
-                key={item.id || item.slug || item.name}
-                style={{ "--image": imageValue(item) } as CSSProperties}
-                onClick={() =>
-                  trackLandingEvent({
-                    entityType: "place",
-                    entityId: item.id,
-                    eventType: "click",
-                    metadata: { slug: item.slug, section: "trending_destinations" },
-                  })
-                }
-              >
-                <div className="destination-card__content">
-                  <span className="destination-card__city">{item.city}</span>
-                  <h3>{item.name}</h3>
-                  <p>{item.description || item.info || "Personalized routes, verified places and local context."}</p>
-                  <div className="destination-card__meta">
-                    <Star size={14} fill="currentColor" />
-                    {item.rating ? `${item.rating.toFixed(1)} rating` : "Backend verified"}
-                  </div>
+          {items.map((item) => (
+            <Link
+              href="#about"
+              className="destination-card lp-reveal"
+              key={item.id || item.slug || item.name}
+              style={{ "--image": imageValue(item) } as CSSProperties}
+              onClick={() =>
+                trackLandingEvent({
+                  entityType: "place",
+                  entityId: item.id,
+                  eventType: "click",
+                  metadata: { slug: item.slug, section: "trending_destinations" },
+                })
+              }
+            >
+              <div className="destination-card__content">
+                <span className="destination-card__city">{item.city}</span>
+                <h3>{item.name}</h3>
+                <p>{item.description || item.info || "Personalized routes, verified places and local context."}</p>
+                <div className="destination-card__meta">
+                  <Star size={14} fill="currentColor" />
+                  {item.rating ? `${item.rating.toFixed(1)} rating` : "Backend verified"}
                 </div>
-              </Link>
-            ))
-          ) : (
-            <div className="landing-empty lp-reveal">Featured destinations are being prepared.</div>
-          )}
+              </div>
+            </Link>
+          ))}
         </div>
       </div>
     </section>

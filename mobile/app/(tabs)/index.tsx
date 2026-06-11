@@ -22,7 +22,6 @@ import { homeAPI } from '../../src/utils/api';
 import { KEYS, getJSON, saveJSON } from '../../src/utils/storage';
 import {
   HOME_DEFAULT_HERO,
-  PLACE_FILTERS,
   buildPlaceParams,
   getPlaceTypeLabel,
   normalizeAgencies,
@@ -32,7 +31,6 @@ import {
   type HomeAgencyItem,
   type HomeHeroSlide,
   type HomePayload,
-  type HomePlaceType,
   type HomeTourItem,
   type PopularPlaceItem,
 } from '../../src/utils/homeContent';
@@ -51,6 +49,84 @@ function getPlaceImage(item: PopularPlaceItem) {
   return item.imageUrl || null;
 }
 
+type HomeShortcutKey = 'agencyTours' | 'planner' | 'hotels' | 'explore' | 'food' | 'transport' | 'wishlist' | 'profile';
+
+type HomeShortcut = {
+  key: HomeShortcutKey;
+  label: string;
+  subtitle: string;
+  cta: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  route: string;
+};
+
+const HOME_SHORTCUTS: HomeShortcut[] = [
+  {
+    key: 'agencyTours',
+    label: 'Turlar',
+    subtitle: 'Tasdiqlangan agency tourlarini toping.',
+    cta: 'Turlarni ko‘rish',
+    icon: 'briefcase-outline',
+    route: '/home-tours',
+  },
+  {
+    key: 'planner',
+    label: 'AI Planner',
+    subtitle: 'Budjet va qiziqishlarga mos marshrut tuzing.',
+    cta: 'Reja tuzish',
+    icon: 'sparkles-outline',
+    route: '/(tabs)/planner',
+  },
+  {
+    key: 'hotels',
+    label: 'Mehmonxona',
+    subtitle: 'Yaqin va mashhur mehmonxonalarni ko‘ring.',
+    cta: 'Mehmonxonalar',
+    icon: 'bed-outline',
+    route: '/home-places',
+  },
+  {
+    key: 'explore',
+    label: 'Explore',
+    subtitle: 'Map orqali joy, restoran va transportlarni toping.',
+    cta: 'Xaritani ochish',
+    icon: 'map-outline',
+    route: '/(tabs)/explore',
+  },
+  {
+    key: 'food',
+    label: 'Restoran',
+    subtitle: 'Mahalliy taomlar va mashhur restoranlarni saralang.',
+    cta: 'Restoranlar',
+    icon: 'restaurant-outline',
+    route: '/home-places',
+  },
+  {
+    key: 'transport',
+    label: 'Transport',
+    subtitle: 'Bekat, aeroport va yo‘nalishlarni Yandex orqali tekshiring.',
+    cta: 'Transportni ko‘rish',
+    icon: 'bus-outline',
+    route: '/(tabs)/explore',
+  },
+  {
+    key: 'wishlist',
+    label: 'Saqlanganlar',
+    subtitle: 'Keyingi safar uchun saqlagan joylaringiz.',
+    cta: 'Wishlist',
+    icon: 'heart-outline',
+    route: '/wishlist',
+  },
+  {
+    key: 'profile',
+    label: 'Profil',
+    subtitle: 'Booking, wishlist va hisob sozlamalari.',
+    cta: 'Profilga o‘tish',
+    icon: 'person-circle-outline',
+    route: '/(tabs)/profile',
+  },
+];
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
@@ -64,9 +140,9 @@ export default function HomeScreen() {
   const [homeTours, setHomeTours] = useState<HomeTourItem[]>([]);
   const [homeAgencies, setHomeAgencies] = useState<HomeAgencyItem[]>([]);
   const [heroSlides, setHeroSlides] = useState<HomeHeroSlide[]>([]);
-  const [placeFilter, setPlaceFilter] = useState<HomePlaceType>('all');
   const [heroIndex, setHeroIndex] = useState(0);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [selectedShortcutKey, setSelectedShortcutKey] = useState<HomeShortcutKey>('agencyTours');
 
   const loadHomeData = useCallback(async () => {
     const [savedUser, cached] = await Promise.all([
@@ -180,16 +256,21 @@ export default function HomeScreen() {
 
   const userName = firstNameFromUser(user);
   const activeHero = computedHeroSlides[heroIndex] || HOME_DEFAULT_HERO;
-  const filteredPlaces = useMemo(
-    () => (placeFilter === 'all' ? popularPlaces : popularPlaces.filter((item) => item.type === placeFilter)),
-    [placeFilter, popularPlaces]
-  );
   const popularPlaceSlides = useMemo(
     () => [...popularPlaces].sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0)).slice(0, 8),
     [popularPlaces]
   );
-  const latestTours = useMemo(() => homeTours.filter((tour) => tour.badge === 'Latest'), [homeTours]);
-  const popularTours = useMemo(() => homeTours.filter((tour) => tour.badge === 'Popular'), [homeTours]);
+  const tourSlides = useMemo(() => homeTours.slice(0, 8), [homeTours]);
+  const selectedShortcut = useMemo(
+    () => HOME_SHORTCUTS.find((item) => item.key === selectedShortcutKey) || HOME_SHORTCUTS[0],
+    [selectedShortcutKey]
+  );
+  const heroKicker = activeHero.title && activeHero.title !== HOME_DEFAULT_HERO.title ? activeHero.title : 'AI powered travel';
+  const heroSubtitle = activeHero.subtitle || 'Joy, tour va marshrutlarni bitta joydan toping.';
+
+  const openShortcut = (shortcut: HomeShortcut) => {
+    router.push(shortcut.route as any);
+  };
 
   const openPlace = (item: PopularPlaceItem) => {
     router.push({
@@ -292,10 +373,10 @@ export default function HomeScreen() {
           </View>
         )}
         <Animated.View style={[styles.heroCopy, { transform: [{ translateY: heroTextAnim }] }]}>
-            <Text style={styles.heroKicker}>Dunyo bo‘ylab aqlli marshrut</Text>
+            <Text style={styles.heroKicker} numberOfLines={1}>{heroKicker}</Text>
             <Text style={styles.heroWelcome}>Xush kelibsiz,</Text>
             <Text style={styles.heroName}>{userName}!</Text>
-            <Text style={styles.heroSub}>{activeHero.subtitle}</Text>
+            <Text style={styles.heroSub}>{heroSubtitle}</Text>
             <TouchableOpacity style={styles.searchBar} onPress={() => router.push('/(tabs)/explore' as any)} activeOpacity={0.88}>
               <Ionicons name="search" size={16} color={colors.textMuted} />
               <Text style={styles.searchText}>Qayerga sayohat qilmoqchisiz?</Text>
@@ -312,31 +393,45 @@ export default function HomeScreen() {
       </Animated.View>
 
       <View style={styles.section}>
-        <SectionHeader title="Joylarni filterlash" action="View all" onPress={() => router.push('/home-places' as any)} styles={styles} />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-          {PLACE_FILTERS.map((filter) => {
-            const active = filter.key === placeFilter;
+        <SectionHeader title="Xizmatlar" action="Barchasi" onPress={() => router.push('/home-tours' as any)} styles={styles} />
+        <View style={styles.shortcutGrid}>
+          {HOME_SHORTCUTS.map((shortcut) => {
+            const active = shortcut.key === selectedShortcutKey;
             return (
-              <TouchableOpacity key={filter.key} style={[styles.filterChip, active && styles.filterChipActive]} onPress={() => setPlaceFilter(filter.key)} activeOpacity={0.84}>
-                <Ionicons name={filter.icon} size={14} color={active ? colors.textInverse : colors.textSecondary} />
-                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{filter.label}</Text>
+              <TouchableOpacity
+                key={shortcut.key}
+                style={[styles.shortcutCard, active && styles.shortcutCardActive]}
+                onPress={() => setSelectedShortcutKey(shortcut.key)}
+                activeOpacity={0.86}
+              >
+                <View style={[styles.shortcutIcon, active && styles.shortcutIconActive]}>
+                  <Ionicons name={shortcut.icon} size={19} color={active ? colors.textInverse : colors.success} />
+                </View>
+                <Text style={[styles.shortcutLabel, active && styles.shortcutLabelActive]} numberOfLines={2}>
+                  {shortcut.label}
+                </Text>
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
-        <FlatList
-          horizontal
-          data={filteredPlaces.slice(0, 8)}
-          keyExtractor={(item) => item.id}
-          renderItem={renderPlaceCard}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-          ListEmptyComponent={<Text style={styles.emptyText}>Bu filter uchun joy topilmadi.</Text>}
-        />
+        </View>
+
+        <View style={styles.shortcutPanel}>
+          <View style={styles.shortcutPanelIcon}>
+            <Ionicons name={selectedShortcut.icon} size={22} color={colors.success} />
+          </View>
+          <View style={styles.shortcutPanelCopy}>
+            <Text style={styles.shortcutPanelTitle}>{selectedShortcut.label}</Text>
+            <Text style={styles.shortcutPanelText}>{selectedShortcut.subtitle}</Text>
+          </View>
+          <TouchableOpacity style={styles.shortcutPanelButton} onPress={() => openShortcut(selectedShortcut)} activeOpacity={0.84}>
+            <Text style={styles.shortcutPanelButtonText}>{selectedShortcut.cta}</Text>
+            <Ionicons name="arrow-forward" size={14} color={colors.textInverse} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.section}>
-        <SectionHeader title="Popular places" action="View all" onPress={() => router.push('/home-places' as any)} styles={styles} />
+        <SectionHeader title="Mashhur joylar" action="View all" onPress={() => router.push('/home-places' as any)} styles={styles} />
         <FlatList
           horizontal
           data={popularPlaceSlides}
@@ -344,32 +439,20 @@ export default function HomeScreen() {
           renderItem={renderPlaceCard}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.horizontalList}
+          ListEmptyComponent={<EmptyState icon="map-outline" title="Popular joylar yo‘q" text="Backenddan joylar kelganda shu yerda ko‘rinadi." styles={styles} />}
         />
       </View>
 
       <View style={styles.section}>
-        <SectionHeader title="Latest tours" action="View all" onPress={() => router.push('/home-tours' as any)} styles={styles} />
+        <SectionHeader title="Agentlik turlari" action="View all" onPress={() => router.push('/home-tours' as any)} styles={styles} />
         <FlatList
           horizontal
-          data={latestTours}
+          data={tourSlides}
           keyExtractor={(item) => item.id}
           renderItem={renderTourCard}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.horizontalList}
-          ListEmptyComponent={<Text style={styles.emptyText}>Latest tours hali backendga qo‘shilmagan.</Text>}
-        />
-      </View>
-
-      <View style={styles.section}>
-        <SectionHeader title="Popular tours" action="View all" onPress={() => router.push('/home-tours' as any)} styles={styles} />
-        <FlatList
-          horizontal
-          data={popularTours}
-          keyExtractor={(item) => item.id}
-          renderItem={renderTourCard}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-          ListEmptyComponent={<Text style={styles.emptyText}>Popular tours hali backendga qo‘shilmagan.</Text>}
+          ListEmptyComponent={<EmptyState icon="briefcase-outline" title="Turlar yo‘q" text="Agencylar tasdiqlangan tour qo‘shsa, shu yerda chiqadi." styles={styles} />}
         />
       </View>
 
@@ -377,7 +460,7 @@ export default function HomeScreen() {
         <SectionHeader title="Tour agency reytingi" action="View all" onPress={() => router.push('/home-agencies' as any)} styles={styles} />
         <View style={styles.agencyCard}>
           {homeAgencies.slice(0, 3).map(renderAgency)}
-          {homeAgencies.length === 0 ? <Text style={styles.emptyText}>Agentliklar hali backendga qo‘shilmagan.</Text> : null}
+          {homeAgencies.length === 0 ? <EmptyState icon="business-outline" title="Agencylar yo‘q" text="Tasdiqlangan agencylar qo‘shilgach reyting ko‘rinadi." styles={styles} compact /> : null}
         </View>
       </View>
 
@@ -403,6 +486,32 @@ function SectionHeader({
       <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
         <Text style={styles.seeAll}>{action}</Text>
       </TouchableOpacity>
+    </View>
+  );
+}
+
+function EmptyState({
+  icon,
+  title,
+  text,
+  styles,
+  compact,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  text: string;
+  styles: ReturnType<typeof createStyles>;
+  compact?: boolean;
+}) {
+  return (
+    <View style={[styles.emptyCard, compact && styles.emptyCardCompact]}>
+      <View style={styles.emptyIcon}>
+        <Ionicons name={icon} size={19} color="#006C4A" />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.emptyTitle}>{title}</Text>
+        <Text style={styles.emptyText}>{text}</Text>
+      </View>
     </View>
   );
 }
@@ -509,11 +618,11 @@ function createStyles(colors: AppColors) {
       shadowOpacity: 0.16,
       shadowRadius: 26,
       elevation: 7,
-      minHeight: 294,
+      minHeight: 292,
       justifyContent: 'flex-end',
     },
     heroImageAnimated: { ...StyleSheet.absoluteFillObject },
-    heroImage: { minHeight: 294, justifyContent: 'flex-end' },
+    heroImage: { minHeight: 292, justifyContent: 'flex-end' },
     heroImageRadius: { borderRadius: 30 },
     heroFallback: {
       ...StyleSheet.absoluteFillObject,
@@ -618,6 +727,101 @@ function createStyles(colors: AppColors) {
       backgroundColor: colors.textInverse,
     },
     section: { marginBottom: SPACING.xl, overflow: 'visible' },
+    shortcutGrid: {
+      marginHorizontal: SPACING.lg,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: SPACING.sm,
+    },
+    shortcutCard: {
+      width: '22.8%',
+      minHeight: 96,
+      borderRadius: 22,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.borderLight,
+      padding: 9,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.06,
+      shadowRadius: 14,
+      elevation: 2,
+    },
+    shortcutCardActive: {
+      backgroundColor: colors.successPale,
+      borderColor: colors.success,
+      shadowOpacity: 0.06,
+      elevation: 2,
+    },
+    shortcutIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.successPale,
+    },
+    shortcutIconActive: {
+      backgroundColor: colors.success,
+    },
+    shortcutLabel: {
+      minHeight: 30,
+      textAlign: 'center',
+      fontFamily: FONTS.semibold,
+      fontSize: 10,
+      lineHeight: 14,
+      color: colors.textSecondary,
+    },
+    shortcutLabelActive: { color: colors.success },
+    shortcutPanel: {
+      marginHorizontal: SPACING.lg,
+      marginTop: SPACING.md,
+      borderRadius: 22,
+      backgroundColor: colors.surface,
+      padding: SPACING.md,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.md,
+      borderWidth: 1,
+      borderColor: colors.borderLight,
+    },
+    shortcutPanelIcon: {
+      width: 52,
+      height: 52,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.successPale,
+    },
+    shortcutPanelCopy: { flex: 1, gap: 4 },
+    shortcutPanelTitle: {
+      fontFamily: FONTS.display,
+      fontSize: 17,
+      color: colors.text,
+    },
+    shortcutPanelText: {
+      fontFamily: FONTS.regular,
+      fontSize: 11,
+      lineHeight: 16,
+      color: colors.textMuted,
+    },
+    shortcutPanelButton: {
+      minHeight: 42,
+      borderRadius: 21,
+      backgroundColor: colors.success,
+      paddingHorizontal: SPACING.md,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    shortcutPanelButtonText: {
+      fontFamily: FONTS.semibold,
+      fontSize: 11,
+      color: colors.textInverse,
+    },
     sectionHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -631,35 +835,6 @@ function createStyles(colors: AppColors) {
       color: colors.text,
     },
     seeAll: { fontFamily: FONTS.semibold, fontSize: 12, color: colors.success },
-    filterRow: {
-      paddingLeft: SPACING.lg,
-      paddingRight: SPACING.lg,
-      gap: SPACING.sm,
-      paddingBottom: SPACING.sm,
-    },
-    filterChip: {
-      height: 38,
-      borderRadius: RADIUS.full,
-      paddingHorizontal: SPACING.md,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.borderLight,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-    },
-    filterChipActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
-    filterChipText: {
-      fontFamily: FONTS.semibold,
-      fontSize: 11,
-      color: colors.textSecondary,
-    },
-    filterChipTextActive: {
-      color: colors.textInverse,
-    },
     horizontalList: {
       paddingLeft: SPACING.lg,
       paddingRight: SPACING.lg,
@@ -855,12 +1030,40 @@ function createStyles(colors: AppColors) {
       fontSize: 11,
       color: colors.text,
     },
-    emptyText: {
+    emptyCard: {
       width: 260,
+      minHeight: 112,
+      borderRadius: 22,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.borderLight,
+      padding: SPACING.md,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+    },
+    emptyCardCompact: {
+      width: '100%',
+      minHeight: 84,
+    },
+    emptyIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 15,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.successPale,
+    },
+    emptyTitle: {
+      fontFamily: FONTS.display,
+      fontSize: 14,
+      color: colors.text,
+    },
+    emptyText: {
       fontFamily: FONTS.regular,
-      fontSize: 13,
+      fontSize: 11,
+      lineHeight: 16,
       color: colors.textMuted,
-      paddingVertical: SPACING.lg,
     },
   });
 }

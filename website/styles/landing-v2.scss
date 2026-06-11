@@ -13,6 +13,7 @@
 
 .landing-site {
   min-height: 100vh;
+  overflow-x: clip;
   color: var(--lp-ink);
   background: var(--lp-bg);
   font-family: "Poppins", "Segoe UI", sans-serif;
@@ -21,6 +22,15 @@
 .lp-wrap {
   width: min(1040px, calc(100% - 40px));
   margin: 0 auto;
+}
+
+.landing-site img,
+.landing-site svg {
+  flex-shrink: 0;
+}
+
+.landing-site :target {
+  scroll-margin-top: 92px;
 }
 
 .lp-reveal,
@@ -46,7 +56,7 @@
 }
 
 .site-nav {
-  position: absolute;
+  position: sticky;
   inset: 16px 0 auto;
   z-index: 40;
   padding: 0 20px;
@@ -57,6 +67,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   width: min(1040px, 100%);
   min-height: 54px;
   margin: 0 auto;
@@ -73,6 +84,7 @@
   display: inline-flex;
   align-items: center;
   gap: 9px;
+  min-width: 0;
   color: var(--lp-ink);
   font-size: 0.92rem;
   font-weight: 900;
@@ -90,7 +102,10 @@
 }
 
 .site-brand__text {
+  overflow: hidden;
   line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .site-brand__text span {
@@ -101,6 +116,7 @@
   display: flex;
   align-items: center;
   gap: 34px;
+  min-width: 0;
 }
 
 .site-nav__links a {
@@ -157,7 +173,7 @@
 }
 
 .hero-stage {
-  padding: 82px 0 52px;
+  padding: 28px 0 52px;
   background: var(--lp-bg);
 }
 
@@ -177,7 +193,8 @@
   content: "";
   background:
     radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.08), transparent 32%),
-    linear-gradient(180deg, rgba(14, 16, 18, 0.12), rgba(8, 12, 13, 0.76));
+    radial-gradient(circle at 50% 48%, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.46) 58%, transparent 76%),
+    linear-gradient(180deg, rgba(14, 16, 18, 0.22), rgba(8, 12, 13, 0.82));
   pointer-events: none;
 }
 
@@ -212,7 +229,7 @@
   z-index: 2;
   display: grid;
   place-items: center;
-  padding: 88px 32px 110px;
+  padding: 88px clamp(20px, 4vw, 42px) 128px;
   color: white;
   text-align: center;
 }
@@ -245,10 +262,17 @@
 .hero-title {
   max-width: 620px;
   margin: 0 auto;
+  color: #fff8ec;
+  font-family: "Playfair Display", Georgia, serif;
   font-size: clamp(2.4rem, 6vw, 5.2rem);
   font-weight: 900;
   line-height: 0.96;
   letter-spacing: -0.055em;
+  overflow-wrap: anywhere;
+  text-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.54),
+    0 28px 76px rgba(0, 0, 0, 0.68);
+  text-wrap: balance;
 }
 
 .hero-lead {
@@ -257,6 +281,8 @@
   color: rgba(255, 255, 255, 0.82);
   font-size: 0.98rem;
   line-height: 1.7;
+  text-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+  text-wrap: balance;
 }
 
 .hero-slide-rail {
@@ -286,11 +312,15 @@
   align-items: center;
   gap: 9px;
   min-height: 46px;
+  min-width: 0;
   padding: 0 16px;
   color: #646a73;
   border-right: 1px solid #e6e2e8;
   font-size: 0.82rem;
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hero-search__item:first-child {
@@ -315,6 +345,7 @@
   font-size: 0.82rem;
   font-weight: 900;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .section {
@@ -331,6 +362,10 @@
   justify-content: space-between;
   gap: 20px;
   margin-bottom: 24px;
+}
+
+.section-head > div {
+  min-width: 0;
 }
 
 .section-head h2 {
@@ -404,6 +439,7 @@
   position: absolute;
   inset: auto 0 0;
   padding: 18px;
+  text-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
 }
 
 .destination-card__city {
@@ -419,12 +455,17 @@
   font-size: 1.25rem;
   line-height: 1.1;
   letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
 }
 
 .destination-card p {
   margin: 8px 0 0;
   color: rgba(255, 255, 255, 0.78);
   font-size: 0.78rem;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .destination-card__meta {
@@ -569,6 +610,7 @@
 }
 
 .story-card {
+  min-width: 0;
   padding: 20px;
   border-radius: 16px;
   background: white;
@@ -592,13 +634,21 @@
   color: #454a52;
   font-size: 0.82rem;
   line-height: 1.68;
+  overflow-wrap: anywhere;
 }
 
 .story-author {
   display: grid;
-  grid-template-columns: 38px 1fr;
+  grid-template-columns: 38px minmax(0, 1fr);
   gap: 10px;
   align-items: center;
+}
+
+.story-author strong,
+.story-author span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .story-author__avatar {
@@ -719,18 +769,30 @@
     min-height: 590px;
   }
 
+  .hero-card__content {
+    align-items: start;
+    padding: 94px 28px 260px;
+  }
+
   .hero-search {
     grid-template-columns: 1fr;
+    align-items: stretch;
+    bottom: 30px;
     border-radius: 24px;
   }
 
   .hero-search__item {
     border-right: 0;
     border-bottom: 1px solid #e6e2e8;
+    justify-content: flex-start;
   }
 
   .hero-search__item:nth-child(3) {
     border-bottom: 0;
+  }
+
+  .hero-search__button {
+    width: 100%;
   }
 
   .destination-cards,
@@ -755,30 +817,55 @@
 
   .site-nav {
     padding: 0 14px;
+    inset: 10px 0 auto;
+  }
+
+  .site-nav__bar {
+    min-height: 52px;
+    border-radius: 16px;
   }
 
   .hero-stage {
-    padding-top: 78px;
+    padding-top: 20px;
   }
 
   .hero-card {
+    min-height: 620px;
     border-radius: 22px;
   }
 
   .hero-card__content {
-    padding: 80px 22px 210px;
+    padding: 72px 20px 274px;
   }
 
   .hero-title {
     font-size: clamp(2.2rem, 13vw, 3.35rem);
   }
 
+  .hero-lead {
+    font-size: 0.92rem;
+  }
+
   .hero-search {
-    bottom: 24px;
+    bottom: 18px;
     width: calc(100% - 28px);
+  }
+
+  .hero-search__item {
+    min-height: 43px;
+    padding: 0 13px;
+    font-size: 0.78rem;
   }
 
   .stories-panel {
     padding: 22px;
+  }
+
+  .section {
+    padding: 44px 0;
+  }
+
+  .destination-card {
+    min-height: 250px;
   }
 }

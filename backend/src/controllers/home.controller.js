@@ -160,11 +160,14 @@ function formatTour(item) {
     agency: item.agency
       ? {
           id: item.agency.id,
-          slug: item.agency.slug,
-          name: item.agency.name,
-          city: item.agency.city,
-          rating: item.agency.rating,
-        }
+        slug: item.agency.slug,
+        name: item.agency.name,
+        city: item.agency.city,
+        rating: item.agency.rating,
+        phone: item.agency.phone || null,
+        website: item.agency.website || null,
+        specialty: item.agency.specialty || null,
+      }
       : null,
     source: item.source || 'admin',
     sourceUrl: item.sourceUrl || null,

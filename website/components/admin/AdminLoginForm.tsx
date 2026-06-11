@@ -26,7 +26,7 @@ export default function AdminLoginForm() {
       if (!response.ok || !payload.success) {
         throw new Error(payload.message || "Kirishda xatolik");
       }
-      router.replace("/admin/hero");
+      router.replace("/admin/content");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kirishda xatolik");
@@ -41,9 +41,9 @@ export default function AdminLoginForm() {
         <Compass size={24} />
       </div>
       <p className="admin-eyebrow">TravelorAI Admin</p>
-      <h1>Hero rasmlarni boshqarish</h1>
+      <h1>Platform boshqaruvi</h1>
       <p className="admin-login-card__lead">
-        Website va mobile app hero slaydlarini tartib bilan boshqarish uchun kiring.
+        Agency arizalari, booking review va landing contentni boshqarish uchun kiring.
       </p>
 
       {error ? <div className="admin-alert admin-alert--error">{error}</div> : null}
