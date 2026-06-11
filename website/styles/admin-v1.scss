@@ -889,3 +889,530 @@
     font-size: 2rem;
   }
 }
+
+/* ============================================================
+   ADMIN V2 — sahifa-routing, navbatlar, lead nazorati (yangi)
+   ============================================================ */
+
+.admin-shell--v2 {
+  display: grid;
+  grid-template-columns: 268px minmax(0, 1fr);
+  gap: 24px;
+  padding: 24px;
+}
+
+.admin-shell--v2 .admin-aside {
+  position: sticky;
+  top: 24px;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: calc(100vh - 48px);
+}
+
+.admin-nav-v2 {
+  display: grid;
+  gap: 6px;
+  margin-top: 22px;
+}
+
+.admin-nav-v2 a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: 14px;
+  color: #2d333d;
+  font-weight: 800;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.admin-nav-v2 a:hover {
+  background: rgba(8, 122, 86, 0.08);
+}
+
+.admin-nav-v2 a.is-active {
+  color: #fff;
+  background: #087a56;
+}
+
+.admin-aside-footer {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-aside-footer small {
+  color: #9aa0ab;
+  overflow-wrap: anywhere;
+}
+
+.admin-head-v2 {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.admin-head-v2 h1 {
+  margin: 0;
+  color: #151820;
+  font-size: clamp(1.6rem, 2.6vw, 2.4rem);
+  letter-spacing: -0.05em;
+}
+
+.admin-muted {
+  margin: 6px 0 0;
+  color: #737985;
+  line-height: 1.55;
+}
+
+.admin-ghost-v2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid #dfe1e6;
+  border-radius: 999px;
+  color: #323844;
+  background: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-ghost-v2:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.admin-spin {
+  animation: admin-spin-v2 0.8s linear infinite;
+}
+
+@keyframes admin-spin-v2 {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* --- Dashboard navbat kartalari --- */
+
+.admin-queue-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.admin-queue-card {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 20px;
+  border: 1px solid #ececf0;
+  border-radius: 24px;
+  background: #fff;
+  color: inherit;
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-queue-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 34px rgba(18, 24, 30, 0.1);
+}
+
+.admin-queue-card__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  color: #087a56;
+  background: rgba(8, 122, 86, 0.1);
+}
+
+.admin-queue-card b {
+  color: #121821;
+  font-size: 1.9rem;
+  letter-spacing: -0.04em;
+}
+
+.admin-queue-card strong {
+  color: #2d333d;
+}
+
+.admin-queue-card small {
+  color: #737985;
+}
+
+.admin-queue-card em {
+  position: absolute;
+  top: 20px;
+  right: 18px;
+  color: #9aa0ab;
+}
+
+.admin-queue-card--alert {
+  border-color: rgba(226, 162, 60, 0.55);
+  box-shadow: 0 8px 26px rgba(226, 162, 60, 0.14);
+}
+
+.admin-queue-card--alert .admin-queue-card__icon {
+  color: #b97f17;
+  background: rgba(226, 162, 60, 0.16);
+}
+
+.admin-stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.admin-stat-v2 {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid #ececf0;
+  border-radius: 18px;
+  color: #087a56;
+  background: #fff;
+}
+
+.admin-stat-v2 b {
+  color: #121821;
+  font-size: 1.4rem;
+}
+
+.admin-stat-v2 small {
+  color: #737985;
+  font-weight: 600;
+}
+
+.admin-quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-quick-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid #dfe1e6;
+  border-radius: 999px;
+  color: #2d333d;
+  background: #fff;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.admin-quick-links a:hover {
+  border-color: #087a56;
+  color: #087a56;
+}
+
+/* --- Tabs --- */
+
+.admin-tabs-v2 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.admin-tabs-v2 button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid #e2e3e8;
+  border-radius: 999px;
+  color: #323844;
+  background: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-tabs-v2 button.is-active {
+  border-color: #087a56;
+  color: #fff;
+  background: #087a56;
+}
+
+.admin-tabs-v2 button em {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.12);
+  font-size: 0.72rem;
+  font-style: normal;
+}
+
+/* --- Review kartalari --- */
+
+.admin-review-list {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-review-card-v2 {
+  display: grid;
+  gap: 12px;
+  padding: 18px 20px;
+  border: 1px solid #ececf0;
+  border-left: 5px solid #e2a23c;
+  border-radius: 22px;
+  background: #fff;
+}
+
+.admin-review-card-v2 header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-review-card-v2 h4 {
+  margin: 0;
+  color: #121821;
+  font-size: 1.15rem;
+  letter-spacing: -0.03em;
+}
+
+.admin-review-card-v2 header small {
+  color: #737985;
+}
+
+.admin-review-card-v2 p {
+  margin: 0;
+  color: #2d333d;
+  line-height: 1.55;
+}
+
+.admin-review-card-v2__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.admin-review-card-v2__meta span {
+  color: #5a6170;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.admin-review-card-v2__image {
+  width: min(420px, 100%);
+  height: auto;
+  border-radius: 16px;
+  object-fit: cover;
+}
+
+.admin-review-actions-v2 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-review-actions-v2 input {
+  flex: 1;
+  min-width: 220px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid #e2e3e8;
+  border-radius: 999px;
+  background: #f8f7f4;
+  font: inherit;
+}
+
+.admin-review-actions-v2 button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: #087a56;
+  font: inherit;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.admin-review-actions-v2 button.danger {
+  background: #c0392b;
+}
+
+.admin-review-actions-v2 button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* --- Lead jadval-ro'yxati --- */
+
+.admin-lead-table {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-lead-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  padding: 16px 18px;
+  border: 1px solid #ececf0;
+  border-radius: 20px;
+  background: #fff;
+}
+
+.admin-lead-row__main {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.admin-lead-row__main b {
+  color: #121821;
+  font-size: 1.05rem;
+}
+
+.admin-lead-row__main small {
+  color: #737985;
+}
+
+.admin-lead-row__main p {
+  margin: 4px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: #2d333d;
+  background: #f6f5f1;
+  line-height: 1.5;
+}
+
+.admin-lead-row__contacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.admin-lead-row__contacts span {
+  color: #5a6170;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.admin-lead-row__note {
+  color: #8a6116;
+}
+
+.admin-lead-row__side {
+  display: grid;
+  justify-items: end;
+  align-content: start;
+  gap: 8px;
+}
+
+.admin-lead-row__actions {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-lead-row__actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #dfe1e6;
+  border-radius: 999px;
+  color: #2d333d;
+  background: #fff;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-lead-row__actions button:hover {
+  border-color: #087a56;
+  color: #087a56;
+}
+
+.admin-lead-row__actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* --- Chips --- */
+
+.admin-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 2px 12px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 900;
+  white-space: nowrap;
+  color: #5a6170;
+  background: #eef0f3;
+}
+
+.admin-chip--pending,
+.admin-chip--pending_review {
+  color: #8a6116;
+  background: #fdf2dc;
+}
+
+.admin-chip--approved,
+.admin-chip--confirmed {
+  color: #087a56;
+  background: #e3f3ec;
+}
+
+.admin-chip--completed {
+  color: #2c5fb3;
+  background: #e4edfb;
+}
+
+.admin-chip--rejected,
+.admin-chip--cancelled {
+  color: #b03326;
+  background: #fbe7e4;
+}
+
+@media (max-width: 900px) {
+  .admin-shell--v2 {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-shell--v2 .admin-aside {
+    position: static;
+    min-height: 0;
+  }
+
+  .admin-lead-row {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-lead-row__side {
+    justify-items: start;
+  }
+}

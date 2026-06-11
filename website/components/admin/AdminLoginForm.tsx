@@ -6,7 +6,7 @@ import { Compass } from "lucide-react";
 
 export default function AdminLoginForm() {
   const router = useRouter();
-  const [username, setUsername] = useState("admin");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,7 +26,7 @@ export default function AdminLoginForm() {
       if (!response.ok || !payload.success) {
         throw new Error(payload.message || "Kirishda xatolik");
       }
-      router.replace("/admin/hero");
+      router.replace("/admin");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kirishda xatolik");
@@ -65,7 +65,7 @@ export default function AdminLoginForm() {
           type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          placeholder="admin123"
+          placeholder="Parol"
         />
       </label>
 

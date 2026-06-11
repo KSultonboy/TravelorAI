@@ -602,7 +602,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
       });
 
       const [applications, tourReviews, bookings, hero, places, agencies, stories] = await Promise.all([
-        fetchApiData<{ items: AgencyApplicationItem[] }>("/api/admin-proxy/admin/agency-applications?status=pending"),
+        fetchApiData<{ items: AgencyApplicationItem[] }>("/api/admin-proxy/admin/agency-applications?status=all"),
         fetchApiData<{ items: TourReviewItem[] }>("/api/admin-proxy/admin/tours?status=pending_review"),
         fetchApiData<{ items: BookingItem[] }>("/api/admin-proxy/admin/bookings?status=pending"),
         fetchApiData<{ items: HeroSlide[] }>("/api/admin-proxy/admin/hero-slides"),
@@ -1062,7 +1062,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
                 <div className="admin-panel__head">
                   <div>
                     <p className="admin-eyebrow">Agency onboarding</p>
-                    <h2>Review kutilayotgan arizalar</h2>
+                    <h2>Agency arizalari</h2>
                   </div>
                 </div>
                 <label className="admin-review-note">
@@ -1075,7 +1075,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
                   />
                 </label>
                 <div className="admin-review-list">
-                  {applicationItems.length === 0 ? <div className="admin-empty">Review kutilayotgan agency ariza yo&apos;q.</div> : null}
+                  {applicationItems.length === 0 ? <div className="admin-empty">Hozircha agency arizasi yo&apos;q.</div> : null}
                   {applicationItems.map((item) => (
                     <article className="admin-review-card" key={item.id}>
                       <div>
@@ -1094,12 +1094,16 @@ export default function LandingContentAdmin({ username }: { username: string }) 
                             <ExternalLink size={15} /> Website
                           </a>
                         ) : null}
-                        <button disabled={saving === "applications"} onClick={() => reviewApplication(item.id, "approve")} type="button">
-                          <CheckCircle2 size={16} /> Approve
-                        </button>
-                        <button disabled={saving === "applications"} onClick={() => reviewApplication(item.id, "reject")} type="button">
-                          <XCircle size={16} /> Reject
-                        </button>
+                        {item.status !== "approved" ? (
+                          <button disabled={saving === "applications"} onClick={() => reviewApplication(item.id, "approve")} type="button">
+                            <CheckCircle2 size={16} /> Approve
+                          </button>
+                        ) : null}
+                        {item.status !== "rejected" ? (
+                          <button disabled={saving === "applications"} onClick={() => reviewApplication(item.id, "reject")} type="button">
+                            <XCircle size={16} /> Reject
+                          </button>
+                        ) : null}
                       </div>
                     </article>
                   ))}
