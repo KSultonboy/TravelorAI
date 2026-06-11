@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -9,6 +9,8 @@ import {
   ListChecks,
   Loader2,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
   Pencil,
   Plus,
   Sparkles,
@@ -25,9 +27,23 @@ const NAV_ITEMS = [
   { href: "/agency/profile", label: "Profil", icon: Pencil, exact: true },
 ];
 
+const COLLAPSE_KEY = "travelorai_agency_sidebar_collapsed";
+
 export default function AgencyShell({ children }: { children: ReactNode }) {
   const { phase, me, bookings, logout } = useAgencySession();
   const pathname = usePathname() || "/agency";
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    setCollapsed(window.localStorage.getItem(COLLAPSE_KEY) === "1");
+  }, []);
+
+  function toggleCollapsed() {
+    setCollapsed((value) => {
+      window.localStorage.setItem(COLLAPSE_KEY, value ? "0" : "1");
+      return !value;
+    });
+  }
 
   if (phase === "loading") {
     return (
@@ -62,21 +78,32 @@ export default function AgencyShell({ children }: { children: ReactNode }) {
   const newLeads = bookings.filter((booking) => booking.status === "pending").length;
 
   return (
-    <div className="agency-dashboard-shell">
+    <div className={`agency-dashboard-shell${collapsed ? " is-collapsed" : ""}`}>
       <aside className="agency-dashboard-sidebar">
-        <div className="agency-dashboard-brand">
-          <span><Sparkles size={18} /></span>
-          <div>
-            <b>TravelorAI</b>
-            <small>Agency panel</small>
+        <div className="agency-sidebar-top">
+          <div className="agency-dashboard-brand">
+            <span><Sparkles size={18} /></span>
+            <div className="agency-nav-label">
+              <b>TravelorAI</b>
+              <small>Agency panel</small>
+            </div>
           </div>
+          <button
+            aria-label={collapsed ? "Menyuni ochish" : "Menyuni yig'ish"}
+            className="agency-collapse-btn"
+            onClick={toggleCollapsed}
+            title={collapsed ? "Menyuni ochish" : "Menyuni yig'ish"}
+            type="button"
+          >
+            {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </button>
         </div>
         <nav aria-label="Agency navigatsiyasi">
           {NAV_ITEMS.map(({ href, label, icon: Icon, exact }) => {
             const active = exact ? pathname === href : pathname.startsWith(href) && (href !== "/agency/tours" || pathname !== "/agency/tours/new");
             return (
-              <Link className={active ? "agency-nav-active" : ""} href={href} key={href}>
-                <Icon size={17} /> {label}
+              <Link className={active ? "agency-nav-active" : ""} href={href} key={href} title={label}>
+                <Icon size={17} /> <span className="agency-nav-label">{label}</span>
                 {href === "/agency/leads" && newLeads > 0 ? (
                   <span className="agency-nav-badge">{newLeads}</span>
                 ) : null}
@@ -85,9 +112,9 @@ export default function AgencyShell({ children }: { children: ReactNode }) {
           })}
         </nav>
         <div className="agency-sidebar-footer">
-          <small>{me?.agency?.name || me?.account.email}</small>
-          <button onClick={() => void logout()} type="button">
-            <LogOut size={16} /> Chiqish
+          <small className="agency-nav-label">{me?.agency?.name || me?.account.email}</small>
+          <button onClick={() => void logout()} title="Chiqish" type="button">
+            <LogOut size={16} /> <span className="agency-nav-label">Chiqish</span>
           </button>
         </div>
       </aside>

@@ -93,7 +93,7 @@ export default function AuthScreen() {
   );
 
   return (
-    <div className="agency-shell">
+    <div className="agency-shell agency-shell--auth">
       <aside className="agency-hero">
         <div className="agency-brand">
           <span><Sparkles size={20} /></span>
@@ -111,6 +111,7 @@ export default function AuthScreen() {
         </ul>
       </aside>
 
+      <div className="agency-auth-pane">
       <form className="agency-card agency-auth" onSubmit={handleSubmit}>
         <span className="agency-eyebrow">
           {mode === "register" ? "YANGI AGENCY" : mode === "verify" ? "EMAIL TASDIQLASH" : "QAYTGAN AGENCY"}
@@ -181,6 +182,7 @@ export default function AuthScreen() {
           {mode === "login" ? "Yangi agency akkaunt ochish" : "Login sahifasiga qaytish"}
         </button>
       </form>
+      </div>
     </div>
   );
 }

@@ -3,7 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FileText, Loader2, Send } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  FileText,
+  ImagePlus,
+  Loader2,
+  MapPinned,
+  Send,
+  Wallet,
+} from "lucide-react";
 import { publicImageSrc } from "@/lib/imageUrls";
 import { agencyApi, itineraryToText, parseItinerary, readImage, statusLabel } from "@/lib/agency/api";
 import { useAgencySession } from "@/lib/agency/session";
@@ -23,6 +32,40 @@ type TourForm = {
   itineraryText: string;
   description: string;
 };
+
+type FieldKey = keyof TourForm;
+
+const STEPS: { title: string; hint: string; icon: typeof MapPinned; fields: [FieldKey, string][] }[] = [
+  {
+    title: "Asosiy",
+    hint: "Tour nomi va manzili",
+    icon: MapPinned,
+    fields: [
+      ["title", "Tour nomi *"],
+      ["city", "Shahar *"],
+      ["subtitle", "Qisqa subtitle"],
+      ["duration", "Davomiyligi (masalan: 3 kun) *"],
+    ],
+  },
+  {
+    title: "Narx va javob",
+    hint: "Narx siyosati va lead javob vaqti",
+    icon: Wallet,
+    fields: [
+      ["price", "Narx matni (masalan: $250 dan)"],
+      ["priceMin", "Minimal narx (raqam, USD)"],
+      ["badge", "Badge (Latest, Popular...)"],
+      ["responseTimeMinutes", "Javob vaqti (daqiqa)"],
+      ["highlights", "Diqqatga sazovorlar, vergul bilan"],
+    ],
+  },
+  {
+    title: "Kontent",
+    hint: "Reja, tavsif va rasm",
+    icon: ImagePlus,
+    fields: [],
+  },
+];
 
 const emptyForm: TourForm = {
   title: "",
@@ -61,10 +104,10 @@ export default function TourEditor({ tourId }: { tourId?: string }) {
   const { tours, refreshTours, refresh } = useAgencySession();
   const existing = useMemo(() => tours.find((tour) => tour.id === tourId) || null, [tours, tourId]);
 
+  const [step, setStep] = useState(0);
   const [form, setForm] = useState<TourForm>(() => (existing ? tourToForm(existing) : emptyForm));
   const [busy, setBusy] = useState<"" | "draft" | "submit">("");
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -74,8 +117,29 @@ export default function TourEditor({ tourId }: { tourId?: string }) {
   const isEdit = Boolean(tourId);
   const notFound = isEdit && tours.length > 0 && !existing;
 
-  function update(key: keyof TourForm, value: string) {
+  function update(key: FieldKey, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function validateStep(index: number): boolean {
+    if (index === 0) {
+      if (!form.title.trim() || !form.city.trim() || !form.duration.trim()) {
+        setError("Tour nomi, shahar va davomiylik majburiy.");
+        return false;
+      }
+    }
+    setError("");
+    return true;
+  }
+
+  function goNext() {
+    if (!validateStep(step)) return;
+    setStep((value) => Math.min(value + 1, STEPS.length - 1));
+  }
+
+  function goBack() {
+    setError("");
+    setStep((value) => Math.max(value - 1, 0));
   }
 
   async function chooseImage(file: File | null) {
@@ -89,13 +153,12 @@ export default function TourEditor({ tourId }: { tourId?: string }) {
   }
 
   async function save(submit: boolean) {
-    if (!form.title.trim() || !form.city.trim() || !form.duration.trim()) {
-      setError("Tour nomi, shahar va davomiylik majburiy.");
+    if (!validateStep(0)) {
+      setStep(0);
       return;
     }
     setBusy(submit ? "submit" : "draft");
     setError("");
-    setMessage("");
     try {
       const { itineraryText, ...rest } = form;
       const payload = {
@@ -143,6 +206,8 @@ export default function TourEditor({ tourId }: { tourId?: string }) {
     );
   }
 
+  const isLastStep = step === STEPS.length - 1;
+
   return (
     <section className="agency-dashboard-section">
       <header className="agency-section-head">
@@ -155,7 +220,7 @@ export default function TourEditor({ tourId }: { tourId?: string }) {
               {existing.adminNote ? ` · Admin izohi: ${existing.adminNote}` : ""}
             </p>
           ) : (
-            <p className="agency-muted">Qoralama saqlang yoki to&apos;g&apos;ridan-to&apos;g&apos;ri admin tekshiruviga yuboring.</p>
+            <p className="agency-muted">Ma&apos;lumotlarni 3 bosqichda kiriting — oxirida saqlaysiz.</p>
           )}
         </div>
         <button className="agency-ghost-button" onClick={() => router.push("/agency/tours")} type="button">
@@ -163,62 +228,88 @@ export default function TourEditor({ tourId }: { tourId?: string }) {
         </button>
       </header>
 
-      {message ? <div className="agency-alert agency-alert--success">{message}</div> : null}
       {error ? <div className="agency-alert agency-alert--error">{error}</div> : null}
 
+      <ol className="agency-wizard-steps">
+        {STEPS.map(({ title, icon: Icon }, index) => (
+          <li
+            className={index === step ? "is-current" : index < step ? "is-done" : ""}
+            key={title}
+            onClick={() => index < step && setStep(index)}
+          >
+            <span><Icon size={15} /></span>
+            {title}
+          </li>
+        ))}
+      </ol>
+      <p className="agency-muted agency-wizard-hint">
+        {step + 1}/{STEPS.length} — {STEPS[step].hint}
+      </p>
+
       <div className="agency-form-grid">
-        {([
-          ["title", "Tour nomi *"],
-          ["city", "Shahar *"],
-          ["subtitle", "Qisqa subtitle"],
-          ["duration", "Davomiyligi (masalan: 3 kun) *"],
-          ["responseTimeMinutes", "Javob vaqti (daqiqa)"],
-          ["price", "Narx matni (masalan: $250 dan)"],
-          ["priceMin", "Minimal narx (raqam, USD)"],
-          ["badge", "Badge (Latest, Popular...)"],
-          ["highlights", "Diqqatga sazovorlar, vergul bilan"],
-        ] as const).map(([key, label]) => (
+        {STEPS[step].fields.map(([key, label]) => (
           <label key={key}>
             <span>{label}</span>
             <input value={form[key]} onChange={(event) => update(key, event.target.value)} />
           </label>
         ))}
-        <label className="agency-wide">
-          <span>Kunlik reja (har qatorda bitta kun: &quot;1-kun: Registon&quot;)</span>
-          <textarea value={form.itineraryText} onChange={(event) => update("itineraryText", event.target.value)} />
-        </label>
-        <label className="agency-wide">
-          <span>Tavsif</span>
-          <textarea value={form.description} onChange={(event) => update("description", event.target.value)} />
-        </label>
-        <label className="agency-wide">
-          Tour rasmi
-          <input
-            ref={imageInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif"
-            onChange={(event) => chooseImage(event.target.files?.[0] || null)}
-          />
-          {form.imageUrl ? (
-            <Image
-              unoptimized
-              width={840}
-              height={480}
-              className="agency-image-preview"
-              src={publicImageSrc(form.imageUrl)}
-              alt="Tour rasmi preview"
-            />
-          ) : null}
-        </label>
+
+        {isLastStep ? (
+          <>
+            <label className="agency-wide">
+              <span>Kunlik reja (har qatorda bitta kun: &quot;1-kun: Registon&quot;)</span>
+              <textarea value={form.itineraryText} onChange={(event) => update("itineraryText", event.target.value)} />
+            </label>
+            <label className="agency-wide">
+              <span>Tavsif</span>
+              <textarea value={form.description} onChange={(event) => update("description", event.target.value)} />
+            </label>
+            <label className="agency-wide">
+              Tour rasmi
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={(event) => chooseImage(event.target.files?.[0] || null)}
+              />
+              {form.imageUrl ? (
+                <Image
+                  unoptimized
+                  width={840}
+                  height={480}
+                  className="agency-image-preview"
+                  src={publicImageSrc(form.imageUrl)}
+                  alt="Tour rasmi preview"
+                />
+              ) : null}
+            </label>
+          </>
+        ) : null}
       </div>
 
-      <div className="agency-actions">
-        <button disabled={Boolean(busy)} onClick={() => save(false)} type="button">
-          {busy === "draft" ? <Loader2 className="agency-spin" size={17} /> : <FileText size={17} />} Qoralama saqlash
-        </button>
-        <button disabled={Boolean(busy)} onClick={() => save(true)} type="button">
-          {busy === "submit" ? <Loader2 className="agency-spin" size={17} /> : <Send size={17} />} Reviewga yuborish
-        </button>
+      <div className="agency-wizard-nav">
+        {step > 0 ? (
+          <button className="agency-ghost-button" onClick={goBack} type="button">
+            <ArrowLeft size={16} /> Orqaga
+          </button>
+        ) : (
+          <span />
+        )}
+        {!isLastStep ? (
+          <button onClick={goNext} type="button">
+            Keyingisi <ArrowRight size={16} />
+          </button>
+        ) : (
+          <div className="agency-actions">
+            <button disabled={Boolean(busy)} onClick={() => save(false)} type="button">
+              {busy === "draft" ? <Loader2 className="agency-spin" size={17} /> : <FileText size={17} />} Qoralama
+              saqlash
+            </button>
+            <button disabled={Boolean(busy)} onClick={() => save(true)} type="button">
+              {busy === "submit" ? <Loader2 className="agency-spin" size={17} /> : <Send size={17} />} Reviewga yuborish
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );

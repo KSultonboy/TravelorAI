@@ -1852,3 +1852,227 @@
     flex: 1;
   }
 }
+
+/* ============================================================
+   PORTAL V3 — scrollsiz auth, sidebar collapse, forma wizard
+   ============================================================ */
+
+/* --- Auth: chap rasm, o'ng forma, sahifa scrollsiz --- */
+
+.agency-shell--auth {
+  height: 100vh;
+  overflow: hidden;
+  padding: 0;
+  gap: 0;
+  grid-template-columns: minmax(380px, 0.95fr) minmax(0, 1.05fr);
+}
+
+.agency-shell--auth .agency-hero {
+  position: relative;
+  top: 0;
+  min-height: 100vh;
+  height: 100vh;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.agency-auth-pane {
+  height: 100vh;
+  overflow-y: auto;
+  display: grid;
+  place-items: center;
+  padding: clamp(18px, 3vh, 40px) clamp(18px, 4vw, 56px);
+}
+
+.agency-shell--auth .agency-auth {
+  width: min(560px, 100%);
+  max-width: none;
+}
+
+.agency-shell--auth .agency-card h2 {
+  font-size: clamp(1.6rem, 2.4vw, 2.4rem);
+}
+
+.agency-shell--auth .agency-card input {
+  min-height: 48px;
+}
+
+@media (max-width: 880px) {
+  .agency-shell--auth {
+    height: auto;
+    overflow: visible;
+    grid-template-columns: 1fr;
+  }
+
+  .agency-shell--auth .agency-hero {
+    display: none;
+  }
+
+  .agency-auth-pane {
+    height: auto;
+    min-height: 100vh;
+  }
+}
+
+/* --- Sidebar: yig'ish/ochish --- */
+
+.agency-sidebar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.agency-collapse-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  color: rgba(234, 244, 239, 0.85);
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.agency-collapse-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.agency-dashboard-shell {
+  transition: grid-template-columns 0.22s ease;
+}
+
+.agency-dashboard-shell.is-collapsed {
+  grid-template-columns: 86px minmax(0, 1fr);
+}
+
+.agency-dashboard-shell.is-collapsed .agency-nav-label {
+  display: none;
+}
+
+.agency-dashboard-shell.is-collapsed .agency-dashboard-sidebar {
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+.agency-dashboard-shell.is-collapsed .agency-sidebar-top {
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agency-dashboard-shell.is-collapsed .agency-dashboard-sidebar nav a {
+  justify-content: center;
+  padding: 0;
+}
+
+.agency-dashboard-shell.is-collapsed .agency-nav-badge {
+  position: absolute;
+  margin: 0;
+  transform: translate(14px, -12px);
+}
+
+.agency-dashboard-shell.is-collapsed .agency-dashboard-sidebar nav a {
+  position: relative;
+}
+
+.agency-dashboard-shell.is-collapsed .agency-sidebar-footer button {
+  width: 48px;
+  padding: 0;
+  justify-content: center;
+}
+
+/* --- Wizard (bosqichma-bosqich forma) --- */
+
+.agency-wizard-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0 4px;
+  padding: 0;
+  list-style: none;
+  counter-reset: wizard;
+}
+
+.agency-wizard-steps li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid #e2e3e8;
+  border-radius: 999px;
+  color: #737985;
+  background: #fff;
+  font-size: 0.86rem;
+  font-weight: 800;
+  user-select: none;
+}
+
+.agency-wizard-steps li span {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: #737985;
+  background: #eef0f3;
+}
+
+.agency-wizard-steps li.is-current {
+  border-color: #087a56;
+  color: #087a56;
+  box-shadow: 0 6px 18px rgba(8, 122, 86, 0.14);
+}
+
+.agency-wizard-steps li.is-current span {
+  color: #fff;
+  background: #087a56;
+}
+
+.agency-wizard-steps li.is-done {
+  border-color: rgba(8, 122, 86, 0.4);
+  color: #087a56;
+  cursor: pointer;
+}
+
+.agency-wizard-steps li.is-done span {
+  color: #087a56;
+  background: rgba(8, 122, 86, 0.12);
+}
+
+.agency-wizard-hint {
+  margin: 4px 0 12px;
+  font-size: 0.86rem;
+}
+
+.agency-wizard-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.agency-wizard-nav > button:not(.agency-ghost-button) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: #087a56;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.agency-wizard-nav .agency-actions {
+  margin: 0;
+}
