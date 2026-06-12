@@ -27,15 +27,18 @@ export default function BookingsScreen() {
   const styles = createStyles(colors);
   const [items, setItems] = useState<TourBookingItemPayload[]>([]);
   const [loading, setLoading] = useState(true);
+  const [guest, setGuest] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [, setTick] = useState(0);
 
   const load = useCallback(async (refresh = false) => {
     const token = await getItem(KEYS.TOKEN);
     if (!token) {
+      setGuest(true);
       setLoading(false);
       return;
     }
+    setGuest(false);
     if (refresh) setRefreshing(true);
     try {
       const data = extractApiData<{ items: TourBookingItemPayload[] }>(await bookingsAPI.getMine());
@@ -69,7 +72,23 @@ export default function BookingsScreen() {
       </View>
 
       {loading ? <ActivityIndicator color={colors.primary} /> : null}
-      {!loading && items.length === 0 ? (
+      {!loading && guest ? (
+        <View style={styles.empty}>
+          <Ionicons name="person-circle-outline" size={36} color={colors.primary} />
+          <Text style={styles.emptyTitle}>So‘rovlaringizni kuzatish uchun kiring</Text>
+          <Text style={styles.muted}>
+            Booking yuborish uchun akkaunt shart emas — tur sahifasida ism va telefon kifoya. Lekin yuborgan
+            so‘rovlaringiz holatini (qabul qilindi / javob kutilmoqda) shu yerda ko‘rish uchun kirishingiz kerak.
+          </Text>
+          <TouchableOpacity style={styles.primary} onPress={() => router.push('/login' as never)}>
+            <Text style={styles.primaryText}>Kirish yoki ro‘yxatdan o‘tish</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.ghostBtn} onPress={() => router.push('/home-tours' as never)}>
+            <Text style={styles.ghostBtnText}>Tourlarni ko‘rish</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+      {!loading && !guest && items.length === 0 ? (
         <View style={styles.empty}>
           <Ionicons name="calendar-outline" size={34} color={colors.primary} />
           <Text style={styles.emptyTitle}>Booking hali yo‘q</Text>
@@ -134,5 +153,14 @@ function createStyles(colors: AppColors) {
     emptyTitle: { fontFamily: FONTS.display, fontSize: 21, color: colors.text },
     primary: { paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md, borderRadius: RADIUS.full, backgroundColor: colors.primary },
     primaryText: { fontFamily: FONTS.semibold, color: colors.textInverse },
+    ghostBtn: {
+      paddingHorizontal: SPACING.xl,
+      paddingVertical: SPACING.md,
+      borderRadius: RADIUS.full,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    ghostBtnText: { fontFamily: FONTS.semibold, color: colors.text },
   });
 }

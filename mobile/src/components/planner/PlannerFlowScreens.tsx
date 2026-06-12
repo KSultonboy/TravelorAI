@@ -209,7 +209,10 @@ export function TourDetailsScreen() {
 
       <View style={styles.formCard}>
         <Text style={styles.sectionTitle}>So‘rov qoldiring</Text>
-        <Text style={styles.muted}>Bepul — agentlik so‘rovingizni ko‘rib chiqadi va siz bilan bog‘lanadi.</Text>
+        <Text style={styles.muted}>
+          Bepul va ro‘yxatdan o‘tish shart emas — ism va telefon kifoya, agentlik o‘zi bog‘lanadi. Akkaunt bilan
+          kirsangiz, so‘rov holatini «Bookinglarim»da kuzatib borasiz.
+        </Text>
         <Input label="Ism" icon="person-outline" value={customerName} onChangeText={setCustomerName} placeholder="Ismingiz" styles={styles} colors={colors} />
         <Input label="Email (ixtiyoriy)" icon="mail-outline" value={customerEmail} onChangeText={setCustomerEmail} placeholder="email@example.com" styles={styles} colors={colors} keyboardType="email-address" />
         <View style={styles.dateRow}>
