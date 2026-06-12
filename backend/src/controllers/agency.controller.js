@@ -5,6 +5,7 @@ const { success, error } = require('../utils/response');
 const { signAgencyToken } = require('../utils/agencyJwt');
 const { sendEmailChangeCodeEmail, sendVerificationCodeEmail } = require('../services/email.service');
 const { materializeDataImage } = require('../utils/dataImage');
+const { resolveTourImageUrl } = require('../utils/tourImage');
 const { bookingStatusSchema } = require('../schemas/booking.schema');
 const { formatBooking } = require('./bookings.controller');
 const {
@@ -88,6 +89,7 @@ function publicTour(tour) {
   if (!tour) return null;
   return {
     ...tour,
+    imageUrl: resolveTourImageUrl(tour),
     agency: tour.agency ? publicAgency(tour.agency) : undefined,
   };
 }

@@ -291,7 +291,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   fallthrough: false,
   maxAge: process.env.NODE_ENV === 'production' ? '30d' : 0,
 }));
-app.use(express.json({ limit: '12mb' }));
+app.use(express.json({ limit: '16mb' }));
 app.use(loggerMiddleware);
 
 app.get(['/account-deletion', '/delete-account'], (req, res) => {

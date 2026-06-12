@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname, "../"),
   experimental: {
     // Admin paneldan base64 rasm yuborilganda request body kesilib qolmasin
-    proxyClientMaxBodySize: "12mb",
+    proxyClientMaxBodySize: "16mb",
   },
 };
 

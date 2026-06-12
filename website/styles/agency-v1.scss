@@ -213,8 +213,10 @@
 
 .agency-card input,
 .agency-card textarea,
+.agency-card select,
 .agency-dashboard-section input,
-.agency-dashboard-section textarea {
+.agency-dashboard-section textarea,
+.agency-dashboard-section select {
   width: 100%;
   border: 1px solid #e2e3e8;
   border-radius: 18px;
@@ -226,6 +228,8 @@
 }
 
 .agency-card input,
+.agency-card select,
+.agency-dashboard-section select,
 .agency-dashboard-section input {
   min-height: 52px;
   padding: 0 15px;
@@ -240,11 +244,69 @@
 
 .agency-card input:focus,
 .agency-card textarea:focus,
+.agency-card select:focus,
 .agency-dashboard-section input:focus,
-.agency-dashboard-section textarea:focus {
+.agency-dashboard-section textarea:focus,
+.agency-dashboard-section select:focus {
   border-color: rgba(8, 122, 86, 0.58);
   background: #fff;
   box-shadow: 0 0 0 4px rgba(8, 122, 86, 0.1);
+}
+
+.agency-form-section-title {
+  margin: 12px 0 0;
+  color: #087a56;
+  font-size: 0.82rem;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.agency-field-hint {
+  color: #687381;
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
+.agency-checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.agency-checkbox-row {
+  display: inline-flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px !important;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid #e2e3e8;
+  border-radius: 18px;
+  background: #f8f7f4;
+}
+
+.agency-checkbox-row input {
+  width: 18px !important;
+  min-height: 18px !important;
+  height: 18px;
+  padding: 0 !important;
+  accent-color: #087a56;
+}
+
+.agency-editing-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(8, 122, 86, 0.18);
+  border-radius: 18px;
+  color: #087a56;
+  background: rgba(8, 122, 86, 0.08);
+  font-size: 0.84rem;
+  font-weight: 900;
 }
 
 .agency-card button,

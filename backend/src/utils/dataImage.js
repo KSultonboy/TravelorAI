@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const fs = require('fs/promises');
 const path = require('path');
 
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const IMAGE_TYPES = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -23,7 +23,7 @@ async function materializeDataImage(value, folder = 'agency') {
 
   const buffer = Buffer.from(match[2].replace(/\s/g, ''), 'base64');
   if (!buffer.length || buffer.length > MAX_IMAGE_BYTES) {
-    throw new Error('Rasm hajmi 5 MB dan oshmasligi kerak');
+    throw new Error('Rasm hajmi 8 MB dan oshmasligi kerak');
   }
 
   const safeFolder = String(folder || 'agency').replace(/[^a-z0-9_-]/gi, '') || 'agency';

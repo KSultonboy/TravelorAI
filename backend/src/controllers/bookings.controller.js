@@ -2,6 +2,7 @@ const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { createBookingSchema } = require('../schemas/booking.schema');
 const { sendBookingLeadEmail } = require('../services/email.service');
+const { resolveTourImageUrl } = require('../utils/tourImage');
 
 function formatBooking(booking) {
   if (!booking) return null;
@@ -37,8 +38,16 @@ function formatBooking(booking) {
           duration: booking.tour.duration,
           price: booking.tour.price,
           priceMin: booking.tour.priceMin,
-          imageUrl: booking.tour.imageUrl,
+          priceCurrency: booking.tour.priceCurrency,
+          priceBasis: booking.tour.priceBasis,
+          imageUrl: resolveTourImageUrl(booking.tour),
           responseTimeMinutes: booking.tour.responseTimeMinutes ?? 45,
+          hotelName: booking.tour.hotelName,
+          hotelCategory: booking.tour.hotelCategory,
+          roomType: booking.tour.roomType,
+          mealPlan: booking.tour.mealPlan,
+          mealPlanLabel: booking.tour.mealPlanLabel,
+          availabilityStatus: booking.tour.availabilityStatus,
         }
       : null,
     agency: booking.agency

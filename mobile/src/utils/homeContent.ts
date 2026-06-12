@@ -40,10 +40,31 @@ export type HomeTourItem = {
   responseTimeMinutes?: number;
   price: string;
   priceMin?: number | null;
+  priceCurrency?: string | null;
+  priceBasis?: string | null;
   rating: number;
   badge: HomeTourBadge;
   imageUrl?: string | null;
   highlights?: string[];
+  departureCity?: string | null;
+  destinationCountry?: string | null;
+  tourGroup?: string | null;
+  nights?: number | null;
+  hotelIncluded?: boolean;
+  hotelName?: string | null;
+  hotelCategory?: string | null;
+  hotelLocation?: string | null;
+  roomType?: string | null;
+  mealPlan?: string | null;
+  mealPlanLabel?: string | null;
+  childPolicy?: string | null;
+  flightSeatStatus?: string | null;
+  availabilityStatus?: string | null;
+  instantConfirmation?: boolean;
+  stopSale?: boolean;
+  promo?: boolean;
+  priceIncludes?: string[];
+  priceExcludes?: string[];
   source?: string | null;
   sourceUrl?: string | null;
   lastVerifiedAt?: string | null;
@@ -174,11 +195,32 @@ export function normalizeTours(items: unknown[]) {
       duration: String(item?.duration || ''),
       price: String(item?.price || (Number.isFinite(Number(item?.priceMin)) ? `$${Number(item.priceMin)}` : '')),
       priceMin: Number.isFinite(Number(item?.priceMin)) ? Number(item.priceMin) : null,
+      priceCurrency: item?.priceCurrency || null,
+      priceBasis: item?.priceBasis || null,
       rating: Number.isFinite(Number(item?.rating)) ? Number(item.rating) : 0,
       badge: item?.badge === 'Popular' ? 'Popular' : 'Latest',
       imageUrl: resolveMediaUrl(item?.imageUrl),
       responseTimeMinutes: Number.isFinite(Number(item?.responseTimeMinutes)) ? Number(item.responseTimeMinutes) : 45,
       highlights: Array.isArray(item?.highlights) ? item.highlights : [],
+      departureCity: item?.departureCity || null,
+      destinationCountry: item?.destinationCountry || null,
+      tourGroup: item?.tourGroup || null,
+      nights: Number.isFinite(Number(item?.nights)) ? Number(item.nights) : null,
+      hotelIncluded: Boolean(item?.hotelIncluded),
+      hotelName: item?.hotelName || null,
+      hotelCategory: item?.hotelCategory || null,
+      hotelLocation: item?.hotelLocation || null,
+      roomType: item?.roomType || null,
+      mealPlan: item?.mealPlan || null,
+      mealPlanLabel: item?.mealPlanLabel || null,
+      childPolicy: item?.childPolicy || null,
+      flightSeatStatus: item?.flightSeatStatus || null,
+      availabilityStatus: item?.availabilityStatus || null,
+      instantConfirmation: Boolean(item?.instantConfirmation),
+      stopSale: Boolean(item?.stopSale),
+      promo: Boolean(item?.promo),
+      priceIncludes: Array.isArray(item?.priceIncludes) ? item.priceIncludes.filter(Boolean) : [],
+      priceExcludes: Array.isArray(item?.priceExcludes) ? item.priceExcludes.filter(Boolean) : [],
       source: item?.source || '',
       sourceUrl: item?.sourceUrl || null,
       lastVerifiedAt: item?.lastVerifiedAt || null,

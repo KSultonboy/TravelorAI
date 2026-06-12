@@ -121,7 +121,28 @@ type TourReviewItem = {
   subtitle: string;
   duration: string;
   price?: string | null;
+  priceCurrency?: string | null;
+  priceBasis?: string | null;
   imageUrl?: string | null;
+  departureCity?: string | null;
+  destinationCountry?: string | null;
+  tourGroup?: string | null;
+  nights?: number | null;
+  hotelIncluded?: boolean;
+  hotelName?: string | null;
+  hotelCategory?: string | null;
+  hotelLocation?: string | null;
+  roomType?: string | null;
+  mealPlan?: string | null;
+  mealPlanLabel?: string | null;
+  childPolicy?: string | null;
+  flightSeatStatus?: string | null;
+  availabilityStatus?: string | null;
+  instantConfirmation?: boolean;
+  stopSale?: boolean;
+  promo?: boolean;
+  priceIncludes?: string[];
+  priceExcludes?: string[];
   approvalStatus: string;
   submittedAt?: string | null;
   adminNote?: string | null;
@@ -436,6 +457,32 @@ function bookingStatusLabel(status?: string) {
   };
   return map[status || ""] || status || "Noma'lum";
 }
+
+const MEAL_PLAN_LABELS: Record<string, string> = {
+  RO: "Room Only",
+  BB: "Bed & Breakfast",
+  HB: "Half Board",
+  FB: "Full Board",
+  AI: "All Inclusive",
+  UAI: "Ultra All Inclusive",
+  UALL: "Ultra All Inclusive",
+  FBT: "Full Board Treatment",
+};
+
+const AVAILABILITY_LABELS: Record<string, string> = {
+  available: "Joy bor",
+  few_seats: "Kam joy qoldi",
+  on_request: "So'rov bo'yicha",
+  sold_out: "Joy yo'q",
+};
+
+const FLIGHT_LABELS: Record<string, string> = {
+  not_included: "Avia kiritilmagan",
+  available: "Avia joy bor",
+  few_seats: "Avia joy kam",
+  on_request: "Avia so'rov bo'yicha",
+  no_seats: "Avia joy yo'q",
+};
 
 function FormInput<T extends Record<string, FormValue>>({
   form,
@@ -1136,6 +1183,21 @@ export default function LandingContentAdmin({ username }: { username: string }) 
                         <small>
                           {item.city} | {item.duration} | {item.price || "Narx kiritilmagan"} | {item.agency?.name || "Agency"}
                         </small>
+                        <small>
+                          Hotel: {item.hotelName || item.hotelCategory || "To'ldirilmagan"} | Room: {item.roomType || "To'ldirilmagan"} | Meal: {item.mealPlan ? `${item.mealPlan} - ${item.mealPlanLabel || MEAL_PLAN_LABELS[item.mealPlan] || ""}` : "To'ldirilmagan"}
+                        </small>
+                        <small>
+                          Mavjudlik: {item.availabilityStatus ? AVAILABILITY_LABELS[item.availabilityStatus] || item.availabilityStatus : "To'ldirilmagan"} | Avia: {item.flightSeatStatus ? FLIGHT_LABELS[item.flightSeatStatus] || item.flightSeatStatus : "To'ldirilmagan"}
+                        </small>
+                        <small>
+                          {item.instantConfirmation ? "Instant confirmation | " : ""}{item.promo ? "Promo | " : ""}{item.stopSale ? "Stop-sale | " : ""}Narx: {item.priceBasis || item.priceCurrency || "To'ldirilmagan"}
+                        </small>
+                        {Array.isArray(item.priceIncludes) && item.priceIncludes.length > 0 ? (
+                          <small>Kiradi: {item.priceIncludes.slice(0, 4).join(", ")}</small>
+                        ) : null}
+                        {Array.isArray(item.priceExcludes) && item.priceExcludes.length > 0 ? (
+                          <small>Kirmaydi: {item.priceExcludes.slice(0, 4).join(", ")}</small>
+                        ) : null}
                       </div>
                       <div className="admin-review-actions">
                         <button disabled={saving === "tourReviews"} onClick={() => reviewTour(item.id, "approve")} type="button">

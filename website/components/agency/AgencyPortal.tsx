@@ -84,10 +84,31 @@ type Tour = {
   responseTimeMinutes?: number;
   price?: string | null;
   priceMin?: number | null;
+  priceCurrency?: string | null;
+  priceBasis?: string | null;
   badge?: string | null;
   imageUrl?: string | null;
   itinerary?: unknown;
   highlights?: string[];
+  departureCity?: string | null;
+  destinationCountry?: string | null;
+  tourGroup?: string | null;
+  nights?: number | null;
+  hotelIncluded?: boolean;
+  hotelName?: string | null;
+  hotelCategory?: string | null;
+  hotelLocation?: string | null;
+  roomType?: string | null;
+  mealPlan?: string | null;
+  mealPlanLabel?: string | null;
+  childPolicy?: string | null;
+  flightSeatStatus?: string | null;
+  availabilityStatus?: string | null;
+  instantConfirmation?: boolean;
+  stopSale?: boolean;
+  promo?: boolean;
+  priceIncludes?: string[];
+  priceExcludes?: string[];
   approvalStatus: string;
   active: boolean;
   adminNote?: string | null;
@@ -168,11 +189,32 @@ type TourForm = {
   responseTimeMinutes: string;
   price: string;
   priceMin: string;
+  priceCurrency: string;
+  priceBasis: string;
   badge: string;
   imageUrl: string;
   highlights: string;
   itineraryText: string;
   description: string;
+  departureCity: string;
+  destinationCountry: string;
+  tourGroup: string;
+  nights: string;
+  hotelIncluded: boolean;
+  hotelName: string;
+  hotelCategory: string;
+  hotelLocation: string;
+  roomType: string;
+  mealPlan: string;
+  mealPlanLabel: string;
+  childPolicy: string;
+  flightSeatStatus: string;
+  availabilityStatus: string;
+  instantConfirmation: boolean;
+  stopSale: boolean;
+  promo: boolean;
+  priceIncludes: string;
+  priceExcludes: string;
 };
 
 type ProfileForm = {
@@ -186,6 +228,35 @@ type ProfileForm = {
 };
 
 const TOKEN_KEY = "travelorai_agency_token";
+const MEAL_PLAN_OPTIONS = [
+  { value: "", label: "Tanlanmagan", description: "Eski tourlarda bo'sh turishi mumkin" },
+  { value: "RO", label: "RO — Room Only", description: "Faqat xona, ovqat yo'q" },
+  { value: "BB", label: "BB — Bed & Breakfast", description: "Yotoq + nonushta" },
+  { value: "HB", label: "HB — Half Board", description: "Nonushta + kechki ovqat" },
+  { value: "FB", label: "FB — Full Board", description: "3 mahal ovqat" },
+  { value: "AI", label: "AI — All Inclusive", description: "Ovqat + ichimlik + ayrim xizmatlar" },
+  { value: "UAI", label: "UAI — Ultra All Inclusive", description: "Premium ichimlik va xizmatlar ham kiradi" },
+  { value: "UALL", label: "UALL — Ultra All Inclusive", description: "UAI bilan bir xil, ayrim operatorlar shunday yozadi" },
+  { value: "FBT", label: "FBT — Full Board Treatment", description: "Davolanish/sanatoriy tur paketlari uchun" },
+];
+const HOTEL_CATEGORY_OPTIONS = ["", "3*", "4*", "5*", "Boutique", "Apartment", "Villa"];
+const ROOM_TYPE_OPTIONS = ["", "Single", "Double", "Twin", "Triple", "Family", "Suite"];
+const CURRENCY_OPTIONS = ["", "USD", "UZS", "RUB", "EUR", "AED"];
+const AVAILABILITY_OPTIONS = [
+  { value: "", label: "To'ldirilmagan" },
+  { value: "available", label: "Joy bor" },
+  { value: "few_seats", label: "Kam joy qoldi" },
+  { value: "on_request", label: "So'rov bo'yicha" },
+  { value: "sold_out", label: "Joy yo'q" },
+];
+const FLIGHT_SEAT_OPTIONS = [
+  { value: "", label: "To'ldirilmagan" },
+  { value: "not_included", label: "Avia kiritilmagan" },
+  { value: "available", label: "Avia joy bor" },
+  { value: "few_seats", label: "Avia joy kam" },
+  { value: "on_request", label: "Avia so'rov bo'yicha" },
+  { value: "no_seats", label: "Avia joy yo'q" },
+];
 const REQUIRED_APPLICATION_FIELDS = new Set([
   "companyName",
   "contactPerson",
@@ -221,11 +292,32 @@ const emptyTour: TourForm = {
   responseTimeMinutes: "45",
   price: "",
   priceMin: "",
+  priceCurrency: "USD",
+  priceBasis: "",
   badge: "Latest",
   imageUrl: "",
   highlights: "",
   itineraryText: "",
   description: "",
+  departureCity: "",
+  destinationCountry: "",
+  tourGroup: "",
+  nights: "",
+  hotelIncluded: false,
+  hotelName: "",
+  hotelCategory: "",
+  hotelLocation: "",
+  roomType: "",
+  mealPlan: "",
+  mealPlanLabel: "",
+  childPolicy: "",
+  flightSeatStatus: "",
+  availabilityStatus: "",
+  instantConfirmation: false,
+  stopSale: false,
+  promo: false,
+  priceIncludes: "",
+  priceExcludes: "",
 };
 
 const emptyProfile: ProfileForm = {
@@ -270,6 +362,76 @@ function formatMoney(value: number) {
   return `$${new Intl.NumberFormat("en-US").format(Math.round(value))}`;
 }
 
+function selectedMealLabel(code?: string) {
+  return MEAL_PLAN_OPTIONS.find((item) => item.value === code)?.description || "";
+}
+
+function optionLabel(options: { value: string; label: string }[], value?: string | null) {
+  return options.find((item) => item.value === value)?.label || "To'ldirilmagan";
+}
+
+function parseTextList(value: string) {
+  return value
+    .split(/[\n,]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function joinTextList(value?: string[] | null) {
+  return Array.isArray(value) ? value.filter(Boolean).join("\n") : "";
+}
+
+function itineraryToText(value: unknown) {
+  if (!Array.isArray(value)) return "";
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return "";
+      const record = item as Record<string, unknown>;
+      return String(record.title || record.name || record.description || "").trim();
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function tourToForm(tour: Tour): TourForm {
+  return {
+    ...emptyTour,
+    title: tour.title || "",
+    city: tour.city || "",
+    subtitle: tour.subtitle || "",
+    duration: tour.duration || "",
+    responseTimeMinutes: String(tour.responseTimeMinutes || 45),
+    price: tour.price || "",
+    priceMin: tour.priceMin != null ? String(tour.priceMin) : "",
+    priceCurrency: tour.priceCurrency || "USD",
+    priceBasis: tour.priceBasis || "",
+    badge: tour.badge || "Latest",
+    imageUrl: tour.imageUrl || "",
+    highlights: joinTextList(tour.highlights),
+    itineraryText: itineraryToText(tour.itinerary),
+    description: tour.description || "",
+    departureCity: tour.departureCity || "",
+    destinationCountry: tour.destinationCountry || "",
+    tourGroup: tour.tourGroup || "",
+    nights: tour.nights != null ? String(tour.nights) : "",
+    hotelIncluded: Boolean(tour.hotelIncluded),
+    hotelName: tour.hotelName || "",
+    hotelCategory: tour.hotelCategory || "",
+    hotelLocation: tour.hotelLocation || "",
+    roomType: tour.roomType || "",
+    mealPlan: tour.mealPlan || "",
+    mealPlanLabel: tour.mealPlanLabel || selectedMealLabel(tour.mealPlan || ""),
+    childPolicy: tour.childPolicy || "",
+    flightSeatStatus: tour.flightSeatStatus || "",
+    availabilityStatus: tour.availabilityStatus || "",
+    instantConfirmation: Boolean(tour.instantConfirmation),
+    stopSale: Boolean(tour.stopSale),
+    promo: Boolean(tour.promo),
+    priceIncludes: joinTextList(tour.priceIncludes),
+    priceExcludes: joinTextList(tour.priceExcludes),
+  };
+}
+
 function formatDate(value?: string | null) {
   if (!value) return "Hali yo'q";
   return new Intl.DateTimeFormat("uz-UZ", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
@@ -289,7 +451,7 @@ function readImage(file: File | null): Promise<string> {
   return new Promise((resolve, reject) => {
     if (!file) return resolve("");
     if (!file.type.startsWith("image/")) return reject(new Error("Faqat rasm fayli tanlang"));
-    if (file.size > 5 * 1024 * 1024) return reject(new Error("Rasm 5 MB dan oshmasligi kerak"));
+    if (file.size > 8 * 1024 * 1024) return reject(new Error("Rasm 8 MB dan oshmasligi kerak"));
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result || ""));
     reader.onerror = () => reject(new Error("Rasmni o‘qib bo‘lmadi"));
@@ -354,6 +516,7 @@ export default function AgencyPortal() {
   const [me, setMe] = useState<MeData | null>(null);
   const [applicationForm, setApplicationForm] = useState<ApplicationForm>(emptyApplication);
   const [tourForm, setTourForm] = useState<TourForm>(emptyTour);
+  const [editingTourId, setEditingTourId] = useState<string | null>(null);
   const [profileForm, setProfileForm] = useState<ProfileForm>(emptyProfile);
   const [newEmail, setNewEmail] = useState("");
   const [emailChangeCode, setEmailChangeCode] = useState("");
@@ -598,24 +761,40 @@ export default function AgencyPortal() {
     }
   }
 
-  async function createTour(submit = false) {
+  function resetTourEditor() {
+    setEditingTourId(null);
+    setTourForm(emptyTour);
+  }
+
+  function startEditTour(tour: Tour) {
+    setEditingTourId(tour.id);
+    setTourForm(tourToForm(tour));
+    setError("");
+    setMessage(`${tour.title} tahrirlash uchun formaga yuklandi.`);
+    document.getElementById("agency-new-tour")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function saveTour(submit = false) {
     setLoading(true);
     setError("");
     setMessage("");
     try {
       const { itineraryText, ...baseTourForm } = tourForm;
+      const mealPlanLabel = tourForm.mealPlan ? selectedMealLabel(tourForm.mealPlan) : "";
       const payload = {
         ...baseTourForm,
         priceMin: tourForm.priceMin ? Number(tourForm.priceMin) : undefined,
+        nights: tourForm.nights ? Number(tourForm.nights) : undefined,
         responseTimeMinutes: Number(tourForm.responseTimeMinutes || 45),
-        highlights: tourForm.highlights
-          .split(",")
-          .map((value) => value.trim())
-          .filter(Boolean),
+        mealPlanLabel,
+        highlights: parseTextList(tourForm.highlights),
+        priceIncludes: parseTextList(tourForm.priceIncludes),
+        priceExcludes: parseTextList(tourForm.priceExcludes),
         itinerary: parseItinerary(itineraryText),
       };
-      const createResult = await api<Tour>("/tours", {
-        method: "POST",
+      const path = editingTourId ? `/tours/${editingTourId}` : "/tours";
+      const createResult = await api<Tour>(path, {
+        method: editingTourId ? "PUT" : "POST",
         body: JSON.stringify(payload),
       }, token);
       if (!createResult.success) throw new Error(createResult.message);
@@ -627,8 +806,11 @@ export default function AgencyPortal() {
         if (!submitResult.success) throw new Error(submitResult.message);
       }
 
-      setTourForm(emptyTour);
-      setMessage(submit ? "Tour admin tekshiruvi uchun yuborildi." : "Tour qoralama sifatida saqlandi.");
+      const wasEditing = Boolean(editingTourId);
+      resetTourEditor();
+      setMessage(wasEditing
+        ? "Tour yangilandi. Public tourlar o'zgargandan keyin admin reviewga qaytadi."
+        : submit ? "Tour admin tekshiruvi uchun yuborildi." : "Tour qoralama sifatida saqlandi.");
       await loadTours();
       await loadMe();
     } catch (err) {
@@ -1099,27 +1281,94 @@ export default function AgencyPortal() {
                 <div className="agency-section-heading">
                   <div>
                     <p className="agency-eyebrow">Yangi tour</p>
-                    <h3>Tour ma&apos;lumotlarini to&apos;liq qo&apos;shish</h3>
+                    <h3>{editingTourId ? "Tour ma'lumotlarini tahrirlash" : "Tour ma'lumotlarini to'liq qo'shish"}</h3>
                   </div>
                   <Plus size={30} />
                 </div>
+                {editingTourId ? (
+                  <div className="agency-editing-banner">
+                    <Pencil size={16} />
+                    Eski tour formaga yuklandi. Bo&apos;sh maydonlarni to&apos;ldirib saqlasangiz, admin qayta review qiladi.
+                  </div>
+                ) : null}
                 <div className="agency-form-grid agency-form-grid--wide">
+                  <p className="agency-form-section-title agency-wide">Asosiy paket</p>
                   {([
-                    ["title", "Sarlavha"],
-                    ["city", "Shahar / yo'nalish"],
-                    ["subtitle", "Qisqa subtitle"],
-                    ["duration", "Davomiylik"],
-                    ["responseTimeMinutes", "Bookingga javob vaqti (daqiqa)"],
-                    ["price", "Narx matni"],
-                    ["priceMin", "Minimal narx"],
-                    ["badge", "Badge"],
-                    ["imageUrl", "Cover image URL"],
-                    ["highlights", "Highlights, vergul bilan"],
-                  ] as const).map(([key, label]) => (
+                    ["title", "Sarlavha", "text"],
+                    ["city", "Shahar / yo'nalish", "text"],
+                    ["subtitle", "Qisqa subtitle", "text"],
+                    ["duration", "Davomiylik", "text"],
+                    ["departureCity", "Jo'nash shahri", "text"],
+                    ["destinationCountry", "Davlat / yo'nalish mamlakati", "text"],
+                    ["tourGroup", "Tour guruhi", "text"],
+                    ["nights", "Tunlar soni", "number"],
+                  ] as const).map(([key, label, type]) => (
                     <label key={key}>
                       {label}
                       <input
-                        type={key === "responseTimeMinutes" || key === "priceMin" ? "number" : "text"}
+                        type={type}
+                        value={tourForm[key]}
+                        onChange={(event) => setTourForm((prev) => ({ ...prev, [key]: event.target.value }))}
+                      />
+                    </label>
+                  ))}
+                  <p className="agency-form-section-title agency-wide">Mehmonxona va ovqatlanish</p>
+                  <label className="agency-checkbox-row agency-wide">
+                    <input
+                      type="checkbox"
+                      checked={tourForm.hotelIncluded}
+                      onChange={(event) => setTourForm((prev) => ({ ...prev, hotelIncluded: event.target.checked }))}
+                    />
+                    Mehmonxona paketga kiritilgan
+                  </label>
+                  <label>
+                    Mehmonxona nomi
+                    <input value={tourForm.hotelName} onChange={(event) => setTourForm((prev) => ({ ...prev, hotelName: event.target.value }))} />
+                  </label>
+                  <label>
+                    Hotel category
+                    <select value={tourForm.hotelCategory} onChange={(event) => setTourForm((prev) => ({ ...prev, hotelCategory: event.target.value }))}>
+                      {HOTEL_CATEGORY_OPTIONS.map((item) => <option key={item || "empty"} value={item}>{item || "To'ldirilmagan"}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    Hotel hududi
+                    <input value={tourForm.hotelLocation} onChange={(event) => setTourForm((prev) => ({ ...prev, hotelLocation: event.target.value }))} placeholder="Dubai Marina, Baku center..." />
+                  </label>
+                  <label>
+                    Room type
+                    <select value={tourForm.roomType} onChange={(event) => setTourForm((prev) => ({ ...prev, roomType: event.target.value }))}>
+                      {ROOM_TYPE_OPTIONS.map((item) => <option key={item || "empty"} value={item}>{item || "To'ldirilmagan"}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    Ovqatlanish turi
+                    <select
+                      value={tourForm.mealPlan}
+                      onChange={(event) => {
+                        const mealPlan = event.target.value;
+                        setTourForm((prev) => ({ ...prev, mealPlan, mealPlanLabel: mealPlan ? selectedMealLabel(mealPlan) : "" }));
+                      }}
+                    >
+                      {MEAL_PLAN_OPTIONS.map((item) => <option key={item.value || "empty"} value={item.value}>{item.label}</option>)}
+                    </select>
+                    <span className="agency-field-hint">{selectedMealLabel(tourForm.mealPlan) || "RO, BB, HB, FB, AI, UAI kabi aniq paket turi."}</span>
+                  </label>
+                  <label>
+                    Bolalar siyosati
+                    <input value={tourForm.childPolicy} onChange={(event) => setTourForm((prev) => ({ ...prev, childPolicy: event.target.value }))} placeholder="0-5 yosh bepul, alohida joy so'rov bo'yicha..." />
+                  </label>
+                  <p className="agency-form-section-title agency-wide">Narx va mavjudlik</p>
+                  {([
+                    ["responseTimeMinutes", "Bookingga javob vaqti (daqiqa)", "number"],
+                    ["price", "Narx matni", "text"],
+                    ["priceMin", "Minimal narx", "number"],
+                    ["priceBasis", "Narx nimaga hisoblangan", "text"],
+                  ] as const).map(([key, label, type]) => (
+                    <label key={key}>
+                      {label}
+                      <input
+                        type={type}
                         min={key === "responseTimeMinutes" ? 5 : undefined}
                         max={key === "responseTimeMinutes" ? 1440 : undefined}
                         value={tourForm[key]}
@@ -1127,6 +1376,62 @@ export default function AgencyPortal() {
                       />
                     </label>
                   ))}
+                  <label>
+                    Currency
+                    <select value={tourForm.priceCurrency} onChange={(event) => setTourForm((prev) => ({ ...prev, priceCurrency: event.target.value }))}>
+                      {CURRENCY_OPTIONS.map((item) => <option key={item || "empty"} value={item}>{item || "To'ldirilmagan"}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    Tour mavjudligi
+                    <select value={tourForm.availabilityStatus} onChange={(event) => setTourForm((prev) => ({ ...prev, availabilityStatus: event.target.value }))}>
+                      {AVAILABILITY_OPTIONS.map((item) => <option key={item.value || "empty"} value={item.value}>{item.label}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    Avia joylari
+                    <select value={tourForm.flightSeatStatus} onChange={(event) => setTourForm((prev) => ({ ...prev, flightSeatStatus: event.target.value }))}>
+                      {FLIGHT_SEAT_OPTIONS.map((item) => <option key={item.value || "empty"} value={item.value}>{item.label}</option>)}
+                    </select>
+                  </label>
+                  <div className="agency-checkbox-group agency-wide">
+                    {([
+                      ["instantConfirmation", "Instant confirmation"],
+                      ["stopSale", "Stop-sale"],
+                      ["promo", "Promo tour"],
+                    ] as const).map(([key, label]) => (
+                      <label className="agency-checkbox-row" key={key}>
+                        <input
+                          type="checkbox"
+                          checked={tourForm[key]}
+                          onChange={(event) => setTourForm((prev) => ({ ...prev, [key]: event.target.checked }))}
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                  <p className="agency-form-section-title agency-wide">Kontent</p>
+                  {([
+                    ["badge", "Badge"],
+                    ["imageUrl", "Cover image URL"],
+                  ] as const).map(([key, label]) => (
+                    <label key={key}>
+                      {label}
+                      <input
+                        type="text"
+                        value={tourForm[key]}
+                        onChange={(event) => setTourForm((prev) => ({ ...prev, [key]: event.target.value }))}
+                      />
+                    </label>
+                  ))}
+                  <label className="agency-wide">
+                    Highlights, har bir qator alohida
+                    <textarea
+                      value={tourForm.highlights}
+                      onChange={(event) => setTourForm((prev) => ({ ...prev, highlights: event.target.value }))}
+                      placeholder={"Burj Khalifa\nDubai Mall\nDesert Safari"}
+                    />
+                  </label>
                   <label className="agency-wide">
                     Tour cover rasmini fayldan tanlash
                     <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => chooseImage(event.target.files?.[0] || null, "tour")} />
@@ -1148,14 +1453,35 @@ export default function AgencyPortal() {
                       placeholder="Tour kimlar uchun, nimalar kiradi, nimalar alohida to'lanadi va uchrashuv joyi..."
                     />
                   </label>
+                  <label className="agency-wide">
+                    Narxga kiradi, har bir qator alohida
+                    <textarea
+                      value={tourForm.priceIncludes}
+                      onChange={(event) => setTourForm((prev) => ({ ...prev, priceIncludes: event.target.value }))}
+                      placeholder={"Mehmonxona\nAeroport transferi\nEkskursiya"}
+                    />
+                  </label>
+                  <label className="agency-wide">
+                    Narxga kirmaydi, har bir qator alohida
+                    <textarea
+                      value={tourForm.priceExcludes}
+                      onChange={(event) => setTourForm((prev) => ({ ...prev, priceExcludes: event.target.value }))}
+                      placeholder={"Viza\nSug'urta\nShaxsiy xarajatlar"}
+                    />
+                  </label>
                 </div>
                 <div className="agency-actions">
-                  <button disabled={loading} onClick={() => createTour(false)} type="button">
-                    <FileText size={18} /> Qoralama saqlash
+                  <button disabled={loading} onClick={() => saveTour(false)} type="button">
+                    <FileText size={18} /> {editingTourId ? "O'zgarishlarni saqlash" : "Qoralama saqlash"}
                   </button>
-                  <button disabled={loading} onClick={() => createTour(true)} type="button">
-                    <Send size={18} /> Admin reviewga yuborish
+                  <button disabled={loading} onClick={() => saveTour(true)} type="button">
+                    <Send size={18} /> {editingTourId ? "Saqlash va reviewga yuborish" : "Admin reviewga yuborish"}
                   </button>
+                  {editingTourId ? (
+                    <button disabled={loading} onClick={resetTourEditor} type="button">
+                      <RefreshCw size={18} /> Bekor qilish
+                    </button>
+                  ) : null}
                 </div>
               </section>
 
@@ -1202,8 +1528,17 @@ export default function AgencyPortal() {
                           <span><BadgeCheck size={15} /> {tour.badge || "No badge"}</span>
                           <span><Clock3 size={15} /> {formatDate(tour.updatedAt)}</span>
                         </div>
+                        <div className="agency-tour-meta">
+                          <span>Hotel: {tour.hotelName || tour.hotelCategory || "To'ldirilmagan"}</span>
+                          <span>Room: {tour.roomType || "To'ldirilmagan"}</span>
+                          <span>Meal: {tour.mealPlan ? `${tour.mealPlan} — ${tour.mealPlanLabel || selectedMealLabel(tour.mealPlan)}` : "To'ldirilmagan"}</span>
+                          <span>{optionLabel(AVAILABILITY_OPTIONS, tour.availabilityStatus)}</span>
+                        </div>
                         {tour.adminNote && <small className="agency-admin-note">Admin note: {tour.adminNote}</small>}
                         <div className="agency-tour-actions">
+                          <button onClick={() => startEditTour(tour)} type="button">
+                            <Pencil size={15} /> Tahrirlash
+                          </button>
                           {tour.approvalStatus === "approved" ? (
                             <span className="agency-public-chip"><CheckCircle2 size={15} /> Publicda ko&apos;rinadi</span>
                           ) : tour.approvalStatus === "pending_review" ? (
