@@ -77,6 +77,7 @@ model AgencyAccount {
   email                  String              @unique
   pendingEmail           String?             @unique
   passwordHash           String
+  googleId               String?             @unique
   emailVerified          Boolean             @default(false)
   emailVerifiedAt        DateTime?
   emailChangeResendCount Int                 @default(0)

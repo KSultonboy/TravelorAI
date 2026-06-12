@@ -5,6 +5,7 @@ const { agencyAuthMiddleware } = require('../middleware/agencyAuth.middleware');
 router.post('/auth/register', agency.register);
 router.post('/auth/verify-email', agency.verifyEmail);
 router.post('/auth/login', agency.login);
+router.post('/auth/google', agency.googleAuth);
 
 router.use(agencyAuthMiddleware);
 

@@ -147,11 +147,16 @@ const tourSchema = z.object({
   priceExcludes: stringList,
 });
 
+const googleAuthSchema = z.object({
+  idToken: z.string().trim().min(10, 'Google idToken talab qilinadi'),
+});
+
 const adminReviewSchema = z.object({
   adminNote: z.string().trim().max(800).optional().or(z.literal('')),
 });
 
 module.exports = {
+  googleAuthSchema,
   registerSchema,
   verifyEmailSchema,
   emailChangeRequestSchema,

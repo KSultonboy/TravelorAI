@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { signAgencyToken } = require('../utils/agencyJwt');
+const { verifyGoogleIdToken } = require('../services/auth.service');
 const { sendEmailChangeCodeEmail, sendEmailChangedNoticeEmail, sendVerificationCodeEmail } = require('../services/email.service');
 const { materializeDataImage } = require('../utils/dataImage');
 const { resolveTourImageUrl } = require('../utils/tourImage');
@@ -12,6 +13,7 @@ const {
   applicationSchema,
   emailChangeConfirmSchema,
   emailChangeRequestSchema,
+  googleAuthSchema,
   loginSchema,
   registerSchema,
   tourSchema,
@@ -477,6 +479,59 @@ async function login(req, res) {
   }
 }
 
+
+async function googleAuth(req, res) {
+  try {
+    const input = googleAuthSchema.parse(req.body || {});
+    const googleProfile = await verifyGoogleIdToken(input.idToken);
+    let account = await prisma.agencyAccount.findFirst({
+      where: {
+        OR: [{ googleId: googleProfile.googleId }, { email: googleProfile.email }],
+      },
+    });
+
+    if (account?.status === 'blocked') {
+      return error(res, 'Agency akkaunt bloklangan', 403);
+    }
+
+    if (!account) {
+      const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+      account = await prisma.agencyAccount.create({
+        data: {
+          email: googleProfile.email,
+          googleId: googleProfile.googleId,
+          passwordHash,
+          emailVerified: true,
+          emailVerifiedAt: new Date(),
+          lastLoginAt: new Date(),
+          status: 'pending',
+        },
+      });
+    } else {
+      account = await prisma.agencyAccount.update({
+        where: { id: account.id },
+        data: {
+          googleId: account.googleId || googleProfile.googleId,
+          emailVerified: true,
+          emailVerifiedAt: account.emailVerifiedAt || new Date(),
+          lastLoginAt: new Date(),
+        },
+      });
+    }
+
+    const token = signAgencyToken({ id: account.id, email: account.email, role: 'agency' });
+    return success(res, { token, account: publicAccount(account) });
+  } catch (err) {
+    if (err.message === 'GOOGLE_AUDIENCE_MISMATCH') {
+      return error(res, 'Google client ID mos kelmadi.', 401);
+    }
+    if (err.message === 'GOOGLE_EMAIL_NOT_VERIFIED') {
+      return error(res, 'Google akkauntdagi email tasdiqlanmagan.', 401);
+    }
+    return error(res, err.errors?.[0]?.message || err.message, 400);
+  }
+}
+
 async function me(req, res) {
   try {
     const [application, agency] = await Promise.all([
@@ -815,6 +870,7 @@ async function updateAgencyProfile(req, res) {
 }
 
 module.exports = {
+  googleAuth,
   register,
   verifyEmail,
   requestEmailChange,
