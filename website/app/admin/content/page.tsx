@@ -1,14 +1,8 @@
 import { redirect } from "next/navigation";
-import LandingContentAdmin from "@/components/admin/LandingContentAdmin";
-import { getAdminSession } from "@/lib/admin/session";
 
-export const metadata = {
-  title: "Landing content | TravelorAI Admin",
-};
-
-export default async function AdminContentPage() {
-  const session = await getAdminSession();
-  if (!session) redirect("/admin/login");
-
-  return <LandingContentAdmin username={session.username} />;
+// Eski monolit "Platform overview" sahifasi bo'laklarga ajratildi:
+// /admin (boshqaruv), /admin/moderation, /admin/leads, /admin/agencies,
+// /admin/places, /admin/stories, /admin/hero, /admin/reports
+export default function AdminContentPage() {
+  redirect("/admin");
 }

@@ -140,8 +140,10 @@ export default function AdminDashboard() {
           <Link href="/admin/moderation">Moderatsiya navbati</Link>
           <Link href="/admin/leads">Barcha leadlar</Link>
           <Link href="/admin/agencies">Agentliklar ro&apos;yxati</Link>
-          <Link href="/admin/content">Landing kontent boshqaruvi</Link>
+          <Link href="/admin/places">Joylar (POI)</Link>
+          <Link href="/admin/stories">Sayohatchi fikrlari</Link>
           <Link href="/admin/hero">Hero slidelar</Link>
+          <Link href="/admin/reports">Umumiy hisobotlar</Link>
         </div>
       </section>
     </>

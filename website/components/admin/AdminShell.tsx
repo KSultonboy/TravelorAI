@@ -4,13 +4,15 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  BarChart3,
   Building2,
   ClipboardCheck,
   Image as ImageIcon,
   Inbox,
   LayoutDashboard,
-  LayoutTemplate,
   LogOut,
+  MapPinned,
+  MessageSquareQuote,
   PanelLeftClose,
   PanelLeftOpen,
   Sparkles,
@@ -21,8 +23,10 @@ const NAV_ITEMS = [
   { href: "/admin/moderation", label: "Moderatsiya", icon: ClipboardCheck, exact: false },
   { href: "/admin/leads", label: "Leadlar", icon: Inbox, exact: false },
   { href: "/admin/agencies", label: "Agentliklar", icon: Building2, exact: false },
-  { href: "/admin/content", label: "Landing kontent", icon: LayoutTemplate, exact: false },
+  { href: "/admin/places", label: "Joylar", icon: MapPinned, exact: false },
+  { href: "/admin/stories", label: "Fikrlar", icon: MessageSquareQuote, exact: false },
   { href: "/admin/hero", label: "Hero slides", icon: ImageIcon, exact: false },
+  { href: "/admin/reports", label: "Hisobotlar", icon: BarChart3, exact: false },
 ];
 
 const COLLAPSE_KEY = "travelorai_admin_sidebar_collapsed";

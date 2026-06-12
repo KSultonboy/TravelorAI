@@ -1548,3 +1548,131 @@
   height: 46px;
   margin-bottom: 14px;
 }
+
+/* --- V2: forma, CTA, hisobot kartalari --- */
+
+.admin-cta-v2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: #087a56;
+  font: inherit;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.admin-cta-v2:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.admin-danger-v2 {
+  color: #b03326 !important;
+  border-color: rgba(176, 51, 38, 0.4) !important;
+}
+
+.admin-danger-v2:hover {
+  background: #fbe7e4 !important;
+}
+
+.admin-form-v2 {
+  margin-bottom: 18px;
+}
+
+.admin-form-grid-v2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin: 14px 0 16px;
+}
+
+.admin-form-grid-v2 label {
+  display: grid;
+  gap: 7px;
+  color: #2f333c;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.admin-form-grid-v2 input,
+.admin-form-grid-v2 select,
+.admin-form-grid-v2 textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid #e2e2e7;
+  border-radius: 14px;
+  background: #f8f7f5;
+  color: #16191f;
+  font: inherit;
+  font-size: 0.92rem;
+  outline: none;
+}
+
+.admin-form-grid-v2 textarea {
+  min-height: 96px;
+  padding: 12px 14px;
+  resize: vertical;
+}
+
+.admin-form-grid-v2 input:focus,
+.admin-form-grid-v2 select:focus,
+.admin-form-grid-v2 textarea:focus {
+  border-color: rgba(8, 122, 86, 0.58);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(8, 122, 86, 0.1);
+}
+
+.admin-wide-v2 {
+  grid-column: 1 / -1;
+}
+
+.admin-lead-row__main--withimg {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.admin-row-thumb {
+  width: 92px;
+  height: 68px;
+  flex: 0 0 auto;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.admin-row-thumb--empty {
+  display: grid;
+  place-items: center;
+  color: #087a56;
+  background: #edf3ef;
+}
+
+.admin-report-group {
+  margin: 22px 0 10px;
+  color: #2d333d;
+  font-size: 1.02rem;
+  letter-spacing: -0.02em;
+}
+
+.admin-stat-v2--bad {
+  border-color: rgba(176, 51, 38, 0.5);
+}
+
+.admin-stat-v2--bad svg,
+.admin-stat-v2--bad b {
+  color: #b03326;
+}
+
+.admin-stat-v2--warn {
+  border-color: rgba(226, 162, 60, 0.55);
+}
+
+.admin-stat-v2--warn svg {
+  color: #b97f17;
+}
