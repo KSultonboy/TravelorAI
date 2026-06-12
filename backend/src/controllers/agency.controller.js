@@ -270,6 +270,9 @@ async function confirmEmailChange(req, res) {
           emailChangeRequestedAt: null,
           emailVerified: true,
           emailVerifiedAt: new Date(),
+          // Xavfsizlik: eski Google identifikatorini uzamiz — aks holda eski
+          // Gmail bilan "Continue with Google" hisobga kiraverardi
+          googleId: null,
         },
       }),
       prisma.agencyApplication.updateMany({

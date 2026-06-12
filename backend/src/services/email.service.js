@@ -144,6 +144,9 @@ async function sendEmailChangedNoticeEmail({ oldEmail, newEmail }) {
           Agency akkauntingiz login emaili <b>${safeText(oldEmail)}</b> dan <b>${safeText(newEmail)}</b> ga almashtirildi.
           Endi tizimga yangi email bilan kirasiz.
         </p>
+        <p style="margin:0 0 10px;font-size:13px;line-height:1.7;color:#7c8a81;">
+          Eslatma: Google orqali kirish eski hisobdan uzildi — Google bilan kirish uchun endi yangi emailingizdagi Google akkauntdan foydalaning.
+        </p>
         <p style="margin:0;font-size:13px;line-height:1.7;color:#7c8a81;">
           Agar bu o'zgarishni siz qilmagan bo'lsangiz, darhol support bilan bog'laning: ${SUPPORT_EMAIL}
         </p>
