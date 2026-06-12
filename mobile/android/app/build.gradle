@@ -80,7 +80,7 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
  * this variant is about 6MiB larger per architecture than default.
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
-def releaseVersionCode = ((findProperty('ANDROID_VERSION_CODE') ?: System.getenv('ANDROID_VERSION_CODE')) ?: '24').toInteger()
+def releaseVersionCode = ((findProperty('ANDROID_VERSION_CODE') ?: System.getenv('ANDROID_VERSION_CODE')) ?: '25').toInteger()
 def releaseVersionName = ((findProperty('ANDROID_VERSION_NAME') ?: System.getenv('ANDROID_VERSION_NAME')) ?: '1.0.7').toString()
 def uploadStoreFile = (findProperty('MYAPP_UPLOAD_STORE_FILE') ?: System.getenv('MYAPP_UPLOAD_STORE_FILE'))
 def uploadStorePassword = (findProperty('MYAPP_UPLOAD_STORE_PASSWORD') ?: System.getenv('MYAPP_UPLOAD_STORE_PASSWORD'))
