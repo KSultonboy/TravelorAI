@@ -34,6 +34,32 @@ function parseTourParam(value: string | string[] | undefined): HomeTourItem | nu
   }
 }
 
+const MEAL_LABELS: Record<string, string> = {
+  RO: "Room Only - ovqat yo'q",
+  BB: 'Bed & Breakfast - nonushta',
+  HB: 'Half Board - nonushta va kechki ovqat',
+  FB: 'Full Board - 3 mahal ovqat',
+  AI: 'All Inclusive',
+  UAI: 'Ultra All Inclusive',
+  UALL: 'Ultra All Inclusive',
+  FBT: 'Full Board Treatment',
+};
+
+const AVAILABILITY_LABELS: Record<string, string> = {
+  available: 'Joy bor',
+  few_seats: 'Kam joy qoldi',
+  on_request: "So'rov bo'yicha",
+  sold_out: "Joy yo'q",
+};
+
+const FLIGHT_LABELS: Record<string, string> = {
+  not_included: 'Avia kiritilmagan',
+  available: 'Avia joy bor',
+  few_seats: 'Avia joy kam',
+  on_request: "Avia so'rov bo'yicha",
+  no_seats: "Avia joy yo'q",
+};
+
 export function TourDetailsScreen() {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -124,6 +150,22 @@ export function TourDetailsScreen() {
   }
 
   const highlights = Array.isArray(tour.highlights) ? tour.highlights.filter(Boolean) : [];
+  const priceIncludes = Array.isArray(tour.priceIncludes) ? tour.priceIncludes.filter(Boolean) : [];
+  const priceExcludes = Array.isArray(tour.priceExcludes) ? tour.priceExcludes.filter(Boolean) : [];
+  const mealCopy = tour.mealPlan ? `${tour.mealPlan} - ${tour.mealPlanLabel || MEAL_LABELS[tour.mealPlan] || 'Ovqatlanish turi'}` : '';
+  const packageDetails = [
+    tour.hotelName || tour.hotelCategory || tour.hotelLocation
+      ? { label: 'Mehmonxona', value: [tour.hotelName, tour.hotelCategory, tour.hotelLocation].filter(Boolean).join(' · ') }
+      : null,
+    tour.roomType ? { label: 'Xona', value: tour.roomType } : null,
+    mealCopy ? { label: 'Ovqatlanish', value: mealCopy } : null,
+    tour.nights ? { label: 'Tun', value: `${tour.nights} tun` } : null,
+    tour.departureCity ? { label: "Jo'nash", value: tour.departureCity } : null,
+    tour.destinationCountry ? { label: 'Mamlakat', value: tour.destinationCountry } : null,
+    tour.availabilityStatus ? { label: 'Mavjudlik', value: AVAILABILITY_LABELS[tour.availabilityStatus] || tour.availabilityStatus } : null,
+    tour.flightSeatStatus ? { label: 'Avia', value: FLIGHT_LABELS[tour.flightSeatStatus] || tour.flightSeatStatus } : null,
+    tour.priceBasis ? { label: 'Narx', value: tour.priceBasis } : null,
+  ].filter(Boolean) as { label: string; value: string }[];
   const agencyTelegram = tour.agency?.telegram ? tour.agency.telegram.replace(/^@/, '').trim() : null;
   const agencyPhone = tour.agency?.phone ? tour.agency.phone.trim() : null;
   const agencyWebsite = tour.agency?.website ? tour.agency.website.trim() : null;
@@ -166,6 +208,24 @@ export function TourDetailsScreen() {
           <Ionicons name="timer-outline" size={18} color={colors.success} />
           <Text style={styles.responseTimeText}>Agentlik odatda {tour.responseTimeMinutes || 45} daqiqada javob beradi.</Text>
         </View>
+        {packageDetails.length > 0 || tour.instantConfirmation || tour.stopSale || tour.promo ? (
+          <>
+            <Text style={styles.sectionTitle}>Paket tafsilotlari</Text>
+            <View style={styles.packageGrid}>
+              {packageDetails.map((item) => (
+                <View key={`${item.label}-${item.value}`} style={styles.packageItem}>
+                  <Text style={styles.tinyMuted}>{item.label}</Text>
+                  <Text style={styles.packageValue}>{item.value}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={styles.flagRow}>
+              {tour.instantConfirmation ? <Text style={styles.flagChip}>Instant confirmation</Text> : null}
+              {tour.promo ? <Text style={styles.flagChip}>Promo</Text> : null}
+              {tour.stopSale ? <Text style={[styles.flagChip, styles.flagChipDanger]}>Stop-sale</Text> : null}
+            </View>
+          </>
+        ) : null}
         {highlights.length > 0 ? (
           <>
             <Text style={styles.sectionTitle}>Included</Text>
@@ -176,6 +236,34 @@ export function TourDetailsScreen() {
               </View>
             ))}
           </>
+        ) : null}
+        {priceIncludes.length > 0 ? (
+          <>
+            <Text style={styles.sectionTitle}>Narxga kiradi</Text>
+            {priceIncludes.map((item) => (
+              <View key={item} style={styles.checkRow}>
+                <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+                <Text style={styles.optionTitle}>{item}</Text>
+              </View>
+            ))}
+          </>
+        ) : null}
+        {priceExcludes.length > 0 ? (
+          <>
+            <Text style={styles.sectionTitle}>Narxga kirmaydi</Text>
+            {priceExcludes.map((item) => (
+              <View key={item} style={styles.checkRow}>
+                <Ionicons name="remove-circle-outline" size={16} color={colors.error} />
+                <Text style={styles.optionTitle}>{item}</Text>
+              </View>
+            ))}
+          </>
+        ) : null}
+        {tour.childPolicy ? (
+          <View style={styles.responseTimeBox}>
+            <Ionicons name="people-outline" size={18} color={colors.success} />
+            <Text style={styles.responseTimeText}>{tour.childPolicy}</Text>
+          </View>
         ) : null}
       </View>
 
@@ -353,6 +441,12 @@ function createStyles(colors: AppColors) {
     statBox: { flex: 1, borderRadius: 18, backgroundColor: colors.cardMuted, padding: SPACING.md },
     statValue: { fontFamily: FONTS.display, fontSize: 17, color: colors.text },
     tinyMuted: { fontFamily: FONTS.regular, fontSize: 10, color: colors.textMuted },
+    packageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+    packageItem: { width: '48%', borderRadius: 16, backgroundColor: colors.cardMuted, padding: SPACING.md, gap: 4 },
+    packageValue: { fontFamily: FONTS.semibold, fontSize: 12, lineHeight: 17, color: colors.text },
+    flagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+    flagChip: { borderRadius: 999, backgroundColor: colors.successPale, paddingHorizontal: SPACING.sm, paddingVertical: 6, fontFamily: FONTS.semibold, fontSize: 11, color: colors.success },
+    flagChipDanger: { backgroundColor: colors.errorPale, color: colors.error },
     contactRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.md, marginTop: SPACING.xs },
     contactBtn: { alignItems: 'center', width: 66, gap: 6 },
     contactIcon: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },

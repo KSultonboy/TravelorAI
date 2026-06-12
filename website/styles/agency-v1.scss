@@ -2312,3 +2312,71 @@
 .agency-dashboard-section input[type="file"]::file-selector-button:hover {
   background: #0a8f65;
 }
+
+/* --- Tour paket maydonlari (select, checkbox, bo'lim sarlavhasi) --- */
+
+.agency-card select,
+.agency-dashboard-section select {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 15px;
+  border: 1px solid #e2e3e8;
+  border-radius: 18px;
+  background: #f8f7f4;
+  color: #151820;
+  font: inherit;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.agency-card select:focus,
+.agency-dashboard-section select:focus {
+  border-color: rgba(8, 122, 86, 0.58);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(8, 122, 86, 0.1);
+}
+
+.agency-form-section-title {
+  grid-column: 1 / -1;
+  margin: 12px 0 0;
+  color: #087a56;
+  font-size: 0.82rem;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.agency-field-hint {
+  color: #687381;
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
+.agency-checkbox-group {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.agency-checkbox-row {
+  display: inline-flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px !important;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid #e2e3e8;
+  border-radius: 18px;
+  background: #f8f7f4;
+  cursor: pointer;
+}
+
+.agency-checkbox-row input {
+  width: 18px !important;
+  min-height: 18px !important;
+  height: 18px;
+  padding: 0 !important;
+  accent-color: #087a56;
+}

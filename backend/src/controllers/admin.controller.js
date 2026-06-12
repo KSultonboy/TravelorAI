@@ -3,6 +3,7 @@ const { success, error } = require('../utils/response');
 const { adminReviewSchema } = require('../schemas/agency.schema');
 const { bookingStatusSchema } = require('../schemas/booking.schema');
 const { formatBooking } = require('./bookings.controller');
+const { resolveTourImageUrl } = require('../utils/tourImage');
 const crypto = require('crypto');
 const fs = require('fs/promises');
 const path = require('path');
@@ -18,6 +19,10 @@ function slugify(text) {
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
     .substring(0, 80);
+}
+
+function normalizeTourBadge(value) {
+  return String(value || '').trim().toLowerCase() === 'popular' ? 'Popular' : 'Latest';
 }
 
 async function uniqueSlug(base) {
@@ -1020,6 +1025,7 @@ async function getAdminTours(req, res) {
 async function approveTour(req, res) {
   try {
     const { adminNote } = adminReviewSchema.parse(req.body || {});
+    const now = new Date();
     const existing = await prisma.tour.findUnique({
       where: { id: req.params.id },
       include: { agency: true },
@@ -1031,7 +1037,9 @@ async function approveTour(req, res) {
       data: {
         approvalStatus: 'approved',
         active: true,
-        approvedAt: new Date(),
+        badge: normalizeTourBadge(existing.badge),
+        imageUrl: resolveTourImageUrl(existing),
+        approvedAt: now,
         rejectedAt: null,
         adminNote: adminNote || null,
       },
@@ -1042,6 +1050,10 @@ async function approveTour(req, res) {
       await prisma.tourAgency.update({
         where: { id: tour.agencyId },
         data: {
+          active: true,
+          approvalStatus: 'approved',
+          approvedAt: tour.agency?.approvedAt || now,
+          rejectedAt: null,
           toursCount: await prisma.tour.count({
             where: { agencyId: tour.agencyId, active: true, approvalStatus: 'approved' },
           }),

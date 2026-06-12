@@ -5,6 +5,7 @@ const { success, error } = require('../utils/response');
 const { signAgencyToken } = require('../utils/agencyJwt');
 const { sendEmailChangeCodeEmail, sendEmailChangedNoticeEmail, sendVerificationCodeEmail } = require('../services/email.service');
 const { materializeDataImage } = require('../utils/dataImage');
+const { resolveTourImageUrl } = require('../utils/tourImage');
 const { bookingStatusSchema } = require('../schemas/booking.schema');
 const { formatBooking } = require('./bookings.controller');
 const {

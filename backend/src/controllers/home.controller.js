@@ -1,6 +1,7 @@
 const { prisma } = require('../config/database');
 const { logger } = require('../config/logger');
 const { success, error } = require('../utils/response');
+const { resolveTourImageUrl } = require('../utils/tourImage');
 
 const HOME_TYPES = ['landmark', 'restaurant', 'hotel', 'transport'];
 const LEGACY_PROVIDER_TERMS = ['google', 'mapbox', '2gis', 'manual_curated', 'fallback'];
@@ -46,6 +47,36 @@ function normalizeBadge(value) {
   if (badge === 'latest') return 'Latest';
   if (badge === 'popular') return 'Popular';
   return 'all';
+}
+
+function publicAgencyWhere() {
+  return { active: true, approvalStatus: 'approved' };
+}
+
+function publicTourWhere({ agencyOnly = false } = {}) {
+  const agencyWhere = publicAgencyWhere();
+  return {
+    active: true,
+    approvalStatus: 'approved',
+    AND: [
+      agencyOnly
+        ? { agency: { is: agencyWhere } }
+        : {
+            OR: [
+              { agencyId: null },
+              { agency: { is: agencyWhere } },
+            ],
+          },
+    ],
+  };
+}
+
+function tourOrderBy(badge) {
+  if (badge === 'Popular') {
+    return [{ rating: 'desc' }, { approvedAt: 'desc' }, { updatedAt: 'desc' }, { createdAt: 'desc' }];
+  }
+
+  return [{ approvedAt: 'desc' }, { updatedAt: 'desc' }, { createdAt: 'desc' }, { rating: 'desc' }];
 }
 
 function normalizeEntityType(value) {
@@ -153,11 +184,32 @@ function formatTour(item) {
     responseTimeMinutes: item.responseTimeMinutes ?? 45,
     price: item.price || '',
     priceMin: item.priceMin ?? null,
+    priceCurrency: item.priceCurrency || null,
+    priceBasis: item.priceBasis || null,
     rating: item.rating ?? 0,
     badge: item.badge || 'Latest',
-    imageUrl: item.imageUrl || null,
+    imageUrl: resolveTourImageUrl(item),
     highlights: Array.isArray(item.highlights) ? item.highlights : [],
     itinerary: item.itinerary || null,
+    departureCity: item.departureCity || null,
+    destinationCountry: item.destinationCountry || null,
+    tourGroup: item.tourGroup || null,
+    nights: item.nights ?? null,
+    hotelIncluded: Boolean(item.hotelIncluded),
+    hotelName: item.hotelName || null,
+    hotelCategory: item.hotelCategory || null,
+    hotelLocation: item.hotelLocation || null,
+    roomType: item.roomType || null,
+    mealPlan: item.mealPlan || null,
+    mealPlanLabel: item.mealPlanLabel || null,
+    childPolicy: item.childPolicy || null,
+    flightSeatStatus: item.flightSeatStatus || null,
+    availabilityStatus: item.availabilityStatus || null,
+    instantConfirmation: Boolean(item.instantConfirmation),
+    stopSale: Boolean(item.stopSale),
+    promo: Boolean(item.promo),
+    priceIncludes: Array.isArray(item.priceIncludes) ? item.priceIncludes : [],
+    priceExcludes: Array.isArray(item.priceExcludes) ? item.priceExcludes : [],
     agency: item.agency
       ? {
           id: item.agency.id,
@@ -338,20 +390,7 @@ async function resolveTours({
   agencyOnly = false,
   paginated = false,
 }) {
-  const where = {
-    active: true,
-    approvalStatus: 'approved',
-    AND: [
-      agencyOnly
-        ? { agency: { is: { active: true, approvalStatus: 'approved' } } }
-        : {
-            OR: [
-              { agencyId: null },
-              { agency: { is: { active: true, approvalStatus: 'approved' } } },
-            ],
-          },
-    ],
-  };
+  const where = publicTourWhere({ agencyOnly });
   if (badge !== 'all') where.badge = badge;
   const search = String(q || '').trim();
   if (search) {
@@ -365,11 +404,10 @@ async function resolveTours({
     });
   }
 
-  const orderBy = badge === 'Latest' ? [{ createdAt: 'desc' }, { rating: 'desc' }] : [{ rating: 'desc' }, { createdAt: 'desc' }];
   const query = {
     where,
     include: { agency: true },
-    orderBy,
+    orderBy: tourOrderBy(badge),
     take: limit,
   };
 
@@ -401,7 +439,7 @@ async function resolveAgencies({ sort = 'top', limit = 8 }) {
       ? [{ featured: 'desc' }, { landingSortOrder: 'asc' }, { toursCount: 'desc' }, { rating: 'desc' }]
       : [{ featured: 'desc' }, { landingSortOrder: 'asc' }, { rating: 'desc' }, { reviews: 'desc' }];
   const items = await prisma.tourAgency.findMany({
-    where: { active: true, approvalStatus: 'approved' },
+    where: publicAgencyWhere(),
     include: { _count: { select: { tours: true } } },
     orderBy,
     take: Math.max(limit * 4, 40),

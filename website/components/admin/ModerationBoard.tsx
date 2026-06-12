@@ -200,6 +200,23 @@ function ModerationBoardInner() {
                   alt={tour.title}
                 />
               ) : null}
+              {tour.hotelName || tour.mealPlan || tour.roomType || tour.availabilityStatus ? (
+                <div className="admin-review-card-v2__meta">
+                  {tour.hotelName ? <span>🏨 {[tour.hotelName, tour.hotelCategory, tour.hotelLocation].filter(Boolean).join(" · ")}</span> : null}
+                  {tour.roomType ? <span>🛏 {tour.roomType}</span> : null}
+                  {tour.mealPlan ? <span>🍽 {tour.mealPlan}{tour.mealPlanLabel ? ` — ${tour.mealPlanLabel}` : ""}</span> : null}
+                  {tour.nights ? <span>🌙 {tour.nights} tun</span> : null}
+                  {tour.departureCity ? <span>✈️ {tour.departureCity}{tour.destinationCountry ? ` → ${tour.destinationCountry}` : ""}</span> : null}
+                  {tour.availabilityStatus ? <span>📊 {tour.availabilityStatus}</span> : null}
+                  {tour.priceBasis ? <span>💰 {tour.priceBasis}</span> : null}
+                </div>
+              ) : null}
+              {tour.priceIncludes?.length ? (
+                <p style={{ fontSize: "0.84rem" }}>✅ Kiradi: {tour.priceIncludes.join(", ")}</p>
+              ) : null}
+              {tour.priceExcludes?.length ? (
+                <p style={{ fontSize: "0.84rem" }}>❌ Kirmaydi: {tour.priceExcludes.join(", ")}</p>
+              ) : null}
               {tour.description ? <p>{tour.description}</p> : null}
               {tour.highlights?.length ? (
                 <div className="admin-review-card-v2__meta">

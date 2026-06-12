@@ -427,11 +427,32 @@ model Tour {
   responseTimeMinutes Int           @default(45)
   price               String?
   priceMin            Int?
+  priceCurrency       String?
+  priceBasis          String?
   rating              Float         @default(0)
   badge               String        @default("Latest")
   imageUrl            String?
   itinerary           Json?
   highlights          String[]      @default([])
+  departureCity       String?
+  destinationCountry  String?
+  tourGroup           String?
+  nights              Int?
+  hotelIncluded       Boolean       @default(false)
+  hotelName           String?
+  hotelCategory       String?
+  hotelLocation       String?
+  roomType            String?
+  mealPlan            String?
+  mealPlanLabel       String?
+  childPolicy         String?
+  flightSeatStatus    String?
+  availabilityStatus  String?
+  instantConfirmation Boolean       @default(false)
+  stopSale            Boolean       @default(false)
+  promo               Boolean       @default(false)
+  priceIncludes       String[]      @default([])
+  priceExcludes       String[]      @default([])
   active              Boolean       @default(true)
   agencyId            String?
   agency              TourAgency?   @relation(fields: [agencyId], references: [id], onDelete: SetNull)
