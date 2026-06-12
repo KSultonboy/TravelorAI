@@ -4,7 +4,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  BarChart3,
   Building2,
   ClipboardCheck,
   Image as ImageIcon,
@@ -26,7 +25,6 @@ const NAV_ITEMS = [
   { href: "/admin/places", label: "Joylar", icon: MapPinned, exact: false },
   { href: "/admin/stories", label: "Fikrlar", icon: MessageSquareQuote, exact: false },
   { href: "/admin/hero", label: "Hero slides", icon: ImageIcon, exact: false },
-  { href: "/admin/reports", label: "Hisobotlar", icon: BarChart3, exact: false },
 ];
 
 const COLLAPSE_KEY = "travelorai_admin_sidebar_collapsed";

@@ -3,14 +3,22 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  Activity,
   ArrowRight,
+  BarChart3,
   Building2,
+  CheckCircle2,
   ClipboardCheck,
+  Clock3,
+  Database,
   Inbox,
   Loader2,
   Map,
+  MessageSquareText,
   RefreshCw,
   Users,
+  XCircle,
+  Zap,
 } from "lucide-react";
 import { adminApi, type AdminApplication, type AdminBooking, type AdminTour } from "@/lib/admin/api";
 
@@ -19,31 +27,59 @@ type Stats = {
   totalUsers?: number;
   totalTrips?: number;
   totalFeedback?: number;
-  [key: string]: unknown;
+  quality?: {
+    lowConfidence?: number;
+    mediumConfidence?: number;
+    highConfidence?: number;
+  };
 };
+
+type Health = { status?: string; db?: string; cache?: string };
+
+type CountByStatus = Record<string, number>;
+
+function countStatuses(items: { status?: string; approvalStatus?: string }[]): CountByStatus {
+  const map: CountByStatus = {};
+  for (const item of items) {
+    const key = item.approvalStatus || item.status || "unknown";
+    map[key] = (map[key] || 0) + 1;
+  }
+  return map;
+}
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [health, setHealth] = useState<Health | null>(null);
   const [pendingApplications, setPendingApplications] = useState<AdminApplication[]>([]);
-  const [reviewTours, setReviewTours] = useState<AdminTour[]>([]);
-  const [pendingLeads, setPendingLeads] = useState<AdminBooking[]>([]);
+  const [tourCounts, setTourCounts] = useState<CountByStatus>({});
+  const [leadCounts, setLeadCounts] = useState<CountByStatus>({});
+  const [agencyTotals, setAgencyTotals] = useState<{ total: number; active: number }>({ total: 0, active: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [updatedAt, setUpdatedAt] = useState("");
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError("");
-    const [statsResult, appsResult, toursResult, leadsResult] = await Promise.all([
+    const [statsResult, appsResult, toursResult, leadsResult, agenciesResult, healthResult] = await Promise.all([
       adminApi<Stats>("/stats"),
       adminApi<{ items: AdminApplication[] }>("/agency-applications?status=pending"),
-      adminApi<{ items: AdminTour[] }>("/tours?status=pending_review"),
-      adminApi<{ items: AdminBooking[] }>("/bookings?status=pending"),
+      adminApi<{ items: AdminTour[] }>("/tours?status=all"),
+      adminApi<{ items: AdminBooking[] }>("/bookings?status=all"),
+      adminApi<{ items: { active?: boolean }[] }>("/agencies"),
+      fetch("/api/agency-proxy/health", { cache: "no-store" }).then((response) => response.json()).catch(() => null),
     ]);
     if (statsResult.success) setStats(statsResult.data);
+    else setError(statsResult.message);
     if (appsResult.success) setPendingApplications(appsResult.data.items || []);
-    if (toursResult.success) setReviewTours(toursResult.data.items || []);
-    if (leadsResult.success) setPendingLeads(leadsResult.data.items || []);
-    if (!statsResult.success && !appsResult.success) setError("Ma'lumotlarni yuklab bo'lmadi");
+    if (toursResult.success) setTourCounts(countStatuses(toursResult.data.items || []));
+    if (leadsResult.success) setLeadCounts(countStatuses(leadsResult.data.items || []));
+    if (agenciesResult.success) {
+      const items = agenciesResult.data.items || [];
+      setAgencyTotals({ total: items.length, active: items.filter((agency) => agency.active).length });
+    }
+    if (healthResult) setHealth(healthResult);
+    setUpdatedAt(new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
     setLoading(false);
   }, []);
 
@@ -51,12 +87,10 @@ export default function AdminDashboard() {
     void loadAll();
   }, [loadAll]);
 
-  const totals = {
-    users: stats?.totalUsers,
-    trips: stats?.totalTrips,
-    places: stats?.totalPlaces,
-    feedback: stats?.totalFeedback,
-  };
+  const quality = stats?.quality || {};
+  const healthOk = health?.status === "ok";
+  const reviewTours = tourCounts.pending_review || 0;
+  const pendingLeads = leadCounts.pending || 0;
 
   const queues = [
     {
@@ -70,14 +104,14 @@ export default function AdminDashboard() {
       href: "/admin/moderation?tab=tours",
       icon: ClipboardCheck,
       label: "Tour tekshiruvi",
-      count: reviewTours.length,
+      count: reviewTours,
       hint: "Publicga chiqishni kutmoqda",
     },
     {
       href: "/admin/leads",
       icon: Inbox,
       label: "Yangi leadlar",
-      count: pendingLeads.length,
+      count: pendingLeads,
       hint: "Agentlik javobini kuzating",
     },
   ];
@@ -88,7 +122,9 @@ export default function AdminDashboard() {
         <div>
           <p className="admin-eyebrow">Platforma boshqaruvi</p>
           <h1>Bugungi ish stoli</h1>
-          <p className="admin-muted">Avval navbatlar — keyin kontent. Hammasi bitta joydan.</p>
+          <p className="admin-muted">
+            Navbatlar va monitoring — bitta joyda.{updatedAt ? ` Yangilangan: ${updatedAt}` : ""}
+          </p>
         </div>
         <button className="admin-ghost-v2" disabled={loading} onClick={() => void loadAll()} type="button">
           {loading ? <Loader2 className="admin-spin" size={16} /> : <RefreshCw size={16} />} Yangilash
@@ -109,30 +145,117 @@ export default function AdminDashboard() {
         ))}
       </section>
 
+      <h3 className="admin-report-group">Tizim holati</h3>
+      <section className="admin-stat-row">
+        <div className={`admin-stat-v2 ${healthOk ? "" : "admin-stat-v2--bad"}`}>
+          <Activity size={16} />
+          <b>{health ? (healthOk ? "Ishlayapti" : "Muammo") : "—"}</b>
+          <small>Backend API</small>
+        </div>
+        <div className={`admin-stat-v2 ${health?.db === "connected" ? "" : "admin-stat-v2--bad"}`}>
+          <Database size={16} />
+          <b>{health?.db === "connected" ? "Ulangan" : health?.db || "—"}</b>
+          <small>Ma&apos;lumotlar bazasi</small>
+        </div>
+        <div className={`admin-stat-v2 ${health?.cache === "connected" ? "" : "admin-stat-v2--bad"}`}>
+          <Zap size={16} />
+          <b>{health?.cache === "connected" ? "Ulangan" : health?.cache || "—"}</b>
+          <small>Kesh (Redis)</small>
+        </div>
+      </section>
+
+      <h3 className="admin-report-group">Platforma</h3>
       <section className="admin-stat-row">
         <div className="admin-stat-v2">
           <Users size={16} />
-          <b>{totals.users ?? "—"}</b>
+          <b>{stats?.totalUsers ?? "—"}</b>
           <small>Foydalanuvchilar</small>
         </div>
         <div className="admin-stat-v2">
           <Map size={16} />
-          <b>{totals.trips ?? "—"}</b>
+          <b>{stats?.totalTrips ?? "—"}</b>
           <small>AI safarlar</small>
         </div>
         <div className="admin-stat-v2">
-          <ClipboardCheck size={16} />
-          <b>{totals.places ?? "—"}</b>
-          <small>Joylar (POI)</small>
+          <Building2 size={16} />
+          <b>{agencyTotals.active}/{agencyTotals.total}</b>
+          <small>Faol agentliklar</small>
         </div>
         <div className="admin-stat-v2">
-          <Inbox size={16} />
-          <b>{totals.feedback ?? "—"}</b>
+          <MessageSquareText size={16} />
+          <b>{stats?.totalFeedback ?? "—"}</b>
           <small>Fikrlar</small>
         </div>
       </section>
 
-      <section className="admin-panel">
+      <h3 className="admin-report-group">Turlar</h3>
+      <section className="admin-stat-row">
+        <div className="admin-stat-v2">
+          <CheckCircle2 size={16} />
+          <b>{tourCounts.approved || 0}</b>
+          <small>Tasdiqlangan</small>
+        </div>
+        <div className="admin-stat-v2">
+          <Clock3 size={16} />
+          <b>{reviewTours}</b>
+          <small>Tekshiruvda</small>
+        </div>
+        <div className="admin-stat-v2">
+          <ClipboardCheck size={16} />
+          <b>{tourCounts.draft || 0}</b>
+          <small>Qoralama</small>
+        </div>
+        <div className="admin-stat-v2">
+          <XCircle size={16} />
+          <b>{tourCounts.rejected || 0}</b>
+          <small>Rad etilgan</small>
+        </div>
+      </section>
+
+      <h3 className="admin-report-group">Leadlar</h3>
+      <section className="admin-stat-row">
+        <div className={`admin-stat-v2${pendingLeads ? " admin-stat-v2--warn" : ""}`}>
+          <Clock3 size={16} />
+          <b>{pendingLeads}</b>
+          <small>Javob kutmoqda</small>
+        </div>
+        <div className="admin-stat-v2">
+          <Inbox size={16} />
+          <b>{leadCounts.confirmed || 0}</b>
+          <small>Qabul qilingan</small>
+        </div>
+        <div className="admin-stat-v2">
+          <CheckCircle2 size={16} />
+          <b>{leadCounts.completed || 0}</b>
+          <small>Yakunlangan</small>
+        </div>
+        <div className="admin-stat-v2">
+          <XCircle size={16} />
+          <b>{(leadCounts.rejected || 0) + (leadCounts.cancelled || 0)}</b>
+          <small>Rad/bekor</small>
+        </div>
+      </section>
+
+      <h3 className="admin-report-group">Kontent sifati (POI: {stats?.totalPlaces ?? "—"} ta)</h3>
+      <section className="admin-stat-row">
+        <div className="admin-stat-v2">
+          <BarChart3 size={16} />
+          <b>{quality.highConfidence ?? "—"}</b>
+          <small>Yuqori ishonch</small>
+        </div>
+        <div className="admin-stat-v2">
+          <BarChart3 size={16} />
+          <b>{quality.mediumConfidence ?? "—"}</b>
+          <small>O&apos;rta ishonch</small>
+        </div>
+        <div className={`admin-stat-v2${quality.lowConfidence ? " admin-stat-v2--warn" : ""}`}>
+          <BarChart3 size={16} />
+          <b>{quality.lowConfidence ?? "—"}</b>
+          <small>Past ishonch</small>
+        </div>
+      </section>
+
+      <section className="admin-panel" style={{ marginTop: 22 }}>
         <div className="admin-panel__head">
           <h3>Tezkor havolalar</h3>
         </div>
@@ -143,7 +266,6 @@ export default function AdminDashboard() {
           <Link href="/admin/places">Joylar (POI)</Link>
           <Link href="/admin/stories">Sayohatchi fikrlari</Link>
           <Link href="/admin/hero">Hero slidelar</Link>
-          <Link href="/admin/reports">Umumiy hisobotlar</Link>
         </div>
       </section>
     </>

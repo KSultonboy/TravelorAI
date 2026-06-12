@@ -1676,3 +1676,12 @@
 .admin-stat-v2--warn svg {
   color: #b97f17;
 }
+
+/* Hero sahifa AdminShell ichida (eski topbar o'lchamlarini moslashtirish) */
+.admin-hero-embedded .admin-topbar h1 {
+  font-size: clamp(1.6rem, 2.6vw, 2.4rem);
+}
+
+.admin-hero-embedded .admin-topbar {
+  margin-bottom: 20px;
+}

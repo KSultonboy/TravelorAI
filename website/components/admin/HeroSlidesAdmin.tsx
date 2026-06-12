@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { ExternalLink, ImagePlus, Loader2, LogOut, Pencil, Plus, Trash2 } from "lucide-react";
+import { ExternalLink, ImagePlus, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { publicImageSrc } from "@/lib/imageUrls";
 
 type HeroSlide = {
@@ -235,33 +235,8 @@ export default function HeroSlidesAdmin({ username }: { username: string }) {
     }
   }
 
-  async function handleLogout() {
-    await fetch("/api/admin-auth/logout", { method: "POST" });
-    window.location.href = "/admin/login";
-  }
-
   return (
-    <div className="admin-shell">
-      <aside className="admin-aside">
-        <div>
-          <div className="admin-brand">
-            <span>TravelorAI</span>
-            <small>Admin</small>
-          </div>
-          <nav>
-            <a className="active" href="/admin/hero">
-              <ImagePlus size={18} />
-              Hero rasmlar
-            </a>
-          </nav>
-        </div>
-        <button className="admin-logout" onClick={handleLogout} type="button">
-          <LogOut size={17} />
-          Chiqish
-        </button>
-      </aside>
-
-      <main className="admin-main">
+    <div className="admin-hero-embedded">
         <header className="admin-topbar">
           <div>
             <p className="admin-eyebrow">Kirish: {username}</p>
@@ -445,7 +420,6 @@ export default function HeroSlidesAdmin({ username }: { username: string }) {
             )}
           </div>
         </section>
-      </main>
     </div>
   );
 }
