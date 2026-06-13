@@ -17,7 +17,7 @@
       "bundleIdentifier": "com.komiljonov.voyageai"
     },
     "android": {
-      "versionCode": 25,
+      "versionCode": 26,
       "adaptiveIcon": {
         "backgroundColor": "#041A0F",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
