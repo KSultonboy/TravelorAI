@@ -97,6 +97,12 @@ export default function HomeToursScreen() {
       <View style={styles.body}>
         <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
         <Text style={styles.city} numberOfLines={1}>{item.city || 'Global'} · {item.duration || 'Tour'}</Text>
+        {item.mealPlan || item.hotelCategory ? (
+          <View style={styles.tagRow}>
+            {item.hotelCategory ? <Text style={styles.tag}>{item.hotelCategory}</Text> : null}
+            {item.mealPlan ? <Text style={styles.tag}>{item.mealPlan}</Text> : null}
+          </View>
+        ) : null}
         <View style={styles.metaRow}>
           <View style={styles.rating}>
             <Ionicons name="star" size={11} color={colors.gold} />
@@ -312,6 +318,8 @@ function createStyles(colors: AppColors) {
     body: { padding: SPACING.md, gap: 6 },
     title: { fontFamily: FONTS.display, fontSize: 15, lineHeight: 19, color: colors.text },
     city: { fontFamily: FONTS.medium, fontSize: 11, color: colors.textMuted },
+    tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+    tag: { fontFamily: FONTS.semibold, fontSize: 10, color: colors.primary, backgroundColor: colors.primaryPale, paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full, overflow: 'hidden' },
     metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 2 },
     rating: { flexDirection: 'row', alignItems: 'center', gap: 3 },
     ratingText: { fontFamily: FONTS.semibold, fontSize: 11, color: colors.text },

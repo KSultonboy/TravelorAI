@@ -11,6 +11,18 @@ import { bookingsAPI, resolveMediaUrl, type TourBookingItemPayload } from '../sr
 import { extractApiData } from '../src/utils/auth';
 import { getItem, KEYS } from '../src/utils/storage';
 
+const BOOKING_STATUS: Record<string, { label: string; tone: "warn" | "ok" | "info" | "bad" }> = {
+  pending: { label: 'Javob kutilmoqda', tone: 'warn' },
+  confirmed: { label: 'Qabul qilingan', tone: 'ok' },
+  completed: { label: 'Yakunlangan', tone: 'info' },
+  rejected: { label: 'Rad etilgan', tone: 'bad' },
+  cancelled: { label: 'Bekor qilingan', tone: 'bad' },
+};
+
+function bookingStatus(status?: string) {
+  return BOOKING_STATUS[status || ''] || { label: status || "Noma'lum", tone: 'info' as const };
+}
+
 function remaining(deadline?: string | null) {
   if (!deadline) return 'Deadline belgilanmagan';
   const distance = new Date(deadline).getTime() - Date.now();
@@ -106,7 +118,11 @@ export default function BookingsScreen() {
             {imageUrl ? <Image source={{ uri: imageUrl }} style={styles.image} /> : null}
             <View style={styles.body}>
               <View style={styles.statusRow}>
-                <Text style={styles.status}>{booking.status}</Text>
+                {(() => {
+                  const s = bookingStatus(booking.status);
+                  const toneColor = s.tone === 'ok' ? colors.success : s.tone === 'bad' ? colors.error : s.tone === 'info' ? colors.primary : colors.warning;
+                  return <Text style={[styles.status, { color: toneColor }]}>{s.label}</Text>;
+                })()}
                 <Text style={styles.price}>{booking.totalEstimate ? `${booking.totalEstimate} ${booking.currency}` : 'Narx kelishiladi'}</Text>
               </View>
               <Text style={styles.cardTitle}>{booking.tour?.title || 'Tour'}</Text>
