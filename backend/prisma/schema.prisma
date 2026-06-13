@@ -43,6 +43,7 @@ model User {
   emailVerifiedAt DateTime?
   lastLoginAt     DateTime?
   blocked         Boolean         @default(false)
+  expoPushToken   String?
   emailChangeResendCount   Int      @default(0)
   emailChangeRequestedAt   DateTime?
   accountDeleteResendCount Int      @default(0)

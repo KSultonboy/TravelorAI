@@ -96,6 +96,23 @@ async function getNotificationsModule(): Promise<NotificationsModule | null> {
   return notificationsModulePromise;
 }
 
+// Remote (Expo) push token — backendga yuborish uchun. FCM bo'lmasa null qaytaradi (xato bermaydi).
+export async function getExpoPushToken(): Promise<string | null> {
+  const Notifications = await getNotificationsModule();
+  if (!Notifications) return null;
+  const granted = await requestNotificationPermission();
+  if (!granted) return null;
+  try {
+    const projectId =
+      (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)?.eas?.projectId ||
+      (Constants as unknown as { easConfig?: { projectId?: string } }).easConfig?.projectId;
+    const tokenData = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
+    return tokenData?.data || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function requestNotificationPermission(): Promise<boolean> {
   const Notifications = await getNotificationsModule();
   if (!Notifications) {

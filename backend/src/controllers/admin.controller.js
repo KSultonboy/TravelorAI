@@ -4,6 +4,7 @@ const { adminReviewSchema } = require('../schemas/agency.schema');
 const { bookingStatusSchema } = require('../schemas/booking.schema');
 const { formatBooking } = require('./bookings.controller');
 const { resolveTourImageUrl } = require('../utils/tourImage');
+const { sendPushNotification } = require('../services/push.service');
 const crypto = require('crypto');
 const fs = require('fs/promises');
 const path = require('path');
@@ -1140,6 +1141,27 @@ async function updateBookingStatus(req, res) {
       data: adminBookingStatusData(input),
       include: { tour: true, agency: true },
     });
+
+    // Foydalanuvchiga push (token bor bo'lsa) — fire-and-forget
+    if (updated.userId) {
+      const labels = { confirmed: 'qabul qilindi', rejected: 'rad etildi', cancelled: 'bekor qilindi', completed: 'yakunlandi' };
+      const label = labels[updated.status];
+      if (label) {
+        prisma.user
+          .findUnique({ where: { id: updated.userId }, select: { expoPushToken: true } })
+          .then((user) => {
+            if (user?.expoPushToken) {
+              return sendPushNotification({
+                to: user.expoPushToken,
+                title: 'Booking holati yangilandi',
+                body: `${updated.tour?.title || 'Tur'} bo‘yicha so‘rovingiz ${label}.`,
+                data: { type: 'booking_status', bookingId: updated.id, status: updated.status },
+              });
+            }
+          })
+          .catch(() => {});
+      }
+    }
 
     return success(res, { booking: formatBooking(updated) });
   } catch (err) {

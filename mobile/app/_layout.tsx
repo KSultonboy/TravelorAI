@@ -16,6 +16,8 @@ import { getItem, KEYS } from '../src/utils/storage';
 import { AppThemeProvider, useAppTheme } from '../src/theme/app-theme';
 import TestModeBanner from '../src/components/TestModeBanner';
 import i18n from '../src/i18n';
+import { getExpoPushToken } from '../src/utils/notifications';
+import { authAPI } from '../src/utils/api';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -41,6 +43,22 @@ export default function RootLayout() {
     }
 
     restoreSavedLanguage().catch(() => {});
+  }, []);
+
+  // Kirgan foydalanuvchi uchun push tokenni ro'yxatdan o'tkazish (FCM bo'lsa ishlaydi, bo'lmasa jim)
+  useEffect(() => {
+    async function registerPush() {
+      try {
+        const sessionToken = await getItem(KEYS.TOKEN);
+        if (!sessionToken) return;
+        const pushToken = await getExpoPushToken();
+        if (pushToken) await authAPI.savePushToken(pushToken);
+      } catch {
+        // push muhim emas — xato bo'lsa jim o'tamiz
+      }
+    }
+    const timer = setTimeout(() => registerPush(), 2500);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {

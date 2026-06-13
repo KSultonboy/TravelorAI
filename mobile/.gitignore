@@ -45,3 +45,8 @@ app-example
 
 # generated native folders
 /ios
+
+# Firebase (maxfiy)
+google-services.json
+*-firebase-adminsdk-*.json
+fcm-service-account.json

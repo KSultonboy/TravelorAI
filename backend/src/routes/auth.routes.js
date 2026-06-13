@@ -48,6 +48,7 @@ router.put('/preferences', authMiddleware, validate(preferencesSchema), updatePr
 router.post('/email-change/request', authMiddleware, validate(requestEmailChangeSchema), requestEmailChange);
 router.post('/email-change/verify', authMiddleware, validate(verifyEmailChangeSchema), verifyEmailChange);
 router.post('/account-deletion/request', authMiddleware, validate(requestAccountDeletionSchema), requestAccountDeletion);
+router.post('/push-token', authMiddleware, savePushToken);
 router.delete('/account', authMiddleware, validate(deleteAccountSchema), deleteAccount);
 
 module.exports = router;
