@@ -589,7 +589,7 @@ async function deleteAccount(req, res) {
 async function savePushToken(req, res) {
   try {
     const token = String((req.body && req.body.token) || '').trim();
-    if (!token || !/^Expo(nent)?PushToken\[.+\]$/.test(token)) {
+    if (token.length < 20) {
       return error(res, 'Yaroqsiz push token', 400);
     }
     await prisma.user.update({ where: { id: req.user.id }, data: { expoPushToken: token } });
