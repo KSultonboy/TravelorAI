@@ -15,6 +15,7 @@ const {
   verifyEmailChange,
   requestAccountDeletion,
   deleteAccount,
+  savePushToken,
 } = require('../controllers/auth.controller');
 const { authMiddleware } = require('../middleware/auth.middleware');
 const { validate } = require('../middleware/validate.middleware');
