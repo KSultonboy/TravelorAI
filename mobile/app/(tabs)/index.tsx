@@ -92,9 +92,10 @@ export default function HomeScreen() {
     if (cachedAgencies.length > 0) setHomeAgencies(cachedAgencies);
     if (cachedHeroSlides.length > 0) setHeroSlides(cachedHeroSlides);
 
-    const [homeResult, heroSlidesResult] = await Promise.allSettled([
+    const [homeResult, heroSlidesResult, toursResult] = await Promise.allSettled([
       homeAPI.getHome({ limit: 48 }),
       homeAPI.getHeroSlides({ limit: 8 }),
+      homeAPI.getTours({ agencyOnly: true, limit: 12, page: 1 }),
     ]);
 
     try {
@@ -112,7 +113,9 @@ export default function HomeScreen() {
           ? extractApiData<HeroSlidesPayload>(heroSlidesResult.value) || {}
           : {};
       const nextPlaces = hasFreshHomePayload ? normalizePopularPlaces(payload.places || []) : cachedPlaces;
-      const nextTours = hasFreshHomePayload ? normalizeTours(payload.tours || []) : cachedTours;
+      const toursPayload =
+        toursResult.status === 'fulfilled' ? extractApiData<{ items?: any[] }>(toursResult.value) || {} : {};
+      const nextTours = toursResult.status === 'fulfilled' ? normalizeTours(toursPayload.items || []) : cachedTours;
       const nextAgencies = hasFreshHomePayload ? normalizeAgencies(payload.agencies || []) : cachedAgencies;
       const directHeroSlides = normalizeHeroSlides(heroPayload.items || []);
       const nextHeroSlides = directHeroSlides.length > 0 ? directHeroSlides : normalizeHeroSlides(payload.heroSlides || []);

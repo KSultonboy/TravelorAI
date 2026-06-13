@@ -4,6 +4,7 @@ export default {
   },
   tabs: {
     home: 'Home',
+    tours: 'Tours',
     planner: 'Planner',
     explore: 'Explore',
     trips: 'Trips',

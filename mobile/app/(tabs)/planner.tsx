@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Animated,
   Alert,
-  ImageBackground,
   ScrollView,
   StyleSheet,
   Text,
@@ -22,10 +21,9 @@ import { FONTS } from '../../src/constants/fonts';
 import { RADIUS, SPACING } from '../../src/constants/spacing';
 import { primaryGlow } from '../../src/constants/effects';
 import { type AppColors, useAppTheme } from '../../src/theme/app-theme';
-import { citiesAPI, destinationsAPI, homeAPI, plannerAPI, poiAPI, type PoiPayload } from '../../src/utils/api';
+import { citiesAPI, destinationsAPI, plannerAPI, poiAPI, type PoiPayload } from '../../src/utils/api';
 import { extractApiData } from '../../src/utils/auth';
 import { formatSum } from '../../src/utils/formatter';
-import { normalizeTours, type HomeTourItem } from '../../src/utils/homeContent';
 import {
   INTEREST_OPTIONS,
   TRAVEL_STYLE_OPTIONS,
@@ -479,10 +477,6 @@ export default function PlannerScreen() {
   const [isAuthed, setIsAuthed] = useState(false);
   const [authBootstrapDone, setAuthBootstrapDone] = useState(false);
   const [step, setStep] = useState(0);
-  const [plannerView, setPlannerView] = useState<'tours' | 'builder'>('tours');
-  const [agencyTours, setAgencyTours] = useState<HomeTourItem[]>([]);
-  const [agencyToursLoading, setAgencyToursLoading] = useState(false);
-  const [actionMenuOpen, setActionMenuOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingStageIndex, setLoadingStageIndex] = useState(0);
   const [analysisSummary, setAnalysisSummary] = useState<string | null>(null);
@@ -502,40 +496,8 @@ export default function PlannerScreen() {
     flexibility: 'fixed',
   });
 
-  const loadAgencyTours = useCallback(async () => {
-    setAgencyToursLoading(true);
-    try {
-      const payload = extractApiData<{ items?: HomeTourItem[] }>(
-        await homeAPI.getTours({ agencyOnly: true, limit: 6, page: 1 })
-      );
-      setAgencyTours(normalizeTours(payload?.items || []));
-    } finally {
-      setAgencyToursLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadAgencyTours().catch(() => {
-      setAgencyTours([]);
-      setAgencyToursLoading(false);
-    });
-  }, [loadAgencyTours]);
-
-  const openAgencyTour = useCallback((item: HomeTourItem) => {
-    router.push({
-      pathname: '/tour-details',
-      params: { tour: encodeURIComponent(JSON.stringify(item)) },
-    } as any);
-  }, []);
-
-  const openManualTrip = useCallback(() => {
-    setActionMenuOpen(false);
-    router.push('/manual-trip' as any);
-  }, []);
-
-  const openAiTrip = useCallback(() => {
-    setActionMenuOpen(false);
-    router.push('/ai-trip-setup' as any);
+  const openMyPlans = useCallback(() => {
+    router.push('/my-plans' as any);
   }, []);
 
   const steps = useMemo(
@@ -879,52 +841,6 @@ export default function PlannerScreen() {
     }
   };
 
-  const renderAgencyTourCard = (tour: HomeTourItem) => {
-    const cardContent = (
-      <>
-        <View style={styles.tourScrim} />
-        <View style={styles.tourTopRow}>
-          <View style={styles.tourBadge}><Text style={styles.tourBadgeTxt}>{tour.badge}</Text></View>
-          <View style={styles.tourRating}>
-            <Ionicons name="star" size={10} color={colors.gold} />
-            <Text style={styles.tourRatingTxt}>{tour.rating.toFixed(1)}</Text>
-          </View>
-        </View>
-        <View style={styles.tourContent}>
-          <View style={styles.tourDays}>
-            <Ionicons name="time-outline" size={11} color="rgba(255,255,255,0.82)" />
-            <Text style={styles.tourDaysTxt}>{tour.duration || 'Tour'}</Text>
-          </View>
-          <Text style={styles.tourTitle} numberOfLines={2}>{tour.title}</Text>
-          <Text style={styles.tourSub} numberOfLines={2}>{tour.subtitle || tour.city}</Text>
-          <View style={styles.tourFooter}>
-            <View>
-              <Text style={styles.fromTxt}>{tour.agency?.name || tour.city || 'Agency'}</Text>
-              <Text style={styles.tourPrice}>{tour.price || 'Narx so‘rovda'}</Text>
-            </View>
-            <TouchableOpacity style={styles.detailsBtn} onPress={() => openAgencyTour(tour)} activeOpacity={0.84}>
-              <Text style={styles.detailsBtnTxt}>Batafsil</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </>
-    );
-
-    return (
-      <TouchableOpacity key={tour.id} style={styles.tourCard} activeOpacity={0.9} onPress={() => openAgencyTour(tour)}>
-        {tour.imageUrl ? (
-          <ImageBackground source={{ uri: tour.imageUrl }} style={styles.tourImage} imageStyle={styles.tourImageRadius}>
-            {cardContent}
-          </ImageBackground>
-        ) : (
-          <View style={[styles.tourImage, styles.tourImagePlaceholder]}>
-            {cardContent}
-          </View>
-        )}
-      </TouchableOpacity>
-    );
-  };
-
   if (!authBootstrapDone) {
     return (
       <View style={[styles.bootWrap, { paddingTop: insets.top }]}>
@@ -964,68 +880,18 @@ export default function PlannerScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.pageIntro}>
-        <Text style={styles.pageTitle}>Planner & Tours</Text>
-        <Text style={styles.pageSubtitle}>Discover guided experiences or craft your own adventure.</Text>
-      </View>
-
-      <View style={styles.segmentWrap}>
-        <TouchableOpacity
-          style={[styles.segmentBtn, plannerView === 'tours' && styles.segmentBtnActive]}
-          onPress={() => setPlannerView('tours')}
-          activeOpacity={0.84}
-        >
-          <View style={[styles.segmentIconCircle, plannerView === 'tours' ? styles.segmentIconCircleActive : styles.segmentIconCircleMuted]}>
-            <Ionicons name="compass-outline" size={23} color={plannerView === 'tours' ? colors.success : colors.textSecondary} />
-          </View>
-          <Text style={[styles.segmentTxt, plannerView === 'tours' && styles.segmentTxtActive]}>Agentlik Turlari</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.segmentBtn, plannerView === 'builder' && styles.segmentBtnActive]}
-          onPress={() => setPlannerView('builder')}
-          activeOpacity={0.84}
-        >
-          <View style={[styles.segmentIconCircle, plannerView === 'builder' ? styles.segmentIconCircleActive : styles.segmentIconCircleMuted]}>
-            <Ionicons name="calendar-outline" size={23} color={plannerView === 'builder' ? colors.success : colors.textSecondary} />
-          </View>
-          <Text style={[styles.segmentTxt, plannerView === 'builder' && styles.segmentTxtActive]}>Mening Rejalarim</Text>
+      <View style={styles.pageIntroRow}>
+        <View style={styles.flex}>
+          <Text style={styles.pageTitle}>AI Reja</Text>
+          <Text style={styles.pageSubtitle}>Sayohatingizni AI yordamida bosqichma-bosqich rejalashtiring.</Text>
+        </View>
+        <TouchableOpacity style={styles.plansBtn} onPress={openMyPlans} activeOpacity={0.84}>
+          <Ionicons name="albums-outline" size={15} color={colors.primary} />
+          <Text style={styles.plansBtnTxt}>Rejalarim</Text>
         </TouchableOpacity>
       </View>
 
-      {plannerView === 'tours' ? (
-        <>
-          <ScrollView style={styles.toursScroll} showsVerticalScrollIndicator={false}>
-            <View style={styles.toursHeader}>
-              <Text style={styles.toursTitle}>Agentlik turlari</Text>
-              <TouchableOpacity onPress={() => router.push('/home-tours' as any)} activeOpacity={0.82}>
-                <Text style={styles.seeAll}>Barchasi →</Text>
-              </TouchableOpacity>
-            </View>
-
-            {agencyToursLoading ? (
-              <View style={styles.toursStateCard}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={styles.toursStateText}>Agentlik turlari yuklanmoqda...</Text>
-              </View>
-            ) : agencyTours.length > 0 ? (
-              agencyTours.map(renderAgencyTourCard)
-            ) : (
-              <View style={styles.toursStateCard}>
-                <Ionicons name="briefcase-outline" size={24} color={colors.success} />
-                <Text style={styles.toursStateTitle}>Hali agentlik tourlari yo‘q</Text>
-                <Text style={styles.toursStateText}>Admin tasdiqlagan tourlar shu yerda avtomatik ko‘rinadi.</Text>
-              </View>
-            )}
-
-            <View style={{ height: 164 + safeBottom }} />
-          </ScrollView>
-          <TouchableOpacity style={[styles.fab, { bottom: safeBottom + 96 }]} onPress={() => setActionMenuOpen(true)} activeOpacity={0.86}>
-            <Ionicons name="add" size={26} color={colors.textInverse} />
-          </TouchableOpacity>
-        </>
-      ) : (
-        <>
-          <View style={styles.hero}>
+      <View style={styles.hero}>
             <View style={styles.heroOrbOne} />
             <View style={styles.heroOrbTwo} />
             <View style={styles.heroTopRow}>
@@ -1182,8 +1048,6 @@ export default function PlannerScreen() {
               </LinearGradient>
             </TouchableOpacity>
           </View>
-        </>
-      )}
 
       {loading && (
         <View style={styles.loadingOverlay}>
@@ -1198,31 +1062,6 @@ export default function PlannerScreen() {
         </View>
       )}
 
-      {actionMenuOpen && (
-        <View style={styles.quickOverlay} pointerEvents="box-none">
-          <TouchableOpacity style={styles.quickDismiss} activeOpacity={1} onPress={() => setActionMenuOpen(false)} />
-          <View style={[styles.quickActions, { bottom: safeBottom + 82 }]}>
-            <TouchableOpacity style={styles.quickActionRow} onPress={openManualTrip} activeOpacity={0.86}>
-              <Text style={styles.quickActionText}>Trip yaratish</Text>
-              <View style={styles.quickActionIcon}>
-                <Ionicons name="add" size={30} color={colors.primary} />
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.quickActionRow} onPress={openAiTrip} activeOpacity={0.86}>
-              <Text style={styles.quickActionText}>AI bilan reja</Text>
-              <View style={styles.quickActionIcon}>
-                <Ionicons name="sparkles" size={27} color={colors.primary} />
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.quickActionRow} onPress={() => setActionMenuOpen(false)} activeOpacity={0.86}>
-              <Text style={styles.quickActionText}>Yopish</Text>
-              <View style={styles.quickActionIcon}>
-                <Ionicons name="close" size={28} color={colors.textSecondary} />
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
     </View>
   );
 }
@@ -1267,6 +1106,27 @@ function createStyles(colors: AppColors) {
     pageIntro: {
       paddingHorizontal: SPACING.lg,
       marginBottom: SPACING.md,
+    },
+    pageIntroRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+      paddingHorizontal: SPACING.lg,
+      marginBottom: SPACING.md,
+    },
+    plansBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      height: 38,
+      paddingHorizontal: SPACING.md,
+      borderRadius: RADIUS.full,
+      backgroundColor: colors.primaryPale,
+    },
+    plansBtnTxt: {
+      fontFamily: FONTS.semibold,
+      fontSize: 12,
+      color: colors.primary,
     },
     pageTitle: {
       fontFamily: FONTS.display,
