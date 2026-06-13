@@ -1,5 +1,6 @@
 const { prisma } = require('../config/database');
 const { refineTripPlanWithGemini } = require('./geminiPlanner.service');
+const { generateTripPlanWithClaude } = require('./claudePlanner.service');
 
 const INTEREST_KEYWORDS = {
   tarixiy: ['history', 'historical', 'museum', 'ark', 'fortress', 'qala', 'madrasah', 'maqbara'],
@@ -625,8 +626,24 @@ async function generateTripPlanBase({
   };
 }
 
+function planHasItinerary(plan) {
+  return (
+    plan &&
+    Array.isArray(plan.days) &&
+    plan.days.some((day) => Array.isArray(day.activities) && day.activities.length > 0)
+  );
+}
+
 async function generateTripPlan(input) {
   const basePlan = await generateTripPlanBase(input);
+
+  // POI/destination ma'lumoti bo'lmaganda (asosan outbound shaharlar) base bo'sh chiqadi —
+  // bunday holda Claude noldan to'liq marshrut yaratadi.
+  if (!planHasItinerary(basePlan)) {
+    const aiPlan = await generateTripPlanWithClaude(input).catch(() => null);
+    if (planHasItinerary(aiPlan)) return aiPlan;
+  }
+
   const refinedPlan = await refineTripPlanWithGemini({
     basePlan,
     request: input,
