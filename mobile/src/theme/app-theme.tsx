@@ -25,8 +25,8 @@ const AppThemeContext = createContext<AppThemeContextValue | null>(null);
 export function AppThemeProvider({ children }: { children: React.ReactNode }) {
   const colorScheme = useColorScheme();
   const systemTheme: ResolvedTheme = colorScheme === 'dark' ? 'dark' : 'light';
-  // Dark-first brand: default to dark until the user picks a preference.
-  const [preference, setPreferenceState] = useState<ThemePreference>('dark');
+  // Light-first brand: crisp white background by default until the user picks a preference.
+  const [preference, setPreferenceState] = useState<ThemePreference>('light');
 
   useEffect(() => {
     let isMounted = true;
