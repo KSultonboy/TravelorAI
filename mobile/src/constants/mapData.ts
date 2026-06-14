@@ -43,8 +43,8 @@ export interface MapPoint {
 }
 
 export const CATEGORY_META: Record<POIType, { label: string; icon: string; color: string; markerColor: string }> = {
-  transport: { label: 'Transport', icon: 'bus-outline', color: '#2D9CDB', markerColor: '#2D9CDB' },
-  landmark: { label: 'Yodgorliklar', icon: 'location-outline', color: '#14B8AE', markerColor: '#14B8AE' },
+  transport: { label: 'Transport', icon: 'bus-outline', color: '#3E9670', markerColor: '#3E9670' },
+  landmark: { label: 'Yodgorliklar', icon: 'location-outline', color: '#5FC08A', markerColor: '#5FC08A' },
   restaurant: { label: 'Restoranlar', icon: 'restaurant-outline', color: '#EF6B6B', markerColor: '#EF6B6B' },
   hotel: { label: 'Mehmonxona', icon: 'bed-outline', color: '#E0A95A', markerColor: '#E0A95A' },
 };
@@ -58,9 +58,9 @@ export interface SubCategoryMeta {
 
 export const SUB_CATEGORIES: Partial<Record<POIType, SubCategoryMeta[]>> = {
   landmark: [
-    { key: 'historical', label: 'Tarixiy', icon: 'business-outline', color: '#14B8AE' },
+    { key: 'historical', label: 'Tarixiy', icon: 'business-outline', color: '#5FC08A' },
     { key: 'mosque', label: 'Masjidlar', icon: 'moon-outline', color: '#7C3AED' },
-    { key: 'other', label: 'Boshqa joylar', icon: 'pin-outline', color: '#0EA5E9' },
+    { key: 'other', label: 'Boshqa joylar', icon: 'pin-outline', color: '#8EB69B' },
   ],
   transport: [
     { key: 'train', label: 'Vokzal', icon: 'train-outline', color: '#2563EB' },

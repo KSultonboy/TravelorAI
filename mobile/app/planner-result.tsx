@@ -18,7 +18,7 @@ import { formatSum } from '../src/utils/formatter';
 import { KEYS, getItem, getJSON } from '../src/utils/storage';
 import type { TransportLeg, TripPlan } from '../src/utils/tripPlanner';
 
-const CONFETTI_COLORS = ['#56E0D8', '#2D9CDB', '#F2D6A2', '#5BB4E5', '#3DD9A0', '#F2C14E'];
+const CONFETTI_COLORS = ['#8EB69B', '#3E9670', '#CBA869', '#5FC08A', '#DAF1DE', '#E0B15E'];
 const PLAN_REFRESH_INTERVAL_MS = 1500;
 
 function Confetti() {

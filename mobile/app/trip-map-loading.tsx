@@ -40,7 +40,7 @@ export default function TripMapLoadingScreen() {
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: '#071827' },
+  fill: { flex: 1, backgroundColor: '#051F20' },
   center: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', paddingHorizontal: SPACING.lg },
   title: { marginTop: SPACING.md, fontFamily: FONTS.semibold, fontSize: 17, color: LIGHT, textAlign: 'center' },
   sub: { marginTop: SPACING.xs, fontFamily: FONTS.regular, fontSize: 13, color: 'rgba(247,250,252,0.72)', textAlign: 'center', lineHeight: 20 },

@@ -5,11 +5,11 @@ import { useDerivedValue } from 'react-native-reanimated';
 
 // Fixed brand palette so the aurora always reads as the premium dark moment,
 // regardless of the active light/dark theme (splash, onboarding, AI loading).
-const BASE = '#071827';
-const FADE = '#07182700'; // BASE with alpha 00 (transparent)
-const SKY = '#2D9CDB';
-const AQUA = '#56E0D8';
-const TEAL = '#1FB8AE';
+const BASE = '#051F20';
+const FADE = '#051F2000'; // BASE with alpha 00 (transparent)
+const SKY = '#3E9670';
+const AQUA = '#8EB69B';
+const TEAL = '#5FC08A';
 
 interface Props {
   children?: React.ReactNode;
