@@ -327,12 +327,14 @@ async function generateTripPlanWithGemini(input) {
       maxOutputTokens: 8192,
       responseMimeType: 'application/json',
       responseJsonSchema: AI_ITINERARY_SCHEMA,
+      // gemini-2.5-flash "thinking"ni o'chiramiz — generatsiya ancha tezlashadi.
+      thinkingConfig: { thinkingBudget: 0 },
     },
   };
 
   try {
     const response = await axios.post(url, body, {
-      timeout: Math.max(config.timeoutMs, 20000),
+      timeout: Math.max(config.timeoutMs, 50000),
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': config.apiKey },
     });
 
