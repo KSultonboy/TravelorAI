@@ -2553,9 +2553,7 @@ export default function ExploreScreen() {
           ) : (
             <View style={styles.exploreChrome}>
               <View style={styles.exploreHeader}>
-                <TouchableOpacity style={styles.headerIconBtn} onPress={() => router.push('/side-menu' as any)} activeOpacity={0.82}>
-                  <Ionicons name="menu" size={17} color={colors.text} />
-                </TouchableOpacity>
+                <View style={{ width: 32 }} />
                 <Text style={styles.headerBrand}>TravelorAI</Text>
                 <TouchableOpacity style={styles.headerIconBtn} onPress={() => router.push('/(tabs)/profile' as any)} activeOpacity={0.82}>
                   <Ionicons name="person-outline" size={16} color={colors.text} />

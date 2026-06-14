@@ -375,9 +375,7 @@ function Header({ title, subtitle, right }: { title: string; subtitle?: string; 
   const { colors, styles } = usePlannerStyles();
   return (
     <View style={styles.header}>
-      <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/side-menu' as any)} activeOpacity={0.82}>
-        <Ionicons name="menu" size={18} color={colors.textSecondary} />
-      </TouchableOpacity>
+      <View style={{ width: 40 }} />
       <View style={styles.headerCopy}>
         <Text style={styles.headerTitle}>{title}</Text>
         {!!subtitle && <Text style={styles.headerSubtitle}>{subtitle}</Text>}

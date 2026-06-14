@@ -138,7 +138,6 @@ function RootNavigator() {
         <Stack.Screen name="settings" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="travel-preferences" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="trip-map-loading" options={{ animation: 'fade' }} />
-        <Stack.Screen name="side-menu" options={{ animation: 'slide_from_left' }} />
         <Stack.Screen name="language" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="help-center" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="promotions" options={{ animation: 'slide_from_right' }} />

@@ -871,9 +871,7 @@ export default function PlannerScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.topBar}>
-        <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/side-menu' as any)} activeOpacity={0.82}>
-          <Ionicons name="menu" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
+        <View style={{ width: 30 }} />
         <Text style={styles.brand}>TravelorAI</Text>
         <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/(tabs)/profile' as any)} activeOpacity={0.82}>
           <Ionicons name="person-outline" size={16} color={colors.textSecondary} />

@@ -291,9 +291,7 @@ export default function HomeScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.success} colors={[colors.success]} />}
     >
       <View style={styles.header}>
-        <TouchableOpacity style={styles.menuBtn} onPress={() => router.push('/side-menu' as any)} activeOpacity={0.82}>
-          <Ionicons name="menu" size={20} color={colors.text} />
-        </TouchableOpacity>
+        <View style={{ width: 38 }} />
         <Text style={styles.brandText}>TravelorAI</Text>
         <TouchableOpacity style={styles.avatar} onPress={() => router.push('/(tabs)/profile' as any)} activeOpacity={0.82}>
           <Ionicons name="person" size={17} color={colors.textInverse} />
