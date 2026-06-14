@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FONTS } from '../../src/constants/fonts';
@@ -19,6 +19,9 @@ import { type AppColors, useAppTheme } from '../../src/theme/app-theme';
 import { homeAPI } from '../../src/utils/api';
 import { extractApiData } from '../../src/utils/auth';
 import { normalizeTours, type HomeTourItem } from '../../src/utils/homeContent';
+import { getJSON, saveJSON } from '../../src/utils/storage';
+
+const TOURS_CACHE_KEY = 'agency_tours_cache_v1';
 
 export default function ToursScreen() {
   const insets = useSafeAreaInsets();
@@ -30,22 +33,48 @@ export default function ToursScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Keshdan darrov ko'rsatamiz — birinchi yuklash sekin/uzilsa ham bo'sh qotmaydi.
+  useEffect(() => {
+    let active = true;
+    getJSON<HomeTourItem[]>(TOURS_CACHE_KEY)
+      .then((cached) => {
+        if (active && Array.isArray(cached) && cached.length > 0) {
+          setTours(cached);
+          setLoading(false);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const loadTours = useCallback(async () => {
     try {
       const payload = extractApiData<{ items?: HomeTourItem[] }>(
         await homeAPI.getTours({ agencyOnly: true, limit: 24, page: 1 })
       );
-      setTours(normalizeTours(payload?.items || []));
+      const items = normalizeTours(payload?.items || []);
+      // Bo'sh javob kelsa keshdagi mavjud ro'yxatni o'chirmaymiz (xato/uzilishdan himoya).
+      if (items.length > 0) {
+        setTours(items);
+        await saveJSON(TOURS_CACHE_KEY, items);
+      } else {
+        setTours((prev) => prev);
+      }
     } catch {
-      setTours([]);
+      // tarmoq xatosi — keshdagi narsani saqlab qolamiz
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    void loadTours();
-  }, [loadTours]);
+  // Har safar tab ochilganda yangilab turadi (mount'da bir marta emas).
+  useFocusEffect(
+    useCallback(() => {
+      void loadTours();
+    }, [loadTours])
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
