@@ -1,5 +1,5 @@
 const { prisma } = require('../config/database');
-const { refineTripPlanWithGemini } = require('./geminiPlanner.service');
+const { refineTripPlanWithGemini, generateTripPlanWithGemini } = require('./geminiPlanner.service');
 const { generateTripPlanWithClaude } = require('./claudePlanner.service');
 
 const INTEREST_KEYWORDS = {
@@ -638,9 +638,11 @@ async function generateTripPlan(input) {
   const basePlan = await generateTripPlanBase(input);
 
   // POI/destination ma'lumoti bo'lmaganda (asosan outbound shaharlar) base bo'sh chiqadi —
-  // bunday holda Claude noldan to'liq marshrut yaratadi.
+  // bunday holda AI noldan to'liq marshrut yaratadi. Avval Gemini (kalit mavjud), keyin Claude.
   if (!planHasItinerary(basePlan)) {
-    const aiPlan = await generateTripPlanWithClaude(input).catch(() => null);
+    const aiPlan =
+      (await generateTripPlanWithGemini(input).catch(() => null)) ||
+      (await generateTripPlanWithClaude(input).catch(() => null));
     if (planHasItinerary(aiPlan)) return aiPlan;
   }
 
