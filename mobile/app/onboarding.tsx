@@ -12,7 +12,7 @@ import { RADIUS, SPACING } from '../src/constants/spacing';
 import { aiGlowShadow } from '../src/constants/effects';
 import { LANGUAGE_OPTIONS, type Language } from '../src/i18n';
 import { type AppColors, useAppTheme } from '../src/theme/app-theme';
-import { KEYS, saveItem } from '../src/utils/storage';
+import { KEYS, getItem, saveItem } from '../src/utils/storage';
 
 const { width } = Dimensions.get('window');
 
@@ -127,7 +127,9 @@ export default function Onboarding() {
 
   const finish = async () => {
     await saveItem(KEYS.HAS_ONBOARDED, 'true');
-    router.replace('/(tabs)');
+    // Onboarding'dan keyin auth (majburiy emas — login'da "Skip" bor).
+    const token = await getItem(KEYS.TOKEN);
+    router.replace(token ? '/(tabs)' : '/login');
   };
 
   const showSkip = current < slides.length - 1;

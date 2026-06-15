@@ -8,7 +8,7 @@ import { FONTS } from '../../constants/fonts';
 import { SPACING } from '../../constants/spacing';
 import { type AppColors, useAppTheme } from '../../theme/app-theme';
 import { bookingsAPI } from '../../utils/api';
-import { getJSON, KEYS } from '../../utils/storage';
+import { getItem, getJSON, KEYS } from '../../utils/storage';
 import { getUserDisplayName, type AuthUser } from '../../utils/auth';
 import type { HomeTourItem } from '../../utils/homeContent';
 
@@ -66,23 +66,15 @@ export function TourDetailsScreen() {
   const styles = createStyles(colors);
   const params = useLocalSearchParams<{ tour?: string }>();
   const tour = useMemo(() => parseTourParam(params.tour), [params.tour]);
-  const [customerName, setCustomerName] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [travelers, setTravelers] = useState('1');
-  const [travelDate, setTravelDate] = useState('');
-  const [bookingMessage, setBookingMessage] = useState('');
+  const [isAuthed, setIsAuthed] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
 
-  // Prefill contact details from the logged-in user (low-friction lead)
+  // Bron qilish faqat tizimga kirgan foydalanuvchi uchun (auth'da hamma ma'lumot bor).
   useEffect(() => {
     let mounted = true;
-    getJSON<AuthUser>(KEYS.USER)
-      .then((user) => {
-        if (!mounted || !user) return;
-        const name = getUserDisplayName(user);
-        if (name) setCustomerName((prev) => prev || name);
-        if (user.email) setCustomerEmail((prev) => prev || user.email);
+    getItem(KEYS.TOKEN)
+      .then((token) => {
+        if (mounted) setIsAuthed(Boolean(token));
       })
       .catch(() => {});
     return () => {
@@ -95,12 +87,17 @@ export function TourDetailsScreen() {
       Alert.alert('Tur tanlanmagan', 'So‘rov yuborish uchun katalogdan tur tanlang.');
       return;
     }
-    if (!customerName.trim()) {
-      Alert.alert('Ism kerak', 'Iltimos, ismingizni kiriting.');
+
+    const token = await getItem(KEYS.TOKEN);
+    if (!token) {
+      router.push('/login' as never);
       return;
     }
-    if (!customerEmail.trim() && !customerPhone.trim()) {
-      Alert.alert('Aloqa kerak', 'Telefon yoki email — kamida bittasini qoldiring.');
+    const user = await getJSON<AuthUser>(KEYS.USER).catch(() => null);
+    const name = (user && getUserDisplayName(user)) || '';
+    const email = user?.email || '';
+    if (!name && !email) {
+      router.push('/login' as never);
       return;
     }
 
@@ -108,23 +105,22 @@ export function TourDetailsScreen() {
     try {
       await bookingsAPI.create({
         tourId: tour.id,
-        customerName: customerName.trim(),
-        customerEmail: customerEmail.trim(),
-        customerPhone: customerPhone.trim(),
-        travelers: Math.max(1, Number.parseInt(travelers, 10) || 1),
-        travelDate: travelDate.trim(),
-        message: bookingMessage.trim(),
+        customerName: name || email,
+        customerEmail: email,
+        customerPhone: '',
+        travelers: 1,
+        travelDate: '',
+        message: '',
         source: 'mobile',
       });
       Alert.alert(
         'So‘rov yuborildi',
-        'Agency booking so‘rovingizni ko‘rib chiqadi. Holat web va mobil akkauntingizda bir xil ko‘rinadi.',
+        'Agentlik so‘rovingizni ko‘rib chiqadi. Holatni «Bookinglarim»da kuzatib borasiz.',
         [
           { text: 'Yopish' },
           { text: 'Bookinglarim', onPress: () => router.push('/bookings' as never) },
         ]
       );
-      setBookingMessage('');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Booking yuborilmadi';
       Alert.alert('Xatolik', message);
@@ -296,30 +292,24 @@ export function TourDetailsScreen() {
       ) : null}
 
       <View style={styles.formCard}>
-        <Text style={styles.sectionTitle}>So‘rov qoldiring</Text>
-        <Text style={styles.muted}>
-          Bepul va ro‘yxatdan o‘tish shart emas — ism va telefon kifoya, agentlik o‘zi bog‘lanadi. Akkaunt bilan
-          kirsangiz, so‘rov holatini «Bookinglarim»da kuzatib borasiz.
-        </Text>
-        <Input label="Ism" icon="person-outline" value={customerName} onChangeText={setCustomerName} placeholder="Ismingiz" styles={styles} colors={colors} />
-        <Input label="Email (ixtiyoriy)" icon="mail-outline" value={customerEmail} onChangeText={setCustomerEmail} placeholder="email@example.com" styles={styles} colors={colors} keyboardType="email-address" />
-        <View style={styles.dateRow}>
-          <Input label="Telefon" icon="call-outline" value={customerPhone} onChangeText={setCustomerPhone} placeholder="+998..." styles={styles} colors={colors} keyboardType="phone-pad" />
-          <Input label="Kishi soni" icon="people-outline" value={travelers} onChangeText={setTravelers} placeholder="1" styles={styles} colors={colors} keyboardType="number-pad" />
-        </View>
-        <Input label="Sayohat sanasi" icon="calendar-outline" value={travelDate} onChangeText={setTravelDate} placeholder="YYYY-MM-DD" styles={styles} colors={colors} />
-        <TextInput
-          value={bookingMessage}
-          onChangeText={setBookingMessage}
-          style={styles.notesInput}
-          placeholder="Qo‘shimcha talablar yoki savollar..."
-          placeholderTextColor={colors.textMuted}
-          multiline
-        />
-        <TouchableOpacity disabled={bookingLoading} style={[styles.primaryWide, bookingLoading && { opacity: 0.65 }]} onPress={submitBooking}>
-          <Ionicons name="send-outline" size={15} color={colors.textInverse} />
-          <Text style={styles.primaryWideText}>{bookingLoading ? 'Yuborilmoqda...' : 'So‘rov yuborish'}</Text>
-        </TouchableOpacity>
+        <Text style={styles.sectionTitle}>Bron qilish</Text>
+        {isAuthed ? (
+          <>
+            <Text style={styles.muted}>Bir tugma bilan so‘rov yuboring — agentlik siz bilan bog‘lanadi. Holatni «Bookinglarim»da ko‘rasiz.</Text>
+            <TouchableOpacity disabled={bookingLoading} style={[styles.primaryWide, bookingLoading && { opacity: 0.65 }]} onPress={submitBooking} activeOpacity={0.84}>
+              <Ionicons name="send-outline" size={15} color={colors.textInverse} />
+              <Text style={styles.primaryWideText}>{bookingLoading ? 'Yuborilmoqda...' : 'So‘rov yuborish'}</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <Text style={styles.muted}>Bron qilish uchun tizimga kiring.</Text>
+            <TouchableOpacity style={styles.primaryWide} onPress={() => router.push('/login' as never)} activeOpacity={0.84}>
+              <Ionicons name="log-in-outline" size={15} color={colors.textInverse} />
+              <Text style={styles.primaryWideText}>Kirish / Ro‘yxatdan o‘tish</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
       <View style={{ height: 140 + Math.max(insets.bottom, 22) }} />
     </ScrollView>

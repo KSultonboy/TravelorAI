@@ -15,11 +15,13 @@ export default function Index() {
   useEffect(() => {
     async function check() {
       const onboarded = await getItem(KEYS.HAS_ONBOARDED);
-      if (onboarded === 'true') {
-        router.replace('/(tabs)');
-      } else {
+      if (onboarded !== 'true') {
         router.replace('/onboarding');
+        return;
       }
+      // Home'dan oldin auth ko'rsatiladi (majburiy emas — login ekranida "Skip" bor).
+      const token = await getItem(KEYS.TOKEN);
+      router.replace(token ? '/(tabs)' : '/login');
     }
     const t = setTimeout(check, 1100);
     return () => clearTimeout(t);
