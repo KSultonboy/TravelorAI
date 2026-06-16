@@ -45,21 +45,6 @@ const MEAL_LABELS: Record<string, string> = {
   FBT: 'Full Board Treatment',
 };
 
-const AVAILABILITY_LABELS: Record<string, string> = {
-  available: 'Joy bor',
-  few_seats: 'Kam joy qoldi',
-  on_request: "So'rov bo'yicha",
-  sold_out: "Joy yo'q",
-};
-
-const FLIGHT_LABELS: Record<string, string> = {
-  not_included: 'Avia kiritilmagan',
-  available: 'Avia joy bor',
-  few_seats: 'Avia joy kam',
-  on_request: "Avia so'rov bo'yicha",
-  no_seats: "Avia joy yo'q",
-};
-
 export function TourDetailsScreen() {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -155,7 +140,6 @@ export function TourDetailsScreen() {
 
   const highlights = Array.isArray(tour.highlights) ? tour.highlights.filter(Boolean) : [];
   const priceIncludes = Array.isArray(tour.priceIncludes) ? tour.priceIncludes.filter(Boolean) : [];
-  const priceExcludes = Array.isArray(tour.priceExcludes) ? tour.priceExcludes.filter(Boolean) : [];
   const mealCopy = tour.mealPlan ? `${tour.mealPlan} - ${tour.mealPlanLabel || MEAL_LABELS[tour.mealPlan] || 'Ovqatlanish turi'}` : '';
   const durationCopy = [tour.days ? `${tour.days} kun` : null, tour.nights ? `${tour.nights} kecha` : null]
     .filter(Boolean)
