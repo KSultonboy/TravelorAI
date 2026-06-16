@@ -50,7 +50,13 @@ export type HomeTourItem = {
   destinationCountry?: string | null;
   tourGroup?: string | null;
   nights?: number | null;
+  days?: number | null;
   hotelIncluded?: boolean;
+  flightIncluded?: boolean;
+  discount?: string | null;
+  priceBasisPeople?: number | null;
+  priceLockMinutes?: number | null;
+  priceLockUntil?: string | null;
   hotelName?: string | null;
   hotelCategory?: string | null;
   hotelLocation?: string | null;
@@ -206,7 +212,13 @@ export function normalizeTours(items: unknown[]) {
       destinationCountry: item?.destinationCountry || null,
       tourGroup: item?.tourGroup || null,
       nights: Number.isFinite(Number(item?.nights)) ? Number(item.nights) : null,
+      days: Number.isFinite(Number(item?.days)) ? Number(item.days) : null,
       hotelIncluded: Boolean(item?.hotelIncluded),
+      flightIncluded: Boolean(item?.flightIncluded),
+      discount: item?.discount || null,
+      priceBasisPeople: Number.isFinite(Number(item?.priceBasisPeople)) ? Number(item.priceBasisPeople) : null,
+      priceLockMinutes: Number.isFinite(Number(item?.priceLockMinutes)) ? Number(item.priceLockMinutes) : null,
+      priceLockUntil: item?.priceLockUntil || null,
       hotelName: item?.hotelName || null,
       hotelCategory: item?.hotelCategory || null,
       hotelLocation: item?.hotelLocation || null,

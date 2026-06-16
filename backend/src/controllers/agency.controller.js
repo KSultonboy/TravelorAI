@@ -686,6 +686,10 @@ async function createTour(req, res) {
         description: input.description || null,
         price: input.price || null,
         priceMin: input.priceMin ?? null,
+        priceLockUntil:
+          input.priceLockMinutes && input.priceLockMinutes > 0
+            ? new Date(Date.now() + input.priceLockMinutes * 60000)
+            : null,
         imageUrl: input.imageUrl ? await materializeDataImage(input.imageUrl, 'agency') : null,
         responseTimeMinutes: input.responseTimeMinutes,
         slug,
@@ -721,6 +725,14 @@ async function updateTour(req, res) {
       ...(input.description !== undefined ? { description: input.description || null } : {}),
       ...(input.price !== undefined ? { price: input.price || null } : {}),
       ...(input.priceMin !== undefined ? { priceMin: input.priceMin ?? null } : {}),
+      ...(input.priceLockMinutes !== undefined
+        ? {
+            priceLockUntil:
+              input.priceLockMinutes && input.priceLockMinutes > 0
+                ? new Date(Date.now() + input.priceLockMinutes * 60000)
+                : null,
+          }
+        : {}),
       ...(input.imageUrl !== undefined
         ? { imageUrl: input.imageUrl ? await materializeDataImage(input.imageUrl, 'agency') : null }
         : {}),

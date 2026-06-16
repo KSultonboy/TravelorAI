@@ -68,6 +68,7 @@ export function TourDetailsScreen() {
   const tour = useMemo(() => parseTourParam(params.tour), [params.tour]);
   const [isAuthed, setIsAuthed] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
 
   // Bron qilish faqat tizimga kirgan foydalanuvchi uchun (auth'da hamma ma'lumot bor).
   useEffect(() => {
@@ -81,6 +82,13 @@ export function TourDetailsScreen() {
       mounted = false;
     };
   }, []);
+
+  // Narx kafolati — orqaga sanovchi (priceLockUntil tugaguncha narx o'zgarmaydi).
+  useEffect(() => {
+    if (!tour?.priceLockUntil) return undefined;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [tour?.priceLockUntil]);
 
   async function submitBooking() {
     if (!tour?.id) {
@@ -149,19 +157,33 @@ export function TourDetailsScreen() {
   const priceIncludes = Array.isArray(tour.priceIncludes) ? tour.priceIncludes.filter(Boolean) : [];
   const priceExcludes = Array.isArray(tour.priceExcludes) ? tour.priceExcludes.filter(Boolean) : [];
   const mealCopy = tour.mealPlan ? `${tour.mealPlan} - ${tour.mealPlanLabel || MEAL_LABELS[tour.mealPlan] || 'Ovqatlanish turi'}` : '';
+  const durationCopy = [tour.days ? `${tour.days} kun` : null, tour.nights ? `${tour.nights} kecha` : null]
+    .filter(Boolean)
+    .join(', ');
   const packageDetails = [
     tour.hotelName || tour.hotelCategory || tour.hotelLocation
       ? { label: 'Mehmonxona', value: [tour.hotelName, tour.hotelCategory, tour.hotelLocation].filter(Boolean).join(' · ') }
-      : null,
+      : tour.hotelIncluded
+        ? { label: 'Mehmonxona', value: 'Paketga kiritilgan' }
+        : null,
     tour.roomType ? { label: 'Xona', value: tour.roomType } : null,
     mealCopy ? { label: 'Ovqatlanish', value: mealCopy } : null,
-    tour.nights ? { label: 'Tun', value: `${tour.nights} tun` } : null,
+    durationCopy ? { label: 'Davomiyligi', value: durationCopy } : null,
     tour.departureCity ? { label: "Jo'nash", value: tour.departureCity } : null,
-    tour.destinationCountry ? { label: 'Mamlakat', value: tour.destinationCountry } : null,
-    tour.availabilityStatus ? { label: 'Mavjudlik', value: AVAILABILITY_LABELS[tour.availabilityStatus] || tour.availabilityStatus } : null,
-    tour.flightSeatStatus ? { label: 'Avia', value: FLIGHT_LABELS[tour.flightSeatStatus] || tour.flightSeatStatus } : null,
+    tour.destinationCountry ? { label: "Yo'nalish", value: tour.destinationCountry } : null,
+    { label: 'Avia', value: tour.flightIncluded ? 'Narxga kiritilgan' : 'Alohida' },
     tour.priceBasis ? { label: 'Narx', value: tour.priceBasis } : null,
+    tour.discount ? { label: 'Chegirma', value: tour.discount } : null,
   ].filter(Boolean) as { label: string; value: string }[];
+
+  // Narx kafolati countdown
+  const lockRemainingMs = tour.priceLockUntil ? new Date(tour.priceLockUntil).getTime() - now : 0;
+  const lockActive = lockRemainingMs > 0;
+  const lockTotalSec = Math.max(0, Math.floor(lockRemainingMs / 1000));
+  const lockHh = Math.floor(lockTotalSec / 3600);
+  const lockMm = Math.floor((lockTotalSec % 3600) / 60);
+  const lockSs = lockTotalSec % 60;
+  const lockLabel = `${lockHh > 0 ? `${lockHh}:` : ''}${String(lockMm).padStart(2, '0')}:${String(lockSs).padStart(2, '0')}`;
   const agencyTelegram = tour.agency?.telegram ? tour.agency.telegram.replace(/^@/, '').trim() : null;
   const agencyPhone = tour.agency?.phone ? tour.agency.phone.trim() : null;
   const agencyWebsite = tour.agency?.website ? tour.agency.website.trim() : null;
@@ -204,6 +226,14 @@ export function TourDetailsScreen() {
           <Ionicons name="timer-outline" size={18} color={colors.success} />
           <Text style={styles.responseTimeText}>Agentlik odatda {tour.responseTimeMinutes || 45} daqiqada javob beradi.</Text>
         </View>
+        {lockActive ? (
+          <View style={[styles.responseTimeBox, { backgroundColor: colors.primaryPale }]}>
+            <Ionicons name="lock-closed-outline" size={18} color={colors.primary} />
+            <Text style={[styles.responseTimeText, { color: colors.primary }]}>
+              Narx kafolati: {lockLabel} — shu vaqt ichida narx o‘zgarmaydi.
+            </Text>
+          </View>
+        ) : null}
         {packageDetails.length > 0 || tour.instantConfirmation || tour.stopSale || tour.promo ? (
           <>
             <Text style={styles.sectionTitle}>Paket tafsilotlari</Text>
@@ -239,17 +269,6 @@ export function TourDetailsScreen() {
             {priceIncludes.map((item) => (
               <View key={item} style={styles.checkRow}>
                 <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-                <Text style={styles.optionTitle}>{item}</Text>
-              </View>
-            ))}
-          </>
-        ) : null}
-        {priceExcludes.length > 0 ? (
-          <>
-            <Text style={styles.sectionTitle}>Narxga kirmaydi</Text>
-            {priceExcludes.map((item) => (
-              <View key={item} style={styles.checkRow}>
-                <Ionicons name="remove-circle-outline" size={16} color={colors.error} />
                 <Text style={styles.optionTitle}>{item}</Text>
               </View>
             ))}

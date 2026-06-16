@@ -65,7 +65,13 @@ export type Tour = {
   destinationCountry?: string | null;
   tourGroup?: string | null;
   nights?: number | null;
+  days?: number | null;
   hotelIncluded?: boolean;
+  flightIncluded?: boolean;
+  discount?: string | null;
+  priceBasisPeople?: number | null;
+  priceLockMinutes?: number | null;
+  priceLockUntil?: string | null;
   hotelName?: string | null;
   hotelCategory?: string | null;
   hotelLocation?: string | null;

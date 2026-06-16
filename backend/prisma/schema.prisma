@@ -455,6 +455,12 @@ model Tour {
   promo               Boolean       @default(false)
   priceIncludes       String[]      @default([])
   priceExcludes       String[]      @default([])
+  days                Int?
+  flightIncluded      Boolean       @default(false)
+  discount            String?
+  priceBasisPeople    Int?
+  priceLockMinutes    Int?
+  priceLockUntil      DateTime?
   active              Boolean       @default(true)
   agencyId            String?
   agency              TourAgency?   @relation(fields: [agencyId], references: [id], onDelete: SetNull)

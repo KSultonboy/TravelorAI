@@ -19,87 +19,119 @@ import { agencyApi, itineraryToText, parseItinerary, readImage, statusLabel } fr
 import { useAgencySession } from "@/lib/agency/session";
 import type { Tour } from "@/lib/agency/types";
 
+type PriceBasisChoice = "per1" | "per2" | "custom";
+
 type TourForm = {
   title: string;
   city: string;
   subtitle: string;
-  duration: string;
-  responseTimeMinutes: string;
-  price: string;
-  priceMin: string;
-  priceCurrency: string;
-  priceBasis: string;
-  badge: string;
-  imageUrl: string;
-  highlights: string;
-  itineraryText: string;
   description: string;
   departureCity: string;
   destinationCountry: string;
   tourGroup: string;
   nights: string;
+  days: string;
+  responseTimeMinutes: string;
+  price: string;
+  priceCurrency: string;
+  priceBasisChoice: PriceBasisChoice;
+  priceBasisPeople: string;
+  badge: string;
+  imageUrl: string;
+  highlights: string;
+  itineraryText: string;
   hotelIncluded: boolean;
   hotelName: string;
   hotelCategory: string;
   hotelLocation: string;
   roomType: string;
   mealPlan: string;
+  discount: string;
   childPolicy: string;
-  flightSeatStatus: string;
-  availabilityStatus: string;
+  flightIncluded: boolean;
   instantConfirmation: boolean;
-  promo: boolean;
-  priceIncludes: string;
-  priceExcludes: string;
+  priceLockEnabled: boolean;
+  priceLockMinutes: string;
+  priceIncludesExtra: string;
 };
 
 type TextKey =
-  | "title" | "city" | "subtitle" | "duration" | "responseTimeMinutes" | "price" | "priceMin"
-  | "priceCurrency" | "priceBasis" | "badge" | "imageUrl" | "highlights" | "itineraryText" | "description"
-  | "departureCity" | "destinationCountry" | "tourGroup" | "nights" | "hotelName" | "hotelCategory"
-  | "hotelLocation" | "roomType" | "mealPlan" | "childPolicy" | "flightSeatStatus" | "availabilityStatus"
-  | "priceIncludes" | "priceExcludes";
+  | "title" | "city" | "subtitle" | "description" | "departureCity" | "destinationCountry"
+  | "tourGroup" | "nights" | "days" | "responseTimeMinutes" | "price" | "priceCurrency"
+  | "priceBasisPeople" | "badge" | "imageUrl" | "highlights" | "itineraryText" | "hotelName"
+  | "hotelCategory" | "hotelLocation" | "roomType" | "mealPlan" | "discount" | "childPolicy"
+  | "priceLockMinutes" | "priceIncludesExtra";
 
 const MEAL_PLAN_OPTIONS = [
   { value: "", label: "Tanlanmagan", hint: "" },
-  { value: "RO", label: "RO — Room Only", hint: "Faqat xona, ovqat yo'q" },
-  { value: "BB", label: "BB — Bed & Breakfast", hint: "Yotoq + nonushta" },
-  { value: "HB", label: "HB — Half Board", hint: "Nonushta + kechki ovqat" },
-  { value: "FB", label: "FB — Full Board", hint: "3 mahal ovqat" },
-  { value: "AI", label: "AI — All Inclusive", hint: "Ovqat + ichimlik + ayrim xizmatlar" },
-  { value: "UAI", label: "UAI — Ultra All Inclusive", hint: "Premium ichimlik va xizmatlar ham kiradi" },
-  { value: "FBT", label: "FBT — Full Board Treatment", hint: "Sanatoriy/davolanish paketlari uchun" },
+  { value: "RO", label: "RO — Faqat xona", hint: "Faqat xona, ovqat yo'q" },
+  { value: "BB", label: "BB — Nonushta bilan", hint: "Yotoq + nonushta" },
+  { value: "HB", label: "HB — Yarim pansion", hint: "Nonushta + kechki ovqat" },
+  { value: "FB", label: "FB — To'liq pansion", hint: "3 mahal ovqat" },
+  { value: "AI", label: "AI — Hammasi kiritilgan", hint: "Ovqat + ichimlik + ayrim xizmatlar" },
+  { value: "UAI", label: "UAI — Ultra hammasi kiritilgan", hint: "Premium ichimlik va xizmatlar ham kiradi" },
+  { value: "FBT", label: "FBT — Davolanish paketi", hint: "Sanatoriy/davolanish paketlari uchun" },
 ];
 
 const HOTEL_CATEGORY_OPTIONS = ["", "3*", "4*", "5*", "Boutique", "Apartment", "Villa"];
-const ROOM_TYPE_OPTIONS = ["", "Single", "Double", "Twin", "Triple", "Family", "Suite"];
-const CURRENCY_OPTIONS = ["", "USD", "UZS", "RUB", "EUR", "AED"];
-const PRICE_BASIS_OPTIONS = [
-  { value: "", label: "Ko'rsatilmagan" },
-  { value: "1 kishi uchun", label: "1 kishi uchun" },
-  { value: "2 kishilik xona uchun", label: "2 kishilik xona uchun" },
-  { value: "Paket uchun", label: "Butun paket uchun" },
+// Xona turlari — o'zbekcha + Moslashuvchan
+const ROOM_TYPE_OPTIONS = [
+  "",
+  "Bir kishilik",
+  "Ikki kishilik",
+  "Ikki alohida o'rin",
+  "Uch kishilik",
+  "Oilaviy",
+  "Lyuks",
+  "Moslashuvchan",
 ];
-const AVAILABILITY_OPTIONS = [
-  { value: "", label: "To'ldirilmagan" },
-  { value: "available", label: "Joy bor" },
-  { value: "few_seats", label: "Kam joy qoldi" },
-  { value: "on_request", label: "So'rov bo'yicha" },
-  { value: "sold_out", label: "Joy yo'q" },
+const CURRENCY_OPTIONS = ["USD", "UZS", "RUB", "EUR", "AED"];
+
+// Jo'nash shahri (O'zbekiston)
+const DEPARTURE_OPTIONS = [
+  "",
+  "Toshkent",
+  "Samarqand",
+  "Buxoro",
+  "Andijon",
+  "Farg'ona",
+  "Namangan",
+  "Qarshi",
+  "Nukus",
+  "Urganch",
+  "Xiva",
+  "Termiz",
+  "Jizzax",
+  "Navoiy",
 ];
-const FLIGHT_OPTIONS = [
-  { value: "", label: "To'ldirilmagan" },
-  { value: "not_included", label: "Avia kiritilmagan" },
-  { value: "available", label: "Avia joy bor" },
-  { value: "few_seats", label: "Avia joy kam" },
-  { value: "on_request", label: "Avia so'rov bo'yicha" },
-  { value: "no_seats", label: "Avia joy yo'q" },
+
+// Yo'nalish (davlat) — mobil filtrlar bilan mos
+const DESTINATION_OPTIONS = [
+  "",
+  "BAA (Dubay)",
+  "Turkiya",
+  "Misr",
+  "Saudiya Arabistoni",
+  "Tailand",
+  "Maldiv orollari",
+  "Gruziya",
+  "Malayziya",
+  "Indoneziya (Bali)",
+  "Qatar",
+  "Ozarbayjon",
+  "Yevropa",
+];
+
+const PRICE_BASIS_CHOICES: { value: PriceBasisChoice; label: string }[] = [
+  { value: "per1", label: "1 kishi uchun" },
+  { value: "per2", label: "2 kishi uchun" },
+  { value: "custom", label: "Boshqa (kishi sonini kiriting)" },
 ];
 
 const STEPS = [
-  { title: "Asosiy", hint: "Tour nomi va yo'nalishi", icon: MapPinned },
+  { title: "Asosiy", hint: "Yo'nalish, nom va davomiylik", icon: MapPinned },
   { title: "Mehmonxona va ovqat", hint: "Ixtiyoriy — paket tafsilotlari", icon: BedDouble },
-  { title: "Narx va mavjudlik", hint: "Narx siyosati, joylar, javob vaqti", icon: Wallet },
+  { title: "Narx va shartlar", hint: "Narx, avia, javob vaqti, narx kafolati", icon: Wallet },
   { title: "Kontent", hint: "Reja, tavsif va rasm", icon: ImagePlus },
 ];
 
@@ -107,39 +139,37 @@ const emptyForm: TourForm = {
   title: "",
   city: "",
   subtitle: "",
-  duration: "",
-  responseTimeMinutes: "45",
-  price: "",
-  priceMin: "",
-  priceCurrency: "USD",
-  priceBasis: "",
-  badge: "Latest",
-  imageUrl: "",
-  highlights: "",
-  itineraryText: "",
   description: "",
   departureCity: "",
   destinationCountry: "",
   tourGroup: "",
   nights: "",
+  days: "",
+  responseTimeMinutes: "45",
+  price: "",
+  priceCurrency: "USD",
+  priceBasisChoice: "per1",
+  priceBasisPeople: "",
+  badge: "Latest",
+  imageUrl: "",
+  highlights: "",
+  itineraryText: "",
   hotelIncluded: false,
   hotelName: "",
   hotelCategory: "",
   hotelLocation: "",
   roomType: "",
   mealPlan: "",
+  discount: "",
   childPolicy: "",
-  flightSeatStatus: "",
-  availabilityStatus: "",
+  flightIncluded: false,
   instantConfirmation: false,
-  promo: false,
-  priceIncludes: "",
-  priceExcludes: "",
+  priceLockEnabled: false,
+  priceLockMinutes: "",
+  priceIncludesExtra: "",
 };
 
-function joinList(value?: string[] | null) {
-  return Array.isArray(value) ? value.join("\n") : "";
-}
+const AUTO_INCLUDES = ["Mehmonxona", "Aviachipta"];
 
 function parseList(value: string) {
   return value
@@ -148,39 +178,49 @@ function parseList(value: string) {
     .filter(Boolean);
 }
 
+function peopleToChoice(people?: number | null): PriceBasisChoice {
+  if (people === 1) return "per1";
+  if (people === 2) return "per2";
+  return people && people > 0 ? "custom" : "per1";
+}
+
 function tourToForm(tour: Tour): TourForm {
+  const people = tour.priceBasisPeople ?? null;
+  const choice = peopleToChoice(people);
+  // priceIncludes'dan avtomatik (hotel/avia) qatorlarni olib tashlab, qolganini "qo'shimcha"ga
+  const extras = (tour.priceIncludes || []).filter((item) => !AUTO_INCLUDES.includes(item.trim()));
   return {
     title: tour.title || "",
     city: tour.city || "",
     subtitle: tour.subtitle || "",
-    duration: tour.duration || "",
-    responseTimeMinutes: String(tour.responseTimeMinutes ?? 45),
-    price: tour.price || "",
-    priceMin: tour.priceMin != null ? String(tour.priceMin) : "",
-    priceCurrency: tour.priceCurrency || "USD",
-    priceBasis: tour.priceBasis || "",
-    badge: tour.badge || "Latest",
-    imageUrl: tour.imageUrl || "",
-    highlights: (tour.highlights || []).join(", "),
-    itineraryText: itineraryToText(tour.itinerary),
     description: tour.description || "",
     departureCity: tour.departureCity || "",
     destinationCountry: tour.destinationCountry || "",
     tourGroup: tour.tourGroup || "",
     nights: tour.nights != null ? String(tour.nights) : "",
+    days: tour.days != null ? String(tour.days) : "",
+    responseTimeMinutes: String(tour.responseTimeMinutes ?? 45),
+    price: tour.price || "",
+    priceCurrency: tour.priceCurrency || "USD",
+    priceBasisChoice: choice,
+    priceBasisPeople: choice === "custom" && people ? String(people) : "",
+    badge: tour.badge || "Latest",
+    imageUrl: tour.imageUrl || "",
+    highlights: (tour.highlights || []).join(", "),
+    itineraryText: itineraryToText(tour.itinerary),
     hotelIncluded: Boolean(tour.hotelIncluded),
     hotelName: tour.hotelName || "",
     hotelCategory: tour.hotelCategory || "",
     hotelLocation: tour.hotelLocation || "",
     roomType: tour.roomType || "",
     mealPlan: tour.mealPlan || "",
+    discount: tour.discount || "",
     childPolicy: tour.childPolicy || "",
-    flightSeatStatus: tour.flightSeatStatus || "",
-    availabilityStatus: tour.availabilityStatus || "",
+    flightIncluded: Boolean(tour.flightIncluded),
     instantConfirmation: Boolean(tour.instantConfirmation),
-    promo: Boolean(tour.promo),
-    priceIncludes: joinList(tour.priceIncludes),
-    priceExcludes: joinList(tour.priceExcludes),
+    priceLockEnabled: Boolean(tour.priceLockMinutes && tour.priceLockMinutes > 0),
+    priceLockMinutes: tour.priceLockMinutes ? String(tour.priceLockMinutes) : "",
+    priceIncludesExtra: extras.join("\n"),
   };
 }
 
@@ -207,14 +247,22 @@ export default function TourEditor({ tourId }: { tourId?: string }) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  function toggle(key: "hotelIncluded" | "instantConfirmation" | "promo") {
+  function toggle(key: "hotelIncluded" | "flightIncluded" | "instantConfirmation") {
     setForm((current) => ({ ...current, [key]: !current[key] }));
   }
 
   function validateStep(index: number): boolean {
     if (index === 0) {
-      if (!form.title.trim() || !form.city.trim() || !form.duration.trim()) {
-        setError("Tour nomi, shahar va davomiylik majburiy.");
+      if (!form.departureCity.trim() || !form.destinationCountry.trim()) {
+        setError("Qayerdan va qayerga — ikkalasini tanlang.");
+        return false;
+      }
+      if (!form.title.trim() || !form.city.trim() || !form.subtitle.trim()) {
+        setError("Tour nomi, shahar/kurort va qisqa subtitle majburiy.");
+        return false;
+      }
+      if (!form.days.trim()) {
+        setError("Kunduzlar sonini kiriting.");
         return false;
       }
     }
@@ -244,6 +292,22 @@ export default function TourEditor({ tourId }: { tourId?: string }) {
     }
   }
 
+  function buildDuration(): string {
+    const d = Number(form.days) || 0;
+    const n = Number(form.nights) || 0;
+    const parts: string[] = [];
+    if (d > 0) parts.push(`${d} kun`);
+    if (n > 0) parts.push(`${n} kecha`);
+    return parts.join(", ") || form.days.trim() || "Tur";
+  }
+
+  function buildPriceBasis(): { label: string; people: number | undefined } {
+    if (form.priceBasisChoice === "per1") return { label: "1 kishi uchun", people: 1 };
+    if (form.priceBasisChoice === "per2") return { label: "2 kishi uchun", people: 2 };
+    const n = Number(form.priceBasisPeople) || 0;
+    return { label: n > 0 ? `${n} kishi uchun` : "Boshqa", people: n > 0 ? n : undefined };
+  }
+
   async function save(submit: boolean) {
     if (!validateStep(0)) {
       setStep(0);
@@ -252,39 +316,48 @@ export default function TourEditor({ tourId }: { tourId?: string }) {
     setBusy(submit ? "submit" : "draft");
     setError("");
     try {
+      const basis = buildPriceBasis();
+      const includes = [
+        ...(form.hotelIncluded ? ["Mehmonxona"] : []),
+        ...(form.flightIncluded ? ["Aviachipta"] : []),
+        ...parseList(form.priceIncludesExtra),
+      ];
+      const dedupedIncludes = Array.from(new Set(includes));
+
       const payload = {
         title: form.title,
         city: form.city,
         subtitle: form.subtitle,
-        duration: form.duration,
+        description: form.description,
+        duration: buildDuration(),
         responseTimeMinutes: Number(form.responseTimeMinutes || 45),
         price: form.price,
-        priceMin: form.priceMin ? Number(form.priceMin) : undefined,
         priceCurrency: form.priceCurrency,
-        priceBasis: form.priceBasis,
+        priceBasis: basis.label,
+        priceBasisPeople: basis.people,
         badge: form.badge,
         imageUrl: form.imageUrl,
         highlights: form.highlights.split(",").map((value) => value.trim()).filter(Boolean),
         itinerary: parseItinerary(form.itineraryText),
-        description: form.description,
         departureCity: form.departureCity,
         destinationCountry: form.destinationCountry,
         tourGroup: form.tourGroup,
         nights: form.nights ? Number(form.nights) : undefined,
+        days: form.days ? Number(form.days) : undefined,
         hotelIncluded: form.hotelIncluded,
+        flightIncluded: form.flightIncluded,
         hotelName: form.hotelName,
         hotelCategory: form.hotelCategory,
         hotelLocation: form.hotelLocation,
         roomType: form.roomType,
         mealPlan: form.mealPlan,
         mealPlanLabel: MEAL_PLAN_OPTIONS.find((option) => option.value === form.mealPlan)?.hint || undefined,
+        discount: form.discount,
         childPolicy: form.childPolicy,
-        flightSeatStatus: form.flightSeatStatus,
-        availabilityStatus: form.availabilityStatus,
         instantConfirmation: form.instantConfirmation,
-        promo: form.promo,
-        priceIncludes: parseList(form.priceIncludes),
-        priceExcludes: parseList(form.priceExcludes),
+        promo: Boolean(form.discount.trim()),
+        priceLockMinutes: form.priceLockEnabled ? Number(form.priceLockMinutes || 0) : 0,
+        priceIncludes: dedupedIncludes,
       };
 
       let savedId = tourId;
@@ -327,11 +400,11 @@ export default function TourEditor({ tourId }: { tourId?: string }) {
   const isLastStep = step === STEPS.length - 1;
   const mealHint = MEAL_PLAN_OPTIONS.find((option) => option.value === form.mealPlan)?.hint;
 
-  function renderInput(key: TextKey, label: string, placeholder = "") {
+  function renderInput(key: TextKey, label: string, placeholder = "", type = "text") {
     return (
       <label key={key}>
         <span>{label}</span>
-        <input placeholder={placeholder} value={form[key] as string} onChange={(event) => update(key, event.target.value)} />
+        <input type={type} placeholder={placeholder} value={form[key] as string} onChange={(event) => update(key, event.target.value)} />
       </label>
     );
   }
@@ -395,20 +468,20 @@ export default function TourEditor({ tourId }: { tourId?: string }) {
       <div className={`agency-form-grid agency-wizard-pane agency-wizard-pane--${direction}`} key={step}>
         {step === 0 ? (
           <>
-            {renderInput("title", "Tour nomi *")}
-            {renderInput("city", "Shahar / kurort *")}
-            {renderInput("subtitle", "Qisqa subtitle")}
-            {renderInput("duration", "Davomiyligi (masalan: 7 kun) *")}
-            {renderInput("departureCity", "Jo'nash shahri", "Toshkent")}
-            {renderInput("destinationCountry", "Mamlakat", "BAA, Turkiya...")}
-            {renderInput("nights", "Tunlar soni", "6")}
+            {renderSelect("departureCity", "Qayerdan (jo'nash shahri) *", DEPARTURE_OPTIONS.map((value) => ({ value, label: value || "Tanlang" })))}
+            {renderSelect("destinationCountry", "Qayerga (yo'nalish) *", DESTINATION_OPTIONS.map((value) => ({ value, label: value || "Tanlang" })))}
+            {renderInput("title", "Tour nomi *", "Dubay sarguzashtlari")}
+            {renderInput("city", "Shahar / kurort *", "Dubai, Antalya...")}
+            {renderInput("subtitle", "Qisqa subtitle *", "Lyuks mehmonxona + ekskursiyalar")}
             {renderInput("tourGroup", "Tour guruhi", "Plyaj, Ziyorat, Shahar...")}
+            {renderInput("nights", "Nechta kecha", "6", "number")}
+            {renderInput("days", "Nechta kunduz *", "7", "number")}
           </>
         ) : null}
 
         {step === 1 ? (
           <>
-            <div className="agency-checkbox-group">
+            <div className="agency-checkbox-group agency-wide">
               <label className="agency-checkbox-row">
                 <input checked={form.hotelIncluded} onChange={() => toggle("hotelIncluded")} type="checkbox" />
                 Mehmonxona paketga kiritilgan
@@ -416,7 +489,7 @@ export default function TourEditor({ tourId }: { tourId?: string }) {
             </div>
             {renderInput("hotelName", "Mehmonxona nomi", "Rixos Premium...")}
             {renderSelect("hotelCategory", "Kategoriya", HOTEL_CATEGORY_OPTIONS.map((value) => ({ value, label: value || "Tanlanmagan" })))}
-            {renderInput("hotelLocation", "Joylashuv", "Dubai Marina, 1-qator...")}
+            {renderInput("hotelLocation", "Joylashuv (ixtiyoriy)", "Dubai Marina, 1-qator...")}
             {renderSelect("roomType", "Xona turi", ROOM_TYPE_OPTIONS.map((value) => ({ value, label: value || "Tanlanmagan" })))}
             <label>
               <span>Ovqatlanish (meal plan)</span>
@@ -427,37 +500,56 @@ export default function TourEditor({ tourId }: { tourId?: string }) {
               </select>
               {mealHint ? <small className="agency-field-hint">{mealHint}</small> : null}
             </label>
+            {renderInput("discount", "Chegirma", "Erta bron -15% / 100$ chegirma")}
             {renderInput("childPolicy", "Bolalar siyosati", "0-6 yosh bepul, 7-12 yosh -50%...")}
           </>
         ) : null}
 
         {step === 2 ? (
           <>
-            {renderInput("price", "Narx matni", "$650 dan")}
-            {renderInput("priceMin", "Minimal narx (raqam)")}
-            {renderSelect("priceCurrency", "Valyuta", CURRENCY_OPTIONS.map((value) => ({ value, label: value || "Tanlanmagan" })))}
-            {renderSelect("priceBasis", "Narx nimaga", PRICE_BASIS_OPTIONS)}
-            {renderSelect("availabilityStatus", "Joylar holati", AVAILABILITY_OPTIONS)}
-            {renderSelect("flightSeatStatus", "Avia chipta", FLIGHT_OPTIONS)}
-            {renderInput("responseTimeMinutes", "Javob vaqti (daqiqa)")}
-            {renderInput("badge", "Badge (Latest / Popular)")}
-            <div className="agency-checkbox-group">
+            {renderInput("price", "Narx matni *", "$650 dan")}
+            {renderSelect("priceCurrency", "Valyuta", CURRENCY_OPTIONS.map((value) => ({ value, label: value })))}
+            {renderSelect("priceBasisChoice" as TextKey, "Narx nimaga", PRICE_BASIS_CHOICES)}
+            {form.priceBasisChoice === "custom"
+              ? renderInput("priceBasisPeople", "Necha kishi uchun", "4", "number")
+              : null}
+            {renderInput("responseTimeMinutes", "Javob vaqti (daqiqa)", "45", "number")}
+            {renderInput("badge", "Badge (Latest / Popular)", "Latest")}
+
+            <div className="agency-checkbox-group agency-wide">
+              <label className="agency-checkbox-row">
+                <input checked={form.flightIncluded} onChange={() => toggle("flightIncluded")} type="checkbox" />
+                Avia chipta narxga kiritilgan
+              </label>
               <label className="agency-checkbox-row">
                 <input checked={form.instantConfirmation} onChange={() => toggle("instantConfirmation")} type="checkbox" />
                 Tezkor tasdiqlash (instant confirmation)
               </label>
-              <label className="agency-checkbox-row">
-                <input checked={form.promo} onChange={() => toggle("promo")} type="checkbox" />
-                Promo tour
-              </label>
             </div>
-            <label className="agency-wide">
-              <span>Narxga KIRADI (har qatorda bittadan)</span>
-              <textarea placeholder={"Aviachipta\nTransfer\nMehmonxona\nSug'urta"} value={form.priceIncludes} onChange={(event) => update("priceIncludes", event.target.value)} />
+
+            <label>
+              <span>Narx kafolati (muddat)</span>
+              <select
+                value={form.priceLockEnabled ? "yes" : "no"}
+                onChange={(event) => setForm((c) => ({ ...c, priceLockEnabled: event.target.value === "yes" }))}
+              >
+                <option value="no">Yo&apos;q</option>
+                <option value="yes">Ha</option>
+              </select>
+              <small className="agency-field-hint">Ha bo&apos;lsa — shu daqiqalar davomida narx o&apos;zgarmaydi (ilovada orqaga sanaydi).</small>
             </label>
+            {form.priceLockEnabled ? renderInput("priceLockMinutes", "Necha daqiqa narx kafolatlanadi", "60", "number") : null}
+
             <label className="agency-wide">
-              <span>Narxga KIRMAYDI</span>
-              <textarea placeholder={"Viza\nShaxsiy xarajatlar\nQo'shimcha ekskursiyalar"} value={form.priceExcludes} onChange={(event) => update("priceExcludes", event.target.value)} />
+              <span>Narxga KIRADI</span>
+              <small className="agency-field-hint">
+                Mehmonxona va Avia checkboxlari avtomatik qo&apos;shiladi. Qo&apos;shimchasini har qatorga bittadan yozing.
+              </small>
+              <textarea
+                placeholder={"Transfer\nSug'urta\nEkskursiyalar"}
+                value={form.priceIncludesExtra}
+                onChange={(event) => update("priceIncludesExtra", event.target.value)}
+              />
             </label>
           </>
         ) : null}
