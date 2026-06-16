@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   ImageBackground,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -23,6 +24,23 @@ import { getJSON, saveJSON } from '../../src/utils/storage';
 
 const TOURS_CACHE_KEY = 'agency_tours_cache_v1';
 
+// "Qayerga" dropdown — yo'nalishlar. match: tur matnida qidiriladigan kalit so'zlar.
+const COUNTRY_OPTIONS: { key: string; label: string; match: string[] }[] = [
+  { key: 'all', label: 'Barchasi', match: [] },
+  { key: 'uae', label: 'BAA (Dubay)', match: ['baa', 'dubai', 'dubay', 'uae', 'emirat', 'abu dhabi', 'abu-dhabi'] },
+  { key: 'turkey', label: 'Turkiya', match: ['turkiya', 'turkey', 'turk', 'antalya', 'istanbul', 'stambul', 'bodrum'] },
+  { key: 'egypt', label: 'Misr', match: ['misr', 'egypt', 'sharm', 'hurghada'] },
+  { key: 'saudi', label: 'Saudiya Arabistoni', match: ['saudiya', 'saudi', 'makka', 'madina', 'umra', 'umrah', 'hajj', 'haj'] },
+  { key: 'thailand', label: 'Tailand', match: ['tailand', 'thailand', 'phuket', 'bangkok', 'pattaya'] },
+  { key: 'maldives', label: 'Maldiv orollari', match: ['maldiv', 'maldive'] },
+  { key: 'georgia', label: 'Gruziya', match: ['gruziya', 'georgia', 'batumi', 'tbilisi'] },
+  { key: 'malaysia', label: 'Malayziya', match: ['malayziya', 'malaysia', 'kuala'] },
+  { key: 'indonesia', label: 'Indoneziya (Bali)', match: ['indoneziya', 'indonesia', 'bali', 'jakarta'] },
+  { key: 'qatar', label: 'Qatar', match: ['qatar', 'doha'] },
+  { key: 'azerbaijan', label: 'Ozarbayjon', match: ['ozarbayjon', 'azerbaijan', 'baku', 'boku'] },
+  { key: 'europe', label: 'Yevropa', match: ['yevropa', 'europe', 'parij', 'paris', 'rim', 'rome', 'london', 'barcelona', 'praga'] },
+];
+
 export default function ToursScreen() {
   const insets = useSafeAreaInsets();
   const safeBottom = Math.max(insets.bottom, 22);
@@ -32,6 +50,20 @@ export default function ToursScreen() {
   const [tours, setTours] = useState<HomeTourItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedKey, setSelectedKey] = useState('all'); // dropdown'da tanlangan
+  const [appliedKey, setAppliedKey] = useState('all'); // "Qidirish" bosilgach qo'llangan
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const selectedLabel = COUNTRY_OPTIONS.find((o) => o.key === selectedKey)?.label || 'Barchasi';
+
+  const filteredTours = useMemo(() => {
+    const opt = COUNTRY_OPTIONS.find((o) => o.key === appliedKey);
+    if (!opt || opt.key === 'all' || opt.match.length === 0) return tours;
+    return tours.filter((t) => {
+      const hay = `${t.title} ${t.city} ${t.destinationCountry || ''} ${t.subtitle || ''}`.toLowerCase();
+      return opt.match.some((m) => hay.includes(m));
+    });
+  }, [tours, appliedKey]);
 
   // Keshdan darrov ko'rsatamiz — birinchi yuklash sekin/uzilsa ham bo'sh qotmaydi.
   useEffect(() => {
@@ -150,6 +182,21 @@ export default function ToursScreen() {
         <Text style={styles.pageSubtitle}>Tasdiqlangan agentlik turlari bilan tanishing va to‘g‘ridan-to‘g‘ri bron qiling.</Text>
       </View>
 
+      <View style={styles.filterCard}>
+        <Text style={styles.filterLabel}>Qayerga</Text>
+        <View style={styles.filterRow}>
+          <TouchableOpacity style={styles.dropdown} onPress={() => setPickerOpen(true)} activeOpacity={0.84}>
+            <Ionicons name="location-outline" size={16} color={colors.primary} />
+            <Text style={styles.dropdownText} numberOfLines={1}>{selectedLabel}</Text>
+            <Ionicons name="chevron-down" size={16} color={colors.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.searchBtn} onPress={() => setAppliedKey(selectedKey)} activeOpacity={0.86}>
+            <Ionicons name="search" size={16} color={colors.textInverse} />
+            <Text style={styles.searchBtnText}>Qidirish</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <ScrollView
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
@@ -160,8 +207,14 @@ export default function ToursScreen() {
             <ActivityIndicator size="small" color={colors.primary} />
             <Text style={styles.stateText}>Agentlik turlari yuklanmoqda...</Text>
           </View>
-        ) : tours.length > 0 ? (
-          tours.map(renderTourCard)
+        ) : filteredTours.length > 0 ? (
+          filteredTours.map(renderTourCard)
+        ) : appliedKey !== 'all' ? (
+          <View style={styles.stateCard}>
+            <Ionicons name="search-outline" size={26} color={colors.success} />
+            <Text style={styles.stateTitle}>Bu yo‘nalish bo‘yicha tur topilmadi</Text>
+            <Text style={styles.stateText}>Boshqa davlatni tanlang yoki «Barchasi»ni belgilang.</Text>
+          </View>
         ) : (
           <View style={styles.stateCard}>
             <Ionicons name="briefcase-outline" size={26} color={colors.success} />
@@ -171,6 +224,33 @@ export default function ToursScreen() {
         )}
         <View style={{ height: 120 + safeBottom }} />
       </ScrollView>
+
+      <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setPickerOpen(false)}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Qayerga sayohat?</Text>
+            <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+              {COUNTRY_OPTIONS.map((opt) => {
+                const active = opt.key === selectedKey;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[styles.countryRow, active && styles.countryRowActive]}
+                    onPress={() => {
+                      setSelectedKey(opt.key);
+                      setPickerOpen(false);
+                    }}
+                    activeOpacity={0.82}
+                  >
+                    <Text style={[styles.countryText, active && styles.countryTextActive]}>{opt.label}</Text>
+                    {active ? <Ionicons name="checkmark" size={18} color={colors.primary} /> : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -201,7 +281,7 @@ function createStyles(colors: AppColors) {
       elevation: 2,
     },
     brand: { fontFamily: FONTS.display, fontSize: 13, color: colors.text },
-    pageIntro: { paddingHorizontal: SPACING.lg, marginBottom: SPACING.lg },
+    pageIntro: { paddingHorizontal: SPACING.lg, marginBottom: SPACING.sm },
     pageTitle: { fontFamily: FONTS.display, fontSize: 24, color: colors.text, marginBottom: 4 },
     pageSubtitle: {
       maxWidth: 320,
@@ -210,6 +290,64 @@ function createStyles(colors: AppColors) {
       lineHeight: 18,
       color: colors.textMuted,
     },
+    filterCard: {
+      marginHorizontal: SPACING.lg,
+      marginBottom: SPACING.md,
+      padding: SPACING.md,
+      borderRadius: RADIUS.lg,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.borderLight,
+      gap: SPACING.sm,
+    },
+    filterLabel: { fontFamily: FONTS.semibold, fontSize: 12, color: colors.textMuted },
+    filterRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+    dropdown: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+      height: 46,
+      borderRadius: RADIUS.md,
+      backgroundColor: colors.cardMuted,
+      paddingHorizontal: SPACING.md,
+    },
+    dropdownText: { flex: 1, fontFamily: FONTS.semibold, fontSize: 14, color: colors.text },
+    searchBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      height: 46,
+      paddingHorizontal: SPACING.lg,
+      borderRadius: RADIUS.md,
+      backgroundColor: colors.primary,
+    },
+    searchBtnText: { fontFamily: FONTS.semibold, fontSize: 14, color: colors.textInverse },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: colors.overlay,
+      justifyContent: 'center',
+      paddingHorizontal: SPACING.lg,
+    },
+    modalCard: {
+      borderRadius: RADIUS.xl,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.borderLight,
+      padding: SPACING.lg,
+    },
+    modalTitle: { fontFamily: FONTS.display, fontSize: 18, color: colors.text, marginBottom: SPACING.sm },
+    countryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.sm,
+      borderRadius: RADIUS.md,
+    },
+    countryRowActive: { backgroundColor: colors.primaryPale },
+    countryText: { fontFamily: FONTS.medium, fontSize: 15, color: colors.text },
+    countryTextActive: { fontFamily: FONTS.semibold, color: colors.primary },
     scroll: { flex: 1 },
     stateCard: {
       marginHorizontal: SPACING.lg,
