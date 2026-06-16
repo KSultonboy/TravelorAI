@@ -593,12 +593,10 @@ export default function PlannerScreen() {
   );
 
   const anim = useRef(new Animated.Value(1)).current;
-  const progress = useRef(new Animated.Value(1 / steps.length)).current;
   useEffect(() => {
-    Animated.timing(progress, { toValue: (step + 1) / steps.length, duration: 250, useNativeDriver: false }).start();
     anim.setValue(0);
     Animated.spring(anim, { toValue: 1, useNativeDriver: true, speed: 18, bounciness: 7 }).start();
-  }, [anim, progress, step, steps.length]);
+  }, [anim, step]);
 
   useEffect(() => {
     if (!loading) {
@@ -696,10 +694,6 @@ export default function PlannerScreen() {
     const usd = Math.round(budgetUzs / USD_TO_UZS);
     return `~ $${usd} USD`;
   }, [budgetRaw, budgetUzs, form.currency]);
-  const progressWidth = useMemo(
-    () => progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
-    [progress]
-  );
   const plannerMetrics = useMemo(
     () => [
       { label: tt('planner.metricCity', 'Shahar'), value: form.city || '-' },
@@ -890,8 +884,6 @@ export default function PlannerScreen() {
       </View>
 
       <View style={styles.hero}>
-            <View style={styles.heroOrbOne} />
-            <View style={styles.heroOrbTwo} />
             <View style={styles.heroTopRow}>
               <View style={styles.heroBadge}>
                 <Ionicons name="sparkles-outline" size={14} color={colors.gold} />
@@ -909,7 +901,6 @@ export default function PlannerScreen() {
                 </View>
               ))}
             </View>
-            <View style={styles.progressTrack}><Animated.View style={[styles.progressFill, { width: progressWidth }]} /></View>
           </View>
           <View style={styles.stepRail}>
             {steps.map((item, index) => (
@@ -1153,24 +1144,6 @@ function createStyles(colors: AppColors) {
       shadowRadius: 32,
       elevation: 10,
     },
-    heroOrbOne: {
-      position: 'absolute',
-      width: 170,
-      height: 170,
-      borderRadius: 85,
-      right: -60,
-      top: -54,
-      backgroundColor: 'rgba(104,219,169,0.18)',
-    },
-    heroOrbTwo: {
-      position: 'absolute',
-      width: 118,
-      height: 118,
-      borderRadius: 59,
-      left: -34,
-      bottom: -50,
-      backgroundColor: 'rgba(222,194,154,0.16)',
-    },
     heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.lg },
     heroBadge: {
       flexDirection: 'row',
@@ -1204,8 +1177,6 @@ function createStyles(colors: AppColors) {
     },
     heroMetricValue: { fontFamily: FONTS.semibold, fontSize: 13, color: colors.textInverse },
     heroMetricLabel: { marginTop: 3, fontFamily: FONTS.regular, fontSize: 10, color: 'rgba(255,255,255,0.62)' },
-    progressTrack: { height: 6, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: RADIUS.full, overflow: 'hidden' },
-    progressFill: { height: 6, backgroundColor: colors.aiAccent, borderRadius: RADIUS.full },
     stepRail: { flexDirection: 'row', gap: SPACING.sm, paddingHorizontal: SPACING.lg, marginBottom: SPACING.md },
     stepDot: {
       flex: 1,
@@ -1371,5 +1342,6 @@ function createStyles(colors: AppColors) {
       textAlign: 'center',
       lineHeight: 18,
     }
+  
   });
 }
