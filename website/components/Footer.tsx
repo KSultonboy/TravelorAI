@@ -3,29 +3,29 @@ import { Compass, Instagram, Youtube } from "lucide-react";
 
 const FOOTER_COLUMNS = [
   {
-    title: "Platform",
+    title: "Platforma",
     links: [
-      ["AI Trip Planner", "#how-it-works"],
-      ["Explore Destinations", "#features"],
-      ["How It Works", "#how-it-works"],
-      ["Agency Portal", "/agency"],
+      ["AI sayohat rejasi", "#how-it-works"],
+      ["Yo‘nalishlar", "#features"],
+      ["Turlar", "/tours"],
+      ["Agentlik portali", "/agency"],
     ],
   },
   {
-    title: "Company",
+    title: "Kompaniya",
     links: [
-      ["About Us", "#how-it-works"],
+      ["Biz haqimizda", "#how-it-works"],
       ["Instagram", "https://www.instagram.com/traveloraai/"],
       ["YouTube", "https://www.youtube.com/@TravelorAI"],
     ],
   },
   {
-    title: "Support",
+    title: "Yordam",
     links: [
-      ["Help Center", "mailto:support@travelorai.com"],
-      ["Contact Us", "mailto:support@travelorai.com"],
-      ["Privacy Policy", "__PRIVACY__"],
-      ["Delete Account", "__DELETE_ACCOUNT__"],
+      ["Yordam markazi", "mailto:support@travelorai.com"],
+      ["Biz bilan bog‘lanish", "mailto:support@travelorai.com"],
+      ["Maxfiylik siyosati", "__PRIVACY__"],
+      ["Hisobni o‘chirish", "__DELETE_ACCOUNT__"],
     ],
   },
 ];
@@ -66,8 +66,8 @@ export default function Footer() {
               </span>
             </Link>
             <p>
-              Redefining exploration with the power of artificial intelligence. Your personal
-              travel companion, available 24/7.
+              Sun’iy intellekt kuchi bilan sayohatni qaytadan kashf etamiz. Shaxsiy sayohat
+              hamrohingiz — 24/7 yoningizda.
             </p>
             <div className="lp-footer__socials">
               {SOCIALS.map(({ label, href, icon: Icon }) => (
@@ -103,13 +103,13 @@ export default function Footer() {
         </div>
 
         <div className="lp-footer__bottom">
-          <span>&copy; {currentYear} TravelorAI. All rights reserved.</span>
+          <span>&copy; {currentYear} TravelorAI. Barcha huquqlar himoyalangan.</span>
           <span className="lp-footer__legal">
-            <a href={privacyUrl} target="_blank" rel="noopener noreferrer">Privacy</a>
+            <a href={privacyUrl} target="_blank" rel="noopener noreferrer">Maxfiylik</a>
             <span>&middot;</span>
-            <Link href="#how-it-works">How it works</Link>
+            <Link href="#how-it-works">Qanday ishlaydi</Link>
             <span>&middot;</span>
-            <a href={deleteAccountUrl} target="_blank" rel="noopener noreferrer">Delete account</a>
+            <a href={deleteAccountUrl} target="_blank" rel="noopener noreferrer">Hisobni o‘chirish</a>
           </span>
         </div>
       </div>

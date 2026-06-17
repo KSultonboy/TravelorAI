@@ -17,11 +17,11 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
   title: {
-    default: "TravelorAI - Global AI travel platform",
+    default: "TravelorAI — AI sayohat platformasi",
     template: "%s | TravelorAI",
   },
   description:
-    "Plan trips around the world with AI. Verified places, smart routes, agency rankings and mobile-first travel experience.",
+    "AI yordamida sayohatlarni rejalashtiring. Tasdiqlangan joylar, aqlli marshrutlar, agentlik reytinglari va mobil-birinchi sayohat tajribasi.",
   keywords: [
     "TravelorAI",
     "global travel planner",
@@ -43,9 +43,9 @@ export const metadata: Metadata = {
     googleBot: { index: true, follow: true, "max-image-preview": "large" },
   },
   openGraph: {
-    title: "TravelorAI - Global AI travel platform",
+    title: "TravelorAI — AI sayohat platformasi",
     description:
-      "Create personal travel plans for destinations around the world. AI planner, verified places, agency rankings and smart discovery.",
+      "Dunyo bo‘ylab yo‘nalishlar uchun shaxsiy sayohat rejalarini yarating. AI rejalashtiruvchi, tasdiqlangan joylar, agentlik reytinglari va aqlli kashfiyot.",
     url: BASE_URL,
     siteName: "TravelorAI",
     type: "website",
@@ -56,14 +56,14 @@ export const metadata: Metadata = {
         url: "/og-image.svg",
         width: 1200,
         height: 630,
-        alt: "TravelorAI - Global AI travel platform",
+        alt: "TravelorAI — AI sayohat platformasi",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "TravelorAI - Global AI travel platform",
-    description: "Create personal travel plans for destinations around the world.",
+    title: "TravelorAI — AI sayohat platformasi",
+    description: "Dunyo bo‘ylab yo‘nalishlar uchun shaxsiy sayohat rejalarini yarating.",
     images: ["/og-image.svg"],
   },
   alternates: {

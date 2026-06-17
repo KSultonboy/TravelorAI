@@ -68,17 +68,17 @@ export default function AppPreview({
         <div className="lp-wrap">
           <div className="section-head section-head--center lp-reveal">
             <div>
-              <p className="section-kicker">Everything in one place</p>
-              <h2 id="product-showcase-title">From idea to itinerary</h2>
-              <p>TravelorAI combines planning, discovery and trip management so every decision stays clear.</p>
+              <p className="section-kicker">Hammasi bir joyda</p>
+              <h2 id="product-showcase-title">G‘oyadan rejagacha</h2>
+              <p>TravelorAI rejalashtirish, kashf etish va sayohatni boshqarishni birlashtiradi — har bir qaror aniq qoladi.</p>
             </div>
           </div>
           <div className="product-grid">
             {[
-              { icon: Sparkles, title: "Personal AI plans", text: "Generate an itinerary around your budget, dates and interests." },
-              { icon: MapPinned, title: "Verified discovery", text: "Explore places with useful context, ratings and route information." },
-              { icon: CalendarCheck2, title: "Day-by-day control", text: "Edit activities, organize timing and keep the whole trip in one view." },
-              { icon: WalletCards, title: "Budget visibility", text: "Track estimated costs and make choices that fit your travel style." },
+              { icon: Sparkles, title: "Shaxsiy AI rejalar", text: "Byudjet, sanalar va qiziqishlaringizga mos reja yarating." },
+              { icon: MapPinned, title: "Tasdiqlangan kashfiyot", text: "Joylarni foydali kontekst, reyting va marshrut ma’lumotlari bilan o‘rganing." },
+              { icon: CalendarCheck2, title: "Kun bo‘yicha nazorat", text: "Faoliyatlarni tahrirlang, vaqtni tartibga soling va butun sayohatni bir ko‘rinishda saqlang." },
+              { icon: WalletCards, title: "Byudjet shaffofligi", text: "Taxminiy xarajatlarni kuzating va uslubingizga mos tanlov qiling." },
             ].map(({ icon: Icon, title, text }) => (
               <article className="product-card lp-reveal" key={title}>
                 <span><Icon size={22} /></span>
@@ -93,8 +93,8 @@ export default function AppPreview({
       {topAgencies.length > 0 ? (
         <section className="trusted">
           <div className="lp-wrap lp-reveal">
-            <h2>Trusted by Top Agencies</h2>
-            <p>Active travel partners ranked by quality, reviews and traveler signals.</p>
+            <h2>Yetakchi agentliklar ishonchida</h2>
+            <p>Sifat, sharhlar va sayohatchilar baholari bo‘yicha saralangan faol hamkorlar.</p>
             <div className="agency-row">
               {topAgencies.map((agency) => (
                 <span
@@ -115,13 +115,13 @@ export default function AppPreview({
             <div className="stories-panel lp-reveal">
               <div className="stories-header">
                 <div>
-                  <h2>Traveler Stories</h2>
-                  <p>Don&apos;t just take our word for it. See what our community has to say.</p>
+                  <h2>Sayohatchilar fikrlari</h2>
+                  <p>Faqat bizning so‘zimizga ishonmang — jamoamiz nima deyishini ko‘ring.</p>
                 </div>
                 <div className="story-actions">
                   <button
                     type="button"
-                    aria-label="Previous stories"
+                    aria-label="Oldingi fikrlar"
                     disabled={pageCount <= 1}
                     onClick={() => setStoryPage((current) => (current - 1 + pageCount) % pageCount)}
                   >
@@ -129,7 +129,7 @@ export default function AppPreview({
                   </button>
                   <button
                     type="button"
-                    aria-label="Next stories"
+                    aria-label="Keyingi fikrlar"
                     disabled={pageCount <= 1}
                     onClick={() => setStoryPage((current) => (current + 1) % pageCount)}
                   >

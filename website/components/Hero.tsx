@@ -69,29 +69,29 @@ export default function Hero({ slides = [] }: { slides?: LandingHeroSlide[] }) {
 
           <div className="hero-card__content">
             <div className="hero-copy" key={activeSlide?.id || "empty"}>
-              <div className="hero-kicker">AI powered travel</div>
-              <h1 className="hero-title">{activeSlide?.title || "Plan smarter. Travel better."}</h1>
+              <div className="hero-kicker">AI bilan sayohat</div>
+              <h1 className="hero-title">{activeSlide?.title || "Aqlli rejalashtiring. Yaxshiroq sayohat qiling."}</h1>
               <p className="hero-lead">
-                {activeSlide?.subtitle || "Create a personalized itinerary, discover verified places and organize every day of your trip in one app."}
+                {activeSlide?.subtitle || "Shaxsiy sayohat rejasini yarating, tasdiqlangan joylarni kashf eting va sayohatingizning har bir kunini bitta ilovada tartibga soling."}
               </p>
             </div>
           </div>
 
-          <div className="hero-search" aria-label="TravelorAI benefits">
+          <div className="hero-search" aria-label="TravelorAI afzalliklari">
             <div className="hero-search__item">
               <Sparkles size={17} />
-              AI itinerary
+              AI reja
             </div>
             <div className="hero-search__item">
               <ShieldCheck size={16} />
-              Verified places
+              Tasdiqlangan joylar
             </div>
             <div className="hero-search__item">
               <MapPin size={16} />
-              Smart routes
+              Aqlli marshrutlar
             </div>
             <Link className="hero-search__button" href={actionHref}>
-              Explore platform
+              Platformani ko‘rish
               <ArrowRight size={16} />
             </Link>
           </div>

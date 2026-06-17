@@ -12,18 +12,18 @@ type Step = {
 const STEPS: Step[] = [
   {
     icon: MessageSquareText,
-    title: "1. Tell us your dream",
-    desc: "Enter your destination, dates, preferences, and travel style so AI can begin.",
+    title: "1. Orzuingizni ayting",
+    desc: "Yo‘nalish, sanalar, afzalliklar va sayohat uslubingizni kiriting — AI shu asosda boshlaydi.",
   },
   {
     icon: Briefcase,
-    title: "2. AI crafts itinerary",
-    desc: "Our algorithm instantly generates a personal plan with places, hotels and time.",
+    title: "2. AI reja tuzadi",
+    desc: "Algoritmimiz joylar, mehmonxonalar va vaqt bilan shaxsiy rejani bir zumda yaratadi.",
   },
   {
     icon: Plane,
-    title: "3. Pack & Go",
-    desc: "Review, save, and follow your bookings directly from your trip plan.",
+    title: "3. Yig‘iling va jo‘nang",
+    desc: "Rejangizni ko‘ring, saqlang va bronlaringizni to‘g‘ridan-to‘g‘ri kuzating.",
   },
 ];
 
@@ -33,8 +33,8 @@ export default function HowItWorks() {
       <div className="lp-wrap">
         <div className="section-head lp-reveal" style={{ justifyContent: "center", textAlign: "center" }}>
           <div>
-            <h2>How TravelorAI Works</h2>
-            <p>Your perfect trip, generated in three simple steps using advanced AI travel intelligence.</p>
+            <h2>TravelorAI qanday ishlaydi</h2>
+            <p>Mukammal sayohatingiz — ilg‘or AI yordamida uchta oddiy qadamda tayyorlanadi.</p>
           </div>
         </div>
 

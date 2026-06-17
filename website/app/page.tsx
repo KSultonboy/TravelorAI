@@ -11,9 +11,9 @@ import type { LandingPlace } from "@/components/Destinations";
 import type { LandingAgency, LandingStory } from "@/components/AppPreview";
 
 export const metadata: Metadata = {
-  title: "TravelorAI - Global AI travel platform",
+  title: "TravelorAI — AI sayohat platformasi",
   description:
-    "Plan personal trips around the world with AI. Verified places, smart recommendations, agency rankings and seamless map redirects in one platform.",
+    "AI yordamida shaxsiy sayohatlarni rejalashtiring. Tasdiqlangan joylar, aqlli tavsiyalar, agentlik reytinglari va xarita yo‘naltirishlari — barchasi bitta platformada.",
   alternates: {
     canonical: "/",
   },

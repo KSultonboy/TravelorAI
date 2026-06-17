@@ -49,11 +49,11 @@ export default function Destinations({ places = [] }: { places?: LandingPlace[] 
       <div className="lp-wrap">
         <div className="section-head lp-reveal">
           <div>
-            <h2>Trending Destinations</h2>
-            <p>Discover highly rated places selected from verified travel data and community signals.</p>
+            <h2>Ommabop yo‘nalishlar</h2>
+            <p>Tasdiqlangan sayohat ma’lumotlari va jamoa baholari asosida tanlangan eng yuqori reytingli joylar.</p>
           </div>
           <Link className="view-link" href="#how-it-works">
-            How it works
+            Qanday ishlaydi
             <ArrowRight size={15} />
           </Link>
         </div>
@@ -80,19 +80,19 @@ export default function Destinations({ places = [] }: { places?: LandingPlace[] 
                 <div className="destination-card__content">
                   <span className="destination-card__city">{item.city}</span>
                   <h3>{item.name}</h3>
-                  <p>{item.description || item.info || "Personalized routes, verified places and local context."}</p>
+                  <p>{item.description || item.info || "Shaxsiy marshrutlar, tasdiqlangan joylar va mahalliy kontekst."}</p>
                   <div className="destination-card__meta">
                     <Star size={14} fill="currentColor" />
-                    {item.rating ? `${item.rating.toFixed(1)} rating` : "Backend verified"}
+                    {item.rating ? `${item.rating.toFixed(1)} reyting` : "Tasdiqlangan"}
                   </div>
                 </div>
               </Link>
             ))
           ) : (
             <div className="landing-empty lp-reveal">
-              <strong>New destinations are on the way.</strong>
-              <span>Use the mobile app to create an AI trip for any city while our featured collection grows.</span>
-              <Link href="#how-it-works">See how TravelorAI works <ArrowRight size={15} /></Link>
+              <strong>Yangi yo‘nalishlar tez orada.</strong>
+              <span>To‘plamimiz to‘ldirilayotgan bir paytda, istalgan shahar uchun AI sayohat rejasini mobil ilovada yarating.</span>
+              <Link href="#how-it-works">TravelorAI qanday ishlashini ko‘ring <ArrowRight size={15} /></Link>
             </div>
           )}
         </div>
