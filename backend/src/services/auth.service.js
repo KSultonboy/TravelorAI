@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const axios = require('axios');
 const { prisma } = require('../config/database');
+const { logger } = require('../config/logger');
 const {
   sendAccountDeleteCodeEmail,
   sendEmailChangeCodeEmail,
@@ -76,20 +77,33 @@ async function issueAuthCode({ user, type, newEmail }) {
     code,
     expiresInMinutes: ttlMinutes,
   };
-  let emailResult;
+
+  let sendFn;
   if (type === AuthCodeType.EMAIL_VERIFICATION) {
-    emailResult = await sendVerificationCodeEmail(mailPayload);
+    sendFn = () => sendVerificationCodeEmail(mailPayload);
   } else if (type === AuthCodeType.EMAIL_CHANGE) {
-    emailResult = await sendEmailChangeCodeEmail({ ...mailPayload, newEmail });
+    sendFn = () => sendEmailChangeCodeEmail({ ...mailPayload, newEmail });
   } else if (type === AuthCodeType.ACCOUNT_DELETE) {
-    emailResult = await sendAccountDeleteCodeEmail(mailPayload);
+    sendFn = () => sendAccountDeleteCodeEmail(mailPayload);
   } else {
-    emailResult = await sendPasswordResetCodeEmail(mailPayload);
+    sendFn = () => sendPasswordResetCodeEmail(mailPayload);
   }
 
+  // Emailni BLOKLAMASDAN (fire-and-forget) yuboramiz: Gmail SMTP 2-13s olishi mumkin,
+  // shuning uchun javobni kutdirib qo'ymaymiz. Kod allaqachon bazaga yozilgan —
+  // foydalanuvchi email kelganda kiritadi. Xato bo'lsa logga yozamiz.
+  Promise.resolve()
+    .then(sendFn)
+    .catch((err) =>
+      logger.error('Auth email send failed (async)', { type, email: user.email, message: err.message })
+    );
+
+  // SMTP sozlangan bo'lsa 'smtp', aks holda 'log' (dev'da devCode qaytaramiz).
+  const willSendEmail = Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT);
   return {
-    ...emailResult,
+    delivery: willSendEmail ? 'smtp' : 'log',
     expiresInMinutes: ttlMinutes,
+    ...(process.env.NODE_ENV !== 'production' && !willSendEmail ? { devCode: code } : {}),
   };
 }
 

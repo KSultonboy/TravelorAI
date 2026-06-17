@@ -22,6 +22,14 @@ function getTransporter() {
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT),
       secure: String(process.env.SMTP_SECURE || 'false') === 'true',
+      // Hang'lardan himoya: SMTP sekin bo'lsa cheksiz kutib qolmasin.
+      connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT || 10000),
+      greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT || 10000),
+      socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT || 20000),
+      // Ulanishni qayta ishlatish — har email uchun yangi TLS handshake (sekin) qilmaslik.
+      pool: true,
+      maxConnections: Number(process.env.SMTP_MAX_CONNECTIONS || 3),
+      maxMessages: Number(process.env.SMTP_MAX_MESSAGES || 50),
       ...(SMTP_ALLOW_INVALID_TLS ? { tls: { rejectUnauthorized: false } } : {}),
       auth: process.env.SMTP_USER
         ? {
