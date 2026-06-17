@@ -17,6 +17,7 @@ import {
   Send,
   ShieldCheck,
   Star,
+  Trash2,
   Trophy,
   UserRound,
   Users,
@@ -199,11 +200,49 @@ function formatDate(value?: string | null) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("uz-UZ");
 }
 
+type GeneratedPlanDay = {
+  day?: number;
+  dayNumber?: number;
+  destination?: string;
+  city?: string;
+  activities?: { name?: string; time?: string; cost?: number; type?: string }[];
+  dailyCost?: number;
+};
+
+type GeneratedPlan = {
+  title?: string;
+  duration?: number;
+  travelers?: number;
+  totalCost?: number;
+  style?: string;
+  days?: GeneratedPlanDay[];
+  [key: string]: unknown;
+};
+
 function styleLabel(style?: string) {
   if (style === "budget") return "Tejamkor";
   if (style === "luxury") return "Premium";
   return "O‘rtacha";
 }
+
+const STYLE_OPTIONS: { value: "budget" | "mid" | "luxury"; label: string }[] = [
+  { value: "budget", label: "Tejamkor" },
+  { value: "mid", label: "O‘rtacha" },
+  { value: "luxury", label: "Premium" },
+];
+
+const INTEREST_OPTIONS = [
+  "Tarix",
+  "Tabiat",
+  "Plyaj",
+  "Shopping",
+  "Gastronomiya",
+  "Madaniyat",
+  "Sarguzasht",
+  "Dam olish",
+  "Diniy",
+  "Oilaviy",
+];
 
 export default function AccountPortal() {
   const searchParams = useSearchParams();
@@ -239,6 +278,26 @@ export default function AccountPortal() {
   const [deleteStage, setDeleteStage] = useState<"request" | "verify">("request");
   const [deleteRemaining, setDeleteRemaining] = useState(3);
   const [, setTick] = useState(0);
+  // Profil va afzalliklarni tahrirlash (mobil bilan sinxron)
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileLastName, setProfileLastName] = useState("");
+  const [profileBio, setProfileBio] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [editingPrefs, setEditingPrefs] = useState(false);
+  const [prefStyle, setPrefStyle] = useState<"budget" | "mid" | "luxury">("mid");
+  const [prefInterests, setPrefInterests] = useState<string[]>([]);
+  const [savingPrefs, setSavingPrefs] = useState(false);
+  // AI sayohat rejasi (planner) — mobil bilan bir xil backend
+  const [planCity, setPlanCity] = useState("");
+  const [planDuration, setPlanDuration] = useState("3");
+  const [planTravelers, setPlanTravelers] = useState("2");
+  const [planBudget, setPlanBudget] = useState("3000000");
+  const [planStyle, setPlanStyle] = useState<"budget" | "mid" | "luxury">("mid");
+  const [planInterests, setPlanInterests] = useState<string[]>(["Tarix", "Tabiat"]);
+  const [planStartDate, setPlanStartDate] = useState("");
+  const [planResult, setPlanResult] = useState<GeneratedPlan | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [savingPlan, setSavingPlan] = useState(false);
 
   const loadDashboard = useCallback(async (nextToken: string) => {
     setDashboardLoading(true);
@@ -495,6 +554,130 @@ export default function AccountPortal() {
     setLoading(false);
   }
 
+  function startEditProfile() {
+    if (!user) return;
+    setProfileLastName(user.lastName || "");
+    setProfileBio(user.bio || "");
+    setName(user.name);
+    setEditingProfile(true);
+  }
+
+  async function saveProfile() {
+    if (!token || !user) return;
+    setSavingProfile(true);
+    setError("");
+    const result = await api<{ user: User }>("/auth/profile", {
+      method: "PUT",
+      body: JSON.stringify({
+        name: name.trim() || user.name,
+        lastName: profileLastName.trim() || null,
+        bio: profileBio.trim() || null,
+        avatarUrl: user.avatarUrl || null,
+      }),
+    }, token);
+    if (result.success) {
+      setUser(result.data.user);
+      setEditingProfile(false);
+      setMessage("Profil yangilandi.");
+    } else setError(result.message);
+    setSavingProfile(false);
+  }
+
+  function startEditPrefs() {
+    setPrefStyle((preferences?.style as "budget" | "mid" | "luxury") || "mid");
+    setPrefInterests(preferences?.interests || []);
+    setEditingPrefs(true);
+  }
+
+  function toggleInterest(value: string) {
+    setPrefInterests((current) =>
+      current.includes(value) ? current.filter((item) => item !== value) : [...current, value]
+    );
+  }
+
+  async function savePreferences() {
+    if (!token) return;
+    if (prefInterests.length === 0) {
+      setError("Kamida 1 ta qiziqish tanlang.");
+      return;
+    }
+    setSavingPrefs(true);
+    setError("");
+    const result = await api<{ preferences: TravelPreferences }>("/auth/preferences", {
+      method: "PUT",
+      body: JSON.stringify({ style: prefStyle, interests: prefInterests }),
+    }, token);
+    if (result.success) {
+      setPreferences(result.data.preferences);
+      setEditingPrefs(false);
+      setMessage("Sayohat afzalliklari yangilandi.");
+    } else setError(result.message);
+    setSavingPrefs(false);
+  }
+
+  async function removeWishlist(id: string) {
+    if (!token) return;
+    const previous = wishlist;
+    setWishlist((current) => current.filter((item) => item.id !== id));
+    const result = await api(`/wishlist/${id}`, { method: "DELETE" }, token);
+    if (!result.success) {
+      setWishlist(previous);
+      setError(result.message);
+    }
+  }
+
+  function togglePlanInterest(value: string) {
+    setPlanInterests((current) =>
+      current.includes(value) ? current.filter((item) => item !== value) : [...current, value]
+    );
+  }
+
+  async function generatePlan(event: FormEvent) {
+    event.preventDefault();
+    if (!token) return;
+    if (planInterests.length === 0) {
+      setError("Kamida 1 ta qiziqish tanlang.");
+      return;
+    }
+    setGenerating(true);
+    setError("");
+    setMessage("");
+    setPlanResult(null);
+    const result = await api<GeneratedPlan>("/planner/generate", {
+      method: "POST",
+      body: JSON.stringify({
+        city: planCity.trim() || undefined,
+        duration: Number(planDuration) || 3,
+        travelers: Number(planTravelers) || 1,
+        budget: Number(planBudget) || 3000000,
+        style: planStyle,
+        interests: planInterests,
+        ...(planStartDate ? { startDate: planStartDate } : {}),
+      }),
+    }, token);
+    if (result.success) {
+      setPlanResult(result.data);
+      setMessage("AI reja tayyor. Pastda ko‘rib, saqlashingiz mumkin.");
+    } else setError(result.message);
+    setGenerating(false);
+  }
+
+  async function savePlan() {
+    if (!token || !planResult) return;
+    setSavingPlan(true);
+    setError("");
+    const result = await api<{ trip: Trip }>("/trips", {
+      method: "POST",
+      body: JSON.stringify(planResult),
+    }, token);
+    if (result.success) {
+      setPlanResult(null);
+      setMessage("Reja “Mening safarlarim”ga saqlandi.");
+      void loadDashboard(token);
+    } else setError(result.message);
+    setSavingPlan(false);
+  }
+
   function logout() {
     void api("/auth/logout", { method: "POST" });
     setToken(null);
@@ -573,24 +756,77 @@ export default function AccountPortal() {
                 </div>
                 <div>
                   <p className="account-eyebrow">Foydalanuvchi profili</p>
-                  <h2>{user.fullName || user.name}</h2>
-                  <span>{user.email}</span>
-                  {user.bio ? <p className="account-profile__bio">{user.bio}</p> : null}
-                  <div className="account-chip-list">
-                    <b><ShieldCheck size={15} /> {user.emailVerified ? "Email tasdiqlangan" : "Email tasdiqlanmagan"}</b>
-                    <b>{user.authProvider === "google" ? "Google akkaunt" : "Email akkaunt"}</b>
-                  </div>
+                  {editingProfile ? (
+                    <div className="account-edit-form">
+                      <label>Ism<input value={name} onChange={(event) => setName(event.target.value)} /></label>
+                      <label>Familiya<input value={profileLastName} onChange={(event) => setProfileLastName(event.target.value)} /></label>
+                      <label>Bio<textarea rows={2} value={profileBio} onChange={(event) => setProfileBio(event.target.value)} /></label>
+                      <div className="account-edit-actions">
+                        <button type="button" disabled={savingProfile} onClick={saveProfile}>{savingProfile ? "Saqlanmoqda..." : "Saqlash"}</button>
+                        <button type="button" className="account-secondary" onClick={() => setEditingProfile(false)}>Bekor</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <h2>{user.fullName || user.name}</h2>
+                      <span>{user.email}</span>
+                      {user.bio ? <p className="account-profile__bio">{user.bio}</p> : null}
+                      <div className="account-chip-list">
+                        <b><ShieldCheck size={15} /> {user.emailVerified ? "Email tasdiqlangan" : "Email tasdiqlanmagan"}</b>
+                        <b>{user.authProvider === "google" ? "Google akkaunt" : "Email akkaunt"}</b>
+                      </div>
+                      <button type="button" className="account-edit-trigger" onClick={startEditProfile}>Profilni tahrirlash</button>
+                    </>
+                  )}
                 </div>
               </article>
 
               <article className="account-card account-preferences">
                 <p className="account-eyebrow">Ilovadagi sayohat sozlamalari</p>
-                <h2>{preferences ? styleLabel(preferences.style) : "Hali tanlanmagan"}</h2>
-                <div className="account-chip-list">
-                  {preferences?.interests.length
-                    ? preferences.interests.map((interest) => <b key={interest}>{interest}</b>)
-                    : <span>Qiziqishlar mobil ilovada tanlangandan keyin shu yerda ko‘rinadi.</span>}
-                </div>
+                {editingPrefs ? (
+                  <div className="account-edit-form">
+                    <label>Sayohat uslubi</label>
+                    <div className="account-chip-toggle">
+                      {STYLE_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          className={prefStyle === opt.value ? "is-active" : ""}
+                          onClick={() => setPrefStyle(opt.value)}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <label>Qiziqishlar</label>
+                    <div className="account-chip-toggle">
+                      {INTEREST_OPTIONS.map((interest) => (
+                        <button
+                          key={interest}
+                          type="button"
+                          className={prefInterests.includes(interest) ? "is-active" : ""}
+                          onClick={() => toggleInterest(interest)}
+                        >
+                          {interest}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="account-edit-actions">
+                      <button type="button" disabled={savingPrefs} onClick={savePreferences}>{savingPrefs ? "Saqlanmoqda..." : "Saqlash"}</button>
+                      <button type="button" className="account-secondary" onClick={() => setEditingPrefs(false)}>Bekor</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <h2>{preferences ? styleLabel(preferences.style) : "Hali tanlanmagan"}</h2>
+                    <div className="account-chip-list">
+                      {preferences?.interests.length
+                        ? preferences.interests.map((interest) => <b key={interest}>{interest}</b>)
+                        : <span>Qiziqishlar hali tanlanmagan.</span>}
+                    </div>
+                    <button type="button" className="account-edit-trigger" onClick={startEditPrefs}>Afzalliklarni tahrirlash</button>
+                  </>
+                )}
               </article>
             </section>
 
@@ -677,6 +913,78 @@ export default function AccountPortal() {
 
             <section className="account-data-section">
               <div className="account-section-title">
+                <div><p>Mobil ilova bilan bir xil AI</p><h2>Yangi AI sayohat rejasi</h2></div>
+              </div>
+              <article className="account-card">
+                <form className="account-planner-form" onSubmit={generatePlan}>
+                  <label>Yo‘nalish (shahar/davlat)
+                    <input value={planCity} onChange={(event) => setPlanCity(event.target.value)} placeholder="masalan: Dubay" />
+                  </label>
+                  <label>Kunlar
+                    <input type="number" min={1} max={14} value={planDuration} onChange={(event) => setPlanDuration(event.target.value)} />
+                  </label>
+                  <label>Sayohatchilar
+                    <input type="number" min={1} max={8} value={planTravelers} onChange={(event) => setPlanTravelers(event.target.value)} />
+                  </label>
+                  <label>Byudjet (so‘m)
+                    <input type="number" min={200000} step={100000} value={planBudget} onChange={(event) => setPlanBudget(event.target.value)} />
+                  </label>
+                  <label>Uslub
+                    <select value={planStyle} onChange={(event) => setPlanStyle(event.target.value as "budget" | "mid" | "luxury")}>
+                      {STYLE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                    </select>
+                  </label>
+                  <label>Boshlanish sanasi
+                    <input type="date" value={planStartDate} onChange={(event) => setPlanStartDate(event.target.value)} />
+                  </label>
+                  <div className="account-planner-form__full">
+                    <label>Qiziqishlar</label>
+                    <div className="account-chip-toggle">
+                      {INTEREST_OPTIONS.map((interest) => (
+                        <button
+                          key={interest}
+                          type="button"
+                          className={planInterests.includes(interest) ? "is-active" : ""}
+                          onClick={() => togglePlanInterest(interest)}
+                        >
+                          {interest}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="account-planner-form__full">
+                    <button className="account-planner-generate" type="submit" disabled={generating}>
+                      {generating ? "AI reja tuzmoqda..." : "AI reja yaratish"}
+                    </button>
+                  </div>
+                </form>
+
+                {planResult ? (
+                  <div className="account-planner-result">
+                    <h3>{planResult.title || "Sayohat rejasi"}</h3>
+                    {(planResult.days || []).map((day, idx) => (
+                      <div className="account-planner-day" key={idx}>
+                        <h4>Kun {day.day || day.dayNumber || idx + 1}{day.destination ? ` · ${day.destination}` : ""}</h4>
+                        <ul>
+                          {(day.activities || []).map((act, i) => (
+                            <li key={i}>{act.time ? `${act.time} — ` : ""}{act.name || "Faoliyat"}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                    <div className="account-edit-actions">
+                      <button type="button" disabled={savingPlan} onClick={savePlan}>
+                        {savingPlan ? "Saqlanmoqda..." : "Rejani saqlash"}
+                      </button>
+                      <button type="button" className="account-secondary" onClick={() => setPlanResult(null)}>Bekor</button>
+                    </div>
+                  </div>
+                ) : null}
+              </article>
+            </section>
+
+            <section className="account-data-section">
+              <div className="account-section-title">
                 <div><p>Mobil ilova bilan sinxron</p><h2>Mening safarlarim</h2></div>
                 <b>{trips.length} ta</b>
               </div>
@@ -733,6 +1041,9 @@ export default function AccountPortal() {
                     <article className="account-card account-wishlist-card" key={item.id}>
                       <span className="account-wishlist-card__icon">{item.icon || "•"}</span>
                       <div><h3>{item.name}</h3><p><MapPin size={14} /> {item.city}</p><small>{item.type} · {formatDate(item.savedAt)}</small></div>
+                      <button type="button" className="account-wishlist-card__remove" aria-label="Wishlistdan o‘chirish" onClick={() => removeWishlist(item.id)}>
+                        <Trash2 size={15} />
+                      </button>
                     </article>
                   ))}
                 </div>
