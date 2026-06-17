@@ -1,6 +1,5 @@
 import { createInstance } from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import * as Localization from 'expo-localization';
 
 import uz from './uz';
 import ru from './ru';
@@ -16,11 +15,9 @@ export const LANGUAGE_OPTIONS: { key: Language; label: string; flag: string }[] 
   { key: 'en', label: 'English', flag: '🇬🇧' },
 ];
 
-// Detect device locale, fallback to 'uz'
+// Mahsulot uz-only (product-strategy): default doim O'zbek, qurilma tilidan qat'i nazar.
+// Saqlangan til afzalligi (agar foydalanuvchi almashtirgan bo'lsa) _layout.tsx boshida tiklanadi.
 function detectLanguage(): Language {
-  const locale = Localization.getLocales()[0]?.languageCode ?? 'uz';
-  if (locale === 'ru') return 'ru';
-  if (locale === 'en') return 'en';
   return 'uz';
 }
 
