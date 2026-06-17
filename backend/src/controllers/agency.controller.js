@@ -146,23 +146,41 @@ async function issueAgencyCode(account, type = 'EMAIL_VERIFICATION') {
     },
   });
 
-  const delivery =
+  const sendFn =
     type === 'EMAIL_CHANGE'
-      ? await sendEmailChangeCodeEmail({
-          email: account.email,
-          name: account.email,
-          newEmail: account.pendingEmail,
-          code,
-          expiresInMinutes: CODE_EXPIRES_MINUTES,
-        })
-      : await sendVerificationCodeEmail({
-          email: account.email,
-          name: account.email,
-          code,
-          expiresInMinutes: CODE_EXPIRES_MINUTES,
-        });
+      ? () =>
+          sendEmailChangeCodeEmail({
+            email: account.email,
+            name: account.email,
+            newEmail: account.pendingEmail,
+            code,
+            expiresInMinutes: CODE_EXPIRES_MINUTES,
+          })
+      : () =>
+          sendVerificationCodeEmail({
+            email: account.email,
+            name: account.email,
+            code,
+            expiresInMinutes: CODE_EXPIRES_MINUTES,
+          });
 
-  return delivery;
+  // Emailni BLOKLAMASDAN yuboramiz (Gmail SMTP 2-13s olishi mumkin) — javobni
+  // kutdirib qo'ymaymiz; kod allaqachon bazaga yozilgan. Xato bo'lsa logga yozamiz.
+  Promise.resolve()
+    .then(sendFn)
+    .catch((err) =>
+      require('../config/logger').logger.error('Agency email send failed (async)', {
+        type,
+        email: account.email,
+        message: err.message,
+      })
+    );
+
+  const willSendEmail = Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT);
+  return {
+    delivery: willSendEmail ? 'smtp' : 'log',
+    ...(process.env.NODE_ENV !== 'production' && !willSendEmail ? { devCode: code } : {}),
+  };
 }
 
 async function consumeAgencyCode(accountId, code, type = 'EMAIL_VERIFICATION') {
