@@ -12,7 +12,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import 'react-native-reanimated';
 
 import { I18nextProvider } from 'react-i18next';
-import { getItem, KEYS } from '../src/utils/storage';
+import { getItem, saveItem, KEYS } from '../src/utils/storage';
 import { AppThemeProvider, useAppTheme } from '../src/theme/app-theme';
 import TestModeBanner from '../src/components/TestModeBanner';
 import i18n from '../src/i18n';
@@ -36,9 +36,13 @@ export default function RootLayout() {
 
   useEffect(() => {
     async function restoreSavedLanguage() {
+      // Mahsulot uz-only (product-strategy): hozircha doim O'zbek.
+      // Eski qurilmalarda 'en'/'ru' saqlanib qolgan bo'lsa ham uz'ga qaytaramiz.
+      // i18n kengaytirilganda bu yerga saqlangan tilni tiklash mantig'i qaytariladi.
       const savedLanguage = await getItem(KEYS.LANGUAGE);
-      if (savedLanguage === 'uz' || savedLanguage === 'ru' || savedLanguage === 'en') {
-        await i18n.changeLanguage(savedLanguage);
+      if (savedLanguage !== 'uz') {
+        await i18n.changeLanguage('uz');
+        await saveItem(KEYS.LANGUAGE, 'uz');
       }
     }
 
