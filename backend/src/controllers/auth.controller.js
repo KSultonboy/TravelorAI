@@ -69,6 +69,17 @@ async function register(req, res) {
       });
     }
 
+    // Cross-check: bu email agentlik akkaunti sifatida band bo'lmasin (bir email — bir rol).
+    const agencyAccount = await prisma.agencyAccount.findUnique({ where: { email: normalizedEmail } });
+    if (agencyAccount?.emailVerified) {
+      return error(
+        res,
+        'Bu email agentlik akkaunti sifatida ro‘yxatdan o‘tgan. Foydalanuvchi sifatida ro‘yxatdan o‘tib bo‘lmaydi.',
+        409,
+        { accountType: 'agency' }
+      );
+    }
+
     const hashedPassword = await bcrypt.hash(password, PASSWORD_SALT_ROUNDS);
 
     const user = await prisma.user.create({
@@ -294,6 +305,18 @@ async function googleAuth(req, res) {
       })) || null;
 
     if (!user) {
+      // Cross-check: agentlik emaili Google orqali ham foydalanuvchi akkauntini yaratmasin.
+      const agencyAccount = await prisma.agencyAccount.findUnique({
+        where: { email: normalizeEmail(googleProfile.email) },
+      });
+      if (agencyAccount?.emailVerified) {
+        return error(
+          res,
+          'Bu email agentlik akkaunti sifatida ro‘yxatdan o‘tgan. Agentlik portalidan kiring.',
+          409,
+          { accountType: 'agency' }
+        );
+      }
       user = await prisma.user.create({
         data: {
           name: googleProfile.name,
@@ -328,6 +351,9 @@ async function googleAuth(req, res) {
     }
 
     if (err.message === 'GOOGLE_AUDIENCE_MISMATCH') {
+      try {
+        require('../config/logger').logger.warn('GOOGLE_AUDIENCE_MISMATCH', err.meta || {});
+      } catch {}
       return error(res, 'Google client ID mos kelmadi. Android OAuth client (package + SHA-1) ni tekshiring.', 401, err.meta || undefined);
     }
 

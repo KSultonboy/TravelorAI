@@ -410,6 +410,12 @@ async function register(req, res) {
       return error(res, 'Bu email bilan agency akkaunt mavjud. Login qiling.', 409);
     }
 
+    // Cross-check: bu email foydalanuvchi akkaunti sifatida band bo'lmasin (bir email — bir rol).
+    const userAccount = await prisma.user.findUnique({ where: { email } });
+    if (userAccount) {
+      return error(res, 'Bu email foydalanuvchi akkaunti sifatida ro‘yxatdan o‘tgan. Agentlik sifatida ro‘yxatdan o‘tib bo‘lmaydi.', 409);
+    }
+
     const account = existing
       ? await prisma.agencyAccount.update({
           where: { id: existing.id },
