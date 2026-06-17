@@ -7,6 +7,7 @@ export type LandingTour = {
   slug?: string | null;
   title: string;
   city: string;
+  destinationCountry?: string | null;
   subtitle?: string;
   duration?: string;
   price?: string;

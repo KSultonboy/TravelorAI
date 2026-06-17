@@ -955,13 +955,13 @@ export default function LandingContentAdmin({ username }: { username: string }) 
           <nav className="admin-sidebar-nav">
             <div className="admin-sidebar-group is-open">
               <button className="admin-sidebar-group__head" type="button" onClick={() => toggleNavGroup("dashboard")}>
-                <span><Sparkles size={17} /> Dashboard</span>
+                <span><Sparkles size={17} /> Boshqaruv</span>
                 <ChevronDown size={16} />
               </button>
               {openNavGroups.dashboard ? (
                 <div className="admin-sidebar-group__items">
                   <button className="active" type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
-                    Platform overview
+                    Umumiy ko‘rinish
                   </button>
                 </div>
               ) : null}
@@ -986,7 +986,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
 
             <div className={`admin-sidebar-group ${openNavGroups.landing ? "is-open" : ""}`}>
               <button className="admin-sidebar-group__head" type="button" onClick={() => toggleNavGroup("landing")}>
-                <span><ImagePlus size={17} /> Landing content</span>
+                <span><ImagePlus size={17} /> Landing kontent</span>
                 <ChevronDown size={16} />
               </button>
               {openNavGroups.landing ? (
@@ -1026,7 +1026,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
           <div>
             <p className="admin-eyebrow">Kirish: {username}</p>
             <h1>Platform boshqaruvi</h1>
-            <p>Agency onboarding, tour review va landing content bitta accordion dashboardda boshqariladi.</p>
+            <p>Agentlik qabuli, tur ko‘rigi va landing kontenti bitta akkordion boshqaruvda yuritiladi.</p>
           </div>
           <button className="admin-secondary" onClick={loadAll} type="button">
             <RefreshCw size={17} />
@@ -1053,7 +1053,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
         {loading ? (
           <div className="admin-loading admin-loading--page">
             <Loader2 className="admin-spin" size={22} />
-            Admin content yuklanmoqda...
+            Admin kontenti yuklanmoqda...
           </div>
         ) : (
           <div className="admin-accordion-stack">
@@ -1061,17 +1061,17 @@ export default function LandingContentAdmin({ username }: { username: string }) 
               <div className="admin-panel">
                 <div className="admin-panel__head">
                   <div>
-                    <p className="admin-eyebrow">Agency onboarding</p>
+                    <p className="admin-eyebrow">Agentlik qabuli</p>
                     <h2>Agency arizalari</h2>
                   </div>
                 </div>
                 <label className="admin-review-note">
-                  Admin note
+                  Admin izohi
                   <textarea
                     rows={2}
                     value={reviewNote}
                     onChange={(event) => setReviewNote(event.target.value)}
-                    placeholder="Approve/reject sababini shu yerga yozing..."
+                    placeholder="Tasdiqlash/rad etish sababini shu yerga yozing..."
                   />
                 </label>
                 <div className="admin-review-list">
@@ -1091,17 +1091,17 @@ export default function LandingContentAdmin({ username }: { username: string }) 
                       <div className="admin-review-actions">
                         {item.website ? (
                           <a href={item.website} target="_blank" rel="noreferrer">
-                            <ExternalLink size={15} /> Website
+                            <ExternalLink size={15} /> Sayt
                           </a>
                         ) : null}
                         {item.status !== "approved" ? (
                           <button disabled={saving === "applications"} onClick={() => reviewApplication(item.id, "approve")} type="button">
-                            <CheckCircle2 size={16} /> Approve
+                            <CheckCircle2 size={16} /> Tasdiqlash
                           </button>
                         ) : null}
                         {item.status !== "rejected" ? (
                           <button disabled={saving === "applications"} onClick={() => reviewApplication(item.id, "reject")} type="button">
-                            <XCircle size={16} /> Reject
+                            <XCircle size={16} /> Rad etish
                           </button>
                         ) : null}
                       </div>
@@ -1115,12 +1115,12 @@ export default function LandingContentAdmin({ username }: { username: string }) 
               <div className="admin-panel">
                 <div className="admin-panel__head">
                   <div>
-                    <p className="admin-eyebrow">Tour publishing</p>
-                    <h2>Agency tour review</h2>
+                    <p className="admin-eyebrow">Tur nashri</p>
+                    <h2>Agentlik turi ko‘rigi</h2>
                   </div>
                 </div>
                 <label className="admin-review-note">
-                  Admin note
+                  Admin izohi
                   <textarea
                     rows={2}
                     value={reviewNote}
@@ -1143,10 +1143,10 @@ export default function LandingContentAdmin({ username }: { username: string }) 
                       </div>
                       <div className="admin-review-actions">
                         <button disabled={saving === "tourReviews"} onClick={() => reviewTour(item.id, "approve")} type="button">
-                          <CheckCircle2 size={16} /> Approve
+                          <CheckCircle2 size={16} /> Tasdiqlash
                         </button>
                         <button disabled={saving === "tourReviews"} onClick={() => reviewTour(item.id, "reject")} type="button">
-                          <XCircle size={16} /> Reject
+                          <XCircle size={16} /> Rad etish
                         </button>
                       </div>
                     </article>
@@ -1159,12 +1159,12 @@ export default function LandingContentAdmin({ username }: { username: string }) 
               <div className="admin-panel">
                 <div className="admin-panel__head">
                   <div>
-                    <p className="admin-eyebrow">Booking control</p>
+                    <p className="admin-eyebrow">Bron nazorati</p>
                     <h2>Tour booking so&apos;rovlari</h2>
                   </div>
                 </div>
                 <label className="admin-review-note">
-                  Admin note
+                  Admin izohi
                   <textarea
                     rows={2}
                     value={reviewNote}
@@ -1188,13 +1188,13 @@ export default function LandingContentAdmin({ username }: { username: string }) 
                       </div>
                       <div className="admin-review-actions">
                         <button disabled={saving === "bookings"} onClick={() => reviewBooking(item.id, "confirmed")} type="button">
-                          <CheckCircle2 size={16} /> Confirm
+                          <CheckCircle2 size={16} /> Tasdiqlash
                         </button>
                         <button disabled={saving === "bookings"} onClick={() => reviewBooking(item.id, "completed")} type="button">
-                          <CheckCircle2 size={16} /> Complete
+                          <CheckCircle2 size={16} /> Yakunlash
                         </button>
                         <button disabled={saving === "bookings"} onClick={() => reviewBooking(item.id, "rejected")} type="button">
-                          <XCircle size={16} /> Reject
+                          <XCircle size={16} /> Rad etish
                         </button>
                       </div>
                     </article>

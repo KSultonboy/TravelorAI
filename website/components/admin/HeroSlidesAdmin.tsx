@@ -280,7 +280,7 @@ export default function HeroSlidesAdmin({ username }: { username: string }) {
                   required
                   value={form.title}
                   onChange={(event) => updateField("title", event.target.value)}
-                  placeholder="Design Your Perfect Journey with AI"
+                  placeholder="AI bilan mukammal sayohatingizni rejalashtiring"
                 />
               </label>
 
