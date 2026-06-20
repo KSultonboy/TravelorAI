@@ -236,6 +236,18 @@
 .mkt-divider { display: flex; align-items: center; gap: 14px; color: var(--subtle); font-size: 0.82rem; margin: 6px 0; }
 .mkt-divider::before, .mkt-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 
+/* ---------- Catalog filter bar ---------- */
+.mkt-catalog-bar { position: sticky; top: 72px; z-index: 30; background: rgba(255,255,255,0.92); backdrop-filter: saturate(180%) blur(12px); border-bottom: 1px solid var(--line); }
+.mkt-catalog-bar__inner { display: flex; align-items: center; gap: 14px; padding: 16px 22px; flex-wrap: wrap; }
+.mkt-catalog-bar__search { flex: 1; min-width: 240px; }
+.mkt-catalog-bar__filters { display: flex; gap: 10px; flex-wrap: wrap; }
+.mkt-catalog-bar__filters .mkt-input { min-width: 170px; }
+.mkt-catalog-bar__filters .mkt-input select { padding: 12px 0; cursor: pointer; }
+.mkt-catalog-bar__filters .mkt-input select:disabled { color: var(--subtle); cursor: not-allowed; }
+.mkt-catalog-count { font-size: 0.95rem; color: var(--muted); margin: 0 0 22px; }
+.mkt-catalog-count strong { color: var(--ink); font-size: 1.05rem; }
+@media (max-width: 760px) { .mkt-catalog-bar { top: 72px; } .mkt-catalog-bar__filters { width: 100%; } .mkt-catalog-bar__filters .mkt-input { flex: 1; min-width: 0; } }
+
 /* ---------- Skeleton ---------- */
 .mkt-skel { background: linear-gradient(90deg, #eef2f7 25%, #f6f8fb 37%, #eef2f7 63%); background-size: 400% 100%; animation: mktshimmer 1.3s ease infinite; border-radius: 12px; }
 @keyframes mktshimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
