@@ -1,6 +1,15 @@
 import type { Metadata, Viewport } from "next";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.scss";
 import "../styles/landing-v2.scss";
+import "../styles/marketing.scss";
+
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-jakarta",
+  display: "swap",
+});
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://travelorai.com";
 const SOCIAL_LINKS = [
@@ -92,7 +101,7 @@ const jsonLd = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="uz">
+    <html lang="uz" className={jakarta.variable}>
       <head>
         <script
           type="application/ld+json"
