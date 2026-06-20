@@ -144,7 +144,7 @@
 }
 
 /* ---------- Hero ---------- */
-.mkt-hero { position: relative; min-height: 92vh; display: flex; align-items: center; color: #fff; overflow: hidden; margin-top: -72px; padding-top: 72px; }
+.mkt-hero { position: relative; isolation: isolate; min-height: 92vh; display: flex; align-items: center; color: #fff; overflow: hidden; margin-top: -72px; padding-top: 72px; background: linear-gradient(135deg, var(--primary), #06231a); }
 .mkt-hero__bg { position: absolute; inset: 0; z-index: -2; }
 .mkt-hero__bg img { width: 100%; height: 100%; object-fit: cover; }
 .mkt-hero__scrim { position: absolute; inset: 0; z-index: -1; background: linear-gradient(110deg, rgba(7,38,26,0.92) 0%, rgba(7,38,26,0.72) 42%, rgba(7,38,26,0.34) 100%), linear-gradient(0deg, rgba(7,38,26,0.85) 0%, rgba(7,38,26,0) 45%); }
@@ -215,7 +215,7 @@
 .mkt-footer__bottom { border-top: 1px solid rgba(255,255,255,0.12); padding: 22px 0; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; font-size: 0.84rem; }
 
 /* ---------- Page hero (ichki sahifalar) ---------- */
-.mkt-phero { position: relative; color: #fff; padding: clamp(96px, 14vw, 150px) 0 clamp(48px, 7vw, 80px); overflow: hidden; margin-top: -72px; }
+.mkt-phero { position: relative; isolation: isolate; color: #fff; padding: clamp(96px, 14vw, 150px) 0 clamp(48px, 7vw, 80px); overflow: hidden; margin-top: -72px; background: linear-gradient(120deg, var(--primary), #06231a); }
 .mkt-phero__bg { position: absolute; inset: 0; z-index: -2; }
 .mkt-phero__bg img { width: 100%; height: 100%; object-fit: cover; }
 .mkt-phero__scrim { position: absolute; inset: 0; z-index: -1; background: linear-gradient(120deg, rgba(7,38,26,0.94), rgba(7,38,26,0.66)); }
@@ -344,7 +344,7 @@
 /* ---------- Auth split-screen ---------- */
 .mkt-auth { min-height: 100vh; display: grid; grid-template-columns: 1.05fr 1fr; background: #fff; }
 @media (max-width: 900px) { .mkt-auth { grid-template-columns: 1fr; } }
-.mkt-auth__left { position: relative; color: #fff; display: flex; flex-direction: column; justify-content: space-between; padding: clamp(32px, 5vw, 56px); overflow: hidden; min-height: 280px; }
+.mkt-auth__left { position: relative; isolation: isolate; color: #fff; display: flex; flex-direction: column; justify-content: space-between; padding: clamp(32px, 5vw, 56px); overflow: hidden; min-height: 280px; background: linear-gradient(150deg, var(--primary), #06231a); }
 @media (max-width: 900px) { .mkt-auth__left { min-height: 320px; } }
 .mkt-auth__left img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
 .mkt-auth__left::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(150deg, rgba(7,38,26,0.95), rgba(7,38,26,0.72)), linear-gradient(0deg, rgba(7,38,26,0.9), transparent 55%); }
