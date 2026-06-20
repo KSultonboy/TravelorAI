@@ -288,6 +288,88 @@
 .mkt-step h3 { font-size: 1.02rem; font-weight: 800; margin: 0 0 6px; }
 .mkt-step p { font-size: 0.88rem; color: var(--muted); line-height: 1.6; margin: 0; }
 
+/* ---------- My trips ---------- */
+.mkt-trips { display: grid; gap: 16px; max-width: 760px; }
+.mkt-trip { padding: 22px; border-radius: var(--radius-lg); border: 1px solid var(--line); background: #fff; box-shadow: var(--shadow-sm); }
+.mkt-trip__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mkt-trip__head h3 { margin: 0; font-size: 1.12rem; font-weight: 800; }
+.mkt-trip__badge { padding: 5px 12px; border-radius: 999px; font-size: 0.76rem; font-weight: 800; }
+.mkt-trip__badge.is-pending { background: var(--gold-soft); color: #9a6a00; }
+.mkt-trip__badge.is-confirmed { background: #e9f9f1; color: var(--success); }
+.mkt-trip__badge.is-cancelled { background: #fff1f3; color: var(--danger); }
+.mkt-trip__badge.is-completed { background: var(--primary-pale); color: var(--primary); }
+.mkt-trip__meta { display: flex; flex-wrap: wrap; gap: 16px; margin: 14px 0; color: var(--muted); font-size: 0.88rem; }
+.mkt-trip__meta span { display: inline-flex; align-items: center; gap: 6px; }
+.mkt-trip__foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 14px; border-top: 1px solid var(--line); }
+.mkt-trip__foot strong { font-size: 1.1rem; color: var(--primary); }
+
+/* ---------- Tour detail ---------- */
+.mkt-detail { display: grid; grid-template-columns: 1fr 380px; gap: 40px; align-items: start; }
+@media (max-width: 940px) { .mkt-detail { grid-template-columns: 1fr; } }
+.mkt-gallery { display: grid; grid-template-columns: 2fr 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 10px; border-radius: var(--radius-lg); overflow: hidden; aspect-ratio: 16/9; }
+.mkt-gallery img { width: 100%; height: 100%; object-fit: cover; }
+.mkt-gallery > :first-child { grid-row: 1 / 3; }
+@media (max-width: 600px) { .mkt-gallery { grid-template-columns: 1fr; grid-template-rows: auto; aspect-ratio: auto; } .mkt-gallery > :first-child { grid-row: auto; } .mkt-gallery img { aspect-ratio: 16/10; } .mkt-gallery img:nth-child(n+3) { display: none; } }
+.mkt-detail__title { font-size: clamp(1.6rem, 3vw, 2.3rem); font-weight: 800; letter-spacing: -0.02em; margin: 22px 0 8px; }
+.mkt-detail__loc { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; color: var(--muted); font-size: 0.95rem; }
+.mkt-detail__loc span { display: inline-flex; align-items: center; gap: 6px; }
+.mkt-detail__section { margin-top: 30px; }
+.mkt-detail__section h2 { font-size: 1.3rem; font-weight: 800; margin: 0 0 12px; }
+.mkt-detail__section p { color: var(--muted); line-height: 1.8; }
+.mkt-chips { display: flex; flex-wrap: wrap; gap: 9px; }
+.mkt-pkgs { display: grid; gap: 12px; }
+.mkt-pkg { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 16px 18px; border: 1.5px solid var(--line); border-radius: var(--radius); background: #fff; cursor: pointer; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+.mkt-pkg.is-active { border-color: var(--primary-3); box-shadow: 0 0 0 3px rgba(26,107,60,0.12); }
+.mkt-pkg b { font-size: 1rem; }
+.mkt-pkg small { color: var(--muted); }
+.mkt-pkg__price { font-weight: 900; color: var(--primary); }
+
+/* Booking panel */
+.mkt-book { position: sticky; top: 92px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); padding: 22px; display: flex; flex-direction: column; gap: 14px; }
+.mkt-book__price { display: flex; align-items: baseline; gap: 8px; }
+.mkt-book__price b { font-size: 1.5rem; font-weight: 900; color: var(--primary); }
+.mkt-book__price span { color: var(--subtle); font-size: 0.82rem; }
+.mkt-stepper { display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 13px; padding: 6px; }
+.mkt-stepper button { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: #fff; display: grid; place-items: center; cursor: pointer; color: var(--ink); }
+.mkt-stepper button:hover { border-color: var(--primary-3); color: var(--primary); }
+.mkt-stepper span { font-weight: 700; }
+.mkt-book__rows { display: flex; flex-direction: column; gap: 9px; padding: 14px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.mkt-book__rows > div { display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--muted); }
+.mkt-book__total { font-weight: 900; color: var(--ink) !important; font-size: 1.05rem !important; }
+.mkt-book__note { font-size: 0.76rem; color: var(--subtle); line-height: 1.5; margin: 0; }
+.mkt-review { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.mkt-review__top { display: flex; align-items: center; gap: 10px; }
+.mkt-review__av { width: 38px; height: 38px; border-radius: 50%; background: var(--primary-pale); color: var(--primary); display: grid; place-items: center; font-weight: 800; }
+
+/* ---------- Auth split-screen ---------- */
+.mkt-auth { min-height: 100vh; display: grid; grid-template-columns: 1.05fr 1fr; background: #fff; }
+@media (max-width: 900px) { .mkt-auth { grid-template-columns: 1fr; } }
+.mkt-auth__left { position: relative; color: #fff; display: flex; flex-direction: column; justify-content: space-between; padding: clamp(32px, 5vw, 56px); overflow: hidden; min-height: 280px; }
+@media (max-width: 900px) { .mkt-auth__left { min-height: 320px; } }
+.mkt-auth__left img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
+.mkt-auth__left::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(150deg, rgba(7,38,26,0.95), rgba(7,38,26,0.72)), linear-gradient(0deg, rgba(7,38,26,0.9), transparent 55%); }
+.mkt-auth__benefits { display: flex; flex-direction: column; gap: 18px; max-width: 420px; }
+.mkt-auth__bhead { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 800; line-height: 1.15; text-shadow: 0 2px 20px rgba(0,0,0,0.3); }
+.mkt-auth__brow { display: flex; align-items: center; gap: 12px; }
+.mkt-auth__brow span:first-child { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: rgba(255,255,255,0.16); color: var(--gold-2); flex-shrink: 0; }
+.mkt-auth__brow b { display: block; font-size: 0.95rem; }
+.mkt-auth__brow small { color: rgba(255,255,255,0.78); font-size: 0.84rem; }
+.mkt-auth__right { display: flex; align-items: center; justify-content: center; padding: clamp(28px, 5vw, 56px); }
+.mkt-auth__card { width: 100%; max-width: 400px; }
+.mkt-auth__card h1 { font-size: 1.6rem; font-weight: 800; margin: 6px 0 4px; }
+.mkt-auth__card p.sub { color: var(--muted); font-size: 0.92rem; margin: 0 0 22px; }
+.mkt-auth__back { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; color: var(--muted); font-weight: 600; cursor: pointer; padding: 0; margin-bottom: 14px; }
+.mkt-auth__back:hover { color: var(--primary); }
+.mkt-rolebtn { display: flex; align-items: center; gap: 14px; width: 100%; padding: 18px; border: 1.5px solid var(--line); border-radius: var(--radius); background: #fff; cursor: pointer; text-align: left; margin-bottom: 12px; transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease; }
+.mkt-rolebtn:hover { border-color: var(--primary-3); box-shadow: var(--shadow-sm); transform: translateY(-2px); }
+.mkt-rolebtn__icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 13px; background: var(--primary-pale); color: var(--primary); flex-shrink: 0; }
+.mkt-rolebtn b { display: block; font-size: 1.02rem; }
+.mkt-rolebtn small { color: var(--muted); font-size: 0.86rem; }
+.mkt-rolebtn__chev { margin-left: auto; color: var(--subtle); }
+.mkt-auth__toggle { text-align: center; margin-top: 16px; font-size: 0.9rem; color: var(--muted); }
+.mkt-auth__toggle button { border: 0; background: none; color: var(--primary); font-weight: 800; cursor: pointer; }
+.mkt-auth__fields { display: flex; flex-direction: column; gap: 13px; }
+
 /* ---------- Skeleton ---------- */
 .mkt-skel { background: linear-gradient(90deg, #eef2f7 25%, #f6f8fb 37%, #eef2f7 63%); background-size: 400% 100%; animation: mktshimmer 1.3s ease infinite; border-radius: 12px; }
 @keyframes mktshimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
