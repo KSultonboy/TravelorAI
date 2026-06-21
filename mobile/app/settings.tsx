@@ -96,8 +96,6 @@ export default function SettingsScreen() {
 
       <StitchCard>
         <StitchListRow icon="language-outline" title="Tilni tanlash" subtitle="Uzbek, English, Russian" onPress={() => router.push('/language' as any)} />
-        <StitchListRow icon="gift-outline" title="Aksiyalar" subtitle="Kupon va maxsus takliflar" onPress={() => router.push('/promotions' as any)} />
-        <StitchListRow icon="help-circle-outline" title="Yordam markazi" subtitle="Savollar, feedback va qo‘llab-quvvatlash" onPress={() => router.push('/help-center' as any)} />
       </StitchCard>
 
       <StitchCard>

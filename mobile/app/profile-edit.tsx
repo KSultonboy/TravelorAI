@@ -198,10 +198,7 @@ export default function ProfileEditScreen() {
     } catch (error) {
       const apiError = error instanceof ApiError ? error : null;
       if (apiError?.data?.contactAdmin) {
-        Alert.alert(t('auth.errorTitle'), apiError.message, [
-          { text: t('profile.cancel'), style: 'cancel' },
-          { text: 'Adminga murojaat', onPress: () => router.push('/feedback' as any) },
-        ]);
+        Alert.alert(t('auth.errorTitle'), apiError.message);
       } else {
         Alert.alert(t('auth.errorTitle'), apiError?.message || 'Kod yuborilmadi.');
       }

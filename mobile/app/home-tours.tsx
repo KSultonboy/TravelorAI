@@ -110,7 +110,7 @@ export default function HomeToursScreen() {
 
   const renderHeader = () => (
     <View style={styles.headerWrap}>
-      <StitchHeader title="Agentlik turlari" subtitle="Tasdiqlangan tour katalog" back />
+      <StitchHeader title="Travelora" subtitle="Tasdiqlangan tur katalogi" />
       <Text style={styles.pageTitle}>Barcha agency tourlari</Text>
       <Text style={styles.pageSub}>Filterlang, qidiring va kerakli tourni batafsil ko‘ring. Har sahifada 20 ta tour chiqadi.</Text>
 

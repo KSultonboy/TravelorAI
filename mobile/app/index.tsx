@@ -2,8 +2,6 @@ import { useEffect } from 'react';
 import { View, StyleSheet, Text } from 'react-native';
 import { router } from 'expo-router';
 import { getItem, KEYS } from '../src/utils/storage';
-import AuroraBackground from '../src/components/AuroraBackground';
-import Globe3D from '../src/components/Globe3D';
 import AnimatedBrand from '../src/components/AnimatedBrand';
 import { FONTS } from '../src/constants/fonts';
 import { SPACING } from '../src/constants/spacing';
@@ -27,13 +25,11 @@ export default function Index() {
 
   return (
     <View style={styles.fill}>
-      <AuroraBackground />
       <View style={[StyleSheet.absoluteFill, styles.center]}>
-        <Globe3D size={196} />
-        <AnimatedBrand size={36} textStyle={{ color: LIGHT }} style={styles.brand} />
-        <Text style={styles.subtitle}>Your AI Travel Companion</Text>
+        <AnimatedBrand size={40} textStyle={{ color: LIGHT }} style={styles.brand} />
+        <Text style={styles.subtitle}>O‘zbekiston bo‘ylab turlar</Text>
       </View>
-      <Text style={styles.footer}>TravelorAI</Text>
+      <Text style={styles.footer}>Travelora</Text>
     </View>
   );
 }

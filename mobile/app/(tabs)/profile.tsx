@@ -20,8 +20,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FONTS } from '../../src/constants/fonts';
 import { RADIUS, SPACING } from '../../src/constants/spacing';
 import { type AppColors, type ThemePreference, useAppTheme } from '../../src/theme/app-theme';
-import { useAchievements } from '../../src/hooks/useAchievements';
-import { useTrips } from '../../src/hooks/useTrips';
 import { useWishlist } from '../../src/hooks/useWishlist';
 import { ApiError, authAPI, type SecurityCodePayload } from '../../src/utils/api';
 import { type AuthUser, getUserDisplayName, getUserInitials } from '../../src/utils/auth';
@@ -47,8 +45,19 @@ export default function ProfileScreen() {
   const [token, setToken] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
   const userId = user?.id ?? null;
-  const { trips, loadTrips } = useTrips(userId);
-  const { achievements, loadAchievements } = useAchievements(trips, userId);
+  // Tur sotish rejimida planner/achievement statistikasi yo'q — bo'sh qiymatlar.
+  const trips: any[] = [];
+  const loadTrips = useCallback(async () => {}, []);
+  const achievements = {
+    stats: null as any,
+    unlocked: [] as any[],
+    locked: [] as any[],
+    completionRate: 0,
+    unlockedCount: 0,
+    totalCount: 0,
+    nextAchievement: null as any,
+  };
+  const loadAchievements = useCallback(async () => {}, []);
   const { wishlist, remove: removeWishlist } = useWishlist(userId);
   const [offline, setOffline] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -192,15 +201,11 @@ export default function ProfileScreen() {
     frequencyMap[destination] = (frequencyMap[destination] || 0) + 1;
   });
   const mostVisited = Object.keys(frequencyMap).sort((a, b) => frequencyMap[b] - frequencyMap[a])[0] ?? null;
-  const achievementPreview =
-    achievements.unlocked.length > 0 ? achievements.unlocked.slice(0, 3) : achievements.locked.slice(0, 3);
   const lastTrip =
     trips.length > 0
       ? trips.slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
       : null;
   const wishlistCount = wishlist.length;
-  const achievementProgress = Math.round(achievements.completionRate * 100);
-
   const name = user ? getUserDisplayName(user) : t('profile.guestName');
   const initials = getUserInitials(user);
 
@@ -315,10 +320,7 @@ export default function ProfileScreen() {
       const apiError = e instanceof ApiError ? e : null;
       if (apiError?.data?.contactAdmin) {
         setDeleteModalVisible(false);
-        Alert.alert(t('profile.errorTitle'), apiError.message, [
-          { text: t('profile.cancel'), style: 'cancel' },
-          { text: 'Adminga murojaat', onPress: () => router.push('/feedback' as any) },
-        ]);
+        Alert.alert(t('profile.errorTitle'), apiError.message);
       } else {
         Alert.alert(t('profile.errorTitle'), apiError?.message || t('profile.deleteErrorMsg'));
       }
@@ -354,13 +356,8 @@ export default function ProfileScreen() {
   const menu = [
     {
       icon: 'calendar-outline' as const,
-      label: 'Mening bookinglarim',
+      label: 'Mening bronlarim',
       onPress: () => router.push('/bookings' as any),
-    },
-    {
-      icon: 'chatbubble-ellipses-outline' as const,
-      label: t('profile.feedback', { defaultValue: 'Fikr va shikoyatlar' }),
-      onPress: () => router.push('/feedback'),
     },
     {
       icon: 'language-outline' as const,
@@ -368,38 +365,20 @@ export default function ProfileScreen() {
       onPress: () => router.push('/language' as any),
     },
     {
-      icon: 'gift-outline' as const,
-      label: 'Aksiyalar',
-      onPress: () => router.push('/promotions' as any),
-    },
-    {
-      icon: 'help-circle-outline' as const,
-      label: 'Yordam markazi',
-      onPress: () => router.push('/help-center' as any),
-    },
-    {
       icon: 'settings-outline' as const,
       label: t('profile.settings'),
-      onPress: () => router.push('/settings'),
+      onPress: () => router.push('/settings' as any),
     },
   ];
 
   const quickActions = [
     {
-      key: 'stats',
-      icon: 'stats-chart-outline' as const,
-      title: t('profile.stats'),
-      subtitle: `${tripCount} ${t('profile.trips')} · ${cityCount} ${t('profile.cities')}`,
-      onPress: () => router.push('/profile-stats'),
+      key: 'bookings',
+      icon: 'briefcase-outline' as const,
+      title: 'Bronlarim',
+      subtitle: 'Sotib olingan turlar',
+      onPress: () => router.push('/bookings' as any),
       badge: null as number | null,
-    },
-    {
-      key: 'achievements',
-      icon: 'trophy-outline' as const,
-      title: t('profile.achievements'),
-      subtitle: `${achievements.unlockedCount}/${achievements.totalCount} ${t('achievements.unlocked')} · ${achievementProgress}%`,
-      onPress: () => router.push('/achievements'),
-      badge: achievements.unlockedCount,
     },
     {
       key: 'wishlist',
@@ -464,8 +443,8 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.heroMetricDivider} />
           <View style={styles.heroMetric}>
-            <Text style={styles.heroMetricValue}>{achievementProgress}%</Text>
-            <Text style={styles.heroMetricLabel}>{t('achievements.progressLabel')}</Text>
+            <Text style={styles.heroMetricValue}>{wishlistCount}</Text>
+            <Text style={styles.heroMetricLabel}>{t('profile.wishlist')}</Text>
           </View>
         </View>
       </View>
@@ -561,85 +540,6 @@ export default function ProfileScreen() {
             <Text style={styles.emptyStatsTxt}>{t('profile.noTrips')}</Text>
           </View>
         )}
-      </View>
-
-      <View style={styles.hiddenSection}>
-        <View style={styles.achievementCard}>
-          <View style={styles.achievementHeader}>
-            <View style={styles.achievementHeaderCopy}>
-              <Text style={styles.secTitle}>{t('profile.achievements')}</Text>
-              <Text style={styles.achievementSub}>{t('achievements.subtitle')}</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.achievementLinkBtn}
-              onPress={() => router.push('/achievements')}
-              activeOpacity={0.82}
-            >
-              <Text style={styles.achievementLinkTxt}>{t('profile.achievementsView')}</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.achievementSummaryRow}>
-            <View style={styles.achievementSummaryBox}>
-              <Text style={styles.achievementSummaryValue}>{achievements.unlockedCount}</Text>
-              <Text style={styles.achievementSummaryLabel}>{t('achievements.unlocked')}</Text>
-            </View>
-            <View style={styles.achievementSummaryDivider} />
-            <View style={styles.achievementSummaryBox}>
-              <Text style={styles.achievementSummaryValue}>{achievements.totalCount}</Text>
-              <Text style={styles.achievementSummaryLabel}>{t('achievements.total')}</Text>
-            </View>
-            <View style={styles.achievementSummaryDivider} />
-            <View style={styles.achievementSummaryBox}>
-              <Text style={styles.achievementSummaryValue}>{Math.round(achievements.completionRate * 100)}%</Text>
-              <Text style={styles.achievementSummaryLabel}>{t('achievements.progressLabel')}</Text>
-            </View>
-          </View>
-
-          <View style={styles.achievementPreviewRow}>
-            {achievementPreview.map((item) => (
-              <View key={item.id} style={styles.achievementMiniCard}>
-                <View
-                  style={[
-                    styles.achievementMiniIconWrap,
-                    { backgroundColor: item.unlocked ? `${item.accent}18` : colors.cardMuted },
-                  ]}
-                >
-                  <Ionicons
-                    name={(item.unlocked ? item.icon : 'lock-closed-outline') as any}
-                    size={18}
-                    color={item.unlocked ? item.accent : colors.textMuted}
-                  />
-                </View>
-                <Text style={styles.achievementMiniTitle} numberOfLines={2}>
-                  {t(item.title)}
-                </Text>
-                <Text style={styles.achievementMiniMeta} numberOfLines={1}>
-                  {item.unlocked ? t('achievements.unlocked') : item.progressText}
-                </Text>
-              </View>
-            ))}
-          </View>
-
-          {achievements.nextAchievement ? (
-            <View style={styles.achievementNextCard}>
-              <Text style={styles.achievementNextLabel}>{t('achievements.nextBadge')}</Text>
-              <Text style={styles.achievementNextTitle}>{t(achievements.nextAchievement.title)}</Text>
-              <Text style={styles.achievementNextMeta}>{t(achievements.nextAchievement.hint)}</Text>
-              <View style={styles.achievementProgressTrack}>
-                <View
-                  style={[
-                    styles.achievementProgressFill,
-                    {
-                      width: `${Math.max(achievements.nextAchievement.progress * 100, 8)}%`,
-                      backgroundColor: achievements.nextAchievement.accent,
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-          ) : null}
-        </View>
       </View>
 
       {/* ── Wishlist (Bormoqchi joylar) ── */}

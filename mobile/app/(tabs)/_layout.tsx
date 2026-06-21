@@ -34,8 +34,7 @@ export default function TabLayout() {
         tabBarIcon: ({ focused, color }) => {
           const icons: Record<string, [string, string]> = {
             index: ['home', 'home-outline'],
-            planner: ['map', 'map-outline'],
-            explore: ['compass', 'compass-outline'],
+            trips: ['briefcase', 'briefcase-outline'],
             profile: ['person', 'person-outline'],
           };
 
@@ -52,9 +51,7 @@ export default function TabLayout() {
       })}
     >
       <Tabs.Screen name="index" options={{ title: t('tabs.home') }} />
-      <Tabs.Screen name="planner" options={{ title: t('tabs.planner') }} />
-      <Tabs.Screen name="explore" options={{ title: t('tabs.explore') }} />
-      <Tabs.Screen name="trips" options={{ href: null }} />
+      <Tabs.Screen name="trips" options={{ title: 'Bronlarim' }} />
       <Tabs.Screen name="profile" options={{ title: t('tabs.profile') }} />
     </Tabs>
   );

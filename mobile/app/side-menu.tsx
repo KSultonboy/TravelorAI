@@ -16,13 +16,11 @@ import { type AuthUser, getUserDisplayName, getUserInitials } from '../src/utils
 import { getJSON, KEYS } from '../src/utils/storage';
 import { FONTS } from '../src/constants/fonts';
 import { SPACING } from '../src/constants/spacing';
-import { useTrips } from '../src/hooks/useTrips';
 import { useWishlist } from '../src/hooks/useWishlist';
 
 export default function SideMenuScreen() {
   const { colors } = useStitchMobileStyles();
   const [user, setUser] = useState<AuthUser | null>(null);
-  const { trips } = useTrips(user?.id || null);
   const { wishlist } = useWishlist(user?.id || null);
 
   useEffect(() => {
@@ -59,25 +57,20 @@ export default function SideMenuScreen() {
         </View>
         <StitchStatGrid
           items={[
-            { label: 'Rejalar', value: String(trips.length), icon: 'map-outline' },
-            { label: 'Shaharlar', value: String(new Set(trips.flatMap((trip) => trip.destinations || [])).size), icon: 'location-outline' },
             { label: 'Saqlangan', value: String(wishlist.length), icon: 'heart-outline' },
           ]}
         />
       </StitchCard>
 
       <StitchCard>
-        <StitchListRow icon="home-outline" title="Home" subtitle="Asosiy sahifa" onPress={() => router.replace('/(tabs)' as any)} />
-        <StitchListRow icon="map-outline" title="Planner" subtitle="AI yoki qo‘lda marshrut tuzish" onPress={() => router.push('/(tabs)/planner' as any)} />
-        <StitchListRow icon="compass-outline" title="Explore" subtitle="Yandex joylari va xarita" onPress={() => router.push('/(tabs)/explore' as any)} />
-        <StitchListRow icon="heart-outline" title="Wishlist" subtitle="Saqlangan joylar" onPress={() => router.push('/wishlist' as any)} />
+        <StitchListRow icon="home-outline" title="Home" subtitle="Turlar katalogi" onPress={() => router.replace('/(tabs)' as any)} />
+        <StitchListRow icon="briefcase-outline" title="Bronlarim" subtitle="Sotib olingan turlar" onPress={() => router.push('/bookings' as any)} />
+        <StitchListRow icon="heart-outline" title="Saqlangan" subtitle="Yoqtirgan turlar" onPress={() => router.push('/wishlist' as any)} />
       </StitchCard>
 
       <StitchCard>
         <StitchListRow icon="person-outline" title="Profil" subtitle="Shaxsiy ma’lumotlar" onPress={() => router.push('/(tabs)/profile' as any)} />
-        <StitchListRow icon="settings-outline" title="Sozlamalar" subtitle="Til, tema va bildirishnomalar" onPress={() => router.push('/settings' as any)} />
-        <StitchListRow icon="gift-outline" title="Aksiyalar" subtitle="Kupon va maxsus takliflar" onPress={() => router.push('/promotions' as any)} />
-        <StitchListRow icon="help-circle-outline" title="Yordam markazi" subtitle="Savollar va qo‘llab-quvvatlash" onPress={() => router.push('/help-center' as any)} />
+        <StitchListRow icon="settings-outline" title="Sozlamalar" subtitle="Til va bildirishnomalar" onPress={() => router.push('/settings' as any)} />
       </StitchCard>
 
       <TouchableOpacity
