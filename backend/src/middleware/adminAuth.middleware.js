@@ -16,7 +16,7 @@ function adminAuthMiddleware(req, res, next) {
   if (token) {
     const decoded = verifyToken(token);
     if (decoded && decoded.role === 'admin') {
-      req.adminUser = { id: decoded.id, email: decoded.email, role: 'admin' };
+      req.adminUser = { id: decoded.id, email: decoded.email, username: decoded.username, role: 'admin' };
       return next();
     }
   }

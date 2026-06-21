@@ -1593,7 +1593,14 @@ async function createPartner(req, res) {
   }
 }
 
+// Admin panel sessiyasini tekshirish (AdminGate uchun) — JWT(role=admin) yetarli.
+async function adminMe(req, res) {
+  const u = req.adminUser || {};
+  return success(res, { user: { name: u.username || 'Admin', username: u.username || 'admin', email: u.email || '', role: 'admin' } });
+}
+
 module.exports = {
+  adminMe,
   getStats,
   getUsers, getUser, blockUser, deleteUser,
   getTrips, getTrip, deleteTrip,

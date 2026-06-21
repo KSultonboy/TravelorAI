@@ -4,6 +4,7 @@ const admin = require('../controllers/admin.controller');
 
 router.use(adminAuthMiddleware);
 
+router.get('/me', admin.adminMe);
 router.get('/stats', admin.getStats);
 
 router.get('/users', admin.getUsers);

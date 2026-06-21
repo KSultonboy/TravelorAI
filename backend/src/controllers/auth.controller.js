@@ -227,25 +227,18 @@ async function login(req, res) {
   }
 }
 
-// ===== Admin panel auth: parol → 2FA email kod → JWT (role=admin) =====
+// ===== Admin panel auth: login + parol → JWT (role=admin). Email/2FA yo'q. =====
 async function adminLogin(req, res) {
   try {
-    const normalizedEmail = normalizeEmail(req.body.email || '');
+    const username = String(req.body.username || req.body.email || '').trim();
     const password = String(req.body.password || '');
-    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-    if (!user || !user.password) {
-      return error(res, 'Email yoki parol noto\'g\'ri.', 401);
+    const expectedUser = process.env.ADMIN_USERNAME || 'admin';
+    const expectedPass = process.env.ADMIN_PASSWORD || 'admin123';
+    if (username !== expectedUser || password !== expectedPass) {
+      return error(res, 'Login yoki parol noto\'g\'ri.', 401);
     }
-    const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword) {
-      return error(res, 'Email yoki parol noto\'g\'ri.', 401);
-    }
-    if (user.role !== 'admin') {
-      return error(res, 'Bu hisobda admin huquqi yo\'q.', 403);
-    }
-    // Biznes/admin hisob — 2FA email kod yuboramiz.
-    await issueAuthCode({ user, type: AuthCodeType.EMAIL_VERIFICATION });
-    return success(res, { requiresEmailCode: true, email: user.email });
+    const token = signToken({ role: 'admin', username, admin: true });
+    return success(res, { token, user: { name: username, username, role: 'admin' } });
   } catch (err) {
     return error(res, err.message, 500);
   }

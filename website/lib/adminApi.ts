@@ -44,23 +44,17 @@ export async function api<T = unknown>(path: string, init: RequestInit = {}): Pr
   return (json?.data ?? json) as T;
 }
 
-// ---- Auth ----
-export async function adminLogin(email: string, password: string) {
-  return api<{ requiresEmailCode?: boolean; email?: string }>("/auth/admin/login", {
+// ---- Auth ---- login + parol → JWT (email/2FA yo'q)
+export async function adminLogin(username: string, password: string) {
+  const data = await api<{ token: string; user: AdminUser }>("/auth/admin/login", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
-  });
-}
-export async function adminVerify(email: string, code: string) {
-  const data = await api<{ token: string; user: AdminUser }>("/auth/admin/login/verify", {
-    method: "POST",
-    body: JSON.stringify({ email, code }),
+    body: JSON.stringify({ username, password }),
   });
   if (data?.token) setToken(data.token);
   return data;
 }
 export async function fetchMe() {
-  return api<{ user: AdminUser }>("/auth/me");
+  return api<{ user: AdminUser }>("/admin/me");
 }
 
-export type AdminUser = { id: string; name: string; email: string; role?: string };
+export type AdminUser = { id?: string; name: string; username?: string; email?: string; role?: string };
