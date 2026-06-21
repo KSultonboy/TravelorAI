@@ -9,6 +9,7 @@ const METHODS_WITH_BODY = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const DEFAULT_LOCAL_API_BASE = "http://localhost:4000/api/v1";
 const DEFAULT_ADMIN_SECRET = "change_me";
 const DEFAULT_PROXY_TIMEOUT_MS = 15000;
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 function resolveRequestHost(request: NextRequest) {
   const forwardedHost = request.headers.get("x-forwarded-host");
@@ -72,10 +73,36 @@ function getAdminSecret(request: NextRequest) {
   return "";
 }
 
+function requestOrigin(request: NextRequest) {
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0].trim();
+  const protocol = forwardedProto || request.nextUrl.protocol.replace(":", "") || "https";
+  const host = resolveRequestHost(request);
+  return host ? `${protocol}://${host}` : request.nextUrl.origin;
+}
+
+function hasValidOrigin(request: NextRequest) {
+  if (SAFE_METHODS.has(request.method)) return true;
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+
+  const allowed = new Set([
+    requestOrigin(request),
+    request.nextUrl.origin,
+    process.env.NEXT_PUBLIC_SITE_URL,
+    process.env.ADMIN_SITE_URL,
+  ].filter((value): value is string => Boolean(value)));
+
+  return allowed.has(origin);
+}
+
 async function proxyAdminRequest(request: NextRequest, context: RouteContext) {
   const session = await getAdminSession();
   if (!session) {
     return NextResponse.json({ success: false, message: "Admin login kerak" }, { status: 401 });
+  }
+
+  if (!hasValidOrigin(request)) {
+    return NextResponse.json({ success: false, message: "So'rov manbasi ruxsat etilmagan" }, { status: 403 });
   }
 
   const adminKey = getAdminSecret(request);

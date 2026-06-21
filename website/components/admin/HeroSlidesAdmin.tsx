@@ -99,6 +99,7 @@ function toForm(item: HeroSlide): HeroSlideForm {
 export default function HeroSlidesAdmin({ username }: { username: string }) {
   const [items, setItems] = useState<HeroSlide[]>([]);
   const [form, setForm] = useState<HeroSlideForm>(emptyForm);
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -168,9 +169,14 @@ export default function HeroSlidesAdmin({ username }: { username: string }) {
     reader.readAsDataURL(file);
   }
 
-  function resetForm() {
+  function clearForm() {
     setSelectedId(null);
     setForm(emptyForm);
+    setFileInputKey((current) => current + 1);
+  }
+
+  function resetForm() {
+    clearForm();
     setMessage("");
     setError("");
   }
@@ -198,10 +204,10 @@ export default function HeroSlidesAdmin({ username }: { username: string }) {
       );
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.success) throw new Error(payload.message || "Saqlashda xatolik");
-      setMessage(selectedId ? "Slayd yangilandi" : "Yangi slayd qo'shildi");
-      setSelectedId(payload.data.id);
-      setForm(toForm(payload.data));
+      const successMessage = selectedId ? "Slayd yangilandi" : "Yangi slayd qo'shildi";
       await loadItems();
+      clearForm();
+      setMessage(successMessage);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Saqlashda xatolik");
     } finally {
@@ -326,6 +332,7 @@ export default function HeroSlidesAdmin({ username }: { username: string }) {
               <label>
                 Rasm fayl yuklash
                 <input
+                  key={fileInputKey}
                   accept="image/png,image/jpeg,image/webp,image/gif"
                   type="file"
                   onChange={(event) => handleImageFile(event.target.files?.[0] || null)}

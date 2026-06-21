@@ -3,11 +3,16 @@ const crypto = require('crypto');
 const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { signAgencyToken } = require('../utils/agencyJwt');
-const { sendVerificationCodeEmail } = require('../services/email.service');
+const { sendEmailChangeCodeEmail, sendVerificationCodeEmail } = require('../services/email.service');
+const { verifyGoogleIdToken } = require('../services/auth.service');
+const { materializeDataImage } = require('../utils/dataImage');
 const { bookingStatusSchema } = require('../schemas/booking.schema');
 const { formatBooking } = require('./bookings.controller');
 const {
   applicationSchema,
+  emailChangeConfirmSchema,
+  emailChangeRequestSchema,
+  googleAuthSchema,
   loginSchema,
   registerSchema,
   tourSchema,
@@ -15,6 +20,8 @@ const {
 } = require('../schemas/agency.schema');
 
 const CODE_EXPIRES_MINUTES = Number(process.env.AGENCY_CODE_EXPIRES_MINUTES || 10);
+const EMAIL_CHANGE_MAX_RESENDS = 3;
+const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'support@travelorai.local';
 
 function slugify(text) {
   return String(text || '')
@@ -32,7 +39,7 @@ function hashCode(code) {
 }
 
 function generateCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(crypto.randomInt(100000, 1000000));
 }
 
 function publicAccount(account) {
@@ -40,7 +47,10 @@ function publicAccount(account) {
   return {
     id: account.id,
     email: account.email,
+    pendingEmail: account.pendingEmail || null,
     emailVerified: account.emailVerified,
+    emailChangeResendCount: account.emailChangeResendCount || 0,
+    emailChangeResendsRemaining: Math.max(0, EMAIL_CHANGE_MAX_RESENDS - Number(account.emailChangeResendCount || 0)),
     status: account.status,
     createdAt: account.createdAt,
     updatedAt: account.updatedAt,
@@ -111,14 +121,14 @@ async function uniqueTourSlug(base, currentId) {
   return slug;
 }
 
-async function issueAgencyCode(account) {
+async function issueAgencyCode(account, type = 'EMAIL_VERIFICATION') {
   const code = generateCode();
   const expiresAt = new Date(Date.now() + CODE_EXPIRES_MINUTES * 60 * 1000);
 
   await prisma.agencyAuthCode.updateMany({
     where: {
       accountId: account.id,
-      type: 'EMAIL_VERIFICATION',
+      type,
       usedAt: null,
     },
     data: { usedAt: new Date() },
@@ -127,40 +137,163 @@ async function issueAgencyCode(account) {
   await prisma.agencyAuthCode.create({
     data: {
       accountId: account.id,
-      type: 'EMAIL_VERIFICATION',
+      type,
       codeHash: hashCode(code),
       expiresAt,
     },
   });
 
-  const delivery = await sendVerificationCodeEmail({
-    email: account.email,
-    name: account.email,
-    code,
-    expiresInMinutes: CODE_EXPIRES_MINUTES,
-  });
+  const delivery =
+    type === 'EMAIL_CHANGE'
+      ? await sendEmailChangeCodeEmail({
+          email: account.email,
+          name: account.email,
+          newEmail: account.pendingEmail,
+          code,
+          expiresInMinutes: CODE_EXPIRES_MINUTES,
+        })
+      : await sendVerificationCodeEmail({
+          email: account.email,
+          name: account.email,
+          code,
+          expiresInMinutes: CODE_EXPIRES_MINUTES,
+        });
 
   return delivery;
 }
 
-async function consumeAgencyCode(accountId, code) {
+async function consumeAgencyCode(accountId, code, type = 'EMAIL_VERIFICATION') {
   const item = await prisma.agencyAuthCode.findFirst({
     where: {
       accountId,
-      type: 'EMAIL_VERIFICATION',
+      type,
       usedAt: null,
       expiresAt: { gt: new Date() },
     },
     orderBy: { createdAt: 'desc' },
   });
 
-  if (!item || item.codeHash !== hashCode(code)) return false;
+  if (!item) return false;
+  const expectedHash = Buffer.from(item.codeHash, 'hex');
+  const actualHash = Buffer.from(hashCode(code), 'hex');
+  if (
+    expectedHash.length !== actualHash.length ||
+    !crypto.timingSafeEqual(expectedHash, actualHash)
+  ) return false;
 
   await prisma.agencyAuthCode.update({
     where: { id: item.id },
     data: { usedAt: new Date() },
   });
   return true;
+}
+
+async function requestEmailChange(req, res) {
+  try {
+    const input = emailChangeRequestSchema.parse(req.body || {});
+    const newEmail = input.newEmail.toLowerCase();
+    const account = req.agencyAccount;
+    if (newEmail === account.email) return error(res, 'Yangi email hozirgi emaildan farq qilishi kerak', 400);
+    if (account.pendingEmail) {
+      return error(res, 'Avval boshlangan email almashtirishni kod bilan tasdiqlang', 409);
+    }
+
+    const conflict = await prisma.agencyAccount.findFirst({
+      where: {
+        id: { not: account.id },
+        OR: [{ email: newEmail }, { pendingEmail: newEmail }],
+      },
+    });
+    if (conflict) return error(res, 'Bu email boshqa agency akkauntida ishlatilgan', 409);
+
+    const updated = await prisma.agencyAccount.update({
+      where: { id: account.id },
+      data: {
+        pendingEmail: newEmail,
+        emailChangeResendCount: 0,
+        emailChangeRequestedAt: new Date(),
+      },
+    });
+    const delivery = await issueAgencyCode(updated, 'EMAIL_CHANGE');
+    return success(res, {
+      account: publicAccount(updated),
+      delivery,
+      message: `Tasdiqlash kodi eski emailingizga (${updated.email}) yuborildi.`,
+      supportEmail: SUPPORT_EMAIL,
+    });
+  } catch (err) {
+    return error(res, err.errors?.[0]?.message || err.message, 400);
+  }
+}
+
+async function resendEmailChange(req, res) {
+  try {
+    const account = await prisma.agencyAccount.findUnique({ where: { id: req.agencyAccount.id } });
+    if (!account?.pendingEmail) return error(res, 'Email almashtirish so‘rovi topilmadi', 404);
+    if (account.emailChangeResendCount >= EMAIL_CHANGE_MAX_RESENDS) {
+      return error(res, `Kod 3 marta qayta yuborildi. ${SUPPORT_EMAIL} orqali adminga murojaat qiling.`, 429, {
+        code: 'EMAIL_CHANGE_RESEND_LIMIT',
+        supportEmail: SUPPORT_EMAIL,
+      });
+    }
+
+    const updated = await prisma.agencyAccount.update({
+      where: { id: account.id },
+      data: { emailChangeResendCount: { increment: 1 } },
+    });
+    const delivery = await issueAgencyCode(updated, 'EMAIL_CHANGE');
+    return success(res, {
+      account: publicAccount(updated),
+      delivery,
+      message: 'Kod eski emailga qayta yuborildi.',
+      supportEmail: SUPPORT_EMAIL,
+    });
+  } catch (err) {
+    return error(res, err.message, 400);
+  }
+}
+
+async function confirmEmailChange(req, res) {
+  try {
+    const input = emailChangeConfirmSchema.parse(req.body || {});
+    const account = await prisma.agencyAccount.findUnique({ where: { id: req.agencyAccount.id } });
+    if (!account?.pendingEmail) return error(res, 'Email almashtirish so‘rovi topilmadi', 404);
+
+    const ok = await consumeAgencyCode(account.id, input.code, 'EMAIL_CHANGE');
+    if (!ok) return error(res, 'Kod xato yoki muddati tugagan', 400);
+
+    const conflict = await prisma.agencyAccount.findFirst({
+      where: { id: { not: account.id }, email: account.pendingEmail },
+    });
+    if (conflict) return error(res, 'Yangi email boshqa akkaunt tomonidan band qilingan', 409);
+
+    const [updated] = await prisma.$transaction([
+      prisma.agencyAccount.update({
+        where: { id: account.id },
+        data: {
+          email: account.pendingEmail,
+          pendingEmail: null,
+          emailChangeResendCount: 0,
+          emailChangeRequestedAt: null,
+          emailVerified: true,
+          emailVerifiedAt: new Date(),
+        },
+      }),
+      prisma.agencyApplication.updateMany({
+        where: { accountId: account.id },
+        data: { email: account.pendingEmail },
+      }),
+    ]);
+
+    const token = signAgencyToken({ id: updated.id, email: updated.email, role: 'agency' });
+    return success(res, {
+      token,
+      account: publicAccount(updated),
+      message: 'Email muvaffaqiyatli almashtirildi.',
+    });
+  } catch (err) {
+    return error(res, err.errors?.[0]?.message || err.message, 400);
+  }
 }
 
 async function getLatestApplication(accountId) {
@@ -344,6 +477,61 @@ async function login(req, res) {
   }
 }
 
+async function googleAuth(req, res) {
+  try {
+    const input = googleAuthSchema.parse(req.body || {});
+    const googleProfile = await verifyGoogleIdToken(input.idToken);
+    let account = await prisma.agencyAccount.findFirst({
+      where: {
+        OR: [{ googleId: googleProfile.googleId }, { email: googleProfile.email }],
+      },
+    });
+
+    if (account?.status === 'blocked') {
+      return error(res, 'Agency akkaunt bloklangan', 403);
+    }
+
+    if (!account) {
+      const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+      account = await prisma.agencyAccount.create({
+        data: {
+          email: googleProfile.email,
+          googleId: googleProfile.googleId,
+          passwordHash,
+          emailVerified: true,
+          emailVerifiedAt: new Date(),
+          lastLoginAt: new Date(),
+          status: 'pending',
+        },
+      });
+    } else {
+      account = await prisma.agencyAccount.update({
+        where: { id: account.id },
+        data: {
+          googleId: account.googleId || googleProfile.googleId,
+          emailVerified: true,
+          emailVerifiedAt: account.emailVerifiedAt || new Date(),
+          lastLoginAt: new Date(),
+        },
+      });
+    }
+
+    const token = signAgencyToken({ id: account.id, email: account.email, role: 'agency' });
+    return success(res, { token, account: publicAccount(account) });
+  } catch (err) {
+    if (err.response?.status === 400) {
+      return error(res, 'Google token yaroqsiz yoki muddati tugagan.', 401);
+    }
+    if (err.message === 'GOOGLE_AUDIENCE_MISMATCH') {
+      return error(res, 'Google client ID mos kelmadi.', 401);
+    }
+    if (err.message === 'GOOGLE_EMAIL_NOT_VERIFIED') {
+      return error(res, 'Google akkauntdagi email tasdiqlanmagan.', 401);
+    }
+    return error(res, err.errors?.[0]?.message || err.message, 400);
+  }
+}
+
 async function me(req, res) {
   try {
     const [application, agency] = await Promise.all([
@@ -375,6 +563,7 @@ async function me(req, res) {
         return acc;
       }, {}),
       bookingStats,
+      supportEmail: SUPPORT_EMAIL,
     });
   } catch (err) {
     return error(res, err.message, 500);
@@ -399,6 +588,9 @@ async function upsertApplication(req, res) {
     if (existing?.status === 'approved') {
       return error(res, 'Tasdiqlangan arizani onboardingdan ozgartirib bolmaydi', 409);
     }
+    if (existing?.status === 'pending') {
+      return error(res, 'Ariza admin tekshiruvida. Qaror chiqmaguncha ozgartirib bolmaydi', 409);
+    }
 
     const data = {
       ...input,
@@ -406,6 +598,7 @@ async function upsertApplication(req, res) {
       website: input.website || null,
       telegram: input.telegram || null,
       instagram: input.instagram || null,
+      imageUrl: input.imageUrl ? await materializeDataImage(input.imageUrl, 'agency') : null,
       status: existing?.status === 'pending' ? 'pending' : 'draft',
     };
 
@@ -427,6 +620,7 @@ async function submitApplication(req, res) {
     const application = await getLatestApplication(req.agencyAccount.id);
     if (!application) return error(res, 'Avval ariza formasini toldiring', 400);
     if (application.status === 'approved') return error(res, 'Ariza allaqachon tasdiqlangan', 409);
+    if (application.status === 'pending') return error(res, 'Ariza allaqachon admin tekshiruvida', 409);
 
     applicationSchema.parse({
       companyName: application.companyName,
@@ -495,7 +689,8 @@ async function createTour(req, res) {
         description: input.description || null,
         price: input.price || null,
         priceMin: input.priceMin ?? null,
-        imageUrl: input.imageUrl || null,
+        imageUrl: input.imageUrl ? await materializeDataImage(input.imageUrl, 'agency') : null,
+        responseTimeMinutes: input.responseTimeMinutes,
         slug,
         agencyId: agency.id,
         source: 'agency_portal',
@@ -529,7 +724,10 @@ async function updateTour(req, res) {
       ...(input.description !== undefined ? { description: input.description || null } : {}),
       ...(input.price !== undefined ? { price: input.price || null } : {}),
       ...(input.priceMin !== undefined ? { priceMin: input.priceMin ?? null } : {}),
-      ...(input.imageUrl !== undefined ? { imageUrl: input.imageUrl || null } : {}),
+      ...(input.imageUrl !== undefined
+        ? { imageUrl: input.imageUrl ? await materializeDataImage(input.imageUrl, 'agency') : null }
+        : {}),
+      ...(input.responseTimeMinutes !== undefined ? { responseTimeMinutes: input.responseTimeMinutes } : {}),
       approvalStatus: nextStatus,
       active: false,
       submittedAt: nextStatus === 'pending_review' ? new Date() : existing.submittedAt,
@@ -646,7 +844,7 @@ async function updateAgencyProfile(req, res) {
     const agency = await ensureApprovedAgency(req, res);
     if (!agency) return;
     const required = ['name', 'city', 'specialty'];
-    const nullable = ['description', 'phone', 'website', 'imageUrl'];
+    const nullable = ['description', 'phone', 'website'];
     const data = {};
     for (const key of required) {
       if (req.body?.[key] !== undefined) {
@@ -657,6 +855,11 @@ async function updateAgencyProfile(req, res) {
     }
     for (const key of nullable) {
       if (req.body?.[key] !== undefined) data[key] = req.body[key] ? String(req.body[key]).trim() : null;
+    }
+    if (req.body?.imageUrl !== undefined) {
+      data.imageUrl = req.body.imageUrl
+        ? await materializeDataImage(req.body.imageUrl, 'agency')
+        : null;
     }
     if (data.name && data.name !== agency.name) data.slug = await uniqueAgencySlug(slugify(data.name), agency.id);
 
@@ -673,7 +876,11 @@ async function updateAgencyProfile(req, res) {
 module.exports = {
   register,
   verifyEmail,
+  requestEmailChange,
+  resendEmailChange,
+  confirmEmailChange,
   login,
+  googleAuth,
   me,
   getApplication,
   upsertApplication,

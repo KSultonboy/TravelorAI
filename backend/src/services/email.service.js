@@ -117,6 +117,22 @@ async function sendVerificationCodeEmail({ email, name, code, expiresInMinutes }
   });
 }
 
+async function sendEmailChangeCodeEmail({ email, name, code, expiresInMinutes, newEmail }) {
+  return sendMail({
+    to: email,
+    subject: `${APP_NAME} email almashtirish kodi`,
+    html: buildHtml({
+      heading: 'Email manzilini almashtirish',
+      intro: `${name || 'Salom'}, akkauntingiz emailini ${safeText(newEmail)} manziliga almashtirish uchun quyidagi kodni kiriting.`,
+      code,
+      expiresInMinutes,
+      footer: "Agar bu so'rovni siz yubormagan bo'lsangiz, kodni hech kimga bermang va support bilan bog'laning.",
+    }),
+    text: `Email almashtirish kodi: ${code}. Yangi email: ${safeText(newEmail)}. Kod ${expiresInMinutes} daqiqa amal qiladi.`,
+    logMeta: { type: 'agency_email_change', code, email, newEmail: safeText(newEmail) },
+  });
+}
+
 async function sendPasswordResetCodeEmail({ email, name, code, expiresInMinutes }) {
   return sendMail({
     to: email,
@@ -130,6 +146,22 @@ async function sendPasswordResetCodeEmail({ email, name, code, expiresInMinutes 
     }),
     text: `Parol tiklash kodi: ${code}. Kod ${expiresInMinutes} daqiqa amal qiladi.`,
     logMeta: { type: 'password_reset', code, email },
+  });
+}
+
+async function sendAccountDeleteCodeEmail({ email, name, code, expiresInMinutes }) {
+  return sendMail({
+    to: email,
+    subject: `${APP_NAME} hisobni o'chirish kodi`,
+    html: buildHtml({
+      heading: "Hisobni o'chirishni tasdiqlang",
+      intro: `${name || 'Salom'}, akkauntingizni butunlay o'chirish uchun quyidagi kodni kiriting.`,
+      code,
+      expiresInMinutes,
+      footer: "Agar bu so'rovni siz yubormagan bo'lsangiz, kodni hech kimga bermang va support bilan bog'laning.",
+    }),
+    text: `Hisobni o'chirish kodi: ${code}. Kod ${expiresInMinutes} daqiqa amal qiladi.`,
+    logMeta: { type: 'account_delete', code, email },
   });
 }
 
@@ -213,6 +245,8 @@ async function sendSupportFeedbackEmail({
 
 module.exports = {
   sendVerificationCodeEmail,
+  sendEmailChangeCodeEmail,
   sendPasswordResetCodeEmail,
+  sendAccountDeleteCodeEmail,
   sendSupportFeedbackEmail,
 };

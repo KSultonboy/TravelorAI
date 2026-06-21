@@ -1,5 +1,6 @@
 # dependencies
 **/node_modules/
+**/.npm-cache/
 
 # env / secrets
 .env
@@ -29,6 +30,10 @@
 **/tmp/
 .DS_Store
 .codex-tmp/
+
+# Accidental local shell output files
+document.documentElement.clientWidth
+document.documentElement.clientWidth\}\)
 .claude/
 .expo/
 .expo-shared/

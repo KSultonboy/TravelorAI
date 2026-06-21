@@ -18,6 +18,7 @@ const DEFAULT_PREFERENCES = {
   interests: ['tarixiy', 'madaniy'],
   updatedAt: null,
 };
+const MAX_SECURITY_CODE_REQUESTS = 3;
 
 function mapPreferences(pref) {
   if (!pref) return DEFAULT_PREFERENCES;
@@ -52,40 +53,33 @@ async function register(req, res) {
     const normalizedEmail = normalizeEmail(email);
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
 
-    if (existing?.emailVerified) {
-      return error(res, 'Bu email allaqachon ro\'yxatdan o\'tgan.', 409, {
-        authProvider: existing.googleId ? 'google' : 'local',
-      });
-    }
+    if (existing) {
+      const authProvider = existing.googleId && !existing.password ? 'google' : 'local';
+      const message =
+        authProvider === 'google'
+          ? 'Bu Gmail Google orqali avval ro‘yxatdan o‘tgan. Google bilan kiring.'
+          : existing.emailVerified
+            ? 'Bu Gmail bilan avval ro‘yxatdan o‘tilgan. Kirish bo‘limidan foydalaning.'
+            : 'Bu Gmail bilan ro‘yxatdan o‘tilgan, lekin email hali tasdiqlanmagan. Kodni qayta yuboring.';
 
-    if (existing?.googleId && !existing.password) {
-      return error(res, 'Bu email Google orqali ro\'yxatdan o\'tgan. Google bilan kiring.', 409, {
-        authProvider: 'google',
+      return error(res, message, 409, {
+        authProvider,
+        requiresVerification: authProvider === 'local' && !existing.emailVerified,
+        email: existing.email,
       });
     }
 
     const hashedPassword = await bcrypt.hash(password, PASSWORD_SALT_ROUNDS);
 
-    const user = existing
-      ? await prisma.user.update({
-          where: { id: existing.id },
-          data: {
-            name,
-            password: hashedPassword,
-            authProvider: AuthProvider.LOCAL,
-            emailVerified: false,
-            emailVerifiedAt: null,
-          },
-        })
-      : await prisma.user.create({
-          data: {
-            name,
-            email: normalizedEmail,
-            password: hashedPassword,
-            authProvider: AuthProvider.LOCAL,
-            emailVerified: false,
-          },
-        });
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email: normalizedEmail,
+        password: hashedPassword,
+        authProvider: AuthProvider.LOCAL,
+        emailVerified: false,
+      },
+    });
 
     const codeResult = await issueAuthCode({ user, type: AuthCodeType.EMAIL_VERIFICATION });
 
@@ -98,9 +92,12 @@ async function register(req, res) {
         delivery: codeResult.delivery,
         ...(codeResult.devCode ? { devCode: codeResult.devCode } : {}),
       },
-      existing ? 200 : 201
+      201
     );
   } catch (err) {
+    if (err.code === 'P2002') {
+      return error(res, 'Bu Gmail bilan avval ro‘yxatdan o‘tilgan. Kirish bo‘limidan foydalaning.', 409);
+    }
     return error(res, err.message, 500);
   }
 }
@@ -425,28 +422,155 @@ async function updatePreferences(req, res) {
   }
 }
 
+async function verifyCurrentPassword(user, password) {
+  if (!user.password) return true;
+  if (!password) return false;
+  return bcrypt.compare(password, user.password);
+}
+
+function securityRequestLimit(res, message) {
+  return error(res, message, 429, {
+    contactAdmin: true,
+    attemptsRemaining: 0,
+  });
+}
+
+async function requestEmailChange(req, res) {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return error(res, 'Foydalanuvchi topilmadi.', 404);
+
+    const newEmail = normalizeEmail(req.body.newEmail);
+    if (newEmail === user.email) return error(res, 'Yangi email joriy emaildan farq qilishi kerak.', 400);
+
+    const emailOwner = await prisma.user.findFirst({
+      where: { OR: [{ email: newEmail }, { pendingEmail: newEmail }], NOT: { id: user.id } },
+      select: { id: true },
+    });
+    if (emailOwner) return error(res, 'Bu Gmail boshqa akkauntda ishlatilgan.', 409);
+
+    const passwordOk = await verifyCurrentPassword(user, req.body.password);
+    if (!passwordOk) {
+      return error(res, user.password ? 'Parol noto‘g‘ri yoki kiritilmagan.' : 'Tasdiqlash amalga oshmadi.', 401, {
+        requiresPassword: Boolean(user.password),
+      });
+    }
+
+    const sameRequest = user.pendingEmail === newEmail;
+    const requestCount = sameRequest ? user.emailChangeResendCount : 0;
+    if (requestCount >= MAX_SECURITY_CODE_REQUESTS) {
+      return securityRequestLimit(res, 'Kod 3 marta so‘raldi. Emailni almashtirish uchun adminga murojaat qiling.');
+    }
+
+    const codeResult = await issueAuthCode({ user, type: AuthCodeType.EMAIL_CHANGE, newEmail });
+    const nextCount = requestCount + 1;
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        pendingEmail: newEmail,
+        emailChangeResendCount: nextCount,
+        emailChangeRequestedAt: new Date(),
+      },
+    });
+
+    return success(res, {
+      message: `Tasdiqlash kodi eski emailingizga yuborildi: ${user.email}`,
+      currentEmail: user.email,
+      pendingEmail: newEmail,
+      attemptsRemaining: MAX_SECURITY_CODE_REQUESTS - nextCount,
+      delivery: codeResult.delivery,
+      ...(codeResult.devCode ? { devCode: codeResult.devCode } : {}),
+    });
+  } catch (err) {
+    return error(res, err.message, 500);
+  }
+}
+
+async function verifyEmailChange(req, res) {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return error(res, 'Foydalanuvchi topilmadi.', 404);
+    if (!user.pendingEmail) return error(res, 'Email almashtirish so‘rovi topilmadi.', 400);
+
+    try {
+      await consumeAuthCode({ userId: user.id, type: AuthCodeType.EMAIL_CHANGE, code: req.body.code });
+    } catch (err) {
+      return mapCodeError(res, err);
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        email: user.pendingEmail,
+        pendingEmail: null,
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+        emailChangeResendCount: 0,
+        emailChangeRequestedAt: null,
+      },
+    });
+
+    return success(res, {
+      message: 'Email muvaffaqiyatli almashtirildi.',
+      ...createAuthPayload(updatedUser),
+    });
+  } catch (err) {
+    if (err.code === 'P2002') return error(res, 'Bu Gmail boshqa akkauntda ishlatilgan.', 409);
+    return error(res, err.message, 500);
+  }
+}
+
+async function requestAccountDeletion(req, res) {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return error(res, 'Foydalanuvchi topilmadi.', 404);
+
+    const passwordOk = await verifyCurrentPassword(user, req.body.password);
+    if (!passwordOk) {
+      return error(res, user.password ? 'Hisobni o‘chirish uchun parol noto‘g‘ri yoki kiritilmagan.' : 'Tasdiqlash amalga oshmadi.', 401, {
+        requiresPassword: Boolean(user.password),
+      });
+    }
+
+    if (user.accountDeleteResendCount >= MAX_SECURITY_CODE_REQUESTS) {
+      return securityRequestLimit(res, 'Kod 3 marta so‘raldi. Hisobni o‘chirish uchun adminga murojaat qiling.');
+    }
+
+    const codeResult = await issueAuthCode({ user, type: AuthCodeType.ACCOUNT_DELETE });
+    const nextCount = user.accountDeleteResendCount + 1;
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        accountDeleteResendCount: nextCount,
+        accountDeleteRequestedAt: new Date(),
+      },
+    });
+
+    return success(res, {
+      message: `Hisobni o‘chirish kodi ${user.email} manziliga yuborildi.`,
+      email: user.email,
+      attemptsRemaining: MAX_SECURITY_CODE_REQUESTS - nextCount,
+      delivery: codeResult.delivery,
+      ...(codeResult.devCode ? { devCode: codeResult.devCode } : {}),
+    });
+  } catch (err) {
+    return error(res, err.message, 500);
+  }
+}
+
 async function deleteAccount(req, res) {
   try {
-    const { password } = req.body || {};
+    const { code } = req.body || {};
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
 
     if (!user) {
       return error(res, 'Foydalanuvchi topilmadi.', 404);
     }
 
-    if (user.password) {
-      if (!password) {
-        return error(res, 'Hisobni o\'chirish uchun parolni kiriting.', 400, {
-          requiresPassword: true,
-        });
-      }
-
-      const validPassword = await bcrypt.compare(password, user.password);
-      if (!validPassword) {
-        return error(res, 'Parol noto\'g\'ri.', 401, {
-          requiresPassword: true,
-        });
-      }
+    try {
+      await consumeAuthCode({ userId: user.id, type: AuthCodeType.ACCOUNT_DELETE, code });
+    } catch (err) {
+      return mapCodeError(res, err);
     }
 
     await prisma.user.delete({
@@ -473,5 +597,8 @@ module.exports = {
   getMe,
   getPreferences,
   updatePreferences,
+  requestEmailChange,
+  verifyEmailChange,
+  requestAccountDeletion,
   deleteAccount,
 };

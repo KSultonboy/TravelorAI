@@ -32,8 +32,12 @@ function apiBase() {
 }
 
 function randomId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return `landing_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  if (typeof window !== "undefined" && window.crypto) {
+    if (typeof window.crypto.randomUUID === "function") return window.crypto.randomUUID();
+    const bytes = window.crypto.getRandomValues(new Uint8Array(16));
+    return `landing_${Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("")}`;
+  }
+  return `landing_${Date.now()}`;
 }
 
 function getSessionId() {

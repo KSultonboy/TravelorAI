@@ -9,7 +9,7 @@
     "db:migrate": "npx prisma migrate dev",
     "db:seed": "node src/utils/seed.js",
     "db:studio": "npx prisma studio",
-    "test": "jest --coverage --passWithNoTests"
+    "test": "jest --coverage"
   },
   "dependencies": {
     "@prisma/client": "^5.7.0",

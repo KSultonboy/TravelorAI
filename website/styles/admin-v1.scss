@@ -783,6 +783,10 @@
     align-items: stretch;
   }
 
+  .admin-sidebar-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .admin-grid {
     grid-template-columns: 1fr;
   }
@@ -809,7 +813,7 @@
   .admin-login-card,
   .admin-main,
   .admin-panel {
-    padding: 18px;
+    padding: 16px;
   }
 
   .admin-topbar,
@@ -820,5 +824,68 @@
   .admin-form__row,
   .admin-slide-list article {
     grid-template-columns: 1fr;
+  }
+
+  .admin-sidebar-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-accordion {
+    border-radius: 20px;
+  }
+
+  .admin-accordion__trigger {
+    min-height: 68px;
+    padding: 14px;
+  }
+
+  .admin-accordion__icon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .admin-accordion__body {
+    padding: 0 10px 10px;
+  }
+
+  .admin-panel__head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-preview {
+    min-height: 210px;
+    border-radius: 18px;
+  }
+
+  .admin-form input,
+  .admin-form textarea,
+  .admin-form button {
+    min-height: 48px;
+  }
+
+  .admin-review-card {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-review-card > div:first-child {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 380px) {
+  .admin-login-screen,
+  .admin-main,
+  .admin-aside {
+    padding: 10px;
+  }
+
+  .admin-login-card {
+    padding: 16px;
+    border-radius: 22px;
+  }
+
+  .admin-topbar h1 {
+    font-size: 2rem;
   }
 }

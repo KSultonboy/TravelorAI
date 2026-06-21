@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const path = require('path');
 const { loggerMiddleware } = require('./src/middleware/logger.middleware');
 const { rateLimiter } = require('./src/middleware/rateLimit.middleware');
+const { logger } = require('./src/config/logger');
 const routes = require('./src/routes/index');
 
 const app = express();
@@ -286,11 +287,16 @@ if (process.env.NODE_ENV === 'production') {
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
-app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') || '*' }));
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ?.split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+app.use(cors({ origin: allowedOrigins?.length ? allowedOrigins : '*' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   fallthrough: false,
   maxAge: process.env.NODE_ENV === 'production' ? '30d' : 0,
 }));
+app.use('/api/v1', rateLimiter);
 app.use(express.json({ limit: '12mb' }));
 app.use(loggerMiddleware);
 
@@ -307,11 +313,21 @@ app.get(['/privacy-policy', '/privacy'], (req, res) => {
   res.status(200).send(renderPrivacyPolicyPage(baseUrl));
 });
 
-app.use('/api/v1', rateLimiter, routes);
+app.use('/api/v1', routes);
 
 app.use((err, req, res, next) => {
   const status = err.status || 500;
-  res.status(status).json({ success: false, message: err.message || 'Internal Server Error' });
+  if (status >= 500) {
+    logger.error('Unhandled request error', {
+      message: err.message,
+      method: req.method,
+      path: req.originalUrl,
+    });
+  }
+  const message = status >= 500 && process.env.NODE_ENV === 'production'
+    ? 'Internal Server Error'
+    : err.message || 'Internal Server Error';
+  res.status(status).json({ success: false, message });
 });
 
 module.exports = app;

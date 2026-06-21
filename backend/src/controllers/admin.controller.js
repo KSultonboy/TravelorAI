@@ -6,6 +6,7 @@ const { formatBooking } = require('./bookings.controller');
 const crypto = require('crypto');
 const fs = require('fs/promises');
 const path = require('path');
+const { deleteMaterializedImage } = require('../utils/dataImage');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -909,6 +910,7 @@ async function approveAgencyApplication(req, res) {
       specialty,
       phone: application.phone,
       website: application.website,
+      imageUrl: application.imageUrl,
       active: true,
       source: 'agency_portal',
       confidenceScore: 0.85,
@@ -956,44 +958,34 @@ async function approveAgencyApplication(req, res) {
 
 async function rejectAgencyApplication(req, res) {
   try {
-    const { adminNote } = adminReviewSchema.parse(req.body || {});
+    adminReviewSchema.parse(req.body || {});
     const application = await prisma.agencyApplication.findUnique({
       where: { id: req.params.id },
+      include: { agency: true },
     });
     if (!application) return error(res, 'Agency ariza topilmadi', 404);
 
-    const now = new Date();
     const operations = [
-      prisma.agencyApplication.update({
+      prisma.agencyApplication.delete({
         where: { id: application.id },
-        data: {
-          status: 'rejected',
-          reviewedAt: now,
-          adminNote: adminNote || null,
-        },
       }),
       prisma.agencyAccount.update({
         where: { id: application.accountId },
-        data: { status: 'rejected' },
+        data: { status: 'pending' },
       }),
     ];
 
-    if (application.agencyId) {
+    if (application.agencyId && application.agency?.approvalStatus !== 'approved') {
       operations.push(
-        prisma.tourAgency.update({
+        prisma.tourAgency.delete({
           where: { id: application.agencyId },
-          data: {
-            active: false,
-            approvalStatus: 'rejected',
-            rejectedAt: now,
-            adminNote: adminNote || null,
-          },
         })
       );
     }
 
-    const [updated] = await prisma.$transaction(operations);
-    return success(res, updated);
+    await prisma.$transaction(operations);
+    await deleteMaterializedImage(application.imageUrl, 'agency').catch(() => false);
+    return success(res, { id: application.id, deleted: true });
   } catch (err) {
     return error(res, err.errors?.[0]?.message || err.message, 400);
   }

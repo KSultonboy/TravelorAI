@@ -1,8 +1,8 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useEffect } from "react";
-import { ArrowLeft, ArrowRight, Star } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, ArrowRight, CalendarCheck2, MapPinned, Sparkles, Star, WalletCards } from "lucide-react";
 import { trackLandingEvent } from "@/lib/landingEvents";
 
 export type LandingAgency = {
@@ -35,8 +35,12 @@ export default function AppPreview({
   agencies?: LandingAgency[];
   stories?: LandingStory[];
 }) {
-  const topAgencies = agencies.slice(0, 6);
-  const storyItems = stories.slice(0, 3);
+  const topAgencies = useMemo(() => agencies.slice(0, 6), [agencies]);
+  const storyItems = useMemo(() => stories.slice(0, 8), [stories]);
+  const [storyPage, setStoryPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(storyItems.length / 3));
+  const safeStoryPage = storyPage % pageCount;
+  const visibleStories = storyItems.slice(safeStoryPage * 3, safeStoryPage * 3 + 3);
 
   useEffect(() => {
     topAgencies.forEach((agency) => {
@@ -58,32 +62,47 @@ export default function AppPreview({
     });
   }, [topAgencies, storyItems]);
 
-  if (topAgencies.length === 0 && storyItems.length === 0) return null;
-
   return (
     <>
+      <section className="section product-showcase" aria-labelledby="product-showcase-title">
+        <div className="lp-wrap">
+          <div className="section-head section-head--center lp-reveal">
+            <div>
+              <p className="section-kicker">Everything in one place</p>
+              <h2 id="product-showcase-title">From idea to itinerary</h2>
+              <p>TravelorAI combines planning, discovery and trip management so every decision stays clear.</p>
+            </div>
+          </div>
+          <div className="product-grid">
+            {[
+              { icon: Sparkles, title: "Personal AI plans", text: "Generate an itinerary around your budget, dates and interests." },
+              { icon: MapPinned, title: "Verified discovery", text: "Explore places with useful context, ratings and route information." },
+              { icon: CalendarCheck2, title: "Day-by-day control", text: "Edit activities, organize timing and keep the whole trip in one view." },
+              { icon: WalletCards, title: "Budget visibility", text: "Track estimated costs and make choices that fit your travel style." },
+            ].map(({ icon: Icon, title, text }) => (
+              <article className="product-card lp-reveal" key={title}>
+                <span><Icon size={22} /></span>
+                <h3>{title}</h3>
+                <p>{text}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {topAgencies.length > 0 ? (
         <section className="trusted">
           <div className="lp-wrap lp-reveal">
             <h2>Trusted by Top Agencies</h2>
-            <p>Backenddagi aktiv agency reytinglari asosida ko&apos;rsatiladi.</p>
+            <p>Active travel partners ranked by quality, reviews and traveler signals.</p>
             <div className="agency-row">
               {topAgencies.map((agency) => (
-                <button
+                <span
                   key={agency.id || agency.slug || agency.name}
-                  type="button"
                   title={agency.specialty || agency.city}
-                  onClick={() =>
-                    trackLandingEvent({
-                      entityType: "agency",
-                      entityId: agency.id,
-                      eventType: "agency_click",
-                      metadata: { slug: agency.slug, section: "trusted_agencies" },
-                    })
-                  }
                 >
                   {agency.name}
-                </button>
+                </span>
               ))}
             </div>
           </div>
@@ -100,30 +119,32 @@ export default function AppPreview({
                   <p>Don&apos;t just take our word for it. See what our community has to say.</p>
                 </div>
                 <div className="story-actions">
-                  <button type="button" aria-label="Previous story">
+                  <button
+                    type="button"
+                    aria-label="Previous stories"
+                    disabled={pageCount <= 1}
+                    onClick={() => setStoryPage((current) => (current - 1 + pageCount) % pageCount)}
+                  >
                     <ArrowLeft size={16} />
                   </button>
-                  <button type="button" aria-label="Next story">
+                  <button
+                    type="button"
+                    aria-label="Next stories"
+                    disabled={pageCount <= 1}
+                    onClick={() => setStoryPage((current) => (current + 1) % pageCount)}
+                  >
                     <ArrowRight size={16} />
                   </button>
                 </div>
               </div>
 
               <div className="story-grid">
-                {storyItems.map((story) => (
+                {visibleStories.map((story) => (
                   <article
                     className="story-card"
                     key={story.id || story.slug || story.authorName}
-                    onClick={() =>
-                      trackLandingEvent({
-                        entityType: "story",
-                        entityId: story.id,
-                        eventType: "click",
-                        metadata: { slug: story.slug, section: "traveler_stories" },
-                      })
-                    }
                   >
-                    <div className="stars" aria-label="5 stars">
+                    <div className="stars" aria-label={`${Math.max(1, Math.min(5, story.rating || 5))} stars`}>
                       {Array.from({ length: Math.max(1, Math.min(5, story.rating || 5)) }).map((_, index) => (
                         <Star key={index} size={13} fill="currentColor" />
                       ))}

@@ -6,6 +6,9 @@ if (process.env.NODE_ENV !== 'production') {
   process.env.ADMIN_SECRET_KEY ||= 'change_me';
 }
 
+const { validateProductionSecurityConfig } = require('./src/config/security');
+validateProductionSecurityConfig();
+
 const app = require('./app');
 const { logger } = require('./src/config/logger');
 const { connectRedis } = require('./src/config/redis');

@@ -23,7 +23,7 @@ import { type AppColors, type ThemePreference, useAppTheme } from '../../src/the
 import { useAchievements } from '../../src/hooks/useAchievements';
 import { useTrips } from '../../src/hooks/useTrips';
 import { useWishlist } from '../../src/hooks/useWishlist';
-import { authAPI } from '../../src/utils/api';
+import { ApiError, authAPI, type SecurityCodePayload } from '../../src/utils/api';
 import { type AuthUser, getUserDisplayName, getUserInitials } from '../../src/utils/auth';
 import { extractApiData } from '../../src/utils/auth';
 import { KEYS, clearAll, clearAuthSession, getItem, getJSON, getUserKey, saveItem, saveUserProfile } from '../../src/utils/storage';
@@ -56,6 +56,9 @@ export default function ProfileScreen() {
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
+  const [deleteCode, setDeleteCode] = useState('');
+  const [deleteStage, setDeleteStage] = useState<'request' | 'verify'>('request');
+  const [deleteAttemptsRemaining, setDeleteAttemptsRemaining] = useState(3);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const syncUserFromServer = useCallback(
@@ -277,6 +280,9 @@ export default function ProfileScreen() {
 
   const openDeleteAccountModal = () => {
     setDeletePassword('');
+    setDeleteCode('');
+    setDeleteStage('request');
+    setDeleteAttemptsRemaining(3);
     setDeleteModalVisible(true);
   };
 
@@ -284,9 +290,11 @@ export default function ProfileScreen() {
     if (isDeletingAccount) return;
     setDeleteModalVisible(false);
     setDeletePassword('');
+    setDeleteCode('');
+    setDeleteStage('request');
   };
 
-  const submitDeleteAccount = async () => {
+  const requestDeleteCode = async () => {
     if (!user) return;
 
     if (user.authProvider === 'local' && deletePassword.trim().length === 0) {
@@ -296,10 +304,38 @@ export default function ProfileScreen() {
 
     setIsDeletingAccount(true);
     try {
-      await authAPI.deleteAccount({
-        confirm: true,
+      const data = extractApiData<SecurityCodePayload>(await authAPI.requestAccountDeletion({
         ...(user.authProvider === 'local' ? { password: deletePassword.trim() } : {}),
-      });
+      }));
+      setDeleteStage('verify');
+      setDeleteAttemptsRemaining(data.attemptsRemaining);
+      if (data.devCode) setDeleteCode(data.devCode);
+      Alert.alert(t('common.ok'), data.devCode ? `${data.message}\nKod: ${data.devCode}` : data.message);
+    } catch (e: any) {
+      const apiError = e instanceof ApiError ? e : null;
+      if (apiError?.data?.contactAdmin) {
+        setDeleteModalVisible(false);
+        Alert.alert(t('profile.errorTitle'), apiError.message, [
+          { text: t('profile.cancel'), style: 'cancel' },
+          { text: 'Adminga murojaat', onPress: () => router.push('/feedback' as any) },
+        ]);
+      } else {
+        Alert.alert(t('profile.errorTitle'), apiError?.message || t('profile.deleteErrorMsg'));
+      }
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
+  const submitDeleteAccount = async () => {
+    if (deleteCode.trim().length !== 6) {
+      Alert.alert(t('profile.errorTitle'), 'Emailga kelgan 6 xonali kodni kiriting.');
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    try {
+      await authAPI.deleteAccount({ confirm: true, code: deleteCode.trim() });
       await clearAll();
       setDeleteModalVisible(false);
       Alert.alert(t('profile.deleteSuccessTitle'), t('profile.deleteSuccessMsg'));
@@ -317,6 +353,11 @@ export default function ProfileScreen() {
 
   const menu = [
     {
+      icon: 'calendar-outline' as const,
+      label: 'Mening bookinglarim',
+      onPress: () => router.push('/bookings' as any),
+    },
+    {
       icon: 'chatbubble-ellipses-outline' as const,
       label: t('profile.feedback', { defaultValue: 'Fikr va shikoyatlar' }),
       onPress: () => router.push('/feedback'),
@@ -325,11 +366,6 @@ export default function ProfileScreen() {
       icon: 'language-outline' as const,
       label: 'Tilni tanlash',
       onPress: () => router.push('/language' as any),
-    },
-    {
-      icon: 'card-outline' as const,
-      label: 'To‘lov usullari',
-      onPress: () => router.push('/payment-methods' as any),
     },
     {
       icon: 'gift-outline' as const,
@@ -765,9 +801,13 @@ export default function ProfileScreen() {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{t('profile.deleteModalTitle')}</Text>
-            <Text style={styles.modalSub}>{t('profile.deleteModalSub')}</Text>
+            <Text style={styles.modalSub}>
+              {deleteStage === 'request'
+                ? 'Avval emailingizga tasdiqlash kodi yuboramiz. Kodni jami 3 marta so‘rashingiz mumkin.'
+                : `${user?.email} manziliga yuborilgan 6 xonali kodni kiriting. Qolgan so‘rov: ${deleteAttemptsRemaining}.`}
+            </Text>
 
-            {user?.authProvider === 'local' ? (
+            {deleteStage === 'request' && user?.authProvider === 'local' ? (
               <>
                 <Text style={styles.modalLabel}>{t('profile.deletePasswordLabel')}</Text>
                 <TextInput
@@ -782,11 +822,34 @@ export default function ProfileScreen() {
                   autoCorrect={false}
                 />
               </>
-            ) : (
+            ) : deleteStage === 'request' ? (
               <View style={styles.modalHintBox}>
                 <Ionicons name="information-circle-outline" size={18} color={colors.primary} />
                 <Text style={styles.modalHintText}>{t('profile.deleteGoogleHint')}</Text>
               </View>
+            ) : (
+              <>
+                <Text style={styles.modalLabel}>Tasdiqlash kodi</Text>
+                <TextInput
+                  value={deleteCode}
+                  onChangeText={(value) => setDeleteCode(value.replace(/\D/g, '').slice(0, 6))}
+                  editable={!isDeletingAccount}
+                  placeholder="000000"
+                  placeholderTextColor={colors.textMuted}
+                  style={styles.modalInput}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                />
+                <TouchableOpacity
+                  onPress={requestDeleteCode}
+                  disabled={isDeletingAccount || deleteAttemptsRemaining <= 0}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.modalHintText}>
+                    {deleteAttemptsRemaining > 0 ? `Kodni qayta yuborish (${deleteAttemptsRemaining})` : 'Limit tugadi, adminga murojaat qiling'}
+                  </Text>
+                </TouchableOpacity>
+              </>
             )}
 
             <View style={styles.modalActions}>
@@ -800,14 +863,16 @@ export default function ProfileScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalBtn, styles.modalBtnDanger, isDeletingAccount && styles.modalBtnDisabled]}
-                onPress={submitDeleteAccount}
+                onPress={deleteStage === 'request' ? requestDeleteCode : submitDeleteAccount}
                 disabled={isDeletingAccount}
                 activeOpacity={0.8}
               >
                 {isDeletingAccount ? (
                   <ActivityIndicator size="small" color={colors.textInverse} />
                 ) : (
-                  <Text style={styles.modalBtnDangerText}>{t('profile.deleteNow')}</Text>
+                  <Text style={styles.modalBtnDangerText}>
+                    {deleteStage === 'request' ? 'Kodni yuborish' : t('profile.deleteNow')}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>

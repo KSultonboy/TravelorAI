@@ -6,7 +6,7 @@ function apiOrigin() {
     return configured.replace(/\/api\/v1$/i, "");
   }
 
-  if (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname)) {
+  if (process.env.NODE_ENV !== "production") {
     return "http://localhost:4000";
   }
 

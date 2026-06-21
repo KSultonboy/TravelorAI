@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   BadgeCheck,
@@ -15,6 +15,7 @@ import {
   Loader2,
   LogOut,
   Mail,
+  Pencil,
   Plus,
   RefreshCw,
   Send,
@@ -23,6 +24,9 @@ import {
   TrendingUp,
   Wallet,
 } from "lucide-react";
+import { publicImageSrc } from "@/lib/imageUrls";
+import GoogleContinueButton from "@/components/GoogleContinueButton";
+import Image from "next/image";
 
 type ApiResponse<T> = { success: true; data: T } | { success: false; message: string; code?: string };
 
@@ -31,6 +35,9 @@ type Account = {
   email: string;
   emailVerified: boolean;
   status: string;
+  pendingEmail?: string | null;
+  emailChangeResendCount?: number;
+  emailChangeResendsRemaining?: number;
 };
 
 type AgencyApplication = {
@@ -47,6 +54,7 @@ type AgencyApplication = {
   instagram?: string | null;
   serviceTypes: string[];
   description: string;
+  imageUrl?: string | null;
   documents?: unknown;
   status: string;
   adminNote?: string | null;
@@ -74,6 +82,7 @@ type Tour = {
   subtitle: string;
   description?: string | null;
   duration: string;
+  responseTimeMinutes?: number;
   price?: string | null;
   priceMin?: number | null;
   badge?: string | null;
@@ -97,6 +106,7 @@ type BookingItem = {
   travelDate?: string | null;
   message?: string | null;
   status: string;
+  responseDeadlineAt?: string | null;
   totalEstimate?: number | null;
   currency: string;
   agencyNote?: string | null;
@@ -131,6 +141,7 @@ type MeData = {
   agency: Agency | null;
   stats: Record<string, number>;
   bookingStats?: BookingStats;
+  supportEmail?: string;
 };
 
 type ApplicationForm = {
@@ -147,13 +158,17 @@ type ApplicationForm = {
   serviceTypes: string;
   description: string;
   documents: string;
+  imageUrl: string;
 };
+
+type ApplicationFieldErrors = Partial<Record<keyof ApplicationForm, string>>;
 
 type TourForm = {
   title: string;
   city: string;
   subtitle: string;
   duration: string;
+  responseTimeMinutes: string;
   price: string;
   priceMin: string;
   badge: string;
@@ -163,7 +178,26 @@ type TourForm = {
   description: string;
 };
 
-const TOKEN_KEY = "travelorai_agency_token";
+type ProfileForm = {
+  name: string;
+  city: string;
+  specialty: string;
+  description: string;
+  phone: string;
+  website: string;
+  imageUrl: string;
+};
+
+const COOKIE_SESSION = "cookie-session";
+const REQUIRED_APPLICATION_FIELDS = new Set([
+  "companyName",
+  "contactPerson",
+  "phone",
+  "email",
+  "city",
+  "country",
+  "serviceTypes",
+]);
 
 const emptyApplication: ApplicationForm = {
   companyName: "",
@@ -179,6 +213,7 @@ const emptyApplication: ApplicationForm = {
   serviceTypes: "Tours, Local guide",
   description: "",
   documents: "",
+  imageUrl: "",
 };
 
 const emptyTour: TourForm = {
@@ -186,6 +221,7 @@ const emptyTour: TourForm = {
   city: "",
   subtitle: "",
   duration: "",
+  responseTimeMinutes: "45",
   price: "",
   priceMin: "",
   badge: "Latest",
@@ -195,10 +231,20 @@ const emptyTour: TourForm = {
   description: "",
 };
 
+const emptyProfile: ProfileForm = {
+  name: "",
+  city: "",
+  specialty: "",
+  description: "",
+  phone: "",
+  website: "",
+  imageUrl: "",
+};
+
 async function api<T>(path: string, init: RequestInit = {}, token?: string | null): Promise<ApiResponse<T>> {
   const headers = new Headers(init.headers);
   if (!headers.has("content-type") && init.body) headers.set("content-type", "application/json");
-  if (token) headers.set("authorization", `Bearer ${token}`);
+  if (token && token !== COOKIE_SESSION) headers.set("authorization", `Bearer ${token}`);
 
   const response = await fetch(`/api/agency-proxy/agency${path}`, {
     ...init,
@@ -232,6 +278,28 @@ function formatDate(value?: string | null) {
   return new Intl.DateTimeFormat("uz-UZ", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
 }
 
+function remainingTime(deadline?: string | null) {
+  if (!deadline) return "Muddat belgilanmagan";
+  const distance = new Date(deadline).getTime() - Date.now();
+  if (distance <= 0) return "Javob muddati tugagan";
+  const hours = Math.floor(distance / 3_600_000);
+  const minutes = Math.floor((distance % 3_600_000) / 60_000);
+  const seconds = Math.floor((distance % 60_000) / 1000);
+  return `${hours ? `${hours} soat ` : ""}${minutes} daqiqa ${seconds} soniya`;
+}
+
+function readImage(file: File | null): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!file) return resolve("");
+    if (!file.type.startsWith("image/")) return reject(new Error("Faqat rasm fayli tanlang"));
+    if (file.size > 5 * 1024 * 1024) return reject(new Error("Rasm 5 MB dan oshmasligi kerak"));
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Rasmni o‘qib bo‘lmadi"));
+    reader.readAsDataURL(file);
+  });
+}
+
 function parseItinerary(text: string) {
   const lines = text
     .split("\n")
@@ -263,6 +331,20 @@ function fillApplicationForm(application: AgencyApplication | null, account?: Ac
     serviceTypes: (application.serviceTypes || []).join(", "),
     description: application.description || "",
     documents: application.documents ? JSON.stringify(application.documents, null, 2) : "",
+    imageUrl: application.imageUrl || "",
+  };
+}
+
+function fillProfileForm(agency: Agency | null): ProfileForm {
+  if (!agency) return emptyProfile;
+  return {
+    name: agency.name || "",
+    city: agency.city || "",
+    specialty: agency.specialty || "",
+    description: agency.description || "",
+    phone: agency.phone || "",
+    website: agency.website || "",
+    imageUrl: agency.imageUrl || "",
   };
 }
 
@@ -274,12 +356,20 @@ export default function AgencyPortal() {
   const [code, setCode] = useState("");
   const [me, setMe] = useState<MeData | null>(null);
   const [applicationForm, setApplicationForm] = useState<ApplicationForm>(emptyApplication);
+  const [applicationFieldErrors, setApplicationFieldErrors] = useState<ApplicationFieldErrors>({});
   const [tourForm, setTourForm] = useState<TourForm>(emptyTour);
+  const [profileForm, setProfileForm] = useState<ProfileForm>(emptyProfile);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailChangeCode, setEmailChangeCode] = useState("");
+  const [, setClockTick] = useState(0);
   const [tours, setTours] = useState<Tour[]>([]);
   const [bookings, setBookings] = useState<BookingItem[]>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const applicationImageInputRef = useRef<HTMLInputElement>(null);
+  const applicationFormRef = useRef<HTMLDivElement>(null);
+  const tourImageInputRef = useRef<HTMLInputElement>(null);
 
   const loadTours = useCallback(async (nextToken = token) => {
     if (!nextToken) return;
@@ -298,30 +388,36 @@ export default function AgencyPortal() {
     }
   }, [token]);
 
-  const loadMe = useCallback(async (nextToken = token) => {
+  const loadMe = useCallback(async (nextToken = token, silent = false) => {
     if (!nextToken) return;
     const result = await api<MeData>("/auth/me", {}, nextToken);
     if (!result.success) {
-      localStorage.removeItem(TOKEN_KEY);
       setToken(null);
       setMe(null);
-      setError(result.message);
+      if (!silent) setError(result.message);
       return;
     }
     setMe(result.data);
-    setApplicationForm(fillApplicationForm(result.data.application, result.data.account));
+    setApplicationForm(
+      result.data.application?.status === "pending"
+        ? { ...emptyApplication }
+        : fillApplicationForm(result.data.application, result.data.account)
+    );
+    setApplicationFieldErrors({});
+    setProfileForm(fillProfileForm(result.data.agency));
     if (result.data.account.status === "approved") {
       await Promise.all([loadTours(nextToken), loadBookings(nextToken)]);
     }
   }, [loadBookings, loadTours, token]);
 
   useEffect(() => {
-    const saved = localStorage.getItem(TOKEN_KEY);
-    if (saved) {
-      setToken(saved);
-      loadMe(saved);
-    }
+    void loadMe(COOKIE_SESSION, true);
   }, [loadMe]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockTick((value) => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function handleAuth(event: FormEvent) {
     event.preventDefault();
@@ -336,25 +432,27 @@ export default function AgencyPortal() {
           body: JSON.stringify({ email, password }),
         });
         if (!result.success) throw new Error(result.message);
+        setPassword("");
         setMode("verify");
         setMessage(result.data.delivery?.devCode ? `Tasdiqlash kodi: ${result.data.delivery.devCode}` : "Tasdiqlash kodi emailingizga yuborildi.");
         return;
       }
 
       if (mode === "verify") {
-        const result = await api<{ token: string; account: Account }>("/auth/verify-email", {
+        const result = await api<{ account: Account }>("/auth/verify-email", {
           method: "POST",
           body: JSON.stringify({ email, code }),
         });
         if (!result.success) throw new Error(result.message);
-        localStorage.setItem(TOKEN_KEY, result.data.token);
-        setToken(result.data.token);
+        setToken(COOKIE_SESSION);
+        setPassword("");
+        setCode("");
         setMessage("Email tasdiqlandi. Endi agency arizasini to'ldiring.");
-        await loadMe(result.data.token);
+        await loadMe(COOKIE_SESSION);
         return;
       }
 
-      const result = await api<{ token: string; account: Account }>("/auth/login", {
+      const result = await api<{ account: Account }>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
@@ -362,9 +460,10 @@ export default function AgencyPortal() {
         if (result.code === "EMAIL_NOT_VERIFIED") setMode("verify");
         throw new Error(result.message);
       }
-      localStorage.setItem(TOKEN_KEY, result.data.token);
-      setToken(result.data.token);
-      await loadMe(result.data.token);
+      setToken(COOKIE_SESSION);
+      setPassword("");
+      setCode("");
+      await loadMe(COOKIE_SESSION);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Xatolik yuz berdi");
     } finally {
@@ -372,7 +471,113 @@ export default function AgencyPortal() {
     }
   }
 
+  const handleGoogleCredential = useCallback(async (idToken: string) => {
+    setLoading(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await api<{ account: Account }>("/auth/google", {
+        method: "POST",
+        body: JSON.stringify({ idToken }),
+      });
+      if (!result.success) throw new Error(result.message);
+      setToken(COOKIE_SESSION);
+      setEmail("");
+      setPassword("");
+      setCode("");
+      setMode("login");
+      await loadMe(COOKIE_SESSION);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google orqali kirib bo'lmadi");
+    } finally {
+      setLoading(false);
+    }
+  }, [loadMe]);
+
+  const handleGoogleError = useCallback((googleError: string) => {
+    setError(googleError);
+  }, []);
+
+  function updateApplicationField(key: keyof ApplicationForm, value: string) {
+    setApplicationForm((current) => ({ ...current, [key]: value }));
+    setApplicationFieldErrors((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function resetApplicationForm() {
+    setApplicationForm({ ...emptyApplication });
+    setApplicationFieldErrors({});
+    if (applicationImageInputRef.current) applicationImageInputRef.current.value = "";
+  }
+
+  function validateApplicationForm() {
+    const nextErrors: ApplicationFieldErrors = {};
+    const fieldOrder: (keyof ApplicationForm)[] = [
+      "companyName",
+      "legalName",
+      "contactPerson",
+      "phone",
+      "email",
+      "city",
+      "country",
+      "website",
+      "telegram",
+      "instagram",
+      "serviceTypes",
+      "description",
+    ];
+    const requiredFields = fieldOrder.filter((key) => REQUIRED_APPLICATION_FIELDS.has(key) || key === "description");
+
+    requiredFields.forEach((key) => {
+      if (!applicationForm[key].trim()) nextErrors[key] = "Bu majburiy maydon";
+    });
+    if (applicationForm.companyName.trim() && applicationForm.companyName.trim().length < 2) {
+      nextErrors.companyName = "Kamida 2 ta belgi kiriting";
+    }
+    if (applicationForm.contactPerson.trim() && applicationForm.contactPerson.trim().length < 2) {
+      nextErrors.contactPerson = "Kamida 2 ta belgi kiriting";
+    }
+    if (applicationForm.phone.trim() && applicationForm.phone.trim().length < 5) {
+      nextErrors.phone = "Telefon raqamini to'liq kiriting";
+    }
+    if (applicationForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(applicationForm.email.trim())) {
+      nextErrors.email = "Email manzilini to'g'ri kiriting";
+    }
+    if (applicationForm.website.trim()) {
+      try {
+        new URL(applicationForm.website.trim());
+      } catch {
+        nextErrors.website = "Website URL manzilini http:// yoki https:// bilan kiriting";
+      }
+    }
+    if (applicationForm.description.trim() && applicationForm.description.trim().length < 20) {
+      nextErrors.description = "Tavsif kamida 20 ta belgidan iborat bo'lishi kerak";
+    }
+
+    setApplicationFieldErrors(nextErrors);
+    const firstInvalidField = fieldOrder.find((key) => nextErrors[key]);
+    if (firstInvalidField) {
+      window.requestAnimationFrame(() => {
+        const field = applicationFormRef.current?.querySelector<HTMLElement>(
+          `[data-agency-field="${firstInvalidField}"]`
+        );
+        field?.focus();
+        field?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+      return false;
+    }
+    return true;
+  }
+
   async function saveApplication(submit = false) {
+    if (!validateApplicationForm()) {
+      setError("Majburiy maydonlarni to'ldiring.");
+      return;
+    }
     setLoading(true);
     setError("");
     setMessage("");
@@ -402,13 +607,109 @@ export default function AgencyPortal() {
           method: "POST",
         }, token);
         if (!submitResult.success) throw new Error(submitResult.message);
-      setMessage("Ariza admin tekshiruvi uchun yuborildi.");
+        await loadMe();
+        resetApplicationForm();
+        setMessage("Ariza admin tekshiruvi uchun yuborildi.");
       } else {
         setMessage("Ariza draft sifatida saqlandi.");
+        await loadMe();
       }
-      await loadMe();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ariza saqlanmadi");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function chooseImage(file: File | null, target: "application" | "tour" | "profile") {
+    setError("");
+    try {
+      const imageUrl = await readImage(file);
+      if (target === "application") setApplicationForm((prev) => ({ ...prev, imageUrl }));
+      if (target === "tour") setTourForm((prev) => ({ ...prev, imageUrl }));
+      if (target === "profile") setProfileForm((prev) => ({ ...prev, imageUrl }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Rasm tanlanmadi");
+    }
+  }
+
+  async function saveProfile() {
+    setLoading(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await api<{ agency: Agency }>("/profile", {
+        method: "PUT",
+        body: JSON.stringify(profileForm),
+      }, token);
+      if (!result.success) throw new Error(result.message);
+      setMessage("Agentlik profili yangilandi.");
+      await loadMe();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Profil yangilanmadi");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function requestEmailChange() {
+    setLoading(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await api<{ account: Account; message: string; delivery?: { devCode?: string } }>(
+        "/auth/email-change/request",
+        { method: "POST", body: JSON.stringify({ newEmail }) },
+        token
+      );
+      if (!result.success) throw new Error(result.message);
+      setMessage(result.data.delivery?.devCode ? `${result.data.message} Kod: ${result.data.delivery.devCode}` : result.data.message);
+      await loadMe();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Email almashtirish boshlanmadi");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function resendEmailChange() {
+    setLoading(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await api<{ account: Account; message: string; delivery?: { devCode?: string } }>(
+        "/auth/email-change/resend",
+        { method: "POST" },
+        token
+      );
+      if (!result.success) throw new Error(result.message);
+      setMessage(result.data.delivery?.devCode ? `${result.data.message} Kod: ${result.data.delivery.devCode}` : result.data.message);
+      await loadMe();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kod qayta yuborilmadi");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function confirmEmailChange() {
+    setLoading(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await api<{ account: Account; message: string }>(
+        "/auth/email-change/confirm",
+        { method: "POST", body: JSON.stringify({ code: emailChangeCode }) },
+        token
+      );
+      if (!result.success) throw new Error(result.message);
+      setToken(COOKIE_SESSION);
+      setNewEmail("");
+      setEmailChangeCode("");
+      setMessage(result.data.message);
+      await loadMe(COOKIE_SESSION);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kod tasdiqlanmadi");
     } finally {
       setLoading(false);
     }
@@ -423,6 +724,7 @@ export default function AgencyPortal() {
       const payload = {
         ...baseTourForm,
         priceMin: tourForm.priceMin ? Number(tourForm.priceMin) : undefined,
+        responseTimeMinutes: Number(tourForm.responseTimeMinutes || 45),
         highlights: tourForm.highlights
           .split(",")
           .map((value) => value.trim())
@@ -443,6 +745,7 @@ export default function AgencyPortal() {
       }
 
       setTourForm(emptyTour);
+      if (tourImageInputRef.current) tourImageInputRef.current.value = "";
       setMessage(submit ? "Tour admin tekshiruvi uchun yuborildi." : "Tour qoralama sifatida saqlandi.");
       await loadTours();
       await loadMe();
@@ -469,12 +772,52 @@ export default function AgencyPortal() {
   }
 
   function logout() {
-    localStorage.removeItem(TOKEN_KEY);
+    void api("/auth/logout", { method: "POST" });
     setToken(null);
     setMe(null);
     setTours([]);
     setBookings([]);
     setMode("login");
+    setEmail("");
+    setPassword("");
+    setCode("");
+    setNewEmail("");
+    setEmailChangeCode("");
+    setMessage("Agency hisobidan chiqildi.");
+    setError("");
+  }
+
+  function renderEmailChangePanel() {
+    if (!me) return null;
+
+    return (
+      <div className="agency-email-change">
+        <div>
+          <h4>Login emailini almashtirish</h4>
+          <p>Hozirgi email: <b>{me.account.email}</b>. Tasdiqlash kodi aynan shu eski emailga yuboriladi.</p>
+        </div>
+        {!me.account.pendingEmail ? (
+          <div className="agency-email-change__row">
+            <input type="email" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} placeholder="Yangi email" />
+            <button disabled={loading || !newEmail.trim()} onClick={requestEmailChange} type="button"><Mail size={17} /> Kod yuborish</button>
+          </div>
+        ) : (
+          <>
+            <p>Yangi email: <b>{me.account.pendingEmail}</b></p>
+            <div className="agency-email-change__row">
+              <input inputMode="numeric" maxLength={6} value={emailChangeCode} onChange={(event) => setEmailChangeCode(event.target.value.replace(/\D/g, ""))} placeholder="6 xonali kod" />
+              <button disabled={loading || emailChangeCode.length !== 6} onClick={confirmEmailChange} type="button"><BadgeCheck size={17} /> Tasdiqlash</button>
+              <button disabled={loading || (me.account.emailChangeResendsRemaining || 0) <= 0} onClick={resendEmailChange} type="button">
+                <RefreshCw size={17} /> Qayta yuborish ({me.account.emailChangeResendsRemaining ?? 3})
+              </button>
+            </div>
+            {(me.account.emailChangeResendsRemaining || 0) <= 0 ? (
+              <p className="agency-email-support">Kod yetib kelmasa support/adminga murojaat qiling: <a href={`mailto:${me.supportEmail || "support@travelorai.local"}`}>{me.supportEmail || "support@travelorai.local"}</a></p>
+            ) : null}
+          </>
+        )}
+      </div>
+    );
   }
 
   async function updateBookingStatus(id: string, status: "confirmed" | "rejected" | "cancelled" | "completed") {
@@ -497,6 +840,7 @@ export default function AgencyPortal() {
   }
 
   const isApproved = me?.account.status === "approved";
+  const isApplicationPending = me?.application?.status === "pending";
   const totalTours = tours.length;
   const approvedTours = tours.filter((tour) => tour.approvalStatus === "approved");
   const pendingTours = tours.filter((tour) => tour.approvalStatus === "pending_review");
@@ -535,10 +879,19 @@ export default function AgencyPortal() {
       </section>}
 
       <section className="agency-panel">
-        {token && !isApproved && (
-          <button className="agency-logout" onClick={logout} type="button">
-            <LogOut size={16} /> Chiqish
-          </button>
+        {token && me && (
+          <div className="agency-session-bar">
+            <div>
+              <span>Agency hisobi</span>
+              <b>{me.account.email}</b>
+            </div>
+            <button onClick={() => loadMe()} disabled={loading} type="button">
+              <RefreshCw size={16} /> Yangilash
+            </button>
+            <button className="agency-session-bar__logout" onClick={logout} type="button">
+              <LogOut size={16} /> Chiqish
+            </button>
+          </div>
         )}
 
         {!token ? (
@@ -555,25 +908,50 @@ export default function AgencyPortal() {
             {mode !== "verify" && (
               <label>
                 Parol
-                <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} required />
+                <input
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  type="password"
+                  minLength={8}
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  required
+                />
               </label>
             )}
             {mode === "verify" && (
               <label>
                 Tasdiqlash kodi
-                <input value={code} onChange={(event) => setCode(event.target.value)} inputMode="numeric" required />
+                <input
+                  value={code}
+                  onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
+                  inputMode="numeric"
+                  maxLength={6}
+                  required
+                />
               </label>
             )}
             <button disabled={loading} type="submit">
               {loading ? <Loader2 className="agency-spin" size={18} /> : <ArrowRight size={18} />}
               {mode === "register" ? "Ro'yxatdan o'tish" : mode === "verify" ? "Tasdiqlash" : "Kirish"}
             </button>
+            {mode !== "verify" ? (
+              <>
+                <div className="account-divider"><span>yoki</span></div>
+                <GoogleContinueButton
+                  disabled={loading}
+                  onCredential={handleGoogleCredential}
+                  onError={handleGoogleError}
+                />
+              </>
+            ) : null}
             <button
               className="agency-link-button"
               type="button"
               onClick={() => {
                 setError("");
                 setMessage("");
+                setPassword("");
+                setCode("");
                 setMode(mode === "login" ? "register" : "login");
               }}
             >
@@ -583,13 +961,26 @@ export default function AgencyPortal() {
         ) : !isApproved ? (
           <div className="agency-card">
             <p className="agency-eyebrow">Agency arizasi</p>
-            <h2>Kompaniya ma&apos;lumotlarini yuboring</h2>
+            <h2>{isApplicationPending ? "Ariza admin tekshiruviga yuborilgan" : "Kompaniya ma'lumotlarini tahrirlash"}</h2>
             <p className="agency-muted">Status: <b>{statusLabel(me?.application?.status || me?.account.status)}</b></p>
+            <div className="agency-alert agency-alert--info">
+              {isApplicationPending
+                ? `Ariza ${formatDate(me?.application?.submittedAt)} kuni yuborilgan. Admin qarori chiqqach status shu sahifada yangilanadi.`
+                : "Bu bo'limda agentlik rasmi, aloqa ma'lumotlari va ariza tafsilotlarini o'zgartirishingiz mumkin. Public profil va tour boshqaruvi admin tasdiqlagandan keyin ochiladi."}
+            </div>
             {me?.application?.adminNote && <div className="agency-alert agency-alert--error">Admin note: {me.application.adminNote}</div>}
             {message && <div className="agency-alert agency-alert--success">{message}</div>}
             {error && <div className="agency-alert agency-alert--error">{error}</div>}
 
-            <div className="agency-form-grid">
+            {isApplicationPending ? (
+              <div className="agency-actions">
+                <button disabled={loading} onClick={() => loadMe()} type="button">
+                  <RefreshCw size={18} /> Statusni yangilash
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="agency-form-grid" ref={applicationFormRef}>
               {([
                 ["companyName", "Kompaniya nomi"],
                 ["legalName", "Yuridik nomi"],
@@ -603,31 +994,51 @@ export default function AgencyPortal() {
                 ["instagram", "Instagram"],
                 ["serviceTypes", "Xizmat turlari, vergul bilan"],
               ] as const).map(([key, label]) => (
-                <label key={key}>
-                  {label}
+                <label className={applicationFieldErrors[key] ? "agency-field--invalid" : ""} key={key}>
+                  <span>{label}{REQUIRED_APPLICATION_FIELDS.has(key) ? <b className="agency-required"> *</b> : null}</span>
                   <input
+                    aria-invalid={Boolean(applicationFieldErrors[key])}
+                    data-agency-field={key}
                     value={applicationForm[key]}
-                    onChange={(event) => setApplicationForm((prev) => ({ ...prev, [key]: event.target.value }))}
+                    onChange={(event) => updateApplicationField(key, event.target.value)}
+                    required={REQUIRED_APPLICATION_FIELDS.has(key)}
                   />
+                  {applicationFieldErrors[key] ? <small className="agency-field-error">{applicationFieldErrors[key]}</small> : null}
                 </label>
               ))}
+              <label className={`agency-wide ${applicationFieldErrors.description ? "agency-field--invalid" : ""}`}>
+                <span>Tavsif<b className="agency-required"> *</b></span>
+                <textarea
+                  aria-invalid={Boolean(applicationFieldErrors.description)}
+                  data-agency-field="description"
+                  required
+                  minLength={20}
+                  value={applicationForm.description}
+                  onChange={(event) => updateApplicationField("description", event.target.value)}
+                />
+                {applicationFieldErrors.description ? <small className="agency-field-error">{applicationFieldErrors.description}</small> : null}
+              </label>
               <label className="agency-wide">
-                Tavsif
-                <textarea value={applicationForm.description} onChange={(event) => setApplicationForm((prev) => ({ ...prev, description: event.target.value }))} />
+                Agentlik rasmi yoki logotipi
+                <input ref={applicationImageInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => chooseImage(event.target.files?.[0] || null, "application")} />
+                {applicationForm.imageUrl ? <Image unoptimized width={840} height={480} className="agency-image-preview" src={publicImageSrc(applicationForm.imageUrl)} alt="Agentlik rasmi preview" /> : null}
               </label>
               <label className="agency-wide">
                 Hujjat yoki rasm URLlari, har biri yangi qatorda
-                <textarea value={applicationForm.documents} onChange={(event) => setApplicationForm((prev) => ({ ...prev, documents: event.target.value }))} />
+                <textarea value={applicationForm.documents} onChange={(event) => updateApplicationField("documents", event.target.value)} />
               </label>
-            </div>
-            <div className="agency-actions">
-              <button disabled={loading} onClick={() => saveApplication(false)} type="button">
-                <FileText size={18} /> Draft saqlash
-              </button>
-              <button disabled={loading} onClick={() => saveApplication(true)} type="button">
-                <Send size={18} /> Reviewga yuborish
-              </button>
-            </div>
+                </div>
+                <div className="agency-actions">
+                  <button disabled={loading} onClick={() => saveApplication(false)} type="button">
+                    <FileText size={18} /> Draft saqlash
+                  </button>
+                  <button disabled={loading} onClick={() => saveApplication(true)} type="button">
+                    <Send size={18} /> Reviewga yuborish
+                  </button>
+                </div>
+              </>
+            )}
+            {renderEmailChangePanel()}
           </div>
         ) : (
           <div className="agency-dashboard-shell">
@@ -643,6 +1054,7 @@ export default function AgencyPortal() {
                 <a href="#agency-overview"><LayoutDashboard size={17} /> Overview</a>
                 <a href="#agency-sales"><BarChart3 size={17} /> Sotuvlar</a>
                 <a href="#agency-bookings"><CalendarDays size={17} /> Bookinglar</a>
+                <a href="#agency-profile"><Pencil size={17} /> Profilni tahrirlash</a>
                 <a href="#agency-new-tour"><Plus size={17} /> Tour qo&apos;shish</a>
                 <a href="#agency-tours"><ListChecks size={17} /> Mening tourlarim</a>
               </nav>
@@ -787,6 +1199,7 @@ export default function AgencyPortal() {
                         <p>{booking.tour?.title || "Tour"} · {booking.travelers} kishi · {formatDate(booking.travelDate || booking.createdAt)}</p>
                         <small>{booking.customerEmail}{booking.customerPhone ? ` · ${booking.customerPhone}` : ""}</small>
                         {booking.message ? <small>{booking.message}</small> : null}
+                        {booking.status === "pending" ? <small className="agency-countdown"><Clock3 size={14} /> {remainingTime(booking.responseDeadlineAt)}</small> : null}
                       </div>
                       <div className="agency-booking-side">
                         <b>{formatMoney(Number(booking.totalEstimate || 0))}</b>
@@ -807,6 +1220,48 @@ export default function AgencyPortal() {
                 </div>
               </section>
 
+              <section className="agency-dashboard-section" id="agency-profile">
+                <div className="agency-section-heading">
+                  <div>
+                    <p className="agency-eyebrow">Public agentlik profili</p>
+                    <h3>Ma&apos;lumotlarni tahrirlash</h3>
+                  </div>
+                  <Pencil size={28} />
+                </div>
+                <div className="agency-form-grid agency-form-grid--wide">
+                  {([
+                    ["name", "Agentlik nomi"],
+                    ["city", "Shahar"],
+                    ["specialty", "Yo‘nalish / xizmatlar"],
+                    ["phone", "Telefon"],
+                    ["website", "Website URL"],
+                  ] as const).map(([key, label]) => (
+                    <label key={key}>
+                      <span>{label}{["name", "city", "specialty"].includes(key) ? <b className="agency-required"> *</b> : null}</span>
+                      <input
+                        required={["name", "city", "specialty"].includes(key)}
+                        value={profileForm[key]}
+                        onChange={(event) => setProfileForm((prev) => ({ ...prev, [key]: event.target.value }))}
+                      />
+                    </label>
+                  ))}
+                  <label className="agency-wide">
+                    Tavsif
+                    <textarea value={profileForm.description} onChange={(event) => setProfileForm((prev) => ({ ...prev, description: event.target.value }))} />
+                  </label>
+                  <label className="agency-wide">
+                    Agentlik rasmi yoki logotipi
+                    <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => chooseImage(event.target.files?.[0] || null, "profile")} />
+                    {profileForm.imageUrl ? <Image unoptimized width={840} height={480} className="agency-image-preview" src={publicImageSrc(profileForm.imageUrl)} alt="Agentlik profili preview" /> : null}
+                  </label>
+                </div>
+                <div className="agency-actions">
+                  <button disabled={loading} onClick={saveProfile} type="button"><Pencil size={18} /> Profilni saqlash</button>
+                </div>
+
+                {renderEmailChangePanel()}
+              </section>
+
               <section className="agency-dashboard-section" id="agency-new-tour">
                 <div className="agency-section-heading">
                   <div>
@@ -821,6 +1276,7 @@ export default function AgencyPortal() {
                     ["city", "Shahar / yo'nalish"],
                     ["subtitle", "Qisqa subtitle"],
                     ["duration", "Davomiylik"],
+                    ["responseTimeMinutes", "Bookingga javob vaqti (daqiqa)"],
                     ["price", "Narx matni"],
                     ["priceMin", "Minimal narx"],
                     ["badge", "Badge"],
@@ -829,9 +1285,20 @@ export default function AgencyPortal() {
                   ] as const).map(([key, label]) => (
                     <label key={key}>
                       {label}
-                      <input value={tourForm[key]} onChange={(event) => setTourForm((prev) => ({ ...prev, [key]: event.target.value }))} />
+                      <input
+                        type={key === "responseTimeMinutes" || key === "priceMin" ? "number" : "text"}
+                        min={key === "responseTimeMinutes" ? 5 : undefined}
+                        max={key === "responseTimeMinutes" ? 1440 : undefined}
+                        value={tourForm[key]}
+                        onChange={(event) => setTourForm((prev) => ({ ...prev, [key]: event.target.value }))}
+                      />
                     </label>
                   ))}
+                  <label className="agency-wide">
+                    Tour cover rasmini fayldan tanlash
+                    <input ref={tourImageInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => chooseImage(event.target.files?.[0] || null, "tour")} />
+                    {tourForm.imageUrl ? <Image unoptimized width={840} height={480} className="agency-image-preview" src={publicImageSrc(tourForm.imageUrl)} alt="Tour cover preview" /> : null}
+                  </label>
                   <label className="agency-wide">
                     Kunma-kun itinerary, har bir qator alohida activity
                     <textarea
@@ -881,7 +1348,7 @@ export default function AgencyPortal() {
                         {tour.imageUrl ? (
                           <span
                             className="agency-tour-thumb__image"
-                            style={{ backgroundImage: `url(${tour.imageUrl})` }}
+                            style={{ backgroundImage: `url(${publicImageSrc(tour.imageUrl)})` }}
                             role="img"
                             aria-label={tour.title}
                           />
@@ -898,6 +1365,7 @@ export default function AgencyPortal() {
                         <p>{tour.subtitle || tour.description || "Qisqa tavsif kiritilmagan."}</p>
                         <div className="agency-tour-meta">
                           <span><CalendarDays size={15} /> {tour.duration || "Davomiylik yo'q"}</span>
+                          <span><Clock3 size={15} /> {tour.responseTimeMinutes || 45} daqiqada javob</span>
                           <span><BadgeCheck size={15} /> {tour.badge || "No badge"}</span>
                           <span><Clock3 size={15} /> {formatDate(tour.updatedAt)}</span>
                         </div>

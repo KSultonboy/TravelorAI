@@ -150,6 +150,7 @@ function formatTour(item) {
     subtitle: item.subtitle,
     description: item.description || '',
     duration: item.duration,
+    responseTimeMinutes: item.responseTimeMinutes ?? 45,
     price: item.price || '',
     priceMin: item.priceMin ?? null,
     rating: item.rating ?? 0,
@@ -164,6 +165,9 @@ function formatTour(item) {
           name: item.agency.name,
           city: item.agency.city,
           rating: item.agency.rating,
+          phone: item.agency.phone,
+          website: item.agency.website,
+          imageUrl: item.agency.imageUrl,
         }
       : null,
     source: item.source || 'admin',
@@ -533,7 +537,7 @@ async function recordInteraction(req, res) {
     }
 
     const sessionId = req.body?.sessionId ? String(req.body.sessionId).slice(0, 120) : null;
-    const userId = req.user?.id || (req.body?.userId ? String(req.body.userId).slice(0, 120) : null);
+    const userId = req.user?.id || null;
     const source = req.body?.source ? String(req.body.source).slice(0, 80) : 'website';
     const metadata = req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : undefined;
 

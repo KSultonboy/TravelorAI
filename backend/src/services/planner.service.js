@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { prisma } = require('../config/database');
 const { refineTripPlanWithGemini } = require('./geminiPlanner.service');
 
@@ -14,7 +15,7 @@ const INTEREST_KEYWORDS = {
 };
 
 function genId() {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  return crypto.randomUUID();
 }
 
 function formatCityName(raw) {
