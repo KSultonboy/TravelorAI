@@ -41,6 +41,7 @@ function buildPublicUser(user) {
     email: user.email,
     emailVerified: user.emailVerified,
     authProvider: user.authProvider === AuthProvider.GOOGLE ? 'google' : 'local',
+    role: user.role || 'traveler',
   };
 }
 

@@ -227,6 +227,53 @@ async function login(req, res) {
   }
 }
 
+// ===== Admin panel auth: parol → 2FA email kod → JWT (role=admin) =====
+async function adminLogin(req, res) {
+  try {
+    const normalizedEmail = normalizeEmail(req.body.email || '');
+    const password = String(req.body.password || '');
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    if (!user || !user.password) {
+      return error(res, 'Email yoki parol noto\'g\'ri.', 401);
+    }
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return error(res, 'Email yoki parol noto\'g\'ri.', 401);
+    }
+    if (user.role !== 'admin') {
+      return error(res, 'Bu hisobda admin huquqi yo\'q.', 403);
+    }
+    // Biznes/admin hisob — 2FA email kod yuboramiz.
+    await issueAuthCode({ user, type: AuthCodeType.EMAIL_VERIFICATION });
+    return success(res, { requiresEmailCode: true, email: user.email });
+  } catch (err) {
+    return error(res, err.message, 500);
+  }
+}
+
+async function adminLoginVerify(req, res) {
+  try {
+    const normalizedEmail = normalizeEmail(req.body.email || '');
+    const code = String(req.body.code || '').trim();
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    if (!user || user.role !== 'admin') {
+      return error(res, 'Admin hisob topilmadi.', 403);
+    }
+    try {
+      await consumeAuthCode({ userId: user.id, type: AuthCodeType.EMAIL_VERIFICATION, code });
+    } catch (codeErr) {
+      return mapCodeError(res, codeErr);
+    }
+    const updated = await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    return success(res, {
+      token: signToken({ id: updated.id, email: updated.email, role: 'admin' }),
+      user: { ...buildPublicUser(updated), role: 'admin' },
+    });
+  } catch (err) {
+    return error(res, err.message, 500);
+  }
+}
+
 async function forgotPassword(req, res) {
   try {
     const normalizedEmail = normalizeEmail(req.body.email);
@@ -633,6 +680,8 @@ module.exports = {
   forgotPassword,
   resetPassword,
   googleAuth,
+  adminLogin,
+  adminLoginVerify,
   updateProfile,
   getMe,
   getPreferences,

@@ -7,6 +7,8 @@ const {
   forgotPassword,
   resetPassword,
   googleAuth,
+  adminLogin,
+  adminLoginVerify,
   updateProfile,
   getMe,
   getPreferences,
@@ -42,6 +44,8 @@ router.post('/login', validate(loginSchema), login);
 router.post('/forgot-password', validate(forgotPasswordSchema), forgotPassword);
 router.post('/reset-password', validate(resetPasswordSchema), resetPassword);
 router.post('/google', validate(googleAuthSchema), googleAuth);
+router.post('/admin/login', adminLogin);
+router.post('/admin/login/verify', adminLoginVerify);
 router.get('/me', authMiddleware, getMe);
 router.put('/profile', authMiddleware, validate(profileSchema), updateProfile);
 router.get('/preferences', authMiddleware, getPreferences);
