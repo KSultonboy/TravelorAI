@@ -15,24 +15,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FONTS } from '../../src/constants/fonts';
 import { RADIUS, SPACING } from '../../src/constants/spacing';
-import { aiGlowShadow } from '../../src/constants/effects';
 import { type AppColors, useAppTheme } from '../../src/theme/app-theme';
 import { homeAPI } from '../../src/utils/api';
 import { extractApiData } from '../../src/utils/auth';
 import { normalizeTours, serializeTourParam, type HomeTourItem } from '../../src/utils/homeContent';
 import { STITCH_IMAGES } from '../../src/components/stitch/StitchMobile';
-
-const HOW_STEPS: { icon: keyof typeof Ionicons.glyphMap; title: string; text: string }[] = [
-  { icon: 'search-outline', title: 'Turni tanlang', text: 'Yo‘nalish, narx va muddat bo‘yicha filtrlang, batafsil ko‘ring.' },
-  { icon: 'chatbubbles-outline', title: 'Agentlik bilan bog‘laning', text: 'To‘g‘ridan-to‘g‘ri, vositachisiz — bepul so‘rov yuboring.' },
-  { icon: 'airplane-outline', title: 'Sayohatga chiqing', text: 'Tasdiqlangan agentlik bilan bemalol safarga otlaning.' },
-];
-
-const WHY_POINTS: { icon: keyof typeof Ionicons.glyphMap; text: string }[] = [
-  { icon: 'shield-checkmark-outline', text: 'Faqat tasdiqlangan agentliklar turlari' },
-  { icon: 'pricetags-outline', text: 'Foydalanish mutlaqo bepul' },
-  { icon: 'flash-outline', text: 'Tez javob, to‘g‘ridan-to‘g‘ri aloqa' },
-];
 
 export default function HomeScreen() {
   const { colors } = useAppTheme();
@@ -111,23 +98,6 @@ export default function HomeScreen() {
         </View>
       </ImageBackground>
 
-      {/* How it works */}
-      <Text style={styles.h2}>Qanday ishlaydi?</Text>
-      <View style={styles.stepWrap}>
-        {HOW_STEPS.map((step, i) => (
-          <View key={step.title} style={styles.stepCard}>
-            <View style={styles.stepIcon}>
-              <Ionicons name={step.icon} size={20} color={colors.aiAccent} />
-              <View style={styles.stepNum}><Text style={styles.stepNumText}>{i + 1}</Text></View>
-            </View>
-            <View style={styles.stepCopy}>
-              <Text style={styles.stepTitle}>{step.title}</Text>
-              <Text style={styles.stepText}>{step.text}</Text>
-            </View>
-          </View>
-        ))}
-      </View>
-
       {/* Featured tours */}
       <View style={styles.sectionRow}>
         <Text style={styles.h2}>Tavsiya etilgan turlar</Text>
@@ -167,21 +137,6 @@ export default function HomeScreen() {
           ))}
         </ScrollView>
       )}
-
-      {/* Why TravelorAI */}
-      <View style={styles.whyCard}>
-        <Text style={styles.whyTitle}>Nega TravelorAI?</Text>
-        {WHY_POINTS.map((p) => (
-          <View key={p.text} style={styles.whyRow}>
-            <View style={styles.whyIcon}><Ionicons name={p.icon} size={16} color={colors.aiAccent} /></View>
-            <Text style={styles.whyText}>{p.text}</Text>
-          </View>
-        ))}
-        <TouchableOpacity style={styles.whyCta} activeOpacity={0.9} onPress={goTours}>
-          <Text style={styles.whyCtaText}>Hoziroq turlarni ko‘rish</Text>
-          <Ionicons name="arrow-forward" size={16} color={colors.primary} />
-        </TouchableOpacity>
-      </View>
 
       <View style={{ height: 96 + Math.max(insets.bottom, 22) }} />
     </ScrollView>
@@ -251,25 +206,6 @@ function createStyles(colors: AppColors) {
     sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: SPACING.xs },
     sectionAction: { fontFamily: FONTS.semibold, fontSize: 12, color: colors.primary },
 
-    stepWrap: { gap: SPACING.sm },
-    stepCard: {
-      flexDirection: 'row', alignItems: 'center', gap: SPACING.md, padding: SPACING.md,
-      borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderLight,
-    },
-    stepIcon: {
-      width: 48, height: 48, borderRadius: 16, backgroundColor: colors.aiAccentPale,
-      alignItems: 'center', justifyContent: 'center', ...aiGlowShadow(colors),
-    },
-    stepNum: {
-      position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: 10,
-      backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center',
-      borderWidth: 2, borderColor: colors.background,
-    },
-    stepNumText: { fontFamily: FONTS.semibold, fontSize: 10, color: colors.onGradient },
-    stepCopy: { flex: 1, gap: 3 },
-    stepTitle: { fontFamily: FONTS.semibold, fontSize: 15, color: colors.text },
-    stepText: { fontFamily: FONTS.regular, fontSize: 12, lineHeight: 18, color: colors.textMuted },
-
     loadingBox: { paddingVertical: SPACING.xl, alignItems: 'center' },
     emptyBox: {
       paddingVertical: SPACING.xl, alignItems: 'center', gap: SPACING.sm, borderRadius: 20,
@@ -300,21 +236,5 @@ function createStyles(colors: AppColors) {
     tourRatingText: { fontFamily: FONTS.semibold, fontSize: 11, color: colors.text },
     tourPrice: { flex: 1, textAlign: 'right', fontFamily: FONTS.semibold, fontSize: 11, color: colors.success },
 
-    whyCard: {
-      marginTop: SPACING.sm, borderRadius: 24, backgroundColor: colors.surface,
-      borderWidth: 1, borderColor: colors.borderLight, padding: SPACING.lg, gap: SPACING.sm,
-    },
-    whyTitle: { fontFamily: FONTS.display, fontSize: 18, color: colors.text, marginBottom: 2 },
-    whyRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-    whyIcon: {
-      width: 34, height: 34, borderRadius: 12, backgroundColor: colors.aiAccentPale,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    whyText: { flex: 1, fontFamily: FONTS.medium, fontSize: 13, color: colors.textSecondary },
-    whyCta: {
-      marginTop: SPACING.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      height: 48, borderRadius: RADIUS.full, backgroundColor: colors.aiAccentPale,
-    },
-    whyCtaText: { fontFamily: FONTS.semibold, fontSize: 13, color: colors.primary },
   });
 }
