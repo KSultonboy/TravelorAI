@@ -35,7 +35,7 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: '#071827' },
+  fill: { flex: 1, backgroundColor: '#06231A' },
   center: { justifyContent: 'center', alignItems: 'center' },
   brand: { marginTop: SPACING.xl },
   subtitle: { marginTop: SPACING.sm, fontFamily: FONTS.regular, fontSize: 14, color: 'rgba(247,250,252,0.78)' },
