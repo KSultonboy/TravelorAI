@@ -95,7 +95,7 @@ export default async function Home() {
       <Navbar />
       <main id="top" className="landing-site">
         <Hero slides={landingData.heroSlides} />
-        <Destinations places={landingData.places} />
+        {landingData.places.length > 0 ? <Destinations places={landingData.places} /> : null}
         <LandingTours tours={landingData.tours} />
         <HowItWorks />
         <AppPreview agencies={landingData.agencies} stories={landingData.stories} />
