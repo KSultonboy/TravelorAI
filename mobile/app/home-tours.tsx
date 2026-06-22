@@ -18,7 +18,7 @@ import { RADIUS, SPACING } from '../src/constants/spacing';
 import { type AppColors, useAppTheme } from '../src/theme/app-theme';
 import { extractApiData } from '../src/utils/auth';
 import { homeAPI } from '../src/utils/api';
-import { normalizeTours, type HomeTourItem } from '../src/utils/homeContent';
+import { normalizeTours, serializeTourParam, type HomeTourItem } from '../src/utils/homeContent';
 
 const PAGE_SIZE = 20;
 type TourFilter = 'all' | 'Latest' | 'Popular';
@@ -72,7 +72,7 @@ export default function HomeToursScreen() {
   const openTour = (item: HomeTourItem) => {
     router.push({
       pathname: '/tour-details',
-      params: { tour: encodeURIComponent(JSON.stringify(item)) },
+      params: { tour: serializeTourParam(item) },
     } as any);
   };
 

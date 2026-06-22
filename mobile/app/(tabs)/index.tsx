@@ -19,7 +19,7 @@ import { aiGlowShadow } from '../../src/constants/effects';
 import { type AppColors, useAppTheme } from '../../src/theme/app-theme';
 import { homeAPI } from '../../src/utils/api';
 import { extractApiData } from '../../src/utils/auth';
-import { normalizeTours, type HomeTourItem } from '../../src/utils/homeContent';
+import { normalizeTours, serializeTourParam, type HomeTourItem } from '../../src/utils/homeContent';
 import { STITCH_IMAGES } from '../../src/components/stitch/StitchMobile';
 
 const HOW_STEPS: { icon: keyof typeof Ionicons.glyphMap; title: string; text: string }[] = [
@@ -64,7 +64,7 @@ export default function HomeScreen() {
 
   const goTours = () => router.push('/(tabs)/tours' as any);
   const openTour = (item: HomeTourItem) =>
-    router.push({ pathname: '/tour-details', params: { tour: encodeURIComponent(JSON.stringify(item)) } } as any);
+    router.push({ pathname: '/tour-details', params: { tour: serializeTourParam(item) } } as any);
 
   return (
     <ScrollView

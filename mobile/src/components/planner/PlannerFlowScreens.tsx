@@ -10,10 +10,20 @@ import { type AppColors, useAppTheme } from '../../theme/app-theme';
 import { bookingsAPI } from '../../utils/api';
 import { getJSON, KEYS } from '../../utils/storage';
 import { getUserDisplayName, type AuthUser } from '../../utils/auth';
-import type { HomeTourItem } from '../../utils/homeContent';
+import { normalizeTours, type HomeTourItem } from '../../utils/homeContent';
 
 function digitsOnly(value?: string | null) {
   return (value || '').replace(/[^0-9]/g, '');
+}
+
+function formatTourPrice(tour: HomeTourItem) {
+  if (tour.price?.trim()) return tour.price.trim();
+  if (tour.priceMin == null) return "So'rov bo'yicha";
+
+  const amount = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(tour.priceMin);
+  return tour.priceCurrency === 'USD' || !tour.priceCurrency
+    ? `$${amount}`
+    : `${amount} ${tour.priceCurrency}`;
 }
 
 async function openLink(url: string) {
@@ -28,7 +38,11 @@ function parseTourParam(value: string | string[] | undefined): HomeTourItem | nu
   const raw = Array.isArray(value) ? value[0] : value;
   if (!raw) return null;
   const tryParse = (s: string): HomeTourItem | null => {
-    try { return JSON.parse(s) as HomeTourItem; } catch { return null; }
+    try {
+      return normalizeTours([JSON.parse(s)])[0] || null;
+    } catch {
+      return null;
+    }
   };
   const tryDecode = (s: string): string | null => {
     try { return decodeURIComponent(s); } catch { return null; }
@@ -166,22 +180,39 @@ export function TourDetailsScreen() {
   }
 
   const highlights = Array.isArray(tour.highlights) ? tour.highlights.filter(Boolean) : [];
+  const itinerary = Array.isArray(tour.itinerary) ? tour.itinerary.filter((item) => item?.title) : [];
   const priceIncludes = Array.isArray(tour.priceIncludes) ? tour.priceIncludes.filter(Boolean) : [];
   const priceExcludes = Array.isArray(tour.priceExcludes) ? tour.priceExcludes.filter(Boolean) : [];
+  const detailFallback = 'Agentlik bilan aniqlashtiriladi';
+  const descriptionCopy = tour.description?.trim() || tour.subtitle?.trim() || detailFallback;
   const mealCopy = tour.mealPlan ? `${tour.mealPlan} - ${tour.mealPlanLabel || MEAL_LABELS[tour.mealPlan] || 'Ovqatlanish turi'}` : '';
   const packageDetails = [
-    tour.hotelName || tour.hotelCategory || tour.hotelLocation
-      ? { label: 'Mehmonxona', value: [tour.hotelName, tour.hotelCategory, tour.hotelLocation].filter(Boolean).join(' · ') }
-      : null,
-    tour.roomType ? { label: 'Xona', value: tour.roomType } : null,
-    mealCopy ? { label: 'Ovqatlanish', value: mealCopy } : null,
-    tour.nights ? { label: 'Tun', value: `${tour.nights} tun` } : null,
-    tour.departureCity ? { label: "Jo'nash", value: tour.departureCity } : null,
-    tour.destinationCountry ? { label: 'Mamlakat', value: tour.destinationCountry } : null,
-    tour.availabilityStatus ? { label: 'Mavjudlik', value: AVAILABILITY_LABELS[tour.availabilityStatus] || tour.availabilityStatus } : null,
-    tour.flightSeatStatus ? { label: 'Avia', value: FLIGHT_LABELS[tour.flightSeatStatus] || tour.flightSeatStatus } : null,
-    tour.priceBasis ? { label: 'Narx', value: tour.priceBasis } : null,
-  ].filter(Boolean) as { label: string; value: string }[];
+    {
+      label: 'Mehmonxona',
+      value: [tour.hotelName, tour.hotelCategory, tour.hotelLocation].filter(Boolean).join(' · ') || detailFallback,
+    },
+    { label: 'Xona', value: tour.roomType || detailFallback },
+    { label: 'Ovqatlanish', value: mealCopy || detailFallback },
+    { label: 'Tun', value: tour.nights ? `${tour.nights} tun` : detailFallback },
+    { label: "Jo'nash", value: tour.departureCity || detailFallback },
+    {
+      label: "Yo'nalish",
+      value: [tour.city, tour.destinationCountry].filter(Boolean).join(' · ') || detailFallback,
+    },
+    {
+      label: 'Mavjudlik',
+      value: tour.availabilityStatus
+        ? AVAILABILITY_LABELS[tour.availabilityStatus] || tour.availabilityStatus
+        : "So'rov bo'yicha",
+    },
+    {
+      label: 'Avia',
+      value: tour.flightSeatStatus
+        ? FLIGHT_LABELS[tour.flightSeatStatus] || tour.flightSeatStatus
+        : detailFallback,
+    },
+    { label: 'Narx turi', value: tour.priceBasis || detailFallback },
+  ];
   const agencyTelegram = tour.agency?.telegram ? tour.agency.telegram.replace(/^@/, '').trim() : null;
   const agencyPhone = tour.agency?.phone ? tour.agency.phone.trim() : null;
   const agencyWebsite = tour.agency?.website ? tour.agency.website.trim() : null;
@@ -192,7 +223,7 @@ export function TourDetailsScreen() {
         <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()} activeOpacity={0.82}>
           <Ionicons name="close" size={17} color={colors.textSecondary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tour Details</Text>
+        <Text style={styles.headerTitle}>Tur tafsilotlari</Text>
         <View style={styles.iconBtnGhost} />
       </View>
 
@@ -216,100 +247,106 @@ export function TourDetailsScreen() {
 
       <View style={styles.formCard}>
         <View style={styles.detailStats}>
-          <Stat label="Duration" value={tour.duration || '-'} styles={styles} />
-          <Stat label="Rating" value={tour.rating ? tour.rating.toFixed(1) : '-'} styles={styles} />
-          <Stat label="From" value={tour.price || (tour.priceMin ? `$${tour.priceMin}` : 'So‘rovda')} styles={styles} />
+          <Stat label="Davomiylik" value={tour.duration || detailFallback} styles={styles} />
+          <Stat label="Reyting" value={tour.rating ? tour.rating.toFixed(1) : 'Yangi'} styles={styles} />
+          <Stat label="Narx" value={formatTourPrice(tour)} styles={styles} />
         </View>
         <View style={styles.responseTimeBox}>
           <Ionicons name="timer-outline" size={18} color={colors.success} />
           <Text style={styles.responseTimeText}>Agentlik odatda {tour.responseTimeMinutes || 45} daqiqada javob beradi.</Text>
         </View>
-        {packageDetails.length > 0 || tour.instantConfirmation || tour.stopSale || tour.promo ? (
-          <>
-            <Text style={styles.sectionTitle}>Paket tafsilotlari</Text>
-            <View style={styles.packageGrid}>
-              {packageDetails.map((item) => (
-                <View key={`${item.label}-${item.value}`} style={styles.packageItem}>
-                  <Text style={styles.tinyMuted}>{item.label}</Text>
-                  <Text style={styles.packageValue}>{item.value}</Text>
-                </View>
-              ))}
+        <Text style={styles.sectionTitle}>Tur haqida</Text>
+        <Text style={styles.muted}>{descriptionCopy}</Text>
+
+        <Text style={styles.sectionTitle}>Paket tafsilotlari</Text>
+        <View style={styles.packageGrid}>
+          {packageDetails.map((item) => (
+            <View key={item.label} style={styles.packageItem}>
+              <Text style={styles.tinyMuted}>{item.label}</Text>
+              <Text style={styles.packageValue}>{item.value}</Text>
             </View>
-            <View style={styles.flagRow}>
-              {tour.instantConfirmation ? <Text style={styles.flagChip}>Instant confirmation</Text> : null}
-              {tour.promo ? <Text style={styles.flagChip}>Promo</Text> : null}
-              {tour.stopSale ? <Text style={[styles.flagChip, styles.flagChipDanger]}>Stop-sale</Text> : null}
-            </View>
-          </>
-        ) : null}
-        {highlights.length > 0 ? (
-          <>
-            <Text style={styles.sectionTitle}>Included</Text>
-            {highlights.map((item) => (
-              <View key={item} style={styles.checkRow}>
-                <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-                <Text style={styles.optionTitle}>{item}</Text>
-              </View>
-            ))}
-          </>
-        ) : null}
-        {priceIncludes.length > 0 ? (
-          <>
-            <Text style={styles.sectionTitle}>Narxga kiradi</Text>
-            {priceIncludes.map((item) => (
-              <View key={item} style={styles.checkRow}>
-                <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-                <Text style={styles.optionTitle}>{item}</Text>
-              </View>
-            ))}
-          </>
-        ) : null}
-        {priceExcludes.length > 0 ? (
-          <>
-            <Text style={styles.sectionTitle}>Narxga kirmaydi</Text>
-            {priceExcludes.map((item) => (
-              <View key={item} style={styles.checkRow}>
-                <Ionicons name="remove-circle-outline" size={16} color={colors.error} />
-                <Text style={styles.optionTitle}>{item}</Text>
-              </View>
-            ))}
-          </>
-        ) : null}
-        {tour.childPolicy ? (
-          <View style={styles.responseTimeBox}>
-            <Ionicons name="people-outline" size={18} color={colors.success} />
-            <Text style={styles.responseTimeText}>{tour.childPolicy}</Text>
+          ))}
+        </View>
+        <View style={styles.flagRow}>
+          <Text style={styles.flagChip}>
+            {tour.instantConfirmation ? 'Tezkor tasdiqlash' : "Tasdiqlash so'rov bo'yicha"}
+          </Text>
+          {tour.promo ? <Text style={styles.flagChip}>Promo</Text> : null}
+          {tour.stopSale ? <Text style={[styles.flagChip, styles.flagChipDanger]}>{"Sotuv to'xtatilgan"}</Text> : null}
+        </View>
+        <Text style={styles.sectionTitle}>Asosiy afzalliklar</Text>
+        {highlights.length > 0 ? highlights.map((item) => (
+          <View key={item} style={styles.checkRow}>
+            <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+            <Text style={styles.optionTitle}>{item}</Text>
           </View>
-        ) : null}
+        )) : <InfoFallback text={detailFallback} styles={styles} colors={colors} />}
+
+        <Text style={styles.sectionTitle}>Sayohat dasturi</Text>
+        {itinerary.length > 0 ? itinerary.map((item, index) => (
+          <View key={`${item.day}-${item.title}-${index}`} style={styles.itineraryRow}>
+            <View style={styles.dayBadge}>
+              <Text style={styles.dayBadgeText}>{item.day}</Text>
+            </View>
+            <View style={styles.itineraryBody}>
+              <Text style={styles.optionTitle}>{item.title}</Text>
+              {item.description ? <Text style={styles.muted}>{item.description}</Text> : null}
+            </View>
+          </View>
+        )) : <InfoFallback text={detailFallback} styles={styles} colors={colors} />}
+
+        <Text style={styles.sectionTitle}>Narxga kiradi</Text>
+        {priceIncludes.length > 0 ? priceIncludes.map((item) => (
+          <View key={item} style={styles.checkRow}>
+            <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+            <Text style={styles.optionTitle}>{item}</Text>
+          </View>
+        )) : <InfoFallback text={detailFallback} styles={styles} colors={colors} />}
+
+        <Text style={styles.sectionTitle}>Narxga kirmaydi</Text>
+        {priceExcludes.length > 0 ? priceExcludes.map((item) => (
+          <View key={item} style={styles.checkRow}>
+            <Ionicons name="remove-circle-outline" size={16} color={colors.error} />
+            <Text style={styles.optionTitle}>{item}</Text>
+          </View>
+        )) : <InfoFallback text={detailFallback} styles={styles} colors={colors} />}
+
+        <Text style={styles.sectionTitle}>Bolalar shartlari</Text>
+        <View style={styles.responseTimeBox}>
+          <Ionicons name="people-outline" size={18} color={colors.success} />
+          <Text style={styles.responseTimeText}>{tour.childPolicy || detailFallback}</Text>
+        </View>
       </View>
 
-      {tour.agency ? (
-        <View style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Agentlik bilan bog‘lanish</Text>
-          <Text style={styles.muted}>
-            {tour.agency.name}
-            {tour.agency.city ? ` · ${tour.agency.city}` : ''}
-          </Text>
-          {agencyTelegram || agencyPhone || agencyWebsite ? (
-            <View style={styles.contactRow}>
-              {agencyTelegram ? (
-                <ContactBtn icon="paper-plane" label="Telegram" color="#229ED9" onPress={() => openLink(`https://t.me/${agencyTelegram}`)} styles={styles} />
-              ) : null}
-              {agencyPhone ? (
-                <ContactBtn icon="logo-whatsapp" label="WhatsApp" color="#25D366" onPress={() => openLink(`https://wa.me/${digitsOnly(agencyPhone)}`)} styles={styles} />
-              ) : null}
-              {agencyPhone ? (
-                <ContactBtn icon="call" label="Qo‘ng‘iroq" color={colors.primary} onPress={() => openLink(`tel:${agencyPhone}`)} styles={styles} />
-              ) : null}
-              {agencyWebsite ? (
-                <ContactBtn icon="globe-outline" label="Sayt" color={colors.textSecondary} onPress={() => openLink(agencyWebsite.startsWith('http') ? agencyWebsite : `https://${agencyWebsite}`)} styles={styles} />
-              ) : null}
-            </View>
-          ) : (
-            <Text style={styles.muted}>Bevosita aloqa hozircha yo‘q — quyida so‘rov qoldiring, agentlik siz bilan bog‘lanadi.</Text>
-          )}
-        </View>
-      ) : null}
+      <View style={styles.formCard}>
+        <Text style={styles.sectionTitle}>Agentlik bilan bog‘lanish</Text>
+        <Text style={styles.muted}>
+          {tour.agency?.name || 'Tasdiqlangan agentlik'}
+          {tour.agency?.city ? ` · ${tour.agency.city}` : ''}
+        </Text>
+        {agencyTelegram || agencyPhone || agencyWebsite ? (
+          <View style={styles.contactRow}>
+            {agencyTelegram ? (
+              <ContactBtn icon="paper-plane" label="Telegram" color="#229ED9" onPress={() => openLink(`https://t.me/${agencyTelegram}`)} styles={styles} />
+            ) : null}
+            {agencyPhone ? (
+              <ContactBtn icon="logo-whatsapp" label="WhatsApp" color="#25D366" onPress={() => openLink(`https://wa.me/${digitsOnly(agencyPhone)}`)} styles={styles} />
+            ) : null}
+            {agencyPhone ? (
+              <ContactBtn icon="call" label="Qo‘ng‘iroq" color={colors.primary} onPress={() => openLink(`tel:${agencyPhone}`)} styles={styles} />
+            ) : null}
+            {agencyWebsite ? (
+              <ContactBtn icon="globe-outline" label="Sayt" color={colors.textSecondary} onPress={() => openLink(agencyWebsite.startsWith('http') ? agencyWebsite : `https://${agencyWebsite}`)} styles={styles} />
+            ) : null}
+          </View>
+        ) : (
+          <InfoFallback
+            text="Quyida so‘rov qoldiring, agentlik siz bilan bog‘lanadi."
+            styles={styles}
+            colors={colors}
+          />
+        )}
+      </View>
 
       <View style={styles.formCard}>
         <Text style={styles.sectionTitle}>So‘rov qoldiring</Text>
@@ -385,6 +422,23 @@ function Stat({ label, value, styles }: { label: string; value: string; styles: 
     <View style={styles.statBox}>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.tinyMuted}>{label}</Text>
+    </View>
+  );
+}
+
+function InfoFallback({
+  text,
+  styles,
+  colors,
+}: {
+  text: string;
+  styles: ReturnType<typeof createStyles>;
+  colors: AppColors;
+}) {
+  return (
+    <View style={styles.infoFallback}>
+      <Ionicons name="information-circle-outline" size={17} color={colors.textMuted} />
+      <Text style={styles.muted}>{text}</Text>
     </View>
   );
 }
@@ -469,6 +523,32 @@ function createStyles(colors: AppColors) {
     contactLabel: { fontFamily: FONTS.medium, fontSize: 11, color: colors.textSecondary, textAlign: 'center' },
     sectionTitle: { fontFamily: FONTS.display, fontSize: 18, color: colors.text },
     checkRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+    infoFallback: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+      borderRadius: 16,
+      backgroundColor: colors.cardMuted,
+      padding: SPACING.md,
+    },
+    itineraryRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: SPACING.sm,
+      borderRadius: 16,
+      backgroundColor: colors.cardMuted,
+      padding: SPACING.md,
+    },
+    dayBadge: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.primary,
+    },
+    dayBadgeText: { fontFamily: FONTS.semibold, fontSize: 12, color: colors.textInverse },
+    itineraryBody: { flex: 1, gap: 3 },
     optionTitle: { flex: 1, fontFamily: FONTS.semibold, fontSize: 13, color: colors.text },
     muted: { fontFamily: FONTS.regular, fontSize: 12, lineHeight: 18, color: colors.textMuted },
     mutedCenter: { fontFamily: FONTS.regular, fontSize: 13, lineHeight: 20, color: colors.textMuted, textAlign: 'center' },
