@@ -27,11 +27,27 @@ async function openLink(url: string) {
 function parseTourParam(value: string | string[] | undefined): HomeTourItem | null {
   const raw = Array.isArray(value) ? value[0] : value;
   if (!raw) return null;
-  try {
-    return JSON.parse(decodeURIComponent(raw)) as HomeTourItem;
-  } catch {
-    return null;
+  const tryParse = (s: string): HomeTourItem | null => {
+    try { return JSON.parse(s) as HomeTourItem; } catch { return null; }
+  };
+  const tryDecode = (s: string): string | null => {
+    try { return decodeURIComponent(s); } catch { return null; }
+  };
+  // expo-router may pass the param raw, decoded once, or decoded twice
+  // depending on version — accept all of them.
+  let result = tryParse(raw);
+  if (result) return result;
+  const once = tryDecode(raw);
+  if (once) {
+    result = tryParse(once);
+    if (result) return result;
+    const twice = tryDecode(once);
+    if (twice) {
+      result = tryParse(twice);
+      if (result) return result;
+    }
   }
+  return null;
 }
 
 const MEAL_LABELS: Record<string, string> = {
