@@ -4,7 +4,6 @@ export default {
   },
   tabs: {
     home: 'Bosh',
-    tours: 'Turlar',
     planner: 'Reja',
     explore: 'Explore',
     trips: 'Triplar',

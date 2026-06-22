@@ -412,7 +412,6 @@ export const authAPI = {
   resetPassword: (body: unknown) => api.post('/auth/reset-password', body),
   google: (body: unknown) => api.post('/auth/google', body),
   me: () => api.get('/auth/me'),
-  savePushToken: (token: string) => api.post('/auth/push-token', { token }),
   getPreferences: () => api.get('/auth/preferences'),
   updatePreferences: (body: { style: 'budget' | 'mid' | 'luxury'; interests: string[] }) => api.put('/auth/preferences', body),
   updateProfile: (body: unknown) => api.put('/auth/profile', body),

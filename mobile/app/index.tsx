@@ -2,8 +2,6 @@ import { useEffect } from 'react';
 import { View, StyleSheet, Text } from 'react-native';
 import { router } from 'expo-router';
 import { getItem, KEYS } from '../src/utils/storage';
-import AuroraBackground from '../src/components/AuroraBackground';
-import Globe3D from '../src/components/Globe3D';
 import AnimatedBrand from '../src/components/AnimatedBrand';
 import { FONTS } from '../src/constants/fonts';
 import { SPACING } from '../src/constants/spacing';
@@ -15,13 +13,11 @@ export default function Index() {
   useEffect(() => {
     async function check() {
       const onboarded = await getItem(KEYS.HAS_ONBOARDED);
-      if (onboarded !== 'true') {
+      if (onboarded === 'true') {
+        router.replace('/(tabs)');
+      } else {
         router.replace('/onboarding');
-        return;
       }
-      // Home'dan oldin auth ko'rsatiladi (majburiy emas — login ekranida "Skip" bor).
-      const token = await getItem(KEYS.TOKEN);
-      router.replace(token ? '/(tabs)' : '/login');
     }
     const t = setTimeout(check, 1100);
     return () => clearTimeout(t);
@@ -29,19 +25,17 @@ export default function Index() {
 
   return (
     <View style={styles.fill}>
-      <AuroraBackground />
       <View style={[StyleSheet.absoluteFill, styles.center]}>
-        <Globe3D size={196} />
-        <AnimatedBrand size={36} textStyle={{ color: LIGHT }} style={styles.brand} />
-        <Text style={styles.subtitle}>Your AI Travel Companion</Text>
+        <AnimatedBrand size={40} textStyle={{ color: LIGHT }} style={styles.brand} />
+        <Text style={styles.subtitle}>O‘zbekiston bo‘ylab turlar</Text>
       </View>
-      <Text style={styles.footer}>TravelorAI</Text>
+      <Text style={styles.footer}>Travelora</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: '#051F20' },
+  fill: { flex: 1, backgroundColor: '#06231A' },
   center: { justifyContent: 'center', alignItems: 'center' },
   brand: { marginTop: SPACING.xl },
   subtitle: { marginTop: SPACING.sm, fontFamily: FONTS.regular, fontSize: 14, color: 'rgba(247,250,252,0.78)' },

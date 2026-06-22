@@ -12,12 +12,10 @@ import * as SplashScreen from 'expo-splash-screen';
 import 'react-native-reanimated';
 
 import { I18nextProvider } from 'react-i18next';
-import { getItem, saveItem, KEYS } from '../src/utils/storage';
+import { getItem, KEYS } from '../src/utils/storage';
 import { AppThemeProvider, useAppTheme } from '../src/theme/app-theme';
 import TestModeBanner from '../src/components/TestModeBanner';
 import i18n from '../src/i18n';
-import { getExpoPushToken } from '../src/utils/notifications';
-import { authAPI } from '../src/utils/api';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -36,33 +34,13 @@ export default function RootLayout() {
 
   useEffect(() => {
     async function restoreSavedLanguage() {
-      // Mahsulot uz-only (product-strategy): hozircha doim O'zbek.
-      // Eski qurilmalarda 'en'/'ru' saqlanib qolgan bo'lsa ham uz'ga qaytaramiz.
-      // i18n kengaytirilganda bu yerga saqlangan tilni tiklash mantig'i qaytariladi.
       const savedLanguage = await getItem(KEYS.LANGUAGE);
-      if (savedLanguage !== 'uz') {
-        await i18n.changeLanguage('uz');
-        await saveItem(KEYS.LANGUAGE, 'uz');
+      if (savedLanguage === 'uz' || savedLanguage === 'ru' || savedLanguage === 'en') {
+        await i18n.changeLanguage(savedLanguage);
       }
     }
 
     restoreSavedLanguage().catch(() => {});
-  }, []);
-
-  // Kirgan foydalanuvchi uchun push tokenni ro'yxatdan o'tkazish (FCM bo'lsa ishlaydi, bo'lmasa jim)
-  useEffect(() => {
-    async function registerPush() {
-      try {
-        const sessionToken = await getItem(KEYS.TOKEN);
-        if (!sessionToken) return;
-        const pushToken = await getExpoPushToken();
-        if (pushToken) await authAPI.savePushToken(pushToken);
-      } catch {
-        // push muhim emas — xato bo'lsa jim o'tamiz
-      }
-    }
-    const timer = setTimeout(() => registerPush(), 2500);
-    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -118,38 +96,22 @@ function RootNavigator() {
         <Stack.Screen name="index" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="planner-result" />
-        <Stack.Screen name="my-plans" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="add-plan" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="ai-trip-setup" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="manual-trip" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="add-activity" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="multi-day-planner" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="itinerary-day" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="home-tours" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="tour-details" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="destination/[slug]" />
-        <Stack.Screen name="place/[slug]" />
+        <Stack.Screen name="search-filters" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="checkout" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="payment-methods" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="bookings" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="wishlist" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="login" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="register" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="verify-email" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="forgot-password" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="reset-password" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="profile-edit" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="feedback" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="achievements" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="profile-stats" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="wishlist" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="settings" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="travel-preferences" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="trip-map-loading" options={{ animation: 'fade' }} />
+        <Stack.Screen name="side-menu" options={{ animation: 'slide_from_left' }} />
         <Stack.Screen name="language" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="help-center" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="promotions" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="bookings" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="search-filters" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="home-places" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="home-tours" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="home-agencies" options={{ animation: 'slide_from_right' }} />
       </Stack>
       <TestModeBanner />
     </ThemeProvider>

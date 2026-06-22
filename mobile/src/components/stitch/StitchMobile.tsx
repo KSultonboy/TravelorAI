@@ -68,7 +68,7 @@ export function StitchHeader({
 }) {
   const { colors, styles } = useStitchMobileStyles();
   const icon = back ? 'chevron-back' : menu ? 'menu' : 'close';
-  const fallbackPress = () => router.back();
+  const fallbackPress = back ? () => router.back() : menu ? () => router.push('/side-menu' as any) : () => router.back();
 
   return (
     <View style={styles.header}>

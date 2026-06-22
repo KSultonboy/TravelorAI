@@ -18,7 +18,7 @@ import { RADIUS, SPACING } from '../src/constants/spacing';
 import { type AppColors, useAppTheme } from '../src/theme/app-theme';
 import { extractApiData } from '../src/utils/auth';
 import { homeAPI } from '../src/utils/api';
-import { normalizeTours, type HomeTourItem } from '../src/utils/homeContent';
+import { normalizeTours, serializeTourParam, type HomeTourItem } from '../src/utils/homeContent';
 
 const PAGE_SIZE = 20;
 type TourFilter = 'all' | 'Latest' | 'Popular';
@@ -72,7 +72,7 @@ export default function HomeToursScreen() {
   const openTour = (item: HomeTourItem) => {
     router.push({
       pathname: '/tour-details',
-      params: { tour: encodeURIComponent(JSON.stringify(item)) },
+      params: { tour: serializeTourParam(item) },
     } as any);
   };
 
@@ -97,12 +97,6 @@ export default function HomeToursScreen() {
       <View style={styles.body}>
         <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
         <Text style={styles.city} numberOfLines={1}>{item.city || 'Global'} · {item.duration || 'Tour'}</Text>
-        {item.mealPlan || item.hotelCategory ? (
-          <View style={styles.tagRow}>
-            {item.hotelCategory ? <Text style={styles.tag}>{item.hotelCategory}</Text> : null}
-            {item.mealPlan ? <Text style={styles.tag}>{item.mealPlan}</Text> : null}
-          </View>
-        ) : null}
         <View style={styles.metaRow}>
           <View style={styles.rating}>
             <Ionicons name="star" size={11} color={colors.gold} />
@@ -116,7 +110,7 @@ export default function HomeToursScreen() {
 
   const renderHeader = () => (
     <View style={styles.headerWrap}>
-      <StitchHeader title="Agentlik turlari" subtitle="Tasdiqlangan tour katalog" back />
+      <StitchHeader title="TravelorAI" subtitle="Tasdiqlangan tur katalogi" />
       <Text style={styles.pageTitle}>Barcha agency tourlari</Text>
       <Text style={styles.pageSub}>Filterlang, qidiring va kerakli tourni batafsil ko‘ring. Har sahifada 20 ta tour chiqadi.</Text>
 
@@ -318,8 +312,6 @@ function createStyles(colors: AppColors) {
     body: { padding: SPACING.md, gap: 6 },
     title: { fontFamily: FONTS.display, fontSize: 15, lineHeight: 19, color: colors.text },
     city: { fontFamily: FONTS.medium, fontSize: 11, color: colors.textMuted },
-    tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
-    tag: { fontFamily: FONTS.semibold, fontSize: 10, color: colors.primary, backgroundColor: colors.primaryPale, paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full, overflow: 'hidden' },
     metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 2 },
     rating: { flexDirection: 'row', alignItems: 'center', gap: 3 },
     ratingText: { fontFamily: FONTS.semibold, fontSize: 11, color: colors.text },

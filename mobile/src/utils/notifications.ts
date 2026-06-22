@@ -58,7 +58,7 @@ async function ensureAndroidChannels(Notifications: NotificationsModule): Promis
         description: channel.description,
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 180, 80, 220],
-        lightColor: '#3E9670',
+        lightColor: '#E8B43E',
         sound: 'default',
       })
     )
@@ -94,21 +94,6 @@ async function getNotificationsModule(): Promise<NotificationsModule | null> {
   }
 
   return notificationsModulePromise;
-}
-
-// Native FCM device token — backend to'g'ridan-to'g'ri FCM v1 orqali yuboradi.
-// FCM (google-services.json) bo'lmasa null qaytaradi, xato bermaydi.
-export async function getExpoPushToken(): Promise<string | null> {
-  const Notifications = await getNotificationsModule();
-  if (!Notifications) return null;
-  const granted = await requestNotificationPermission();
-  if (!granted) return null;
-  try {
-    const tokenData = await Notifications.getDevicePushTokenAsync();
-    return tokenData?.data ? String(tokenData.data) : null;
-  } catch {
-    return null;
-  }
 }
 
 export async function requestNotificationPermission(): Promise<boolean> {

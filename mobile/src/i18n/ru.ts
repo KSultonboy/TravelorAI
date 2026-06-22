@@ -4,7 +4,6 @@ export default {
   },
   tabs: {
     home: 'Главная',
-    tours: 'Туры',
     planner: 'Маршрут',
     explore: 'Карта',
     trips: 'Поездки',

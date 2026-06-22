@@ -4,6 +4,12 @@ import { resolveMediaUrl } from './api';
 export type HomePlaceType = 'all' | 'landmark' | 'restaurant' | 'hotel' | 'transport';
 export type HomeTourBadge = 'Latest' | 'Popular';
 
+export type HomeTourItineraryItem = {
+  day: number;
+  title: string;
+  description?: string | null;
+};
+
 export type PopularPlaceItem = {
   id: string;
   slug: string;
@@ -46,17 +52,12 @@ export type HomeTourItem = {
   badge: HomeTourBadge;
   imageUrl?: string | null;
   highlights?: string[];
+  itinerary?: HomeTourItineraryItem[];
   departureCity?: string | null;
   destinationCountry?: string | null;
   tourGroup?: string | null;
   nights?: number | null;
-  days?: number | null;
   hotelIncluded?: boolean;
-  flightIncluded?: boolean;
-  discount?: string | null;
-  priceBasisPeople?: number | null;
-  priceLockMinutes?: number | null;
-  priceLockUntil?: string | null;
   hotelName?: string | null;
   hotelCategory?: string | null;
   hotelLocation?: string | null;
@@ -208,17 +209,29 @@ export function normalizeTours(items: unknown[]) {
       imageUrl: resolveMediaUrl(item?.imageUrl),
       responseTimeMinutes: Number.isFinite(Number(item?.responseTimeMinutes)) ? Number(item.responseTimeMinutes) : 45,
       highlights: Array.isArray(item?.highlights) ? item.highlights : [],
+      itinerary: Array.isArray(item?.itinerary)
+        ? item.itinerary
+            .map((entry: any, itineraryIndex: number): HomeTourItineraryItem => ({
+              day: Number.isFinite(Number(entry?.day || entry?.order))
+                ? Number(entry.day || entry.order)
+                : itineraryIndex + 1,
+              title: String(
+                typeof entry === 'string'
+                  ? entry
+                  : entry?.title || entry?.name || entry?.description || ''
+              ).trim(),
+              description:
+                typeof entry === 'object' && entry?.description && entry.description !== entry?.title
+                  ? String(entry.description)
+                  : null,
+            }))
+            .filter((entry: HomeTourItineraryItem) => entry.title)
+        : [],
       departureCity: item?.departureCity || null,
       destinationCountry: item?.destinationCountry || null,
       tourGroup: item?.tourGroup || null,
       nights: Number.isFinite(Number(item?.nights)) ? Number(item.nights) : null,
-      days: Number.isFinite(Number(item?.days)) ? Number(item.days) : null,
       hotelIncluded: Boolean(item?.hotelIncluded),
-      flightIncluded: Boolean(item?.flightIncluded),
-      discount: item?.discount || null,
-      priceBasisPeople: Number.isFinite(Number(item?.priceBasisPeople)) ? Number(item.priceBasisPeople) : null,
-      priceLockMinutes: Number.isFinite(Number(item?.priceLockMinutes)) ? Number(item.priceLockMinutes) : null,
-      priceLockUntil: item?.priceLockUntil || null,
       hotelName: item?.hotelName || null,
       hotelCategory: item?.hotelCategory || null,
       hotelLocation: item?.hotelLocation || null,
@@ -240,6 +253,11 @@ export function normalizeTours(items: unknown[]) {
       agency: item?.agency || null,
     }))
     .filter((item) => item.id && item.title);
+}
+
+export function serializeTourParam(item: HomeTourItem) {
+  const normalized = normalizeTours([item])[0] || item;
+  return encodeURIComponent(JSON.stringify(normalized));
 }
 
 export function normalizeAgencies(items: unknown[]) {
