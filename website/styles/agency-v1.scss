@@ -142,7 +142,7 @@
   border: 0;
   border-radius: 999px;
   color: #fff;
-  background: #087a56;
+  background: #0f5132;
   font: inherit;
   font-weight: 900;
   cursor: pointer;
@@ -190,7 +190,7 @@
 
 .agency-eyebrow {
   margin: 0 0 10px;
-  color: #087a56;
+  color: #0f5132;
   font-size: 0.76rem;
   font-weight: 950;
   letter-spacing: 0.18em;
@@ -242,9 +242,9 @@
 .agency-card textarea:focus,
 .agency-dashboard-section input:focus,
 .agency-dashboard-section textarea:focus {
-  border-color: rgba(8, 122, 86, 0.58);
+  border-color: rgba(15, 81, 50, 0.58);
   background: #fff;
-  box-shadow: 0 0 0 4px rgba(8, 122, 86, 0.1);
+  box-shadow: 0 0 0 4px rgba(15, 81, 50, 0.1);
 }
 
 .agency-card button,
@@ -259,7 +259,7 @@
   border: 0;
   border-radius: 999px;
   color: #fff;
-  background: #087a56;
+  background: #0f5132;
   font: inherit;
   font-weight: 950;
   cursor: pointer;
@@ -399,7 +399,7 @@
   border: 0;
   border-radius: 999px;
   color: #fff;
-  background: #087a56;
+  background: #0f5132;
   font: inherit;
   font-weight: 900;
   cursor: pointer;
@@ -453,7 +453,7 @@
 }
 
 .agency-dashboard__header svg {
-  color: #087a56;
+  color: #0f5132;
 }
 
 .agency-stats {
@@ -531,7 +531,7 @@
   display: block;
   padding: 0;
   background:
-    radial-gradient(circle at 18% 4%, rgba(8, 122, 86, 0.13), transparent 32rem),
+    radial-gradient(circle at 18% 4%, rgba(15, 81, 50, 0.13), transparent 32rem),
     linear-gradient(135deg, #f5f8f6 0%, #fbfaf7 48%, #eef4f0 100%);
 }
 
@@ -554,7 +554,7 @@
   gap: 28px;
   padding: 28px 22px;
   color: #eaf4ef;
-  background: #0d1726;
+  background: #07261a;
   box-shadow: 18px 0 55px rgba(13, 23, 38, 0.12);
 }
 
@@ -572,8 +572,8 @@
   width: 44px;
   height: 44px;
   border-radius: 16px;
-  color: #0d1726;
-  background: #dffbea;
+  color: #2a1d00;
+  background: linear-gradient(135deg, #eab308, #ca8a04);
 }
 
 .agency-dashboard-brand b,
@@ -612,7 +612,7 @@
 }
 
 .agency-dashboard-sidebar a:first-child {
-  color: #0d1726;
+  color: #07261a;
   background: #dffbea;
 }
 
@@ -621,7 +621,7 @@
   margin-top: auto;
   justify-content: center;
   color: #fff;
-  background: #087a56;
+  background: #0f5132;
   cursor: pointer;
 }
 
@@ -770,7 +770,7 @@
 }
 
 .agency-section-heading svg {
-  color: #087a56;
+  color: #0f5132;
 }
 
 .agency-dashboard-section h3 {
@@ -823,7 +823,7 @@
 
 .agency-focus-card {
   background:
-    radial-gradient(circle at 100% 0%, rgba(8, 122, 86, 0.15), transparent 16rem),
+    radial-gradient(circle at 100% 0%, rgba(15, 81, 50, 0.15), transparent 16rem),
     #fff;
 }
 
@@ -844,7 +844,7 @@
 }
 
 .agency-quality-list svg {
-  color: #087a56;
+  color: #0f5132;
 }
 
 .agency-form-grid--wide {
@@ -855,7 +855,7 @@
   flex: 0 0 auto;
   padding: 10px 14px;
   border-radius: 999px;
-  color: #087a56;
+  color: #0f5132;
   background: #e9fbf3;
   font-weight: 950;
 }
@@ -881,9 +881,9 @@
   place-items: center;
   overflow: hidden;
   border-radius: 20px;
-  color: #087a56;
+  color: #0f5132;
   background:
-    radial-gradient(circle at 32% 20%, rgba(8, 122, 86, 0.18), transparent 12rem),
+    radial-gradient(circle at 32% 20%, rgba(15, 81, 50, 0.18), transparent 12rem),
     #edf3ef;
 }
 
@@ -923,7 +923,7 @@
 
 .agency-tour-body__title > b {
   flex: 0 0 auto;
-  color: #087a56;
+  color: #0f5132;
   font-size: 1.15rem;
 }
 
@@ -945,7 +945,7 @@
 .agency-status--confirmed,
 .agency-status--completed,
 .agency-public-chip {
-  color: #087a56;
+  color: #0f5132;
   background: #e4f8ef;
 }
 
@@ -992,7 +992,7 @@
 }
 
 .agency-sales-table em {
-  color: #087a56;
+  color: #0f5132;
   font-style: normal;
   font-weight: 900;
 }
@@ -1034,7 +1034,7 @@
 }
 
 .agency-booking-side > b {
-  color: #087a56;
+  color: #0f5132;
   font-size: 1.25rem;
 }
 
@@ -1244,7 +1244,7 @@
   place-items: center;
   align-content: center;
   gap: 12px;
-  color: #087a56;
+  color: #0f5132;
 }
 
 .agency-shell--single {
@@ -1260,7 +1260,7 @@
 
 .agency-brand--inline span:first-child {
   color: #fff;
-  background: #087a56;
+  background: #0f5132;
 }
 
 .agency-onboarding-topbar {
@@ -1330,7 +1330,8 @@
 
 .agency-nav-active {
   color: #fff !important;
-  background: #087a56 !important;
+  background: linear-gradient(135deg, #1a6b3c, #0f5132) !important;
+  box-shadow: inset 3px 0 0 #eab308;
 }
 
 .agency-nav-badge {
@@ -1402,7 +1403,7 @@
   border: 0;
   border-radius: 999px;
   color: #fff !important;
-  background: #087a56;
+  background: #0f5132;
   font-weight: 900;
   text-decoration: none;
   cursor: pointer;
@@ -1412,7 +1413,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #087a56;
+  color: #0f5132;
   font-weight: 800;
   text-decoration: none;
 }
@@ -1458,8 +1459,8 @@
   width: 38px;
   height: 38px;
   border-radius: 13px;
-  color: #087a56;
-  background: rgba(8, 122, 86, 0.1);
+  color: #0f5132;
+  background: rgba(15, 81, 50, 0.1);
 }
 
 .agency-stat-card b {
@@ -1508,9 +1509,9 @@
 }
 
 .agency-tab--active {
-  border-color: #087a56;
+  border-color: #0f5132;
   color: #fff;
-  background: #087a56;
+  background: #0f5132;
 }
 
 .agency-tab__count {
@@ -1546,7 +1547,7 @@
 }
 
 .agency-lead-card--confirmed {
-  border-left-color: #087a56;
+  border-left-color: #0f5132;
 }
 
 .agency-lead-card--completed {
@@ -1595,7 +1596,7 @@
 }
 
 .agency-lead-card__meta a {
-  color: #087a56;
+  color: #0f5132;
 }
 
 .agency-lead-card__message {
@@ -1641,7 +1642,7 @@
   border: 0;
   border-radius: 999px;
   color: #fff;
-  background: #087a56;
+  background: #0f5132;
   font: inherit;
   font-weight: 850;
   cursor: pointer;
@@ -1685,7 +1686,7 @@
 
 .agency-status-chip--approved,
 .agency-status-chip--confirmed {
-  color: #087a56;
+  color: #0f5132;
   background: #e3f3ec;
 }
 
@@ -1716,7 +1717,7 @@
   padding: 14px 16px;
   border: 1px solid #ececf0;
   border-radius: 18px;
-  color: #087a56;
+  color: #0f5132;
   background: #fff;
 }
 
@@ -1743,9 +1744,9 @@
   display: grid;
   place-items: center;
   border-radius: 20px;
-  color: #087a56;
+  color: #0f5132;
   background:
-    radial-gradient(circle at 32% 20%, rgba(8, 122, 86, 0.18), transparent 12rem),
+    radial-gradient(circle at 32% 20%, rgba(15, 81, 50, 0.18), transparent 12rem),
     #edf3ef;
 }
 
@@ -2023,25 +2024,25 @@
 }
 
 .agency-wizard-steps li.is-current {
-  border-color: #087a56;
-  color: #087a56;
-  box-shadow: 0 6px 18px rgba(8, 122, 86, 0.14);
+  border-color: #0f5132;
+  color: #0f5132;
+  box-shadow: 0 6px 18px rgba(15, 81, 50, 0.14);
 }
 
 .agency-wizard-steps li.is-current span {
   color: #fff;
-  background: #087a56;
+  background: #0f5132;
 }
 
 .agency-wizard-steps li.is-done {
-  border-color: rgba(8, 122, 86, 0.4);
-  color: #087a56;
+  border-color: rgba(15, 81, 50, 0.4);
+  color: #0f5132;
   cursor: pointer;
 }
 
 .agency-wizard-steps li.is-done span {
-  color: #087a56;
-  background: rgba(8, 122, 86, 0.12);
+  color: #0f5132;
+  background: rgba(15, 81, 50, 0.12);
 }
 
 .agency-wizard-hint {
@@ -2067,7 +2068,7 @@
   border: 0;
   border-radius: 999px;
   color: #fff;
-  background: #087a56;
+  background: #0f5132;
   font: inherit;
   font-weight: 900;
   cursor: pointer;
@@ -2179,7 +2180,7 @@
 
 .agency-welcome__card h2 {
   margin: 0;
-  color: #087a56;
+  color: #0f5132;
   font-size: clamp(2rem, 4vw, 3rem);
   letter-spacing: -0.04em;
 }
@@ -2289,7 +2290,7 @@
 
 .agency-card input[type="file"]:hover,
 .agency-dashboard-section input[type="file"]:hover {
-  border-color: rgba(8, 122, 86, 0.55);
+  border-color: rgba(15, 81, 50, 0.55);
   background: #f4faf7;
 }
 
@@ -2300,7 +2301,7 @@
   border: 0;
   border-radius: 999px;
   color: #fff;
-  background: #087a56;
+  background: #0f5132;
   font: inherit;
   font-size: 0.86rem;
   font-weight: 800;
@@ -2310,7 +2311,7 @@
 
 .agency-card input[type="file"]::file-selector-button:hover,
 .agency-dashboard-section input[type="file"]::file-selector-button:hover {
-  background: #0a8f65;
+  background: #1a6b3c;
 }
 
 /* --- Tour paket maydonlari (select, checkbox, bo'lim sarlavhasi) --- */
@@ -2331,15 +2332,15 @@
 
 .agency-card select:focus,
 .agency-dashboard-section select:focus {
-  border-color: rgba(8, 122, 86, 0.58);
+  border-color: rgba(15, 81, 50, 0.58);
   background: #fff;
-  box-shadow: 0 0 0 4px rgba(8, 122, 86, 0.1);
+  box-shadow: 0 0 0 4px rgba(15, 81, 50, 0.1);
 }
 
 .agency-form-section-title {
   grid-column: 1 / -1;
   margin: 12px 0 0;
-  color: #087a56;
+  color: #0f5132;
   font-size: 0.82rem;
   font-weight: 950;
   text-transform: uppercase;
@@ -2378,5 +2379,5 @@
   min-height: 18px !important;
   height: 18px;
   padding: 0 !important;
-  accent-color: #087a56;
+  accent-color: #0f5132;
 }
