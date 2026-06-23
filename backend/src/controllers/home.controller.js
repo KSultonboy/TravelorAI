@@ -388,11 +388,27 @@ async function resolvePlaces({ type = 'all', limit = 40 }) {
   return [];
 }
 
+function tourSortOrderBy(sort, badge) {
+  switch (String(sort || '')) {
+    case 'price_asc':
+      return [{ priceMin: { sort: 'asc', nulls: 'last' } }, { approvedAt: 'desc' }];
+    case 'price_desc':
+      return [{ priceMin: { sort: 'desc', nulls: 'last' } }, { approvedAt: 'desc' }];
+    case 'popular':
+      return [{ rating: 'desc' }, { approvedAt: 'desc' }, { createdAt: 'desc' }];
+    case 'latest':
+      return [{ approvedAt: 'desc' }, { createdAt: 'desc' }];
+    default:
+      return tourOrderBy(badge);
+  }
+}
+
 async function resolveTours({
   badge = 'all',
   limit = 12,
   page = 1,
   q = '',
+  sort = '',
   agencyOnly = false,
   paginated = false,
 }) {
@@ -413,7 +429,7 @@ async function resolveTours({
   const query = {
     where,
     include: { agency: true },
-    orderBy: tourOrderBy(badge),
+    orderBy: tourSortOrderBy(sort, badge),
     take: limit,
   };
 
@@ -533,8 +549,9 @@ async function getTours(req, res) {
     const limit = clampLimit(req.query.limit, 20, 60);
     const page = clampPage(req.query.page);
     const q = String(req.query.q || req.query.search || '').trim();
+    const sort = String(req.query.sort || '').trim();
     const agencyOnly = normalizeBoolean(req.query.agencyOnly);
-    const result = await resolveTours({ badge, limit, page, q, agencyOnly, paginated: true });
+    const result = await resolveTours({ badge, limit, page, q, sort, agencyOnly, paginated: true });
     return success(res, result);
   } catch (err) {
     return error(res, err.message, 500);
