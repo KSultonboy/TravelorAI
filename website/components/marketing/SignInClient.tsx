@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, BadgeCheck, Building2, ChevronRight, Lock, Mail, MapPinned, ShieldCheck, Sparkles, User } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Building2, ChevronRight, Eye, EyeOff, Lock, Mail, MapPinned, ShieldCheck, Sparkles, User } from "lucide-react";
 import Logo from "./Logo";
 import GoogleContinueButton from "../GoogleContinueButton";
 
@@ -26,6 +26,7 @@ export default function SignInClient() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -163,7 +164,7 @@ export default function SignInClient() {
                   <div className="mkt-field"><label>Ism</label><div className="mkt-input"><User size={16} /><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ismingiz" /></div></div>
                 ) : null}
                 <div className="mkt-field"><label>Email</label><div className="mkt-input"><Mail size={16} /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="siz@email.com" /></div></div>
-                <div className="mkt-field"><label>Parol</label><div className="mkt-input"><Lock size={16} /><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Kamida 8 belgi" /></div></div>
+                <div className="mkt-field"><label>Parol</label><div className="mkt-input"><Lock size={16} /><input type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Kamida 8 belgi" /><button type="button" className="mkt-input__eye" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? "Parolni yashirish" : "Parolni ko‘rsatish"} title={showPw ? "Yashirish" : "Ko‘rsatish"} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "none", border: 0, padding: 4, margin: 0, cursor: "pointer", color: "var(--muted, #6b8576)" }}>{showPw ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></div>
                 <button className="btn btn--gold btn--lg btn--block" type="submit" disabled={busy}>{busy ? "Yuborilmoqda..." : mode === "login" ? "Kirish" : "Ro‘yxatdan o‘tish"}</button>
               </form>
 
