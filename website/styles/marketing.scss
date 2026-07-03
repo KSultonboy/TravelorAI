@@ -459,3 +459,73 @@
   .mkt-filters-toggle { display: inline-flex; }
   .mkt-filters-backdrop { display: block; position: fixed; inset: 0; z-index: 70; background: rgba(7, 22, 16, 0.5); backdrop-filter: blur(2px); }
 }
+
+/* ---------- Theme toggle · wishlist heart · range/check ---------- */
+.mkt-theme-toggle { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: #fff; color: var(--ink); display: inline-grid; place-items: center; cursor: pointer; flex-shrink: 0; transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease; }
+.mkt-theme-toggle:hover { color: var(--primary); border-color: var(--primary-3); }
+.mkt-header--transparent:not(.mkt-header--solid) .mkt-theme-toggle { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.3); color: #fff; }
+
+.tcard__heart { position: absolute; top: 12px; right: 12px; z-index: 2; width: 38px; height: 38px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.92); color: var(--muted); display: grid; place-items: center; cursor: pointer; box-shadow: var(--shadow-sm); transition: transform 0.15s ease, color 0.15s ease, background 0.15s ease; }
+.tcard__heart:hover { background: #fff; color: var(--danger); transform: scale(1.1); }
+.tcard__heart.is-active { color: var(--danger); }
+
+.mkt-range { width: 100%; accent-color: var(--primary); cursor: pointer; height: 6px; }
+.mkt-range-labels { display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; color: var(--muted); font-weight: 700; }
+.mkt-range-val { color: var(--primary); font-weight: 800; }
+.mkt-check { display: flex; align-items: center; gap: 10px; padding: 7px 4px; cursor: pointer; font-size: 0.92rem; color: var(--ink); font-weight: 600; }
+.mkt-check input { accent-color: var(--primary); width: 16px; height: 16px; cursor: pointer; }
+
+/* ============================================================
+   DARK MODE — html.theme-dark (yashil+gold, quyuq fon)
+   ============================================================ */
+html.theme-dark .mkt {
+  --ink: #eef5f0;
+  --muted: #a3b7ac;
+  --subtle: #7f978b;
+  --line: #1d3a2c;
+  --canvas: #06120c;
+  --white: #0d241a;
+  --primary: #34c46e;
+  --primary-2: #43d07c;
+  --primary-3: #58dc8b;
+  --primary-pale: #123120;
+  --gold-soft: #2b2510;
+  --shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.42);
+  --shadow-md: 0 16px 44px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 28px 70px rgba(0, 0, 0, 0.6);
+  background: #081a12;
+  color: var(--ink);
+}
+html.theme-dark .mkt .mkt-section--soft { background: #050f0a; }
+html.theme-dark .mkt .tcard,
+html.theme-dark .mkt .mkt-cat,
+html.theme-dark .mkt .mkt-vcard,
+html.theme-dark .mkt .mkt-stat,
+html.theme-dark .mkt .mkt-quote,
+html.theme-dark .mkt .mkt-faq__item,
+html.theme-dark .mkt .mkt-filters,
+html.theme-dark .mkt .mkt-form-card,
+html.theme-dark .mkt .mkt-road,
+html.theme-dark .mkt .mkt-channel,
+html.theme-dark .mkt .mkt-step,
+html.theme-dark .mkt .mkt-trip,
+html.theme-dark .mkt .mkt-detail__section,
+html.theme-dark .mkt .mkt-book,
+html.theme-dark .mkt .mkt-pkg { background: #0e241b; border-color: var(--line); }
+html.theme-dark .mkt .mkt-input,
+html.theme-dark .mkt .mkt-chip-btn,
+html.theme-dark .mkt .mkt-theme-toggle,
+html.theme-dark .mkt .mkt-filters__close,
+html.theme-dark .mkt .mkt-filters-toggle,
+html.theme-dark .mkt .mkt-header__burger,
+html.theme-dark .mkt .mkt-stepper button,
+html.theme-dark .mkt .btn--ghost { background: #0e241b; border-color: var(--line); color: var(--ink); }
+html.theme-dark .mkt .mkt-input input,
+html.theme-dark .mkt .mkt-input select,
+html.theme-dark .mkt .mkt-input textarea { color: var(--ink); }
+html.theme-dark .mkt .mkt-header--solid { background: rgba(8, 26, 18, 0.9); border-bottom-color: var(--line); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4); }
+html.theme-dark .mkt .tcard__heart { background: rgba(14, 36, 27, 0.9); }
+html.theme-dark .mkt .tcard__heart:hover { background: #0e241b; }
+html.theme-dark .mkt .badge { background: rgba(14, 36, 27, 0.92); color: var(--primary-3); }
+html.theme-dark .mkt .mkt-skel { background: linear-gradient(90deg, #12271d 25%, #163021 37%, #12271d 63%); background-size: 400% 100%; }
+html.theme-dark .mkt .mkt-mobile { background: #0e241b; border-bottom-color: var(--line); }

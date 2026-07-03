@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LogOut, Menu, UserRound, X } from "lucide-react";
 import Logo from "./Logo";
+import ThemeToggle from "./ThemeToggle";
 import { useAuth } from "./useAuth";
 
 const NAV = [
@@ -41,6 +42,7 @@ export default function SiteHeader({ transparentOverHero = false }: { transparen
         </nav>
 
         <div className="mkt-header__actions">
+          <ThemeToggle />
           {!loading && user ? (
             <>
               <Link className="btn btn--ghost btn--md" href="/my-trips"><UserRound size={17} /> Mening safarlarim</Link>

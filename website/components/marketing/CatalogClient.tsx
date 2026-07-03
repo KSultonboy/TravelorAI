@@ -13,6 +13,20 @@ function priceValue(t: Tour): number {
   return m ? Number(m) : Number.MAX_SAFE_INTEGER;
 }
 
+function dayCount(t: Tour): number {
+  if (typeof t.days === "number" && t.days > 0) return t.days;
+  const m = (t.duration || "").match(/\d+/);
+  return m ? Number(m[0]) : 0;
+}
+function durBucket(d: number): "1-3" | "4-7" | "7+" {
+  return d <= 3 ? "1-3" : d <= 7 ? "4-7" : "7+";
+}
+const DURATIONS: { key: string; label: string }[] = [
+  { key: "1-3", label: "1–3 kun" },
+  { key: "4-7", label: "4–7 kun" },
+  { key: "7+", label: "7+ kun" },
+];
+
 const QUICK: { label: string; sort: SortKey }[] = [
   { label: "Mashhur", sort: "rating" },
   { label: "Arzon", sort: "price_asc" },
@@ -24,9 +38,17 @@ export default function CatalogClient({ tours, initialRegion = "" }: { tours: To
   const [region, setRegion] = useState(initialRegion);
   const [city, setCity] = useState("");
   const [sort, setSort] = useState<SortKey>("rating");
+  const [maxPrice, setMaxPrice] = useState<number | null>(null);
+  const [durs, setDurs] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
 
   const cities = useMemo(() => (region ? regionByKey(region)?.cities ?? [] : []), [region]);
+
+  const bounds = useMemo(() => {
+    const vals = tours.map(priceValue).filter((v) => v > 0 && v < Number.MAX_SAFE_INTEGER);
+    return { min: vals.length ? Math.min(...vals) : 0, max: vals.length ? Math.max(...vals) : 5000 };
+  }, [tours]);
+  const effMax = maxPrice ?? bounds.max;
 
   const results = useMemo(() => {
     const text = q.trim().toLowerCase();
@@ -35,7 +57,11 @@ export default function CatalogClient({ tours, initialRegion = "" }: { tours: To
       const regionOk = matchRegion(hay, region);
       const cityOk = !city || hay.toLowerCase().includes(city.toLowerCase());
       const textOk = !text || hay.toLowerCase().includes(text);
-      return regionOk && cityOk && textOk;
+      const pv = priceValue(t);
+      const priceOk = pv === Number.MAX_SAFE_INTEGER || pv <= effMax;
+      const dc = dayCount(t);
+      const durOk = durs.length === 0 || (dc > 0 && durs.includes(durBucket(dc)));
+      return regionOk && cityOk && textOk && priceOk && durOk;
     });
     list = [...list].sort((a, b) => {
       if (sort === "price_asc") return priceValue(a) - priceValue(b);
@@ -43,9 +69,9 @@ export default function CatalogClient({ tours, initialRegion = "" }: { tours: To
       return (b.rating || 0) - (a.rating || 0);
     });
     return list;
-  }, [tours, q, region, city, sort]);
+  }, [tours, q, region, city, sort, effMax, durs]);
 
-  const reset = () => { setQ(""); setRegion(""); setCity(""); setSort("rating"); };
+  const reset = () => { setQ(""); setRegion(""); setCity(""); setSort("rating"); setMaxPrice(null); setDurs([]); };
 
   return (
     <section className="mkt-section">
@@ -98,6 +124,38 @@ export default function CatalogClient({ tours, initialRegion = "" }: { tours: To
                   {cities.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
+            </div>
+
+            <div className="mkt-filters__group">
+              <div className="mkt-filters__label">Byudjet</div>
+              <div className="mkt-range-labels">
+                <span>${bounds.min.toLocaleString()}</span>
+                <span className="mkt-range-val">${effMax.toLocaleString()}{effMax >= bounds.max ? "+" : ""}</span>
+              </div>
+              <input
+                type="range"
+                className="mkt-range"
+                min={bounds.min}
+                max={bounds.max}
+                step={50}
+                value={effMax}
+                onChange={(e) => setMaxPrice(Number(e.target.value))}
+                aria-label="Maksimal narx"
+              />
+            </div>
+
+            <div className="mkt-filters__group">
+              <div className="mkt-filters__label">Davomiylik</div>
+              {DURATIONS.map((d) => (
+                <label key={d.key} className="mkt-check">
+                  <input
+                    type="checkbox"
+                    checked={durs.includes(d.key)}
+                    onChange={() => setDurs((p) => (p.includes(d.key) ? p.filter((x) => x !== d.key) : [...p, d.key]))}
+                  />
+                  <span>{d.label}</span>
+                </label>
+              ))}
             </div>
 
             <button className="btn btn--ghost btn--md btn--block" type="button" onClick={reset}>Filtrlarni tozalash</button>

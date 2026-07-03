@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import SiteHeader from "./SiteHeader";
 import SiteFooter from "./SiteFooter";
+import WishlistProvider from "./WishlistProvider";
 
 /** Barcha marketing sahifalari uchun umumiy o'rash: .mkt scope + header + footer */
 export default function MarketingShell({
@@ -12,9 +13,11 @@ export default function MarketingShell({
 }) {
   return (
     <div className="mkt">
-      <SiteHeader transparentOverHero={transparentHeader} />
-      <main>{children}</main>
-      <SiteFooter />
+      <WishlistProvider>
+        <SiteHeader transparentOverHero={transparentHeader} />
+        <main>{children}</main>
+        <SiteFooter />
+      </WishlistProvider>
     </div>
   );
 }
