@@ -95,7 +95,8 @@
 .rating svg { color: var(--star); }
 
 /* ---------- Card ---------- */
-.tcard { display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); transition: transform 0.22s ease, box-shadow 0.22s ease; text-decoration: none; color: inherit; min-width: 0; }
+.tcard { display: flex; flex-direction: column; height: 100%; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); transition: transform 0.22s ease, box-shadow 0.22s ease; text-decoration: none; color: inherit; min-width: 0; }
+.tgrid > *, .mkt-catalog-grid > * { display: flex; min-width: 0; }
 .tcard:hover { transform: translateY(-6px); box-shadow: var(--shadow-lg); }
 .tcard__media { position: relative; aspect-ratio: 16 / 11; background: linear-gradient(135deg, var(--primary-2), #06231a); overflow: hidden; }
 .tcard__media img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.5s ease; }
@@ -529,3 +530,10 @@ html.theme-dark .mkt .tcard__heart:hover { background: #0e241b; }
 html.theme-dark .mkt .badge { background: rgba(14, 36, 27, 0.92); color: var(--primary-3); }
 html.theme-dark .mkt .mkt-skel { background: linear-gradient(90deg, #12271d 25%, #163021 37%, #12271d 63%); background-size: 400% 100%; }
 html.theme-dark .mkt .mkt-mobile { background: #0e241b; border-bottom-color: var(--line); }
+html.theme-dark .mkt .mkt-search { background: rgba(11, 30, 22, 0.92); box-shadow: 0 22px 55px rgba(0, 0, 0, 0.5); border: 1px solid var(--line); }
+html.theme-dark .mkt .mkt-search__field { background: transparent; color: var(--ink); }
+html.theme-dark .mkt .mkt-search__field:not(:last-child) { border-right-color: var(--line); }
+html.theme-dark .mkt .mkt-search__field label { color: var(--subtle); }
+html.theme-dark .mkt .mkt-search__field input,
+html.theme-dark .mkt .mkt-search__field select { color: var(--ink); color-scheme: dark; }
+@media (max-width: 760px) { html.theme-dark .mkt .mkt-search__field:not(:last-child) { border-bottom-color: var(--line); } }
