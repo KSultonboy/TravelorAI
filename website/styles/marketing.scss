@@ -369,6 +369,8 @@
 .mkt-rolebtn__chev { margin-left: auto; color: var(--subtle); }
 .mkt-auth__toggle { text-align: center; margin-top: 16px; font-size: 0.9rem; color: var(--muted); }
 .mkt-auth__toggle button { border: 0; background: none; color: var(--primary); font-weight: 800; cursor: pointer; }
+.mkt-auth__forgot { align-self: flex-end; margin-top: -4px; border: 0; background: none; color: var(--muted); font-size: 0.84rem; font-weight: 700; cursor: pointer; padding: 0; }
+.mkt-auth__forgot:hover { color: var(--primary); text-decoration: underline; }
 .mkt-auth__fields { display: flex; flex-direction: column; gap: 13px; }
 
 /* ---------- Skeleton ---------- */
