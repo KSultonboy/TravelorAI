@@ -4,6 +4,7 @@ export type Account = {
   id: string;
   email: string;
   emailVerified: boolean;
+  mustChangePassword: boolean;
   status: string;
   pendingEmail?: string | null;
   emailChangeResendCount?: number;

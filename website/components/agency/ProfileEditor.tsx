@@ -8,6 +8,7 @@ import { agencyApi, readImage, statusLabel } from "@/lib/agency/api";
 import { useAgencySession } from "@/lib/agency/session";
 import type { Agency } from "@/lib/agency/types";
 import EmailChangeCard from "./EmailChangeCard";
+import PasswordChangeCard from "./PasswordChangeCard";
 
 type ProfileForm = {
   name: string;
@@ -40,7 +41,8 @@ export default function ProfileEditor() {
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setForm(fillForm(me?.agency || null));
+    const timer = window.setTimeout(() => setForm(fillForm(me?.agency || null)), 0);
+    return () => window.clearTimeout(timer);
   }, [me?.agency]);
 
   function update(key: keyof ProfileForm, value: string) {
@@ -135,6 +137,7 @@ export default function ProfileEditor() {
       </div>
 
       <EmailChangeCard />
+      <PasswordChangeCard />
 
       {me?.application ? (
         <details className="agency-application-details">

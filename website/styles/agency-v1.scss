@@ -172,6 +172,33 @@
   max-width: 560px;
 }
 
+.agency-password-card {
+  display: grid;
+  gap: 18px;
+}
+
+.agency-password-card--forced {
+  width: min(100%, 560px);
+}
+
+.agency-password-head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.agency-password-head > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  color: #fff;
+  background: #087a56;
+}
+
 .agency-card h2,
 .agency-card h3 {
   max-width: 980px;
@@ -1251,6 +1278,17 @@
   display: block;
   max-width: 1120px;
   margin: 0 auto;
+}
+
+.agency-shell--password {
+  min-height: 100vh;
+  padding: clamp(18px, 4vw, 44px);
+}
+
+.agency-password-gate {
+  display: grid;
+  min-height: calc(100vh - 140px);
+  place-items: center;
 }
 
 .agency-brand--inline {

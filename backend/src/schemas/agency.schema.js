@@ -94,6 +94,19 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().optional().or(z.literal('')),
+    newPassword: z
+      .string()
+      .min(8, "Yangi parol kamida 8 belgidan iborat bo'lishi kerak")
+      .max(128, 'Yangi parol juda uzun'),
+  })
+  .refine((value) => value.newPassword !== value.currentPassword, {
+    message: 'Yangi parol avvalgi paroldan farq qilishi kerak',
+    path: ['newPassword'],
+  });
+
 const applicationSchema = z.object({
   companyName: z.string().trim().min(2),
   legalName: z.string().trim().optional().or(z.literal('')),
@@ -166,6 +179,7 @@ module.exports = {
   verifyEmailSchema,
   emailChangeRequestSchema,
   emailChangeConfirmSchema,
+  changePasswordSchema,
   loginSchema,
   applicationSchema,
   tourSchema,

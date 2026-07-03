@@ -12,7 +12,7 @@ import {
 import { agencyApi } from "./api";
 import type { BookingItem, BookingStats, MeData, Tour } from "./types";
 
-export type SessionPhase = "loading" | "guest" | "onboarding" | "approved";
+export type SessionPhase = "loading" | "guest" | "password" | "onboarding" | "approved";
 
 type AgencySessionValue = {
   phase: SessionPhase;
@@ -67,6 +67,13 @@ export function AgencySessionProvider({ children }: { children: ReactNode }) {
       }
       setMe(result.data);
       if (result.data.bookingStats) setBookingStats(result.data.bookingStats);
+      if (result.data.account.mustChangePassword) {
+        setTours([]);
+        setBookings([]);
+        setBookingStats(null);
+        setPhase("password");
+        return;
+      }
       if (result.data.account.status === "approved") {
         setPhase("approved");
         await Promise.all([refreshTours(), refreshBookings()]);
@@ -87,7 +94,10 @@ export function AgencySessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void refresh(true);
+    const timer = window.setTimeout(() => {
+      void refresh(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [refresh]);
 
   useEffect(() => {

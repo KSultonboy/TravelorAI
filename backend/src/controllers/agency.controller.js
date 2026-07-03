@@ -12,6 +12,7 @@ const { bookingStatusSchema } = require('../schemas/booking.schema');
 const { formatBooking } = require('./bookings.controller');
 const {
   applicationSchema,
+  changePasswordSchema,
   emailChangeConfirmSchema,
   emailChangeRequestSchema,
   googleAuthSchema,
@@ -51,6 +52,7 @@ function publicAccount(account) {
     email: account.email,
     pendingEmail: account.pendingEmail || null,
     emailVerified: account.emailVerified,
+    mustChangePassword: Boolean(account.mustChangePassword),
     emailChangeResendCount: account.emailChangeResendCount || 0,
     emailChangeResendsRemaining: Math.max(0, EMAIL_CHANGE_MAX_RESENDS - Number(account.emailChangeResendCount || 0)),
     status: account.status,
@@ -437,10 +439,10 @@ async function register(req, res) {
     const account = existing
       ? await prisma.agencyAccount.update({
           where: { id: existing.id },
-          data: { passwordHash, status: 'pending' },
+          data: { passwordHash, status: 'pending', mustChangePassword: false },
         })
       : await prisma.agencyAccount.create({
-          data: { email, passwordHash, status: 'pending' },
+          data: { email, passwordHash, status: 'pending', mustChangePassword: false },
         });
 
     const delivery = await issueAgencyCode(account);
@@ -504,6 +506,40 @@ async function login(req, res) {
   }
 }
 
+async function changePassword(req, res) {
+  try {
+    const input = changePasswordSchema.parse(req.body || {});
+    const account = await prisma.agencyAccount.findUnique({ where: { id: req.agencyAccount.id } });
+    if (!account) return error(res, 'Agency akkaunt topilmadi', 404);
+
+    if (!account.mustChangePassword) {
+      if (!input.currentPassword) return error(res, 'Joriy parolni kiriting', 400);
+      const currentOk = await bcrypt.compare(input.currentPassword, account.passwordHash);
+      if (!currentOk) return error(res, 'Joriy parol xato', 401);
+    }
+
+    const samePassword = await bcrypt.compare(input.newPassword, account.passwordHash);
+    if (samePassword) return error(res, 'Yangi parol avvalgi paroldan farq qilishi kerak', 400);
+
+    const updated = await prisma.agencyAccount.update({
+      where: { id: account.id },
+      data: {
+        passwordHash: await bcrypt.hash(input.newPassword, 10),
+        mustChangePassword: false,
+        emailVerified: true,
+        emailVerifiedAt: account.emailVerifiedAt || new Date(),
+      },
+    });
+
+    return success(res, {
+      account: publicAccount(updated),
+      message: 'Parol yangilandi. Keyingi safar shu parol bilan kirasiz.',
+    });
+  } catch (err) {
+    return error(res, err.errors?.[0]?.message || err.message, 400);
+  }
+}
+
 
 async function googleAuth(req, res) {
   try {
@@ -530,6 +566,7 @@ async function googleAuth(req, res) {
           emailVerifiedAt: new Date(),
           lastLoginAt: new Date(),
           status: 'pending',
+          mustChangePassword: false,
         },
       });
     } else {
@@ -948,6 +985,7 @@ module.exports = {
   resendEmailChange,
   confirmEmailChange,
   login,
+  changePassword,
   me,
   getApplication,
   upsertApplication,

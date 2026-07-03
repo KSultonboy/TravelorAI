@@ -1585,9 +1585,21 @@ async function createPartner(req, res) {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const account = await prisma.agencyAccount.create({
-      data: { email, passwordHash, status: 'approved', emailVerified: true, emailVerifiedAt: new Date() },
+      data: {
+        email,
+        passwordHash,
+        status: 'approved',
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+        mustChangePassword: true,
+      },
     });
-    return success(res, { id: account.id, email: account.email, status: account.status }, 201);
+    return success(res, {
+      id: account.id,
+      email: account.email,
+      status: account.status,
+      mustChangePassword: account.mustChangePassword,
+    }, 201);
   } catch (err) {
     return error(res, err.message, 500);
   }

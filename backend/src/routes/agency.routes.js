@@ -10,6 +10,7 @@ router.post('/auth/google', agency.googleAuth);
 router.use(agencyAuthMiddleware);
 
 router.get('/auth/me', agency.me);
+router.post('/auth/change-password', agency.changePassword);
 router.post('/auth/email-change/request', agency.requestEmailChange);
 router.post('/auth/email-change/resend', agency.resendEmailChange);
 router.post('/auth/email-change/confirm', agency.confirmEmailChange);

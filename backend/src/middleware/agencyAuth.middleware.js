@@ -19,6 +19,11 @@ async function agencyAuthMiddleware(req, res, next) {
   if (account.status === 'blocked') return error(res, 'Agency akkaunt bloklangan', 403);
 
   req.agencyAccount = account;
+  const isPasswordRoute = req.path === '/auth/change-password' && req.method === 'POST';
+  const isMeRoute = req.path === '/auth/me' && req.method === 'GET';
+  if (account.mustChangePassword && !isPasswordRoute && !isMeRoute) {
+    return error(res, "Avval yangi parol qo'ying", 403, { code: 'PASSWORD_CHANGE_REQUIRED' });
+  }
   next();
 }
 

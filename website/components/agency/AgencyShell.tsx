@@ -18,6 +18,7 @@ import {
 import { useAgencySession } from "@/lib/agency/session";
 import AuthScreen from "./AuthScreen";
 import OnboardingScreen from "./OnboardingScreen";
+import PasswordChangeCard from "./PasswordChangeCard";
 
 const NAV_ITEMS = [
   { href: "/agency", label: "Boshqaruv", icon: LayoutDashboard, exact: true },
@@ -68,7 +69,10 @@ export default function AgencyShell({ children }: { children: ReactNode }) {
   const confetti = useMemo(() => makeConfetti(70), []);
 
   useEffect(() => {
-    setCollapsed(window.localStorage.getItem(COLLAPSE_KEY) === "1");
+    const timer = window.setTimeout(() => {
+      setCollapsed(window.localStorage.getItem(COLLAPSE_KEY) === "1");
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   // Onboarding -> approved: tabriklash sahnasi, so'ng kabinet
@@ -76,10 +80,11 @@ export default function AgencyShell({ children }: { children: ReactNode }) {
     const previous = prevPhase.current;
     prevPhase.current = phase;
     if (previous === "onboarding" && phase === "approved") {
-      setWelcome("show");
+      const showTimer = window.setTimeout(() => setWelcome("show"), 0);
       const leaveTimer = window.setTimeout(() => setWelcome("leaving"), 2900);
       const endTimer = window.setTimeout(() => setWelcome(""), 3600);
       return () => {
+        window.clearTimeout(showTimer);
         window.clearTimeout(leaveTimer);
         window.clearTimeout(endTimer);
       };
@@ -104,6 +109,25 @@ export default function AgencyShell({ children }: { children: ReactNode }) {
 
   if (phase === "guest") {
     return <AuthScreen />;
+  }
+
+  if (phase === "password") {
+    return (
+      <div className="agency-shell agency-shell--single agency-shell--password">
+        <div className="agency-onboarding-topbar">
+          <div className="agency-brand agency-brand--inline">
+            <span><Sparkles size={18} /></span>
+            TravelorAI Agency
+          </div>
+          <button onClick={() => void logout()} type="button">
+            <LogOut size={16} /> Chiqish
+          </button>
+        </div>
+        <div className="agency-password-gate">
+          <PasswordChangeCard forced />
+        </div>
+      </div>
+    );
   }
 
   if (phase === "onboarding") {
