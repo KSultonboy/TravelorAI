@@ -387,7 +387,7 @@
 .mkt-cat:hover .mkt-cat__link { color: var(--gold); }
 
 /* Destination tile gradient fallback (slow/broken image degrade) */
-.mkt-tile { background: linear-gradient(135deg, var(--primary-2), #06231a); }
+.mkt-tile { display: block; background: linear-gradient(135deg, var(--primary-2), #06231a); }
 .mkt-tile img { position: relative; z-index: 1; }
 /* Solid branded destination tile (no photo) */
 .mkt-tile--solid { background: linear-gradient(155deg, var(--primary-3), var(--primary) 45%, #06231a); }
