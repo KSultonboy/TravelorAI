@@ -389,6 +389,12 @@
 /* Destination tile gradient fallback (slow/broken image degrade) */
 .mkt-tile { background: linear-gradient(135deg, var(--primary-2), #06231a); }
 .mkt-tile img { position: relative; z-index: 1; }
+/* Solid branded destination tile (no photo) */
+.mkt-tile--solid { background: linear-gradient(155deg, var(--primary-3), var(--primary) 45%, #06231a); }
+.mkt-tile--solid::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 82% 14%, rgba(234,179,8,0.24), transparent 56%); pointer-events: none; }
+.mkt-tile--solid .mkt-tile__cap { justify-content: flex-end; background: linear-gradient(0deg, rgba(4,15,10,0.55), transparent 72%); }
+.mkt-tile--solid .mkt-tile__cap b { font-size: 1.4rem; letter-spacing: -0.01em; }
+.mkt-tile--solid .mkt-tile__cap span { margin-top: 5px; line-height: 1.45; }
 
 /* ---------- Testimonials ---------- */
 .mkt-testi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }

@@ -167,8 +167,7 @@ export default async function HomePage() {
           <div className="mkt-tiles">
             {DESTINATIONS.map((d, i) => (
               <Reveal key={d.name} delay={i * 80} as="div">
-                <Link href="/tours" className="mkt-tile">
-                  <img src={d.img} alt={d.name} loading="lazy" />
+                <Link href="/tours" className="mkt-tile mkt-tile--solid">
                   <span className="mkt-tile__cap"><b>{d.name}</b><span>{d.desc}</span></span>
                 </Link>
               </Reveal>
