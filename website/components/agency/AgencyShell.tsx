@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   CalendarDays,
   LayoutDashboard,
@@ -16,7 +16,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useAgencySession } from "@/lib/agency/session";
-import AuthScreen from "./AuthScreen";
 import OnboardingScreen from "./OnboardingScreen";
 import PasswordChangeCard from "./PasswordChangeCard";
 
@@ -63,6 +62,7 @@ function makeConfetti(count: number): ConfettiPiece[] {
 export default function AgencyShell({ children }: { children: ReactNode }) {
   const { phase, me, bookings, logout } = useAgencySession();
   const pathname = usePathname() || "/agency";
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [welcome, setWelcome] = useState<"" | "show" | "leaving">("");
   const prevPhase = useRef<typeof phase | null>(null);
@@ -91,6 +91,12 @@ export default function AgencyShell({ children }: { children: ReactNode }) {
     }
   }, [phase]);
 
+  useEffect(() => {
+    if (phase === "guest") {
+      router.replace("/signin?role=partner&next=/agency");
+    }
+  }, [phase, router]);
+
   function toggleCollapsed() {
     setCollapsed((value) => {
       window.localStorage.setItem(COLLAPSE_KEY, value ? "0" : "1");
@@ -108,7 +114,12 @@ export default function AgencyShell({ children }: { children: ReactNode }) {
   }
 
   if (phase === "guest") {
-    return <AuthScreen />;
+    return (
+      <div className="agency-screen agency-screen--center">
+        <Loader2 className="agency-spin" size={28} />
+        <p>Kirish sahifasiga yo‘naltirilmoqda...</p>
+      </div>
+    );
   }
 
   if (phase === "password") {

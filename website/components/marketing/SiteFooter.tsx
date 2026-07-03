@@ -16,7 +16,6 @@ const COLS = [
     title: "Hamkorlar uchun",
     links: [
       ["Hamkor bo‘lish", "/partners"],
-      ["Agentlik portali", "/agency"],
       ["Biz haqimizda", "/about"],
       ["Aloqa", "/contact"],
     ],

@@ -8,7 +8,6 @@ const FOOTER_COLUMNS = [
       ["AI sayohat rejasi", "#how-it-works"],
       ["Yo‘nalishlar", "#features"],
       ["Turlar", "/tours"],
-      ["Agentlik portali", "/agency"],
     ],
   },
   {

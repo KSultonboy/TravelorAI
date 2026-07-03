@@ -18,10 +18,12 @@ const BENEFITS = [
 
 export default function SignInClient() {
   const params = useSearchParams();
-  const next = params.get("next") || "";
+  const rawNext = params.get("next") || "";
+  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "";
+  const requestedRole = params.get("role") === "partner" ? "partner" : null;
 
-  const [step, setStep] = useState<Step>("role");
-  const [role, setRole] = useState<Role>("traveler");
+  const [step, setStep] = useState<Step>(requestedRole ? "form" : "role");
+  const [role, setRole] = useState<Role>(requestedRole || "traveler");
   const [mode, setMode] = useState<"login" | "register">("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -32,7 +34,7 @@ export default function SignInClient() {
   const [info, setInfo] = useState("");
 
   const base = role === "partner" ? "/api/agency-proxy/agency/auth" : "/api/backend/auth";
-  const dest = role === "partner" ? "/agency" : next || "/my-trips";
+  const dest = role === "partner" ? next || "/agency" : next || "/my-trips";
 
   function go() { window.location.href = dest; }
 

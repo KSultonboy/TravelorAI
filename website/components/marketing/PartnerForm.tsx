@@ -44,7 +44,7 @@ export default function PartnerForm() {
         <p style={{ color: "var(--muted)", margin: 0 }}>
           Emailingizga tasdiqlash kodi yuborildi. Hisobni tasdiqlagach, ariza admin tomonidan ko‘rib chiqiladi (holat: <b>kutilmoqda</b>) va tasdiqlangach agentlik portaliga kirasiz.
         </p>
-        <a className="btn btn--navy btn--md" href="/agency">Agentlik portaliga o‘tish</a>
+        <a className="btn btn--navy btn--md" href="/signin?role=partner&next=/agency">Kirish sahifasiga o‘tish</a>
       </div>
     );
   }

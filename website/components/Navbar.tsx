@@ -34,7 +34,14 @@ export default function Navbar() {
   return (
     <header className="site-nav">
       <nav className="site-nav__bar" aria-label="Asosiy navigatsiya">
-        <a href="#home" className="site-brand" onClick={(event) => { event.preventDefault(); scrollToTarget("#home"); }}>
+        <a
+          href="#home"
+          className="site-brand"
+          onClick={(event) => {
+            event.preventDefault();
+            scrollToTarget("#home");
+          }}
+        >
           <span className="site-brand__mark">
             <Compass size={16} />
           </span>
@@ -74,7 +81,7 @@ export default function Navbar() {
         >
           {menuOpen ? <X size={17} /> : <Menu size={17} />}
         </button>
-        <Link className="site-nav__account" href="/login">Kirish</Link>
+        <Link className="site-nav__account" href="/signin">Kirish</Link>
       </nav>
 
       {menuOpen && (
@@ -98,7 +105,7 @@ export default function Navbar() {
                 </a>
               )
             )}
-            <Link href="/login">Kirish / Ro‘yxatdan o‘tish</Link>
+            <Link href="/signin">Kirish / Ro‘yxatdan o‘tish</Link>
           </div>
         </div>
       )}
