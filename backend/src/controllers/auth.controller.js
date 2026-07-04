@@ -272,7 +272,7 @@ async function forgotPassword(req, res) {
     const normalizedEmail = normalizeEmail(req.body.email);
     const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
 
-    if (!user || !user.password) {
+    if (!user) {
       return success(res, {
         message: 'Agar email mavjud bo\'lsa, parol tiklash kodi yuborildi.',
       });
@@ -300,12 +300,8 @@ async function resetPassword(req, res) {
       return error(res, 'Foydalanuvchi topilmadi.', 404);
     }
 
-    if (!user.password) {
-      return error(res, 'Bu akkaunt Google orqali yaratilgan. Parol tiklash mavjud emas.', 400, {
-        authProvider: 'google',
-      });
-    }
-
+    // Google orqali ochilgan hisob (paroli yo'q) ham email kodi orqali parol o'rnatishi mumkin —
+    // shunda hisob ham Google, ham email+parol bilan kiradigan bo'ladi (account linking).
     try {
       await consumeAuthCode({ userId: user.id, type: AuthCodeType.PASSWORD_RESET, code });
     } catch (err) {
