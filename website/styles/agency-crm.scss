@@ -288,3 +288,14 @@ $crm-lost: #9aa0ab;
   border-color: rgba(226, 87, 76, 0.75);
   color: #fff;
 }
+/* keep the whole sidebar (including the logout button) reachable on short screens */
+.agency-dashboard-sidebar {
+  overflow-y: auto;
+  gap: 18px;
+  padding-top: 22px;
+  padding-bottom: 22px;
+  scrollbar-width: thin;
+}
+.agency-dashboard-sidebar nav { gap: 8px; }
+.agency-dashboard-sidebar nav a { min-height: 46px; }
+.agency-sidebar-footer { padding-top: 6px; }
