@@ -4,9 +4,10 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  CalendarDays,
+  KanbanSquare,
   LayoutDashboard,
   ListChecks,
+  ListTodo,
   Loader2,
   LogOut,
   PanelLeftClose,
@@ -14,6 +15,7 @@ import {
   Pencil,
   Plus,
   Sparkles,
+  Users,
 } from "lucide-react";
 import { useAgencySession } from "@/lib/agency/session";
 import AuthScreen from "./AuthScreen";
@@ -21,7 +23,9 @@ import OnboardingScreen from "./OnboardingScreen";
 
 const NAV_ITEMS = [
   { href: "/agency", label: "Boshqaruv", icon: LayoutDashboard, exact: true },
-  { href: "/agency/leads", label: "Leadlar", icon: CalendarDays, exact: false },
+  { href: "/agency/pipeline", label: "Pipeline", icon: KanbanSquare, exact: false },
+  { href: "/agency/customers", label: "Mijozlar", icon: Users, exact: false },
+  { href: "/agency/tasks", label: "Vazifalar", icon: ListTodo, exact: false },
   { href: "/agency/tours", label: "Tourlarim", icon: ListChecks, exact: false },
   { href: "/agency/tours/new", label: "Tour qo'shish", icon: Plus, exact: true },
   { href: "/agency/profile", label: "Profil", icon: Pencil, exact: true },
@@ -175,7 +179,7 @@ export default function AgencyShell({ children }: { children: ReactNode }) {
             return (
               <Link className={active ? "agency-nav-active" : ""} href={href} key={href} title={label}>
                 <Icon size={17} /> <span className="agency-nav-label">{label}</span>
-                {href === "/agency/leads" && newLeads > 0 ? (
+                {href === "/agency/pipeline" && newLeads > 0 ? (
                   <span className="agency-nav-badge">{newLeads}</span>
                 ) : null}
               </Link>

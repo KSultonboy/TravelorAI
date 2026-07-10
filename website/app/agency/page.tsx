@@ -1,5 +1,5 @@
-import AgencyDashboard from "@/components/agency/AgencyDashboard";
+import CrmDashboard from "@/components/agency/CrmDashboard";
 
 export default function AgencyHomePage() {
-  return <AgencyDashboard />;
+  return <CrmDashboard />;
 }

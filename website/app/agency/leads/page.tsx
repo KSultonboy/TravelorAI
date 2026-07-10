@@ -1,9 +1,5 @@
-import LeadsBoard from "@/components/agency/LeadsBoard";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Leadlar | TravelorAI Agency",
-};
-
-export default function AgencyLeadsPage() {
-  return <LeadsBoard />;
+export default function AgencyLeadsRedirect() {
+  redirect("/agency/pipeline");
 }

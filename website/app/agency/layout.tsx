@@ -1,4 +1,5 @@
 import "../../styles/agency-v1.scss";
+import "../../styles/agency-crm.scss";
 import { AgencySessionProvider } from "@/lib/agency/session";
 import AgencyShell from "@/components/agency/AgencyShell";
 
