@@ -246,7 +246,7 @@ $crm-lost: #9aa0ab;
 /* edit / delete / filters */
 .crm-drawer__headbtns { display: flex; gap: 6px; flex-shrink: 0; }
 .crm-icon-btn--danger:hover { border-color: #c0392b; color: #c0392b; background: #fff0f0; }
-.crm-select { border: 1px solid #e2e3e8; background: #fff; color: #323844; font-size: 0.84rem; font-weight: 600; padding: 9px 11px; border-radius: 10px; font-family: inherit; cursor: pointer; }
+.crm-select { flex: 0 0 auto; width: auto; min-width: 150px; max-width: 190px; border: 1px solid #e2e3e8; background: #fff; color: #323844; font-size: 0.84rem; font-weight: 600; padding: 9px 11px; border-radius: 10px; font-family: inherit; cursor: pointer; }
 .crm-archive-toggle { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #e2e3e8; background: #fff; color: #737985; font-size: 0.82rem; font-weight: 700; padding: 9px 13px; border-radius: 10px; cursor: pointer; font-family: inherit; }
 .crm-archive-toggle.is-active { background: #0f5132; border-color: #0f5132; color: #fff; }
 .crm-tagfilter--row { margin: 0 0 16px; }
