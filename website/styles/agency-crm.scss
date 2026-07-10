@@ -271,20 +271,20 @@ $crm-lost: #9aa0ab;
 /* give the columns a touch more definition when flush */
 .crm-pipe .crm-col { background: #f1f1ed; border-color: #e4e4df; }
 
-/* logout button: blend into the dark sidebar instead of a big white pill */
+/* logout button: clearly visible on the dark sidebar, but not a big white pill */
 .agency-sidebar-footer button {
   min-height: 46px;
   justify-content: center;
   gap: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(226, 87, 76, 0.5);
   border-radius: 14px;
-  color: #eaf4ef;
-  background: rgba(255, 255, 255, 0.05);
-  font-weight: 700;
+  color: #ffd7d1;
+  background: rgba(226, 87, 76, 0.18);
+  font-weight: 800;
   transition: background .15s ease, border-color .15s ease, color .15s ease;
 }
 .agency-sidebar-footer button:hover {
-  background: rgba(226, 87, 76, 0.18);
-  border-color: rgba(226, 87, 76, 0.45);
-  color: #ffe3df;
+  background: rgba(226, 87, 76, 0.32);
+  border-color: rgba(226, 87, 76, 0.75);
+  color: #fff;
 }
