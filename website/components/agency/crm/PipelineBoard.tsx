@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Archive, ArchiveRestore, Clock3, Filter, Phone, Plus, Search, Users } from "lucide-react";
+import { Archive, ArchiveRestore, Clock3, Download, Filter, Phone, Plus, Search, Users } from "lucide-react";
 import { formatMoney } from "@/lib/agency/api";
 import { useCrm } from "@/lib/agency/useCrm";
-import { CRM_STAGES, SUGGESTED_TAGS, timeAgo, type CrmLead, type CrmStage } from "@/lib/agency/crm";
+import { CRM_STAGES, STAGE_LABEL, SUGGESTED_TAGS, timeAgo, type CrmLead, type CrmStage } from "@/lib/agency/crm";
 import LeadDrawer from "./LeadDrawer";
 import ManualLeadModal from "./ManualLeadModal";
 
@@ -54,6 +54,30 @@ export default function PipelineBoard() {
     if (lead) void move(lead, stage);
   }
 
+  function exportCsv() {
+    const header = ["Ism", "Telefon", "Email", "Tur", "Sayohatchilar", "Summa", "Bosqich", "Manba", "Sana", "Teglar"];
+    const rows = filtered.map((l) => [
+      l.customerName,
+      l.customerPhone || "",
+      l.customerEmail || "",
+      l.tourTitle || "",
+      String(l.travelers),
+      l.totalEstimate ? String(l.totalEstimate) : "",
+      STAGE_LABEL[l.stage],
+      l.source === "manual" ? "Qo'lda" : "Marketplace",
+      l.createdAt ? new Date(l.createdAt).toLocaleDateString("uz") : "",
+      l.tags.join("; "),
+    ]);
+    const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `travelorai-leadlar-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <section className="agency-dashboard-section crm-pipe">
       <header className="agency-section-head crm-pipe__head">
@@ -62,7 +86,10 @@ export default function PipelineBoard() {
           <h2>Pipeline</h2>
           <p className="agency-muted">Har bir leadni bosqichma-bosqich yuriting — kartani suring yoki bosib boshqaring.</p>
         </div>
-        <button className="crm-btn crm-btn--primary" onClick={() => setShowAdd(true)} type="button"><Plus size={16} /> Lead qo&apos;shish</button>
+        <div className="crm-pipe__actions">
+          <button className="crm-btn" onClick={exportCsv} type="button" title="Filtrlangan leadlarni CSV'ga yuklab olish"><Download size={16} /> Eksport</button>
+          <button className="crm-btn crm-btn--primary" onClick={() => setShowAdd(true)} type="button"><Plus size={16} /> Lead qo&apos;shish</button>
+        </div>
       </header>
 
       <div className="crm-toolbar">

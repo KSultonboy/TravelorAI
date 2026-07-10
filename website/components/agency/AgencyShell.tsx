@@ -18,6 +18,7 @@ import {
   Users,
 } from "lucide-react";
 import { useAgencySession } from "@/lib/agency/session";
+import { getTasks } from "@/lib/agency/crm";
 import AuthScreen from "./AuthScreen";
 import OnboardingScreen from "./OnboardingScreen";
 
@@ -89,6 +90,24 @@ export default function AgencyShell({ children }: { children: ReactNode }) {
       };
     }
   }, [phase]);
+
+  const [dueTasks, setDueTasks] = useState(0);
+  useEffect(() => {
+    const agencyId = me?.agency?.id || me?.account.id;
+    if (!agencyId) return;
+    const recompute = () => {
+      const end = new Date();
+      end.setHours(23, 59, 59, 999);
+      setDueTasks(getTasks(agencyId).filter((t) => !t.done && t.dueAt && new Date(t.dueAt).getTime() <= end.getTime()).length);
+    };
+    recompute();
+    window.addEventListener("crm:changed", recompute);
+    window.addEventListener("storage", recompute);
+    return () => {
+      window.removeEventListener("crm:changed", recompute);
+      window.removeEventListener("storage", recompute);
+    };
+  }, [me]);
 
   function toggleCollapsed() {
     setCollapsed((value) => {
@@ -181,6 +200,9 @@ export default function AgencyShell({ children }: { children: ReactNode }) {
                 <Icon size={17} /> <span className="agency-nav-label">{label}</span>
                 {href === "/agency/pipeline" && newLeads > 0 ? (
                   <span className="agency-nav-badge">{newLeads}</span>
+                ) : null}
+                {href === "/agency/tasks" && dueTasks > 0 ? (
+                  <span className="agency-nav-badge">{dueTasks}</span>
                 ) : null}
               </Link>
             );
