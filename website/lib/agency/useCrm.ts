@@ -34,7 +34,9 @@ export function useCrm() {
     return () => window.removeEventListener("crm:changed", bump);
   }, []);
 
-  const leads = useMemo(() => buildLeads(agencyId, bookings), [agencyId, bookings, version]);
+  const allLeads = useMemo(() => buildLeads(agencyId, bookings), [agencyId, bookings, version]);
+  const leads = useMemo(() => allLeads.filter((l) => !l.hidden), [allLeads]);
+  const hiddenLeads = useMemo(() => allLeads.filter((l) => l.hidden), [allLeads]);
   const tasks = useMemo(() => getTasks(agencyId), [agencyId, version]);
   const customers = useMemo(() => buildCustomers(leads), [leads]);
 
@@ -81,5 +83,5 @@ export function useCrm() {
     [agencyId, refreshBookings, refresh]
   );
 
-  return { agencyId, leads, tasks, customers, move, busyId };
+  return { agencyId, leads, hiddenLeads, tasks, customers, move, busyId };
 }

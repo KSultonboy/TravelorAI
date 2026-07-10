@@ -36,10 +36,22 @@ export type Activity = {
   text: string;
 };
 
+export type LeadOverride = Partial<{
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  totalEstimate: number | null;
+  tourTitle: string;
+  travelers: number;
+  travelDate: string | null;
+}>;
+
 export type LeadMeta = {
   stage?: CrmStage; // local override (only meaningful for still-pending / manual leads)
   tags: string[];
   activities: Activity[];
+  hidden?: boolean; // archived (marketplace leads can't be hard-deleted)
+  override?: LeadOverride; // local edits/enrichment on top of server data
 };
 
 export type Task = {
@@ -87,6 +99,7 @@ export type CrmLead = {
   stage: CrmStage;
   tags: string[];
   activities: Activity[];
+  hidden: boolean;
 };
 
 /* ----------------------------------- keys --------------------------------- */
@@ -164,6 +177,36 @@ export function toggleTag(agencyId: string, leadId: string, tag: string) {
 
 export const SUGGESTED_TAGS = ["VIP", "Oila", "Umra", "Biznes", "Guruh", "Takroriy", "Chet el", "Ichki"];
 
+export function setHidden(agencyId: string, leadId: string, hidden: boolean) {
+  mutateMeta(agencyId, leadId, (m) => {
+    m.hidden = hidden;
+    m.activities = [
+      { id: uid("act"), at: new Date().toISOString(), type: "stage", text: hidden ? "Arxivlandi" : "Arxivdan tiklandi" },
+      ...m.activities,
+    ];
+    return m;
+  });
+}
+
+export function setOverride(agencyId: string, leadId: string, patch: LeadOverride) {
+  mutateMeta(agencyId, leadId, (m) => {
+    m.override = { ...(m.override || {}), ...patch };
+    m.activities = [
+      { id: uid("act"), at: new Date().toISOString(), type: "note", text: "Ma'lumot tahrirlandi" },
+      ...m.activities,
+    ];
+    return m;
+  });
+}
+
+export function removeMeta(agencyId: string, leadId: string) {
+  const map = getMetaMap(agencyId);
+  if (map[leadId]) {
+    delete map[leadId];
+    saveMetaMap(agencyId, map);
+  }
+}
+
 /* --------------------------------- tasks ---------------------------------- */
 
 export function getTasks(agencyId: string): Task[] {
@@ -222,11 +265,25 @@ export function setManualStage(agencyId: string, id: string, stage: CrmStage) {
   );
   setLocalStage(agencyId, id, stage);
 }
+export function updateManualLead(agencyId: string, id: string, patch: Partial<ManualLead>) {
+  saveManualLeads(
+    agencyId,
+    getManualLeads(agencyId).map((l) => (l.id === id ? { ...l, ...patch } : l))
+  );
+  addActivity(agencyId, id, "note", "Ma'lumot tahrirlandi");
+}
 export function deleteManualLead(agencyId: string, id: string) {
   saveManualLeads(
     agencyId,
     getManualLeads(agencyId).filter((l) => l.id !== id)
   );
+  removeMeta(agencyId, id);
+}
+
+/** Unified remove: manual → hard delete; marketplace → archive (server data preserved). */
+export function removeLead(agencyId: string, lead: CrmLead) {
+  if (lead.source === "manual") deleteManualLead(agencyId, lead.id);
+  else setHidden(agencyId, lead.id, true);
 }
 
 /* --------------------------- booking → stage map -------------------------- */
@@ -244,18 +301,19 @@ export function buildLeads(agencyId: string, bookings: BookingItem[]): CrmLead[]
   const metaMap = getMetaMap(agencyId);
   const fromBookings: CrmLead[] = bookings.map((b) => {
     const meta = metaMap[b.id] || { tags: [], activities: [] };
+    const o = meta.override || {};
     return {
       id: b.id,
       source: "marketplace",
-      customerName: b.customerName,
-      customerPhone: b.customerPhone,
-      customerEmail: b.customerEmail,
-      travelers: b.travelers,
-      travelDate: b.travelDate,
+      customerName: o.customerName ?? b.customerName,
+      customerPhone: o.customerPhone ?? b.customerPhone,
+      customerEmail: o.customerEmail ?? b.customerEmail,
+      travelers: o.travelers ?? b.travelers,
+      travelDate: o.travelDate !== undefined ? o.travelDate : b.travelDate,
       message: b.message,
-      tourTitle: b.tour?.title,
+      tourTitle: o.tourTitle ?? b.tour?.title,
       tourCity: b.tour?.city,
-      totalEstimate: b.totalEstimate,
+      totalEstimate: o.totalEstimate !== undefined ? o.totalEstimate : b.totalEstimate,
       currency: b.currency || "USD",
       createdAt: b.createdAt,
       serverStatus: b.status,
@@ -263,6 +321,7 @@ export function buildLeads(agencyId: string, bookings: BookingItem[]): CrmLead[]
       stage: stageFromBooking(b, meta),
       tags: meta.tags,
       activities: meta.activities,
+      hidden: !!meta.hidden,
     };
   });
   const fromManual: CrmLead[] = getManualLeads(agencyId).map((l) => {
@@ -284,6 +343,7 @@ export function buildLeads(agencyId: string, bookings: BookingItem[]): CrmLead[]
       stage: l.stage,
       tags: meta.tags,
       activities: meta.activities,
+      hidden: false,
     };
   });
   return [...fromBookings, ...fromManual].sort(

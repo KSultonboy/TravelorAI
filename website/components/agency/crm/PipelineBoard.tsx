@@ -1,31 +1,45 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Clock3, Filter, Phone, Plus, Search, Users } from "lucide-react";
+import { Archive, ArchiveRestore, Clock3, Filter, Phone, Plus, Search, Users } from "lucide-react";
 import { formatMoney } from "@/lib/agency/api";
 import { useCrm } from "@/lib/agency/useCrm";
 import { CRM_STAGES, SUGGESTED_TAGS, timeAgo, type CrmLead, type CrmStage } from "@/lib/agency/crm";
 import LeadDrawer from "./LeadDrawer";
 import ManualLeadModal from "./ManualLeadModal";
 
+type SourceFilter = "all" | "marketplace" | "manual";
+type SortKey = "recent" | "value";
+
 export default function PipelineBoard() {
-  const { agencyId, leads, move, busyId } = useCrm();
+  const { agencyId, leads, hiddenLeads, move, busyId } = useCrm();
   const [openId, setOpenId] = useState<string>("");
   const [showAdd, setShowAdd] = useState(false);
   const [q, setQ] = useState("");
   const [tag, setTag] = useState("");
+  const [source, setSource] = useState<SourceFilter>("all");
+  const [sort, setSort] = useState<SortKey>("recent");
+  const [archived, setArchived] = useState(false);
   const [dragId, setDragId] = useState<string>("");
   const [overStage, setOverStage] = useState<CrmStage | "">("");
 
   const filtered = useMemo(() => {
     const text = q.trim().toLowerCase();
-    return leads.filter((l) => {
+    const base = archived ? hiddenLeads : leads;
+    const list = base.filter((l) => {
       const hay = `${l.customerName} ${l.customerPhone || ""} ${l.customerEmail || ""} ${l.tourTitle || ""}`.toLowerCase();
       const textOk = !text || hay.includes(text);
       const tagOk = !tag || l.tags.includes(tag);
-      return textOk && tagOk;
+      const srcOk = source === "all" || l.source === source;
+      return textOk && tagOk && srcOk;
     });
-  }, [leads, q, tag]);
+    list.sort((a, b) =>
+      sort === "value"
+        ? (b.totalEstimate || 0) - (a.totalEstimate || 0)
+        : new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    );
+    return list;
+  }, [leads, hiddenLeads, archived, q, tag, source, sort]);
 
   const byStage = useMemo(() => {
     const map: Record<CrmStage, CrmLead[]> = { new: [], contacted: [], quoted: [], won: [], completed: [], lost: [] };
@@ -48,9 +62,7 @@ export default function PipelineBoard() {
           <h2>Pipeline</h2>
           <p className="agency-muted">Har bir leadni bosqichma-bosqich yuriting — kartani suring yoki bosib boshqaring.</p>
         </div>
-        <button className="crm-btn crm-btn--primary" onClick={() => setShowAdd(true)} type="button">
-          <Plus size={16} /> Lead qo&apos;shish
-        </button>
+        <button className="crm-btn crm-btn--primary" onClick={() => setShowAdd(true)} type="button"><Plus size={16} /> Lead qo&apos;shish</button>
       </header>
 
       <div className="crm-toolbar">
@@ -58,14 +70,29 @@ export default function PipelineBoard() {
           <Search size={15} />
           <input placeholder="Ism, telefon yoki tur bo'yicha qidirish..." value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
-        <div className="crm-tagfilter">
-          <Filter size={14} />
-          <button className={!tag ? "is-active" : ""} onClick={() => setTag("")} type="button">Barchasi</button>
-          {SUGGESTED_TAGS.map((t) => (
-            <button key={t} className={tag === t ? "is-active" : ""} onClick={() => setTag(tag === t ? "" : t)} type="button">{t}</button>
-          ))}
-        </div>
+        <select className="crm-select" value={source} onChange={(e) => setSource(e.target.value as SourceFilter)} aria-label="Manba">
+          <option value="all">Barcha manbalar</option>
+          <option value="marketplace">Marketplace</option>
+          <option value="manual">Qo&apos;lda</option>
+        </select>
+        <select className="crm-select" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Saralash">
+          <option value="recent">Yangi birinchi</option>
+          <option value="value">Qiymat bo&apos;yicha</option>
+        </select>
+        <button className={`crm-archive-toggle${archived ? " is-active" : ""}`} onClick={() => setArchived((v) => !v)} type="button">
+          {archived ? <ArchiveRestore size={15} /> : <Archive size={15} />} Arxiv{hiddenLeads.length ? ` (${hiddenLeads.length})` : ""}
+        </button>
       </div>
+
+      <div className="crm-tagfilter crm-tagfilter--row">
+        <Filter size={14} />
+        <button className={!tag ? "is-active" : ""} onClick={() => setTag("")} type="button">Barchasi</button>
+        {SUGGESTED_TAGS.map((t) => (
+          <button key={t} className={tag === t ? "is-active" : ""} onClick={() => setTag(tag === t ? "" : t)} type="button">{t}</button>
+        ))}
+      </div>
+
+      {archived ? <p className="crm-archive-note"><Archive size={13} /> Arxivlangan leadlar ko&apos;rsatilmoqda. Tiklash uchun leadni oching.</p> : null}
 
       <div className="crm-board">
         {CRM_STAGES.map((s) => {
@@ -75,9 +102,9 @@ export default function PipelineBoard() {
             <div
               key={s.key}
               className={`crm-col crm-col--${s.key}${overStage === s.key ? " is-over" : ""}`}
-              onDragOver={(e) => { e.preventDefault(); setOverStage(s.key as CrmStage); }}
+              onDragOver={(e) => { if (!archived) { e.preventDefault(); setOverStage(s.key as CrmStage); } }}
               onDragLeave={() => setOverStage((cur) => (cur === s.key ? "" : cur))}
-              onDrop={() => onDrop(s.key as CrmStage)}
+              onDrop={() => !archived && onDrop(s.key as CrmStage)}
             >
               <div className="crm-col__head">
                 <span className={`crm-dot crm-dot--${s.key}`} />
@@ -89,8 +116,8 @@ export default function PipelineBoard() {
                 {items.map((l) => (
                   <article
                     key={l.id}
-                    className={`crm-card${busyId === l.id ? " is-busy" : ""}`}
-                    draggable
+                    className={`crm-card${busyId === l.id ? " is-busy" : ""}${l.hidden ? " is-archived" : ""}`}
+                    draggable={!archived}
                     onDragStart={() => setDragId(l.id)}
                     onDragEnd={() => setDragId("")}
                     onClick={() => setOpenId(l.id)}
@@ -106,20 +133,12 @@ export default function PipelineBoard() {
                       {l.customerPhone ? <span><Phone size={12} /></span> : null}
                       <span className="crm-card__ago"><Clock3 size={12} /> {timeAgo(l.createdAt)}</span>
                     </div>
-                    {l.tags.length ? (
-                      <div className="crm-card__tags">
-                        {l.tags.slice(0, 3).map((t) => <span key={t} className="crm-chip">{t}</span>)}
-                      </div>
+                    {l.tags.length ? <div className="crm-card__tags">{l.tags.slice(0, 3).map((t) => <span key={t} className="crm-chip">{t}</span>)}</div> : null}
+                    {!archived ? (
+                      <select className="crm-card__move" value={l.stage} onClick={(e) => e.stopPropagation()} onChange={(e) => { e.stopPropagation(); void move(l, e.target.value as CrmStage); }}>
+                        {CRM_STAGES.map((st) => <option key={st.key} value={st.key}>{st.label}</option>)}
+                      </select>
                     ) : null}
-                    {/* mobile / no-drag stage mover */}
-                    <select
-                      className="crm-card__move"
-                      value={l.stage}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => { e.stopPropagation(); void move(l, e.target.value as CrmStage); }}
-                    >
-                      {CRM_STAGES.map((st) => <option key={st.key} value={st.key}>{st.label}</option>)}
-                    </select>
                   </article>
                 ))}
                 {items.length === 0 ? <div className="crm-col__empty">Bo&apos;sh</div> : null}
