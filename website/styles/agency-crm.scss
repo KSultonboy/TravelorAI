@@ -258,3 +258,15 @@ $crm-lost: #9aa0ab;
 .crm-edit input:focus { border-color: #0f5132; }
 .crm-edit__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
 .crm-edit__actions .crm-btn { padding: 8px 14px; }
+
+/* Pipeline runs flush on the page — no outer card wrapper */
+.crm-pipe.agency-dashboard-section {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  padding: 0;
+  border-radius: 0;
+}
+/* give the columns a touch more definition when flush */
+.crm-pipe .crm-col { background: #f1f1ed; border-color: #e4e4df; }
