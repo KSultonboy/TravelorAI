@@ -1,0 +1,538 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useAgencySession } from "@/lib/agency/session";
+import { useCrm } from "@/lib/agency/useCrm";
+import { formatMoney, formatDate, statusLabel } from "@/lib/agency/api";
+import {
+  CRM_STAGES,
+  addManualLead,
+  toggleTask,
+  timeAgo,
+  type CrmLead,
+  type CrmStage,
+} from "@/lib/agency/crm";
+
+/* ---- tiny inline icons ---- */
+const I = {
+  grid: "M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z",
+  list: "M3 5h18M3 12h18M3 19h18",
+  users: "M9 8a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2 20c0-3.3 3-6 7-6s7 2.7 7 6",
+  box: "M12 2 3 7v10l9 5 9-5V7z M3 7l9 5 9-5 M12 12v10",
+  cal: "M3 4h18v17H3z M3 9h18 M8 2v4 M16 2v4",
+  card: "M2 5h20v14H2z M2 10h20",
+  chart: "M4 20V10 M10 20V4 M16 20v-7 M22 20H2",
+  gear: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+  bell: "M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.7 21a2 2 0 0 1-3.4 0",
+  plus: "M12 5v14M5 12h14",
+  out: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9",
+  check: "M20 6 9 17l-5-5",
+  clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 7v5l3 2",
+  money: "M12 1v22 M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6",
+  pin: "M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z",
+  trash: "M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14",
+  bolt: "M13 2 3 14h7l-1 8 10-12h-7z",
+};
+function Ic({ d, s = 18 }: { d: string; s?: number }) {
+  return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
+}
+function initials(name: string) {
+  return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+}
+
+const NAV: { key: string; label: string; icon: string; group: string; badge?: "leads" | "tasks" }[] = [
+  { key: "dashboard", label: "Boshqaruv paneli", icon: I.grid, group: "Asosiy" },
+  { key: "leads", label: "Lidlar / Voronka", icon: I.list, group: "Asosiy", badge: "leads" },
+  { key: "customers", label: "Mijozlar", icon: I.users, group: "Asosiy" },
+  { key: "packages", label: "Turlar / Paketlar", icon: I.box, group: "Sotuv" },
+  { key: "bookings", label: "Bronlar", icon: I.cal, group: "Sotuv" },
+  { key: "payments", label: "To'lovlar", icon: I.card, group: "Sotuv" },
+  { key: "reports", label: "Hisobotlar", icon: I.chart, group: "Boshqa" },
+  { key: "settings", label: "Sozlamalar", icon: I.gear, group: "Boshqa" },
+];
+const TITLES: Record<string, string> = Object.fromEntries(NAV.map((n) => [n.key, n.label]));
+const OPEN: CrmStage[] = ["new", "contacted", "quoted"];
+const UZ_MONTH = ["Yan", "Fev", "Mar", "Apr", "May", "Iyun", "Iyul", "Avg", "Sen", "Okt", "Noy", "Dek"];
+
+export default function KvCabinet() {
+  const { phase, me, tours, bookings, bookingStats, logout } = useAgencySession();
+  const { agencyId, leads, tasks, customers, move, busyId } = useCrm();
+  const [view, setView] = useState("dashboard");
+  const [showAdd, setShowAdd] = useState(false);
+  const [dragId, setDragId] = useState("");
+  const [over, setOver] = useState<CrmStage | "">("");
+
+  useEffect(() => {
+    const id = "kv-fonts";
+    if (typeof document !== "undefined" && !document.getElementById(id)) {
+      const l = document.createElement("link");
+      l.id = id; l.rel = "stylesheet";
+      l.href = "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap";
+      document.head.appendChild(l);
+    }
+  }, []);
+
+  if (phase === "loading") {
+    return <div className="kv"><div className="kv-center"><svg className="kv-spin" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.2-8.5" /></svg><p>Yuklanmoqda…</p></div></div>;
+  }
+  if (phase === "guest") {
+    return <div className="kv"><div className="kv-center"><h2>Agentlik kabineti</h2><p>Davom etish uchun hamkor sifatida tizimga kiring.</p><a className="btn btn-primary" href="/signin">Kirish</a></div></div>;
+  }
+  if (phase === "onboarding") {
+    return <div className="kv"><div className="kv-center"><h2>Hisobingiz ko'rib chiqilmoqda</h2><p>Agentligingiz tasdiqlangach, CRM kabineti ochiladi.</p><button className="btn btn-ghost" onClick={() => void logout()}>Chiqish</button></div></div>;
+  }
+
+  const agency = me?.agency;
+  const openLeads = leads.filter((l) => OPEN.includes(l.stage)).length;
+
+  return (
+    <div className="kv">
+      <h2 className="sr-only">TravelorAI agentlik CRM — lidlar, mijozlar, bronlar, to&apos;lovlar va hisobotlar.</h2>
+      <div className="app">
+        {/* ===== sidebar ===== */}
+        <aside className="sidebar">
+          <div className="brand">
+            <div className="mark"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#EAB308" strokeWidth="2" strokeLinecap="round"><path d="M4 17c3-7 6-7 8-7s5 0 8-7" strokeDasharray="1.5 3" /><circle cx="4" cy="17" r="2" fill="#EAB308" stroke="none" /><circle cx="20" cy="10" r="2" fill="#EAB308" stroke="none" /></svg></div>
+            <div><b>TravelorAI</b><small>Sayohat CRM</small></div>
+          </div>
+          {["Asosiy", "Sotuv", "Boshqa"].map((g) => (
+            <div className="nav-group" key={g}>
+              <div className="lbl">{g}</div>
+              {NAV.filter((n) => n.group === g).map((n) => (
+                <button key={n.key} className={`nav-item${view === n.key ? " active" : ""}`} onClick={() => setView(n.key)}>
+                  <Ic d={n.icon} />{n.label}
+                  {n.badge === "leads" && openLeads > 0 ? <span className="badge">{openLeads}</span> : null}
+                </button>
+              ))}
+            </div>
+          ))}
+          <div className="side-foot">
+            <div className="av">{initials(agency?.name || me?.account.email || "AG")}</div>
+            <div><b>{agency?.name || "Agentlik"}</b><small>{agency?.city || "Menejer"}</small></div>
+            <button className="logout" title="Chiqish" onClick={() => void logout()}><Ic d={I.out} s={17} /></button>
+          </div>
+        </aside>
+
+        {/* ===== main ===== */}
+        <div className="main">
+          <header className="topbar">
+            <h1>{TITLES[view]}</h1>
+            <div className="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m20 20-3-3" /></svg><input placeholder="Mijoz, bron yoki lid qidirish..." aria-label="Qidirish" /></div>
+            <div className="top-actions">
+              <button className="icon-btn" aria-label="Bildirishnomalar">{openLeads > 0 ? <span className="dot" /> : null}<Ic d={I.bell} s={19} /></button>
+              <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Ic d={I.plus} s={16} /> Yangi lid</button>
+            </div>
+          </header>
+
+          <div className="content">
+            <Dashboard show={view === "dashboard"} leads={leads} tasks={tasks} stats={bookingStats} agencyId={agencyId} go={setView} />
+            <Leads show={view === "leads"} leads={leads} move={move} busyId={busyId} dragId={dragId} setDragId={setDragId} over={over} setOver={setOver} />
+            <Customers show={view === "customers"} customers={customers} />
+            <Packages show={view === "packages"} tours={tours} />
+            <Bookings show={view === "bookings"} bookings={bookings} />
+            <Payments show={view === "payments"} leads={leads} />
+            <Reports show={view === "reports"} leads={leads} />
+            <Settings show={view === "settings"} agency={agency} agencyId={agencyId} logout={logout} />
+          </div>
+        </div>
+      </div>
+
+      {showAdd ? <AddLead agencyId={agencyId} onClose={() => setShowAdd(false)} /> : null}
+    </div>
+  );
+}
+
+/* ================= DASHBOARD ================= */
+function Dashboard({ show, leads, tasks, stats, agencyId, go }: any) {
+  const m = useMemo(() => {
+    const c = (s: CrmStage) => leads.filter((l: CrmLead) => l.stage === s).length;
+    const counts = { new: c("new"), contacted: c("contacted"), quoted: c("quoted"), won: c("won"), completed: c("completed") };
+    const maxF = Math.max(1, ...Object.values(counts));
+    const open = counts.new + counts.contacted + counts.quoted;
+    const won = counts.won + counts.completed;
+    const revenue = leads.filter((l: CrmLead) => l.stage === "won" || l.stage === "completed").reduce((a: number, l: CrmLead) => a + (l.totalEstimate || 0), 0);
+    const decided = won + leads.filter((l: CrmLead) => l.stage === "lost").length;
+    return { counts, maxF, open, won, revenue, conv: decided ? Math.round((won / decided) * 100) : 0 };
+  }, [leads]);
+  const upcoming = useMemo(() => leads.filter((l: CrmLead) => l.travelDate && new Date(l.travelDate).getTime() > Date.now() && (l.stage === "won" || l.stage === "completed")).slice(0, 4), [leads]);
+  const recent = useMemo(() => leads.filter((l: CrmLead) => (l.stage === "won" || l.stage === "completed") && l.totalEstimate).slice(0, 4), [leads]);
+  const [, setV] = useState(0);
+  const doneTasks = tasks.filter((t: any) => t.done).length;
+
+  const FUN: { key: CrmStage; label: string }[] = [
+    { key: "new", label: "Yangi so'rov" }, { key: "contacted", label: "Bog'lanildi" }, { key: "quoted", label: "Taklif yuborildi" }, { key: "won", label: "Kelishildi" }, { key: "completed", label: "Yakunlandi" },
+  ];
+
+  return (
+    <section className={`view${show ? " active" : ""}`}>
+      <div className="grid g4">
+        <Kpi icon={I.list} val={m.open} lbl="Ochiq lidlar" />
+        <Kpi icon={I.cal} val={m.won} lbl="Kelishilgan bronlar" />
+        <Kpi icon={I.money} val={formatMoney(m.revenue)} lbl="Yopilgan aylanma" gold />
+        <Kpi icon={I.chart} val={m.conv + "%"} lbl="Konversiya" />
+      </div>
+
+      <div className="grid g2" style={{ marginTop: 16 }}>
+        <div className="card">
+          <div className="section-head" style={{ margin: "16px 20px 4px" }}><div><h2>Sotuv voronkasi</h2></div><button className="link" onClick={() => go("leads")}>Ochish →</button></div>
+          <div className="funnel">
+            {FUN.map((f) => (
+              <div className={`row${f.key === "won" ? " won" : ""}`} key={f.key}>
+                <span className="name">{f.label}</span>
+                <div className="track"><div className="fill" style={{ width: `${Math.max(8, ((m.counts as any)[f.key] / m.maxF) * 100)}%` }}>{(m.counts as any)[f.key]}</div></div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="card">
+          <div className="section-head" style={{ margin: "16px 18px 2px" }}><div><h2>Vazifalar</h2><div className="sub">{tasks.length - doneTasks} ochiq</div></div></div>
+          <div className="list">
+            {tasks.length ? tasks.slice(0, 5).map((t: any) => (
+              <div className={`task${t.done ? " done" : ""}`} key={t.id}>
+                <button className="box" onClick={() => { toggleTask(agencyId, t.id); setV((x) => x + 1); }}><Ic d={I.check} s={13} /></button>
+                <span className="tx">{t.title}</span>
+                <span className="time">{t.dueAt ? timeAgo(t.dueAt) : "—"}</span>
+              </div>
+            )) : <Empty icon={I.check} text="Vazifa yo'q. Lid ichida eslatma qo'shing." />}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid g2" style={{ marginTop: 16 }}>
+        <div className="card">
+          <div className="section-head" style={{ margin: "16px 18px 2px" }}><div><h2>Yaqinlashayotgan sayohatlar</h2></div><button className="link" onClick={() => go("bookings")}>Barchasi →</button></div>
+          <div className="mini">
+            {upcoming.length ? upcoming.map((l: CrmLead) => (
+              <div className="r" key={l.id}><div className="av-sm">{initials(l.customerName)}</div><div><b>{l.customerName}</b><small>{l.tourTitle || "Tur"}</small></div><div className="end"><span className="badge2 b-green">{formatDate(l.travelDate)}</span></div></div>
+            )) : <Empty icon={I.cal} text="Yaqin sayohatlar yo'q." />}
+          </div>
+        </div>
+        <div className="card">
+          <div className="section-head" style={{ margin: "16px 18px 2px" }}><div><h2>So'nggi kelishuvlar</h2></div><button className="link" onClick={() => go("payments")}>Barchasi →</button></div>
+          <div className="mini">
+            {recent.length ? recent.map((l: CrmLead) => (
+              <div className="r" key={l.id}><div className="av-sm">{initials(l.customerName)}</div><div><b>{l.customerName}</b><small>{l.tourTitle || "Tur"}</small></div><div className="end money">{formatMoney(l.totalEstimate)}</div></div>
+            )) : <Empty icon={I.money} text="Hali kelishuv yo'q." />}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+function Kpi({ icon, val, lbl, gold }: any) {
+  return <div className={`card kpi${gold ? " gold" : ""}`}><div className="top"><div className="ico"><Ic d={icon} s={19} /></div></div><div className="val">{val}</div><div className="lbl">{lbl}</div></div>;
+}
+function Empty({ icon, text }: any) {
+  return <div className="empty"><Ic d={icon} s={30} /><p>{text}</p></div>;
+}
+
+/* ================= LEADS / KANBAN ================= */
+const SRC_BADGE: Record<string, string> = { manual: "b-amber", marketplace: "b-green" };
+function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver }: any) {
+  const byStage = useMemo(() => {
+    const map: Record<CrmStage, CrmLead[]> = { new: [], contacted: [], quoted: [], won: [], completed: [], lost: [] };
+    for (const l of leads) map[(l as CrmLead).stage].push(l);
+    return map;
+  }, [leads]);
+  return (
+    <section className={`view${show ? " active" : ""}`}>
+      <div className="section-head"><div><h2>Sotuv voronkasi</h2><div className="sub">Jami {leads.length} ta lid — kartani suring yoki bosqichni tanlang</div></div></div>
+      <div className="kanban">
+        {CRM_STAGES.map((s, i) => (
+          <div key={s.key} className={`kcol c${i}${over === s.key ? " over" : ""}`}
+            onDragOver={(e) => { e.preventDefault(); setOver(s.key); }}
+            onDragLeave={() => setOver((c: string) => (c === s.key ? "" : c))}
+            onDrop={() => { const l = leads.find((x: CrmLead) => x.id === dragId); setOver(""); setDragId(""); if (l) void move(l, s.key); }}>
+            <div className="khead"><span className="acc" /><b>{s.label}</b><span className="n">{byStage[s.key as CrmStage].length}</span></div>
+            {byStage[s.key as CrmStage].map((l) => (
+              <article key={l.id} className="kcard" draggable onDragStart={() => setDragId(l.id)} onDragEnd={() => setDragId("")} style={busyId === l.id ? { opacity: 0.5 } : undefined}>
+                <b>{l.customerName}</b>
+                <div className="dir">{l.tourTitle || "Tur ko'rsatilmagan"}</div>
+                {l.totalEstimate ? <span className="sum">{formatMoney(l.totalEstimate)}</span> : <span className="dir">Summa yo'q</span>}
+                <div className="foot"><span className={`badge2 ${SRC_BADGE[l.source] || "b-grey"}`}>{l.source === "manual" ? "Qo'lda" : "Marketplace"}</span><small>{timeAgo(l.createdAt)}</small></div>
+                <select className="fld" style={{ marginTop: 8, padding: "5px 8px", fontSize: 12 }} value={l.stage} onChange={(e) => void move(l, e.target.value as CrmStage)}>
+                  {CRM_STAGES.map((st) => <option key={st.key} value={st.key}>{st.label}</option>)}
+                </select>
+              </article>
+            ))}
+            {byStage[s.key as CrmStage].length === 0 ? <div style={{ textAlign: "center", color: "#aab6b0", fontSize: 12, padding: "10px 0" }}>Bo&apos;sh</div> : null}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ================= CUSTOMERS ================= */
+function Customers({ show, customers }: any) {
+  const vip = customers.filter((c: any) => c.totalValue >= 1500).length;
+  return (
+    <section className={`view${show ? " active" : ""}`}>
+      <div className="section-head"><div><h2>Mijozlar bazasi</h2><div className="sub">Jami {customers.length} mijoz · {vip} yuqori qiymatli</div></div></div>
+      <div className="card tbl-wrap">
+        {customers.length ? (
+          <table>
+            <thead><tr><th>Mijoz</th><th>Telefon</th><th>So&apos;rovlar</th><th className="r">Jami qiymat</th><th>Holat</th></tr></thead>
+            <tbody>
+              {customers.map((c: any) => (
+                <tr key={c.keyId}>
+                  <td><div className="cell"><span className="av-sm">{initials(c.name)}</span><b>{c.name}</b></div></td>
+                  <td>{c.phone || "—"}</td>
+                  <td>{c.leads.length}</td>
+                  <td className="r money">{formatMoney(c.totalValue)}</td>
+                  <td><span className={`badge2 ${c.totalValue >= 1500 ? "b-amber" : c.wonCount > 1 ? "b-green" : c.wonCount ? "b-grey" : "b-sky"}`}>{c.totalValue >= 1500 ? "VIP" : c.wonCount > 1 ? "Doimiy" : c.wonCount ? "Faol" : "Yangi"}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : <Empty icon={I.users} text="Hali mijoz yo'q. Birinchi lid kelganda shu yerda paydo bo'ladi." />}
+      </div>
+    </section>
+  );
+}
+
+/* ================= PACKAGES / TOURS ================= */
+function Packages({ show, tours }: any) {
+  return (
+    <section className={`view${show ? " active" : ""}`}>
+      <div className="section-head"><div><h2>Turlar / Paketlar</h2><div className="sub">{tours.length} ta tur</div></div></div>
+      {tours.length ? (
+        <div className="grid g3">
+          {tours.map((t: any) => (
+            <div className="card pkg" key={t.id}>
+              <div className="ph" style={t.imageUrl ? { backgroundImage: `linear-gradient(180deg,rgba(11,42,30,.1),rgba(11,42,30,.55)),url(${t.imageUrl})` } : undefined}><span className="st">{statusLabel(t.approvalStatus)}</span></div>
+              <div className="pb">
+                <h3>{t.title}</h3>
+                <div className="meta">{t.city}{t.duration ? ` · ${t.duration}` : ""}</div>
+                {Array.isArray(t.highlights) && t.highlights.length ? <div className="chips">{t.highlights.slice(0, 4).map((h: string, i: number) => <span className="chip" key={i}>{h}</span>)}</div> : null}
+                <div className="pf"><div className="price">{t.price || (t.priceMin ? formatMoney(t.priceMin) : "—")}</div>{t.active ? <span className="badge2 b-green">Faol</span> : <span className="badge2 b-grey">Nofaol</span>}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : <div className="card"><Empty icon={I.box} text="Hali tur yo'q. Tur qo'shsangiz shu yerda ko'rinadi." /></div>}
+    </section>
+  );
+}
+
+/* ================= BOOKINGS ================= */
+function Bookings({ show, bookings }: any) {
+  const paid = bookings.filter((b: any) => b.status === "completed" || b.status === "confirmed").length;
+  return (
+    <section className={`view${show ? " active" : ""}`}>
+      <div className="section-head"><div><h2>Bronlar</h2><div className="sub">Jami {bookings.length} bron · {paid} tasdiqlangan</div></div></div>
+      <div className="card tbl-wrap">
+        {bookings.length ? (
+          <table>
+            <thead><tr><th>Mijoz</th><th>Yo&apos;nalish</th><th>Sana</th><th>Kishi</th><th className="r">Summa</th><th>Holat</th></tr></thead>
+            <tbody>
+              {bookings.map((b: any) => (
+                <tr key={b.id}>
+                  <td><div className="cell"><span className="av-sm">{initials(b.customerName)}</span><b>{b.customerName}</b></div></td>
+                  <td>{b.tour?.title || b.tour?.city || "—"}</td>
+                  <td>{b.travelDate ? formatDate(b.travelDate) : "—"}</td>
+                  <td>{b.travelers}</td>
+                  <td className="r money">{formatMoney(b.totalEstimate)}</td>
+                  <td><span className={`badge2 ${b.status === "confirmed" ? "b-green" : b.status === "completed" ? "b-green" : b.status === "pending" ? "b-amber" : "b-rose"}`}>{statusLabel(b.status)}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : <Empty icon={I.cal} text="Hali bron yo'q." />}
+      </div>
+    </section>
+  );
+}
+
+/* ================= PAYMENTS ================= */
+function Payments({ show, leads }: any) {
+  const m = useMemo(() => {
+    const paid = leads.filter((l: CrmLead) => l.stage === "won" || l.stage === "completed");
+    const pending = leads.filter((l: CrmLead) => l.stage === "quoted");
+    return {
+      accepted: paid.reduce((a: number, l: CrmLead) => a + (l.totalEstimate || 0), 0),
+      pending: pending.reduce((a: number, l: CrmLead) => a + (l.totalEstimate || 0), 0),
+      rows: paid,
+    };
+  }, [leads]);
+  return (
+    <section className={`view${show ? " active" : ""}`}>
+      <div className="section-head"><div><h2>To&apos;lovlar</h2></div></div>
+      <div className="grid g3">
+        <div className="card kpi gold"><div className="top"><div className="ico"><Ic d={I.check} s={19} /></div></div><div className="val">{formatMoney(m.accepted)}</div><div className="lbl">Qabul qilingan (kelishilgan)</div></div>
+        <div className="card kpi"><div className="top"><div className="ico"><Ic d={I.clock} s={19} /></div></div><div className="val">{formatMoney(m.pending)}</div><div className="lbl">Kutilayotgan (taklifda)</div></div>
+        <div className="card kpi"><div className="top"><div className="ico"><Ic d={I.card} s={19} /></div></div><div className="val">{m.rows.length}</div><div className="lbl">To&apos;langan bronlar</div></div>
+      </div>
+      <div className="card tbl-wrap" style={{ marginTop: 16 }}>
+        {m.rows.length ? (
+          <table>
+            <thead><tr><th>Mijoz</th><th>Yo&apos;nalish</th><th className="r">Summa</th><th>Manba</th><th>Holat</th></tr></thead>
+            <tbody>
+              {m.rows.map((l: CrmLead) => (
+                <tr key={l.id}>
+                  <td><div className="cell"><span className="av-sm">{initials(l.customerName)}</span><b>{l.customerName}</b></div></td>
+                  <td>{l.tourTitle || "—"}</td>
+                  <td className="r money">{formatMoney(l.totalEstimate)}</td>
+                  <td><span className="badge2 b-grey">{l.source === "manual" ? "Qo'lda" : "Marketplace"}</span></td>
+                  <td><span className="badge2 b-green">{l.stage === "completed" ? "Yakunlandi" : "Kelishildi"}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : <Empty icon={I.money} text="Hali to'lov yo'q. Lid 'Kelishildi' bosqichiga o'tganda shu yerda ko'rinadi." />}
+      </div>
+    </section>
+  );
+}
+
+/* ================= REPORTS ================= */
+function Reports({ show, leads }: any) {
+  const r = useMemo(() => {
+    const now = new Date();
+    const months: { m: string; v: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({ m: UZ_MONTH[d.getMonth()], v: 0 });
+    }
+    const baseMonth = new Date(now.getFullYear(), now.getMonth() - 5, 1).getTime();
+    leads.forEach((l: CrmLead) => {
+      if ((l.stage === "won" || l.stage === "completed") && l.totalEstimate && l.createdAt) {
+        const t = new Date(l.createdAt);
+        const idx = (t.getFullYear() - new Date(baseMonth).getFullYear()) * 12 + (t.getMonth() - new Date(baseMonth).getMonth());
+        if (idx >= 0 && idx < 6) months[idx].v += l.totalEstimate;
+      }
+    });
+    const maxRev = Math.max(1, ...months.map((x) => x.v));
+    // sources
+    const src: Record<string, number> = {};
+    leads.forEach((l: CrmLead) => { const k = l.source === "manual" ? "Qo'lda" : "Marketplace"; src[k] = (src[k] || 0) + 1; });
+    const total = Math.max(1, leads.length);
+    // destinations
+    const dest: Record<string, number> = {};
+    leads.forEach((l: CrmLead) => { const k = (l.tourTitle || l.tourCity || "Boshqa").split(" ")[0]; dest[k] = (dest[k] || 0) + 1; });
+    const topDest = Object.entries(dest).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const maxDest = Math.max(1, ...topDest.map((d) => d[1]));
+    return { months, maxRev, src, total, topDest, maxDest };
+  }, [leads]);
+
+  const srcColors: Record<string, string> = { Marketplace: "var(--primary)", "Qo'lda": "var(--gold)" };
+  const srcEntries = Object.entries(r.src);
+  let acc = 0;
+  const stops = srcEntries.map(([k, v]) => { const start = (acc / r.total) * 100; acc += v; const end = (acc / r.total) * 100; return `${srcColors[k] || "var(--sky)"} ${start}% ${end}%`; }).join(", ");
+
+  return (
+    <section className={`view${show ? " active" : ""}`}>
+      <div className="section-head"><div><h2>Oylik aylanma</h2><div className="sub">yopilgan bitimlar · so&apos;nggi 6 oy</div></div></div>
+      <div className="card">
+        <div className="bars">
+          {r.months.map((mo, i) => (
+            <div className={`b${i === r.months.length - 1 ? " last" : ""}`} key={i}><span className="v">{mo.v ? formatMoney(mo.v).replace("$", "") : "0"}</span><div className="bar" style={{ height: `${(mo.v / r.maxRev) * 100}%` }} /><span className="m">{mo.m}</span></div>
+          ))}
+        </div>
+        <div style={{ height: 16 }} />
+      </div>
+      <div className="grid g2" style={{ marginTop: 16 }}>
+        <div className="card">
+          <div className="section-head" style={{ margin: "16px 20px 0" }}><div><h2>Lid manbalari</h2></div></div>
+          <div className="donut-wrap">
+            <div className="donut" style={{ background: stops ? `conic-gradient(${stops})` : "#E7F1EB" }} />
+            <div className="legend">
+              {srcEntries.length ? srcEntries.map(([k, v]) => (
+                <div className="l" key={k}><span className="sw" style={{ background: srcColors[k] || "var(--sky)" }} />{k}<span className="pc">{Math.round((v / r.total) * 100)}%</span></div>
+              )) : <p style={{ color: "var(--t3)", fontSize: 13 }}>Ma&apos;lumot yo&apos;q</p>}
+            </div>
+          </div>
+        </div>
+        <div className="card">
+          <div className="section-head" style={{ margin: "16px 20px 0" }}><div><h2>Top yo&apos;nalishlar</h2><div className="sub">lidlar soni</div></div></div>
+          <div className="hbars">
+            {r.topDest.length ? r.topDest.map(([k, v]) => (
+              <div className="hbar" key={k}><span className="nm">{k}</span><div className="tk"><div className="fl" style={{ width: `${(v / r.maxDest) * 100}%` }} /></div><span className="ct">{v}</span></div>
+            )) : <p style={{ color: "var(--t3)", fontSize: 13 }}>Ma&apos;lumot yo&apos;q</p>}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ================= SETTINGS ================= */
+const INTS = [
+  { key: "telegram", name: "Telegram bot", desc: "Lidlar avtomatik CRMga tushadi", def: true },
+  { key: "click", name: "Click", desc: "Onlayn to'lov va avans", def: true },
+  { key: "payme", name: "Payme", desc: "Onlayn to'lov va bo'lib to'lash", def: true },
+  { key: "instagram", name: "Instagram Direct", desc: "Direct xabarlaridan lid yig'ish", def: false },
+];
+function Settings({ show, agency, agencyId, logout }: any) {
+  const [ints, setInts] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    try { const raw = window.localStorage.getItem(`kv_int_${agencyId}`); setInts(raw ? JSON.parse(raw) : Object.fromEntries(INTS.map((i) => [i.key, i.def]))); } catch { setInts(Object.fromEntries(INTS.map((i) => [i.key, i.def]))); }
+  }, [agencyId]);
+  function toggle(k: string) {
+    setInts((p) => { const next = { ...p, [k]: !p[k] }; try { window.localStorage.setItem(`kv_int_${agencyId}`, JSON.stringify(next)); } catch { /* ignore */ } return next; });
+  }
+  return (
+    <section className={`view${show ? " active" : ""}`}>
+      <div className="section-head"><div><h2>Sozlamalar</h2></div></div>
+      <div className="note"><Ic d={I.bolt} s={20} />Lokal integratsiyalar — bu tizimning asosiy ustunligi. Telegram, Click va Payme O&apos;zbekiston agentliklari uchun tayyor.</div>
+
+      <div className="section-head"><div><h2>Agentlik ma&apos;lumoti</h2></div></div>
+      <div className="card mini" style={{ padding: 6 }}>
+        <div className="r"><div className="av-sm">{initials(agency?.name || "AG")}</div><div><b>{agency?.name || "Agentlik"}</b><small>{agency?.city || "—"}{agency?.specialty ? ` · ${agency.specialty}` : ""}</small></div><div className="end"><span className="badge2 b-green">Tasdiqlangan</span></div></div>
+        {agency?.phone ? <div className="r"><div><b>Telefon</b><small>{agency.phone}</small></div></div> : null}
+      </div>
+
+      <div className="section-head"><div><h2>Integratsiyalar</h2></div></div>
+      <div className="card">
+        {INTS.map((i) => (
+          <div className="set-row" key={i.key}>
+            <div className="si"><Ic d={I.bolt} s={18} /></div>
+            <div><b>{i.name}</b><small>{i.desc}</small></div>
+            <div className="end"><button className={`switch${ints[i.key] ? " on" : ""}`} aria-label={i.name} onClick={() => toggle(i.key)} /></div>
+          </div>
+        ))}
+      </div>
+
+      <div className="section-head"><div><h2>Rollar va ruxsatlar</h2></div></div>
+      <div className="card mini" style={{ padding: 6 }}>
+        <div className="r"><span className="av-sm" style={{ background: "var(--gold-soft)", color: "var(--gold-ink)" }}>A</span><div><b>Administrator</b><small>To&apos;liq boshqaruv, sozlamalar, moliya</small></div></div>
+        <div className="r"><span className="av-sm">M</span><div><b>Menejer</b><small>Lidlar, bronlar va agentlar nazorati</small></div></div>
+        <div className="r"><span className="av-sm">A</span><div><b>Agent</b><small>O&apos;z lidlari va bronlari bilan ishlaydi</small></div></div>
+        <div className="r"><span className="av-sm" style={{ background: "var(--sky-soft)", color: "#255d7d" }}>B</span><div><b>Buxgalter</b><small>To&apos;lovlar va hisobotlarni ko&apos;radi</small></div></div>
+      </div>
+      <div style={{ marginTop: 18 }}><button className="btn btn-ghost" onClick={() => void logout()}><Ic d={I.out} s={16} /> Chiqish</button></div>
+      <div style={{ height: 16 }} />
+    </section>
+  );
+}
+
+/* ================= ADD LEAD MODAL ================= */
+function AddLead({ agencyId, onClose }: any) {
+  const [name, setName] = useState(""); const [phone, setPhone] = useState(""); const [tour, setTour] = useState(""); const [sum, setSum] = useState(""); const [err, setErr] = useState("");
+  function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (name.trim().length < 2) { setErr("Mijoz ismini kiriting."); return; }
+    addManualLead(agencyId, { customerName: name.trim(), customerPhone: phone.trim() || undefined, travelers: 1, travelDate: null, tourTitle: tour.trim() || undefined, totalEstimate: sum ? Number(sum.replace(/[^\d]/g, "")) : null, currency: "USD" });
+    onClose();
+  }
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(11,42,30,.42)", backdropFilter: "blur(3px)", zIndex: 60, display: "grid", placeItems: "center", padding: 16 }} onClick={onClose}>
+      <div className="card" style={{ width: "min(480px,100%)", padding: 22 }} onClick={(e) => e.stopPropagation()}>
+        <div className="section-head" style={{ margin: "0 0 12px" }}><div><h2>Yangi lid qo&apos;shish</h2><div className="sub">Instagram/telefondan kelgan mijozni ham shu yerda yuriting</div></div></div>
+        {err ? <div className="note" style={{ marginBottom: 12, background: "var(--rose-soft)", color: "#8f2a20", borderColor: "#f3c9c4" }}>{err}</div> : null}
+        <form onSubmit={save}>
+          <div className="fld"><label>Mijoz ismi *</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Masalan: Aziz Karimov" /></div>
+          <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div className="fld"><label>Telefon</label><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+998..." /></div>
+            <div className="fld"><label>Summa ($)</label><input value={sum} onChange={(e) => setSum(e.target.value)} placeholder="masalan 800" /></div>
+          </div>
+          <div className="fld"><label>Tur / yo&apos;nalish</label><input value={tour} onChange={(e) => setTour(e.target.value)} placeholder="Masalan: Dubay 5 kun" /></div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 6 }}>
+            <button type="button" className="btn btn-ghost" onClick={onClose}>Bekor</button>
+            <button type="submit" className="btn btn-primary">Qo&apos;shish</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
