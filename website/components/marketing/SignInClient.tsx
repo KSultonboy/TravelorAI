@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, BadgeCheck, Building2, ChevronRight, Eye, EyeOff, Lock, Mail, MapPinned, ShieldCheck, Sparkles, User } from "lucide-react";
+import { ArrowLeft, BadgeCheck, ChevronRight, Eye, EyeOff, Lock, Mail, MapPinned, ShieldCheck, Sparkles, User } from "lucide-react";
 import Logo from "./Logo";
 import GoogleContinueButton from "../GoogleContinueButton";
 
@@ -169,11 +169,6 @@ export default function SignInClient() {
               <button className="mkt-rolebtn" type="button" onClick={() => { setRole("traveler"); setMode("login"); setErr(""); setStep("form"); }}>
                 <span className="mkt-rolebtn__icon"><User size={22} /></span>
                 <span><b>Sayohatchi</b><small>Turlarni ko‘ring, AI reja tuzing va bron qiling</small></span>
-                <ChevronRight className="mkt-rolebtn__chev" size={20} />
-              </button>
-              <button className="mkt-rolebtn" type="button" onClick={() => { setRole("partner"); setMode("login"); setErr(""); setStep("form"); }}>
-                <span className="mkt-rolebtn__icon"><Building2 size={22} /></span>
-                <span><b>Hamkor (agentlik)</b><small>Turlaringizni joylang va mijoz qabul qiling</small></span>
                 <ChevronRight className="mkt-rolebtn__chev" size={20} />
               </button>
             </>
