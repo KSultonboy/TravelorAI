@@ -288,67 +288,49 @@ export function removeLead(agencyId: string, lead: CrmLead) {
 
 /* --------------------------- booking → stage map -------------------------- */
 
-export function stageFromBooking(booking: BookingItem, meta: LeadMeta): CrmStage {
+export function stageFromBooking(booking: BookingItem): CrmStage {
+  const s = booking.pipelineStage;
+  if (s && ["new", "contacted", "quoted", "won", "completed", "lost"].includes(s)) return s as CrmStage;
+  // fallback (eski qatorlar): status'dan
   if (booking.status === "confirmed") return "won";
   if (booking.status === "completed") return "completed";
   if (booking.status === "rejected" || booking.status === "cancelled") return "lost";
-  // pending → local override or default new
-  return meta.stage && ["new", "contacted", "quoted"].includes(meta.stage) ? meta.stage : "new";
+  return "new";
 }
 
-/** Merge server bookings + manual leads into one normalized, stage-resolved list. */
+/**
+ * Barcha leadlar — SERVERDAN (marketplace + qo'lda, ikkovi ham TourBooking).
+ * Bosqich (pipelineStage) va manba (source) serverda saqlanadi.
+ * Teglar/izohlar/vazifalar hozircha localStorage'da (meta) — kelajakda serverga.
+ */
 export function buildLeads(agencyId: string, bookings: BookingItem[]): CrmLead[] {
   const metaMap = getMetaMap(agencyId);
-  const fromBookings: CrmLead[] = bookings.map((b) => {
-    const meta = metaMap[b.id] || { tags: [], activities: [] };
-    const o = meta.override || {};
-    return {
-      id: b.id,
-      source: "marketplace",
-      customerName: o.customerName ?? b.customerName,
-      customerPhone: o.customerPhone ?? b.customerPhone,
-      customerEmail: o.customerEmail ?? b.customerEmail,
-      travelers: o.travelers ?? b.travelers,
-      travelDate: o.travelDate !== undefined ? o.travelDate : b.travelDate,
-      message: b.message,
-      tourTitle: o.tourTitle ?? b.tour?.title,
-      tourCity: b.tour?.city,
-      totalEstimate: o.totalEstimate !== undefined ? o.totalEstimate : b.totalEstimate,
-      currency: b.currency || "USD",
-      createdAt: b.createdAt,
-      serverStatus: b.status,
-      responseDeadlineAt: b.responseDeadlineAt,
-      stage: stageFromBooking(b, meta),
-      tags: meta.tags,
-      activities: meta.activities,
-      hidden: !!meta.hidden,
-    };
-  });
-  const fromManual: CrmLead[] = getManualLeads(agencyId).map((l) => {
-    const meta = metaMap[l.id] || { tags: [], activities: [] };
-    return {
-      id: l.id,
-      source: "manual",
-      customerName: l.customerName,
-      customerPhone: l.customerPhone,
-      customerEmail: l.customerEmail,
-      travelers: l.travelers,
-      travelDate: l.travelDate,
-      message: l.message,
-      tourTitle: l.tourTitle,
-      tourCity: null,
-      totalEstimate: l.totalEstimate,
-      currency: l.currency || "USD",
-      createdAt: l.createdAt,
-      stage: l.stage,
-      tags: meta.tags,
-      activities: meta.activities,
-      hidden: false,
-    };
-  });
-  return [...fromBookings, ...fromManual].sort(
-    (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-  );
+  return bookings
+    .map((b) => {
+      const meta = metaMap[b.id] || { tags: [], activities: [] };
+      return {
+        id: b.id,
+        source: (b.source === "manual" ? "manual" : "marketplace") as CrmLead["source"],
+        customerName: b.customerName,
+        customerPhone: b.customerPhone,
+        customerEmail: b.customerEmail,
+        travelers: b.travelers,
+        travelDate: b.travelDate,
+        message: b.message,
+        tourTitle: b.leadTour || b.tour?.title,
+        tourCity: b.tour?.city,
+        totalEstimate: b.totalEstimate,
+        currency: b.currency || "USD",
+        createdAt: b.createdAt,
+        serverStatus: b.status,
+        responseDeadlineAt: b.responseDeadlineAt,
+        stage: stageFromBooking(b),
+        tags: meta.tags,
+        activities: meta.activities,
+        hidden: !!meta.hidden,
+      };
+    })
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 }
 
 /* ------------------------------ customers view ---------------------------- */

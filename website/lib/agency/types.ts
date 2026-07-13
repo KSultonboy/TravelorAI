@@ -103,6 +103,9 @@ export type BookingItem = {
   travelDate?: string | null;
   message?: string | null;
   status: string;
+  pipelineStage?: string | null;
+  source?: string | null;
+  leadTour?: string | null;
   responseDeadlineAt?: string | null;
   totalEstimate?: number | null;
   currency: string;

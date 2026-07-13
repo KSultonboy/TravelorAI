@@ -3,10 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAgencySession } from "@/lib/agency/session";
 import { useCrm } from "@/lib/agency/useCrm";
-import { formatMoney, formatDate, statusLabel } from "@/lib/agency/api";
+import { agencyApi, formatMoney, formatDate, statusLabel } from "@/lib/agency/api";
 import {
   CRM_STAGES,
-  addManualLead,
   toggleTask,
   timeAgo,
   type CrmLead,
@@ -53,9 +52,17 @@ const NAV: { key: string; label: string; icon: string; group: string; badge?: "l
 const TITLES: Record<string, string> = Object.fromEntries(NAV.map((n) => [n.key, n.label]));
 const OPEN: CrmStage[] = ["new", "contacted", "quoted"];
 const UZ_MONTH = ["Yan", "Fev", "Mar", "Apr", "May", "Iyun", "Iyul", "Avg", "Sen", "Okt", "Noy", "Dek"];
+const PKG_GRADS = [
+  "linear-gradient(135deg,#0F5132,#0a3d25)",
+  "linear-gradient(135deg,#CA8A04,#8A5A08)",
+  "linear-gradient(135deg,#128054,#0b4a30)",
+  "linear-gradient(135deg,#3E86B0,#255d7d)",
+  "linear-gradient(135deg,#1E9E63,#0F5132)",
+  "linear-gradient(135deg,#B5761A,#8A5A08)",
+];
 
 export default function KvCabinet() {
-  const { phase, me, tours, bookings, bookingStats, logout } = useAgencySession();
+  const { phase, me, tours, bookings, bookingStats, logout, refreshBookings } = useAgencySession();
   const { agencyId, leads, tasks, customers, move, busyId } = useCrm();
   const [view, setView] = useState("dashboard");
   const [showAdd, setShowAdd] = useState(false);
@@ -137,7 +144,7 @@ export default function KvCabinet() {
         </div>
       </div>
 
-      {showAdd ? <AddLead agencyId={agencyId} onClose={() => setShowAdd(false)} /> : null}
+      {showAdd ? <AddLead onClose={() => setShowAdd(false)} onCreated={refreshBookings} /> : null}
     </div>
   );
 }
@@ -169,7 +176,7 @@ function Dashboard({ show, leads, tasks, stats, agencyId, go }: any) {
         <Kpi icon={I.list} val={m.open} lbl="Ochiq lidlar" />
         <Kpi icon={I.cal} val={m.won} lbl="Kelishilgan bronlar" />
         <Kpi icon={I.money} val={formatMoney(m.revenue)} lbl="Yopilgan aylanma" gold />
-        <Kpi icon={I.chart} val={m.conv + "%"} lbl="Konversiya" />
+        <Kpi icon={I.chart} val={(stats?.conversion ?? m.conv) + "%"} lbl="Konversiya" />
       </div>
 
       <div className="grid g2" style={{ marginTop: 16 }}>
@@ -193,7 +200,7 @@ function Dashboard({ show, leads, tasks, stats, agencyId, go }: any) {
                 <span className="tx">{t.title}</span>
                 <span className="time">{t.dueAt ? timeAgo(t.dueAt) : "—"}</span>
               </div>
-            )) : <Empty icon={I.check} text="Vazifa yo'q. Lid ichida eslatma qo'shing." />}
+            )) : <Empty icon={I.check} text="Hozircha vazifa yo'q." />}
           </div>
         </div>
       </div>
@@ -298,9 +305,11 @@ function Packages({ show, tours }: any) {
       <div className="section-head"><div><h2>Turlar / Paketlar</h2><div className="sub">{tours.length} ta tur</div></div></div>
       {tours.length ? (
         <div className="grid g3">
-          {tours.map((t: any) => (
+          {tours.map((t: any, i: number) => (
             <div className="card pkg" key={t.id}>
-              <div className="ph" style={t.imageUrl ? { backgroundImage: `linear-gradient(180deg,rgba(11,42,30,.1),rgba(11,42,30,.55)),url(${t.imageUrl})` } : undefined}><span className="st">{statusLabel(t.approvalStatus)}</span></div>
+              <div className="ph" style={t.imageUrl
+                ? { backgroundImage: `linear-gradient(180deg,rgba(11,42,30,.1),rgba(11,42,30,.55)),url(${t.imageUrl})` }
+                : { backgroundImage: PKG_GRADS[i % PKG_GRADS.length] }}><span className="st">{statusLabel(t.approvalStatus)}</span></div>
               <div className="pb">
                 <h3>{t.title}</h3>
                 <div className="meta">{t.city}{t.duration ? ` · ${t.duration}` : ""}</div>
@@ -458,10 +467,10 @@ function Reports({ show, leads }: any) {
 
 /* ================= SETTINGS ================= */
 const INTS = [
-  { key: "telegram", name: "Telegram bot", desc: "Lidlar avtomatik CRMga tushadi", def: true },
-  { key: "click", name: "Click", desc: "Onlayn to'lov va avans", def: true },
-  { key: "payme", name: "Payme", desc: "Onlayn to'lov va bo'lib to'lash", def: true },
-  { key: "instagram", name: "Instagram Direct", desc: "Direct xabarlaridan lid yig'ish", def: false },
+  { key: "telegram", name: "Telegram bot", desc: "Lidlarni avtomatik CRMga oladi — tez orada", def: false },
+  { key: "click", name: "Click", desc: "Onlayn to'lov va avans — tez orada", def: false },
+  { key: "payme", name: "Payme", desc: "Onlayn to'lov va bo'lib to'lash — tez orada", def: false },
+  { key: "instagram", name: "Instagram Direct", desc: "Direct xabarlaridan lid yig'ish — tez orada", def: false },
 ];
 function Settings({ show, agency, agencyId, logout }: any) {
   const [ints, setInts] = useState<Record<string, boolean>>({});
@@ -474,7 +483,7 @@ function Settings({ show, agency, agencyId, logout }: any) {
   return (
     <section className={`view${show ? " active" : ""}`}>
       <div className="section-head"><div><h2>Sozlamalar</h2></div></div>
-      <div className="note"><Ic d={I.bolt} s={20} />Lokal integratsiyalar — bu tizimning asosiy ustunligi. Telegram, Click va Payme O&apos;zbekiston agentliklari uchun tayyor.</div>
+      <div className="note"><Ic d={I.bolt} s={20} />Lokal integratsiyalar — Telegram, Click, Payme. Arxitektura tayyor; ulanish keyingi bosqichda ishga tushiriladi.</div>
 
       <div className="section-head"><div><h2>Agentlik ma&apos;lumoti</h2></div></div>
       <div className="card mini" style={{ padding: 6 }}>
@@ -507,13 +516,24 @@ function Settings({ show, agency, agencyId, logout }: any) {
 }
 
 /* ================= ADD LEAD MODAL ================= */
-function AddLead({ agencyId, onClose }: any) {
-  const [name, setName] = useState(""); const [phone, setPhone] = useState(""); const [tour, setTour] = useState(""); const [sum, setSum] = useState(""); const [err, setErr] = useState("");
-  function save(e: React.FormEvent) {
+function AddLead({ onClose, onCreated }: any) {
+  const [name, setName] = useState(""); const [phone, setPhone] = useState(""); const [tour, setTour] = useState(""); const [sum, setSum] = useState(""); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  async function save(e: React.FormEvent) {
     e.preventDefault();
     if (name.trim().length < 2) { setErr("Mijoz ismini kiriting."); return; }
-    addManualLead(agencyId, { customerName: name.trim(), customerPhone: phone.trim() || undefined, travelers: 1, travelDate: null, tourTitle: tour.trim() || undefined, totalEstimate: sum ? Number(sum.replace(/[^\d]/g, "")) : null, currency: "USD" });
-    onClose();
+    setBusy(true); setErr("");
+    const res = await agencyApi("/leads", {
+      method: "POST",
+      body: JSON.stringify({
+        customerName: name.trim(),
+        customerPhone: phone.trim() || undefined,
+        leadTour: tour.trim() || undefined,
+        totalEstimate: sum ? sum.replace(/[^\d]/g, "") : undefined,
+      }),
+    });
+    setBusy(false);
+    if (res.success) { await onCreated?.(); onClose(); }
+    else setErr(res.message || "Lid qo'shib bo'lmadi.");
   }
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(11,42,30,.42)", backdropFilter: "blur(3px)", zIndex: 60, display: "grid", placeItems: "center", padding: 16 }} onClick={onClose}>
@@ -529,7 +549,7 @@ function AddLead({ agencyId, onClose }: any) {
           <div className="fld"><label>Tur / yo&apos;nalish</label><input value={tour} onChange={(e) => setTour(e.target.value)} placeholder="Masalan: Dubay 5 kun" /></div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 6 }}>
             <button type="button" className="btn btn-ghost" onClick={onClose}>Bekor</button>
-            <button type="submit" className="btn btn-primary">Qo&apos;shish</button>
+            <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Qo'shilmoqda..." : "Qo'shish"}</button>
           </div>
         </form>
       </div>
