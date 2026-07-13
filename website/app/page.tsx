@@ -96,7 +96,7 @@ export default async function HomePage() {
                 agentlik turlari, shaxsiy AI rejalar va ishonchli bron — hammasi TravelorAI’da.
               </p>
             </Reveal>
-            <Reveal delay={120}>
+            <Reveal from="scale" delay={200}>
               <HeroSearch />
             </Reveal>
           </div>
