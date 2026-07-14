@@ -1,5 +1,6 @@
 const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
+const { issueAuthCode, AuthCodeType } = require('../services/auth.service');
 const { adminReviewSchema } = require('../schemas/agency.schema');
 const { bookingStatusSchema } = require('../schemas/booking.schema');
 const { formatBooking } = require('./bookings.controller');
@@ -267,6 +268,38 @@ async function deleteUser(req, res) {
     return success(res, { id: req.params.id });
   } catch (err) {
     if (err.code === 'P2025') return error(res, 'Foydalanuvchi topilmadi', 404);
+    return error(res, err.message, 500);
+  }
+}
+
+// Admin-triggered password reset: sends a reset CODE to the user's own email.
+// The admin never sees or sets the password — the user completes the reset
+// themselves via the standard /auth/reset-password flow. Also lifts any active
+// login lockout so a locked-out user helped by support can get straight back in.
+async function sendUserPasswordReset(req, res) {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!user) return error(res, 'Foydalanuvchi topilmadi', 404);
+    if (!user.password) {
+      return error(res, 'Bu akkaunt Google orqali yaratilgan — parol tiklash mavjud emas.', 400, {
+        authProvider: 'google',
+      });
+    }
+
+    const result = await issueAuthCode({ user, type: AuthCodeType.PASSWORD_RESET });
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { failedLoginAttempts: 0, lockoutLevel: 0, lockoutUntil: null, lastFailedLoginAt: null },
+    });
+
+    return success(res, {
+      message: `Parol tiklash kodi ${user.email} manziliga yuborildi.`,
+      email: user.email,
+      delivery: result.delivery,
+      ...(result.devCode ? { devCode: result.devCode } : {}),
+    });
+  } catch (err) {
     return error(res, err.message, 500);
   }
 }
@@ -1440,7 +1473,7 @@ async function deleteFeedback(req, res) {
 
 module.exports = {
   getStats,
-  getUsers, getUser, blockUser, deleteUser,
+  getUsers, getUser, blockUser, deleteUser, sendUserPasswordReset,
   getTrips, getTrip, deleteTrip,
   getPlaces, getPlace, createPlace, updatePlace, deletePlace,
   getHeroSlides, createHeroSlide, updateHeroSlide, deleteHeroSlide,

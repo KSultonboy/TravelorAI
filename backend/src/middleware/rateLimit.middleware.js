@@ -35,4 +35,29 @@ const plannerLimiter = rateLimit({
   message: { success: false, message: 'Reja tuzish limitiga yetdingiz. Biroz kuting.' },
 });
 
-module.exports = { rateLimiter, plannerLimiter };
+// ─── Email-key extractor for unauthenticated auth flows ───────────────────────
+// Password-reset / verification requests are anonymous, so we key by the target
+// email (when present) combined with the IP. This means one person cannot burn
+// through the quota for everybody on a shared IP, while still capping abuse.
+function emailKeyGenerator(req) {
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  return email ? `${ip}:${email}` : ip;
+}
+
+// ─── Forgot-password limiter — POST /api/v1/auth/forgot-password ──────────────
+// A user should not be able to request more than 3 reset codes in a short window.
+// Also reused for resend-verification, which has the same abuse profile.
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: emailKeyGenerator,
+  message: {
+    success: false,
+    message: 'Parol tiklash so\'rovi juda ko\'p (3 martadan oshdi). 15 daqiqadan so\'ng qayta urinib ko\'ring yoki qo\'llab-quvvatlash bilan bog\'laning.',
+  },
+});
+
+module.exports = { rateLimiter, plannerLimiter, forgotPasswordLimiter };

@@ -1013,6 +1013,7 @@ export default function LandingContentAdmin({ username }: { username: string }) 
               </button>
               {openNavGroups.system ? (
                 <div className="admin-sidebar-group__items">
+                  <a href="/admin/users">Foydalanuvchilar</a>
                   <button type="button" onClick={loadAll}>Ma&apos;lumotlarni yangilash</button>
                   <button className="danger" type="button" onClick={handleLogout}>Chiqish</button>
                 </div>

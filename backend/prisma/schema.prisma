@@ -40,6 +40,10 @@ model User {
   emailVerifiedAt DateTime?
   lastLoginAt     DateTime?
   blocked         Boolean      @default(false)
+  failedLoginAttempts Int      @default(0)
+  lastFailedLoginAt   DateTime?
+  lockoutUntil        DateTime?
+  lockoutLevel        Int      @default(0)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   trips           Trip[]
@@ -73,6 +77,10 @@ model AgencyAccount {
   emailVerifiedAt DateTime?
   status          String              @default("pending")
   lastLoginAt     DateTime?
+  failedLoginAttempts Int             @default(0)
+  lastFailedLoginAt   DateTime?
+  lockoutUntil        DateTime?
+  lockoutLevel        Int             @default(0)
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   authCodes       AgencyAuthCode[]

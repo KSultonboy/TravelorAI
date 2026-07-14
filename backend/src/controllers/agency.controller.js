@@ -4,6 +4,13 @@ const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { signAgencyToken } = require('../utils/agencyJwt');
 const { sendVerificationCodeEmail } = require('../services/email.service');
+const {
+  withDecay,
+  getActiveLock,
+  lockedResponse,
+  registerFailure,
+  RESET_ON_SUCCESS,
+} = require('../services/loginSecurity.service');
 const { bookingStatusSchema } = require('../schemas/booking.schema');
 const { formatBooking } = require('./bookings.controller');
 const {
@@ -326,15 +333,33 @@ async function login(req, res) {
     const email = input.email.toLowerCase();
     const account = await prisma.agencyAccount.findUnique({ where: { email } });
     if (!account) return error(res, 'Login yoki parol xato', 401);
+    if (account.status === 'blocked') return error(res, 'Agency akkaunt bloklangan', 403);
+
+    const now = new Date();
+    const acc = withDecay(account, now);
+
+    // Reject early if the account is still inside a lockout window.
+    const lock = getActiveLock(acc, now);
+    if (lock.locked) {
+      const payload = lockedResponse(lock);
+      return error(res, payload.message, payload.status, payload.extra);
+    }
 
     const passwordOk = await bcrypt.compare(input.password, account.passwordHash);
-    if (!passwordOk) return error(res, 'Login yoki parol xato', 401);
-    if (!account.emailVerified) return error(res, 'Email tasdiqlanmagan', 403, { code: 'EMAIL_NOT_VERIFIED' });
-    if (account.status === 'blocked') return error(res, 'Agency akkaunt bloklangan', 403);
+    if (!passwordOk) {
+      const failure = registerFailure(acc, now);
+      await prisma.agencyAccount.update({ where: { id: account.id }, data: failure.data });
+      return error(res, failure.message, failure.status, failure.extra);
+    }
+
+    if (!account.emailVerified) {
+      await prisma.agencyAccount.update({ where: { id: account.id }, data: RESET_ON_SUCCESS });
+      return error(res, 'Email tasdiqlanmagan', 403, { code: 'EMAIL_NOT_VERIFIED' });
+    }
 
     const updated = await prisma.agencyAccount.update({
       where: { id: account.id },
-      data: { lastLoginAt: new Date() },
+      data: { ...RESET_ON_SUCCESS, lastLoginAt: now },
     });
     const token = signAgencyToken({ id: updated.id, email: updated.email, role: 'agency' });
 
