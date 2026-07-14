@@ -297,6 +297,7 @@
   .tg-chat-btn{ width:100%; margin-top:8px; display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; border-radius:9px; border:1px solid #CDE0EC; background:var(--sky-soft); color:#255d7d; font-family:var(--disp); font-size:12px; font-weight:600; cursor:pointer; transition:.13s; }
   .tg-chat-btn svg{ width:14px; height:14px; }
   .tg-chat-btn:hover{ background:var(--sky); color:#fff; border-color:var(--sky); }
+  .tbl-wrap .tg-chat-btn{ width:auto; margin-top:0; padding:0 14px; display:inline-flex; }
   .tg-chat{ width:min(460px,100%); height:min(620px,90vh); display:flex; flex-direction:column; padding:0; overflow:hidden; }
   .tg-chat-head{ display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--border); }
   .tg-chat-head b{ font-family:var(--disp); font-size:15px; display:block; }
@@ -354,6 +355,31 @@
   .tg-quick{ display:flex; gap:6px; flex-wrap:wrap; padding:10px 14px 0; }
   .tg-quick-btn{ font-size:12px; font-weight:600; color:var(--primary); background:var(--primary-soft); border:1px solid #CDE3D6; border-radius:999px; padding:5px 12px; cursor:pointer; }
   .tg-quick-btn:hover{ background:var(--primary); color:#fff; border-color:var(--primary); }
+
+  /* integrations card (settings → opens dedicated page) */
+  .int-card{ width:100%; display:flex; align-items:center; gap:14px; text-align:left; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:15px 18px; cursor:pointer; transition:.15s; }
+  .int-card:hover{ border-color:var(--primary); transform:translateY(-1px); box-shadow:0 8px 24px rgba(15,81,50,.09); }
+  .int-ic{ width:44px; height:44px; border-radius:12px; display:grid; place-items:center; flex-shrink:0; }
+  .int-ic.tg{ background:var(--sky-soft); color:#255d7d; }
+  .int-main{ flex:1; min-width:0; }
+  .int-main b{ display:block; font-family:var(--disp); font-size:14.5px; font-weight:600; }
+  .int-main small{ display:block; color:var(--t2); font-size:12.5px; margin-top:1px; }
+  .int-badge{ font-size:11px; font-weight:700; color:var(--primary); background:var(--primary-soft); border:1px solid #CDE3D6; border-radius:999px; padding:3px 10px; flex-shrink:0; }
+  .int-chev{ color:var(--t3); flex-shrink:0; }
+  .int-card:hover .int-chev{ color:var(--primary); }
+
+  /* back header (dedicated sub-page) */
+  .head-back{ display:flex; align-items:center; gap:12px; }
+  .kv-back{ width:36px; height:36px; border-radius:10px; border:1px solid var(--border); background:var(--surface); color:var(--t1); display:grid; place-items:center; cursor:pointer; flex-shrink:0; transition:.15s; }
+  .kv-back:hover{ border-color:var(--primary); color:var(--primary); background:var(--primary-soft); }
+
+  /* stage-colored pill (telegram conversations table) */
+  .badge2.s-new{ background:var(--sky-soft); color:#255d7d; }
+  .badge2.s-contacted{ background:#ECEAFB; color:#5646c9; }
+  .badge2.s-quoted{ background:var(--gold-soft); color:var(--gold-ink); }
+  .badge2.s-won{ background:var(--primary-soft); color:var(--primary); }
+  .badge2.s-completed{ background:#DCEBE3; color:#0a3d25; }
+  .badge2.s-lost{ background:var(--rose-soft); color:#8f2a20; }
 
   /* brand logo */
   .brand .mark.logo{ padding:0; overflow:hidden; background:var(--surface); }

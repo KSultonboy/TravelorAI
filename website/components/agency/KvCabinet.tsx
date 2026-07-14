@@ -7,6 +7,7 @@ import { agencyApi, formatMoney, formatDate, statusLabel, readImage } from "@/li
 import { getNotifs, markRead, markAllRead, pushNotif, seedNotifs, type KvNotif } from "@/lib/agency/notify";
 import {
   CRM_STAGES,
+  STAGE_LABEL,
   toggleTask,
   timeAgo,
   type CrmLead,
@@ -50,7 +51,7 @@ const NAV: { key: string; label: string; icon: string; group: string; badge?: "l
   { key: "reports", label: "Hisobotlar", icon: I.chart, group: "Boshqa" },
   { key: "settings", label: "Sozlamalar", icon: I.gear, group: "Boshqa" },
 ];
-const TITLES: Record<string, string> = Object.fromEntries(NAV.map((n) => [n.key, n.label]));
+const TITLES: Record<string, string> = { ...Object.fromEntries(NAV.map((n) => [n.key, n.label])), telegram: "Telegram bot" };
 const OPEN: CrmStage[] = ["new", "contacted", "quoted"];
 const UZ_MONTH = ["Yan", "Fev", "Mar", "Apr", "May", "Iyun", "Iyul", "Avg", "Sen", "Okt", "Noy", "Dek"];
 const PKG_GRADS = [
@@ -239,7 +240,8 @@ export default function KvCabinet() {
             <Bookings show={view === "bookings"} bookings={bookings} agencyId={agencyId} refreshBookings={refreshBookings} refresh={refresh} />
             <Payments show={view === "payments"} leads={leads} move={move} busyId={busyId} />
             <Reports show={view === "reports"} leads={leads} />
-            <Settings show={view === "settings"} agency={agency} agencyId={agencyId} refresh={refresh} logout={logout} />
+            <Settings show={view === "settings"} agency={agency} agencyId={agencyId} refresh={refresh} logout={logout} go={setView} />
+            <TelegramPage show={view === "telegram"} leads={leads} go={setView} />
           </div>
         </div>
       </div>
@@ -667,7 +669,7 @@ function Reports({ show, leads }: any) {
 }
 
 /* ================= SETTINGS ================= */
-function Settings({ show, agency, refresh, logout }: any) {
+function Settings({ show, agency, refresh, logout, go }: any) {
   return (
     <section className={`view${show ? " active" : ""}`}>
       <div className="section-head"><div><h2>Sozlamalar</h2></div></div>
@@ -675,8 +677,8 @@ function Settings({ show, agency, refresh, logout }: any) {
       <div className="section-head"><div><h2>Agentlik ma&apos;lumoti</h2><div className="sub">Nomi, logotipi va telefoni — sidebar va CRM&apos;da shu ma&apos;lumot ko&apos;rinadi</div></div></div>
       <ProfileForm agency={agency} refresh={refresh} />
 
-      <div className="section-head"><div><h2>Telegram bot</h2><div className="sub">Botni ulang — mijoz xabarlari avtomatik lid bo&apos;ladi, javobni ham shu yerdan yozasiz</div></div></div>
-      <TelegramSettings />
+      <div className="section-head"><div><h2>Integratsiyalar</h2><div className="sub">Tashqi kanallarni ulang va boshqaring</div></div></div>
+      <TelegramCard go={go} />
 
       <div className="section-head"><div><h2>Rollar va ruxsatlar</h2></div></div>
       <div className="card mini" style={{ padding: 6 }}>
@@ -900,6 +902,70 @@ function TelegramChat({ lead, onClose }: { lead: CrmLead; onClose: () => void })
         ) : <div className="tg-noreply">Bu lidda Telegram identifikatori yo&apos;q</div>}
       </div>
     </div>
+  );
+}
+
+/* ================= TELEGRAM (settings card + dedicated page) ================= */
+const TG_ICON = "M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z";
+
+function TelegramCard({ go }: { go: (v: string) => void }) {
+  const [st, setSt] = useState<{ connected: boolean; username: string | null } | null>(null);
+  useEffect(() => {
+    void agencyApi<{ connected: boolean; username: string | null }>("/telegram").then((r) => {
+      if (r.success) setSt({ connected: r.data.connected, username: r.data.username });
+    });
+  }, []);
+  return (
+    <button className="int-card" onClick={() => go("telegram")}>
+      <span className="int-ic tg"><Ic d={TG_ICON} s={22} /></span>
+      <span className="int-main">
+        <b>Telegram bot</b>
+        <small>{st?.connected ? `Ulangan · @${st.username}` : "Ulash · salomlashish, buyruqlar, shablonlar"}</small>
+      </span>
+      {st?.connected ? <span className="int-badge">Faol</span> : null}
+      <svg className="int-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+    </button>
+  );
+}
+
+function TelegramPage({ show, leads, go }: { show: boolean; leads: CrmLead[]; go: (v: string) => void }) {
+  const [chat, setChat] = useState<CrmLead | null>(null);
+  const tgLeads = useMemo(
+    () => (leads || []).filter((l) => l.source === "telegram").sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()),
+    [leads]
+  );
+  return (
+    <section className={`view${show ? " active" : ""}`}>
+      <div className="section-head">
+        <div className="head-back">
+          <button className="kv-back" onClick={() => go("settings")} aria-label="Orqaga"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg></button>
+          <div><h2>Telegram bot</h2><div className="sub">Botni to&apos;liq boshqaring — ulash, salomlashish, profil, buyruqlar va shablonlar</div></div>
+        </div>
+      </div>
+
+      <TelegramSettings />
+
+      <div className="section-head" style={{ marginTop: 10 }}><div><h2>Telegram suhbatlar</h2><div className="sub">Bot orqali kelgan lidlar — bosib javob yozing</div></div></div>
+      <div className="card tbl-wrap">
+        {tgLeads.length ? (
+          <table>
+            <thead><tr><th>Mijoz</th><th>Xabar / yo&apos;nalish</th><th>Bosqich</th><th>Vaqt</th><th className="r">Suhbat</th></tr></thead>
+            <tbody>
+              {tgLeads.map((l) => (
+                <tr key={l.id}>
+                  <td><div className="cell"><span className="av-sm">{initials(l.customerName)}</span><b>{l.customerName}</b></div></td>
+                  <td>{l.tourTitle || l.message || "—"}</td>
+                  <td><span className={`badge2 s-${l.stage}`}>{STAGE_LABEL[l.stage] || l.stage}</span></td>
+                  <td>{timeAgo(l.createdAt || "")}</td>
+                  <td className="r"><button className="tg-chat-btn" onClick={() => setChat(l)}><Ic d={TG_ICON} s={15} />Suhbat</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : <Empty icon={I.list} text="Hali Telegram suhbat yo'q. Bot ulangach, mijoz yozganda shu yerda ko'rinadi." />}
+      </div>
+      {chat ? <TelegramChat lead={chat} onClose={() => setChat(null)} /> : null}
+    </section>
   );
 }
 
