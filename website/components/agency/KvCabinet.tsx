@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAgencySession } from "@/lib/agency/session";
 import { useCrm } from "@/lib/agency/useCrm";
 import { agencyApi, formatMoney, formatDate, statusLabel } from "@/lib/agency/api";
@@ -235,6 +235,38 @@ function Empty({ icon, text }: any) {
 
 /* ================= LEADS / KANBAN ================= */
 const SRC_BADGE: Record<string, string> = { manual: "b-amber", marketplace: "b-green" };
+function StageSelect({ value, onChange, disabled }: { value: CrmStage; onChange: (s: CrmStage) => void; disabled?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("pointerdown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+  const current = CRM_STAGES.find((s) => s.key === value);
+  return (
+    <div className={`kstage2${open ? " open" : ""}`} ref={ref} onPointerDown={(e) => e.stopPropagation()}>
+      <button type="button" className="kstage2-btn" disabled={disabled} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <span className={`kdot s-${value}`} />
+        <span className="kstage2-lbl">{current?.label}</span>
+        <svg className="kstage2-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+      </button>
+      <div className="kstage2-menu" role="listbox">
+        {CRM_STAGES.map((s) => (
+          <button type="button" key={s.key} role="option" aria-selected={s.key === value} className={`kstage2-opt${s.key === value ? " sel" : ""}`} onClick={() => { onChange(s.key as CrmStage); setOpen(false); }}>
+            <span className={`kdot s-${s.key}`} />
+            <span className="kstage2-optl">{s.label}</span>
+            {s.key === value ? <svg className="kcheck" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg> : null}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver }: any) {
   const byStage = useMemo(() => {
     const map: Record<CrmStage, CrmLead[]> = { new: [], contacted: [], quoted: [], won: [], completed: [], lost: [] };
@@ -257,9 +289,7 @@ function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver }: 
                 <div className="dir">{l.tourTitle || "Tur ko'rsatilmagan"}</div>
                 {l.totalEstimate ? <span className="sum">{formatMoney(l.totalEstimate)}</span> : <span className="dir">Summa yo'q</span>}
                 <div className="foot"><span className={`badge2 ${SRC_BADGE[l.source] || "b-grey"}`}>{l.source === "manual" ? "Qo'lda" : "Marketplace"}</span><small>{timeAgo(l.createdAt)}</small></div>
-                <select className="kstage" value={l.stage} onChange={(e) => void move(l, e.target.value as CrmStage)}>
-                  {CRM_STAGES.map((st) => <option key={st.key} value={st.key}>{st.label}</option>)}
-                </select>
+                <StageSelect value={l.stage} onChange={(s) => void move(l, s)} disabled={busyId === l.id} />
               </article>
             ))}
             {byStage[s.key as CrmStage].length === 0 ? <div style={{ textAlign: "center", color: "#aab6b0", fontSize: 12, padding: "10px 0" }}>Bo&apos;sh</div> : null}
