@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const agency = require('../controllers/agency.controller');
 const { agencyAuthMiddleware } = require('../middleware/agencyAuth.middleware');
+const telegram = require('../controllers/telegram.controller');
 
 router.post('/auth/register', agency.register);
 router.post('/auth/verify-email', agency.verifyEmail);
@@ -28,5 +29,12 @@ router.delete('/tours/:id', agency.deleteTour);
 
 router.get('/bookings', agency.listBookings);
 router.patch('/bookings/:id/status', agency.updateBookingStatus);
+
+router.get('/telegram', telegram.getTelegram);
+router.post('/telegram/connect', telegram.connectTelegram);
+router.post('/telegram/disconnect', telegram.disconnectTelegram);
+router.put('/telegram/welcome', telegram.setWelcome);
+router.get('/telegram/messages', telegram.listMessages);
+router.post('/telegram/reply', telegram.reply);
 
 module.exports = router;

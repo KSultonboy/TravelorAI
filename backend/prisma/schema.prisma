@@ -372,6 +372,10 @@ model TourAgency {
   toursCount       Int                 @default(0)
   phone            String?
   telegram         String?
+  telegramBotToken    String?
+  telegramBotUsername String?
+  telegramBotActive   Boolean  @default(false)
+  telegramWelcome     String?
   website          String?
   imageUrl         String?
   active           Boolean             @default(true)
@@ -571,4 +575,17 @@ model TripReview {
   @@unique([userId, tripId])
   @@index([tripId, createdAt])
   @@index([userId, createdAt])
+}
+
+model TelegramMessage {
+  id        String   @id @default(cuid())
+  agencyId  String
+  bookingId String?
+  direction String
+  text      String
+  fromName  String?
+  createdAt DateTime @default(now())
+
+  @@index([agencyId])
+  @@index([bookingId])
 }

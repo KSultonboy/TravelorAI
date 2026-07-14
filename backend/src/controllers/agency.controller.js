@@ -958,6 +958,7 @@ async function deleteTour(req, res) {
 }
 
 module.exports = {
+  ensureApprovedAgency,
   googleAuth,
   register,
   verifyEmail,

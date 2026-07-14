@@ -334,7 +334,8 @@ function Empty({ icon, text }: any) {
 }
 
 /* ================= LEADS / KANBAN ================= */
-const SRC_BADGE: Record<string, string> = { manual: "b-amber", marketplace: "b-green" };
+const SRC_BADGE: Record<string, string> = { manual: "b-amber", marketplace: "b-green", telegram: "b-sky" };
+const srcLabel = (s: string) => (s === "manual" ? "Qo'lda" : s === "telegram" ? "Telegram" : "Marketplace");
 function StageSelect({ value, onChange, disabled }: { value: CrmStage; onChange: (s: CrmStage) => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -368,6 +369,7 @@ function StageSelect({ value, onChange, disabled }: { value: CrmStage; onChange:
 }
 
 function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver }: any) {
+  const [chat, setChat] = useState<CrmLead | null>(null);
   const byStage = useMemo(() => {
     const map: Record<CrmStage, CrmLead[]> = { new: [], contacted: [], quoted: [], won: [], completed: [], lost: [] };
     for (const l of leads) map[(l as CrmLead).stage].push(l);
@@ -388,14 +390,16 @@ function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver }: 
                 <b>{l.customerName}</b>
                 <div className="dir">{l.tourTitle || "Tur ko'rsatilmagan"}</div>
                 {l.totalEstimate ? <span className="sum">{formatMoney(l.totalEstimate)}</span> : <span className="dir">Summa yo'q</span>}
-                <div className="foot"><span className={`badge2 ${SRC_BADGE[l.source] || "b-grey"}`}>{l.source === "manual" ? "Qo'lda" : "Marketplace"}</span><small>{timeAgo(l.createdAt)}</small></div>
+                <div className="foot"><span className={`badge2 ${SRC_BADGE[l.source] || "b-grey"}`}>{srcLabel(l.source)}</span><small>{timeAgo(l.createdAt)}</small></div>
                 <StageSelect value={l.stage} onChange={(s) => void move(l, s)} disabled={busyId === l.id} />
+                {l.source === "telegram" ? <button className="tg-chat-btn" onClick={() => setChat(l)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>Telegram suhbat</button> : null}
               </article>
             ))}
             {byStage[s.key as CrmStage].length === 0 ? <div style={{ textAlign: "center", color: "#aab6b0", fontSize: 12, padding: "10px 0" }}>Bo&apos;sh</div> : null}
           </div>
         ))}
       </div>
+      {chat ? <TelegramChat lead={chat} onClose={() => setChat(null)} /> : null}
     </section>
   );
 }
@@ -572,7 +576,7 @@ function Payments({ show, leads, move, busyId }: any) {
                   <td><div className="cell"><span className="av-sm">{initials(l.customerName)}</span><b>{l.customerName}</b></div></td>
                   <td>{l.tourTitle || "—"}</td>
                   <td className="r money">{formatMoney(l.totalEstimate)}</td>
-                  <td><span className="badge2 b-grey">{l.source === "manual" ? "Qo'lda" : "Marketplace"}</span></td>
+                  <td><span className="badge2 b-grey">{srcLabel(l.source)}</span></td>
                   <td><span className="badge2 b-green">{l.stage === "completed" ? "Yakunlandi" : "Kelishildi"}</span></td>
                   <td>
                     {l.stage === "won" ? (
@@ -664,7 +668,6 @@ function Reports({ show, leads }: any) {
 
 /* ================= SETTINGS ================= */
 const INTS = [
-  { key: "telegram", name: "Telegram bot", desc: "Lidlarni avtomatik CRMga oladi — tez orada", def: false },
   { key: "click", name: "Click", desc: "Onlayn to'lov va avans — tez orada", def: false },
   { key: "payme", name: "Payme", desc: "Onlayn to'lov va bo'lib to'lash — tez orada", def: false },
   { key: "instagram", name: "Instagram Direct", desc: "Direct xabarlaridan lid yig'ish — tez orada", def: false },
@@ -680,12 +683,14 @@ function Settings({ show, agency, agencyId, refresh, logout }: any) {
   return (
     <section className={`view${show ? " active" : ""}`}>
       <div className="section-head"><div><h2>Sozlamalar</h2></div></div>
-      <div className="note"><Ic d={I.bolt} s={20} />Lokal integratsiyalar — Telegram, Click, Payme. Arxitektura tayyor; ulanish keyingi bosqichda ishga tushiriladi.</div>
 
       <div className="section-head"><div><h2>Agentlik ma&apos;lumoti</h2><div className="sub">Nomi, logotipi va telefoni — sidebar va CRM&apos;da shu ma&apos;lumot ko&apos;rinadi</div></div></div>
       <ProfileForm agency={agency} refresh={refresh} />
 
-      <div className="section-head"><div><h2>Integratsiyalar</h2></div></div>
+      <div className="section-head"><div><h2>Telegram bot</h2><div className="sub">Botni ulang — mijoz xabarlari avtomatik lid bo&apos;ladi, javobni ham shu yerdan yozasiz</div></div></div>
+      <TelegramSettings />
+
+      <div className="section-head"><div><h2>Boshqa integratsiyalar</h2></div></div>
       <div className="card">
         {INTS.map((i) => (
           <div className="set-row" key={i.key}>
@@ -856,6 +861,132 @@ function ConfirmDelete({ tour, busy, err, onCancel, onConfirm }: any) {
           <button className="btn btn-danger" disabled={busy} onClick={onConfirm}>{busy ? "O'chirilmoqda..." : "O'chirish"}</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ================= TELEGRAM CHAT (drawer) ================= */
+function TelegramChat({ lead, onClose }: { lead: CrmLead; onClose: () => void }) {
+  const [messages, setMessages] = useState<any[]>([]);
+  const [canReply, setCanReply] = useState(false);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  const load = async () => {
+    const res = await agencyApi<{ messages: any[]; canReply: boolean }>(`/telegram/messages?bookingId=${encodeURIComponent(lead.id)}`);
+    if (res.success) { setMessages(res.data.messages || []); setCanReply(!!res.data.canReply); }
+    setLoading(false);
+  };
+  useEffect(() => { void load(); const t = window.setInterval(() => void load(), 8000); return () => window.clearInterval(t); }, [lead.id]);
+  useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight; }, [messages]);
+
+  async function send(e: React.FormEvent) {
+    e.preventDefault();
+    if (!text.trim()) return;
+    setBusy(true);
+    const res = await agencyApi("/telegram/reply", { method: "POST", body: JSON.stringify({ bookingId: lead.id, text: text.trim() }) });
+    setBusy(false);
+    if (res.success) { setText(""); await load(); }
+  }
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="card tg-chat" onClick={(e) => e.stopPropagation()}>
+        <div className="tg-chat-head">
+          <div><b>{lead.customerName}</b><small>Telegram suhbat</small></div>
+          <button className="icon-btn" onClick={onClose} aria-label="Yopish"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg></button>
+        </div>
+        <div className="tg-chat-body" ref={bodyRef}>
+          {loading ? <div className="tg-empty">Yuklanmoqda…</div>
+            : messages.length === 0 ? <div className="tg-empty">Hozircha xabar yo&apos;q</div>
+            : messages.map((m) => (
+              <div key={m.id} className={`tg-msg ${m.direction === "out" ? "out" : "in"}`}>
+                <div className="tg-bubble">{m.text}</div>
+                <span className="tg-meta">{m.fromName || ""} · {timeAgo(m.createdAt)}</span>
+              </div>
+            ))}
+        </div>
+        {canReply ? (
+          <form className="tg-chat-input" onSubmit={send}>
+            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Javob yozing…" />
+            <button type="submit" className="btn btn-primary" disabled={busy || !text.trim()}>Yuborish</button>
+          </form>
+        ) : <div className="tg-noreply">Bu lidda Telegram identifikatori yo&apos;q</div>}
+      </div>
+    </div>
+  );
+}
+
+/* ================= TELEGRAM SETTINGS ================= */
+function TelegramSettings() {
+  const [state, setState] = useState<{ connected: boolean; username: string | null; welcome: string }>({ connected: false, username: null, welcome: "" });
+  const [token, setToken] = useState("");
+  const [welcome, setWelcome] = useState("");
+  const [busy, setBusy] = useState("");
+  const [err, setErr] = useState(""); const [msg, setMsg] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    const res = await agencyApi<{ connected: boolean; username: string | null; welcome: string }>("/telegram");
+    if (res.success) { setState(res.data); setWelcome(res.data.welcome || ""); }
+    setLoading(false);
+  };
+  useEffect(() => { void load(); }, []);
+
+  async function connect() {
+    if (!token.trim()) { setErr("Bot tokenini kiriting"); return; }
+    setBusy("connect"); setErr(""); setMsg("");
+    const res = await agencyApi<{ connected: boolean; username: string }>("/telegram/connect", { method: "POST", body: JSON.stringify({ token: token.trim() }) });
+    setBusy("");
+    if (res.success) { setToken(""); setMsg("Ulandi ✓"); await load(); }
+    else setErr(res.message || "Ulab bo'lmadi");
+  }
+  async function disconnect() {
+    setBusy("disconnect"); setErr(""); setMsg("");
+    const res = await agencyApi("/telegram/disconnect", { method: "POST" });
+    setBusy("");
+    if (res.success) await load();
+  }
+  async function saveWelcome() {
+    setBusy("welcome"); setErr(""); setMsg("");
+    const res = await agencyApi("/telegram/welcome", { method: "PUT", body: JSON.stringify({ text: welcome }) });
+    setBusy("");
+    if (res.success) setMsg("Saqlandi ✓");
+  }
+  if (loading) return <div className="card" style={{ padding: 18, color: "var(--t2)", fontSize: 13 }}>Yuklanmoqda…</div>;
+  return (
+    <div className="card tg-set">
+      <div className="tg-set-top">
+        <div className="tg-ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg></div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <b>Telegram bot</b>
+          {state.connected
+            ? <small style={{ color: "var(--primary)" }}>Ulangan · @{state.username}</small>
+            : <small>Botingizga kelgan xabarlar avtomatik lid bo&apos;ladi</small>}
+        </div>
+        {state.connected ? <button className="btn btn-ghost btn-sm" disabled={busy === "disconnect"} onClick={() => void disconnect()}>{busy === "disconnect" ? "..." : "Uzish"}</button> : null}
+      </div>
+      {err ? <div className="note note-err" style={{ margin: "12px 0 0" }}>{err}</div> : null}
+      {msg && !state.connected ? <div style={{ color: "var(--primary)", fontSize: 13, fontWeight: 600, marginTop: 10 }}>{msg}</div> : null}
+      {!state.connected ? (
+        <div className="tg-connect">
+          <div className="tg-hint">Telegram&apos;da <b>@BotFather</b> → <code>/newbot</code> → tokenni bu yerga qo&apos;ying:</div>
+          <div className="tg-connect-row">
+            <input value={token} onChange={(e) => setToken(e.target.value)} placeholder="123456789:AA..." />
+            <button className="btn btn-primary" disabled={busy === "connect"} onClick={() => void connect()}>{busy === "connect" ? "Ulanmoqda..." : "Ulash"}</button>
+          </div>
+        </div>
+      ) : (
+        <div className="tg-welcome">
+          <label>Avtomatik salomlashish (birinchi xabarda bot yuboradi)</label>
+          <textarea value={welcome} onChange={(e) => setWelcome(e.target.value)} rows={2} placeholder="Salom! So'rovingiz qabul qilindi, tez orada bog'lanamiz." />
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
+            <button className="btn btn-primary btn-sm" disabled={busy === "welcome"} onClick={() => void saveWelcome()}>{busy === "welcome" ? "..." : "Saqlash"}</button>
+            {msg ? <span style={{ color: "var(--primary)", fontSize: 13, fontWeight: 600 }}>{msg}</span> : null}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

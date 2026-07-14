@@ -95,6 +95,13 @@ export function AgencySessionProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(timer);
   }, []);
 
+  // Yangi lidlar (Telegram, marketplace) avtomatik ko'rinishi uchun davriy yangilash
+  useEffect(() => {
+    if (phase !== "approved") return;
+    const timer = window.setInterval(() => { void refreshBookings(); }, 20000);
+    return () => window.clearInterval(timer);
+  }, [phase, refreshBookings]);
+
   const value = useMemo(
     () => ({ phase, me, tours, bookings, bookingStats, clock, refresh, refreshBookings, refreshTours, logout }),
     [phase, me, tours, bookings, bookingStats, clock, refresh, refreshBookings, refreshTours, logout]

@@ -82,7 +82,7 @@ export type ManualLead = {
 /** Normalized lead used everywhere in the CRM UI. */
 export type CrmLead = {
   id: string;
-  source: "marketplace" | "manual";
+  source: "marketplace" | "manual" | "telegram";
   customerName: string;
   customerPhone?: string | null;
   customerEmail?: string | null;
@@ -310,7 +310,7 @@ export function buildLeads(agencyId: string, bookings: BookingItem[]): CrmLead[]
       const meta = metaMap[b.id] || { tags: [], activities: [] };
       return {
         id: b.id,
-        source: (b.source === "manual" ? "manual" : "marketplace") as CrmLead["source"],
+        source: (b.source === "manual" ? "manual" : b.source === "telegram" ? "telegram" : "marketplace") as CrmLead["source"],
         customerName: b.customerName,
         customerPhone: b.customerPhone,
         customerEmail: b.customerEmail,

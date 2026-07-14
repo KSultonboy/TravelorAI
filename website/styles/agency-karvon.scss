@@ -293,6 +293,43 @@
   .pkg-abtn.del{ flex:0 0 40px; color:var(--rose); }
   .pkg-abtn.del:hover{ border-color:var(--rose); color:#fff; background:var(--rose); }
 
+  /* telegram */
+  .tg-chat-btn{ width:100%; margin-top:8px; display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; border-radius:9px; border:1px solid #CDE0EC; background:var(--sky-soft); color:#255d7d; font-family:var(--disp); font-size:12px; font-weight:600; cursor:pointer; transition:.13s; }
+  .tg-chat-btn svg{ width:14px; height:14px; }
+  .tg-chat-btn:hover{ background:var(--sky); color:#fff; border-color:var(--sky); }
+  .tg-chat{ width:min(460px,100%); height:min(620px,90vh); display:flex; flex-direction:column; padding:0; overflow:hidden; }
+  .tg-chat-head{ display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--border); }
+  .tg-chat-head b{ font-family:var(--disp); font-size:15px; display:block; }
+  .tg-chat-head small{ color:var(--t2); font-size:12px; }
+  .tg-chat-body{ flex:1; overflow-y:auto; padding:14px 16px; display:flex; flex-direction:column; gap:10px; background:var(--canvas); }
+  .tg-empty{ margin:auto; color:var(--t3); font-size:13px; }
+  .tg-msg{ display:flex; flex-direction:column; max-width:82%; }
+  .tg-msg.in{ align-self:flex-start; align-items:flex-start; }
+  .tg-msg.out{ align-self:flex-end; align-items:flex-end; }
+  .tg-bubble{ padding:8px 12px; border-radius:13px; font-size:13.5px; line-height:1.4; white-space:pre-wrap; word-break:break-word; }
+  .tg-msg.in .tg-bubble{ background:var(--surface); border:1px solid var(--border); border-bottom-left-radius:4px; color:var(--t1); }
+  .tg-msg.out .tg-bubble{ background:var(--primary); color:#fff; border-bottom-right-radius:4px; }
+  .tg-meta{ font-size:10.5px; color:var(--t3); margin-top:3px; }
+  .tg-chat-input{ display:flex; gap:8px; padding:12px 14px; border-top:1px solid var(--border); background:var(--surface); }
+  .tg-chat-input input{ flex:1; border:1px solid var(--border); border-radius:10px; padding:9px 12px; font-family:inherit; font-size:13.5px; outline:none; }
+  .tg-chat-input input:focus{ border-color:var(--primary); }
+  .tg-noreply{ padding:14px; text-align:center; color:var(--t3); font-size:12.5px; border-top:1px solid var(--border); }
+  .tg-set{ padding:18px; }
+  .tg-set-top{ display:flex; align-items:center; gap:13px; }
+  .tg-set-top b{ display:block; font-size:14px; font-weight:600; }
+  .tg-set-top small{ display:block; font-size:12.5px; color:var(--t2); }
+  .tg-ic{ width:44px; height:44px; border-radius:12px; background:var(--sky-soft); color:#255d7d; display:grid; place-items:center; flex-shrink:0; }
+  .tg-connect{ margin-top:14px; }
+  .tg-hint{ font-size:12.5px; color:var(--t2); margin-bottom:8px; }
+  .tg-hint code{ background:var(--canvas); padding:1px 6px; border-radius:5px; font-size:12px; }
+  .tg-connect-row{ display:flex; gap:8px; }
+  .tg-connect-row input{ flex:1; border:1px solid var(--border); border-radius:10px; padding:9px 12px; font-family:inherit; font-size:13.5px; outline:none; }
+  .tg-connect-row input:focus{ border-color:var(--primary); }
+  .tg-welcome{ margin-top:16px; padding-top:16px; border-top:1px solid var(--border); }
+  .tg-welcome label{ font-size:12.5px; font-weight:600; color:var(--t2); display:block; margin-bottom:6px; }
+  .tg-welcome textarea{ width:100%; border:1px solid var(--border); border-radius:10px; padding:9px 12px; font-family:inherit; font-size:13.5px; outline:none; resize:vertical; }
+  .tg-welcome textarea:focus{ border-color:var(--primary); }
+
   /* brand logo */
   .brand .mark.logo{ padding:0; overflow:hidden; background:var(--surface); }
   .brand .mark.logo img{ width:100%; height:100%; object-fit:cover; }
