@@ -3,9 +3,7 @@ const crypto = require('crypto');
 const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { signAgencyToken } = require('../utils/agencyJwt');
-const { verifyGoogleIdToken } = require('../services/auth.service');
-const { sendPushNotification } = require('../services/push.service');
-const { sendEmailChangeCodeEmail, sendEmailChangedNoticeEmail, sendVerificationCodeEmail } = require('../services/email.service');
+const { sendEmailChangeCodeEmail, sendVerificationCodeEmail } = require('../services/email.service');
 const { materializeDataImage } = require('../utils/dataImage');
 const { resolveTourImageUrl } = require('../utils/tourImage');
 const { bookingStatusSchema } = require('../schemas/booking.schema');
@@ -14,7 +12,6 @@ const {
   applicationSchema,
   emailChangeConfirmSchema,
   emailChangeRequestSchema,
-  googleAuthSchema,
   loginSchema,
   registerSchema,
   tourSchema,
@@ -92,6 +89,7 @@ function publicTour(tour) {
   if (!tour) return null;
   return {
     ...tour,
+    imageUrl: resolveTourImageUrl(tour),
     agency: tour.agency ? publicAgency(tour.agency) : undefined,
   };
 }
@@ -146,41 +144,23 @@ async function issueAgencyCode(account, type = 'EMAIL_VERIFICATION') {
     },
   });
 
-  const sendFn =
+  const delivery =
     type === 'EMAIL_CHANGE'
-      ? () =>
-          sendEmailChangeCodeEmail({
-            email: account.email,
-            name: account.email,
-            newEmail: account.pendingEmail,
-            code,
-            expiresInMinutes: CODE_EXPIRES_MINUTES,
-          })
-      : () =>
-          sendVerificationCodeEmail({
-            email: account.email,
-            name: account.email,
-            code,
-            expiresInMinutes: CODE_EXPIRES_MINUTES,
-          });
+      ? await sendEmailChangeCodeEmail({
+          email: account.email,
+          name: account.email,
+          newEmail: account.pendingEmail,
+          code,
+          expiresInMinutes: CODE_EXPIRES_MINUTES,
+        })
+      : await sendVerificationCodeEmail({
+          email: account.email,
+          name: account.email,
+          code,
+          expiresInMinutes: CODE_EXPIRES_MINUTES,
+        });
 
-  // Emailni BLOKLAMASDAN yuboramiz (Gmail SMTP 2-13s olishi mumkin) — javobni
-  // kutdirib qo'ymaymiz; kod allaqachon bazaga yozilgan. Xato bo'lsa logga yozamiz.
-  Promise.resolve()
-    .then(sendFn)
-    .catch((err) =>
-      require('../config/logger').logger.error('Agency email send failed (async)', {
-        type,
-        email: account.email,
-        message: err.message,
-      })
-    );
-
-  const willSendEmail = Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT);
-  return {
-    delivery: willSendEmail ? 'smtp' : 'log',
-    ...(process.env.NODE_ENV !== 'production' && !willSendEmail ? { devCode: code } : {}),
-  };
+  return delivery;
 }
 
 async function consumeAgencyCode(accountId, code, type = 'EMAIL_VERIFICATION') {
@@ -292,9 +272,6 @@ async function confirmEmailChange(req, res) {
           emailChangeRequestedAt: null,
           emailVerified: true,
           emailVerifiedAt: new Date(),
-          // Xavfsizlik: eski Google identifikatorini uzamiz — aks holda eski
-          // Gmail bilan "Continue with Google" hisobga kiraverardi
-          googleId: null,
         },
       }),
       prisma.agencyApplication.updateMany({
@@ -302,9 +279,6 @@ async function confirmEmailChange(req, res) {
         data: { email: account.pendingEmail },
       }),
     ]);
-
-    // Xabarnoma: eski va yangi manzilga (javobni kutmaymiz)
-    sendEmailChangedNoticeEmail({ oldEmail: account.email, newEmail: updated.email }).catch(() => {});
 
     const token = signAgencyToken({ id: updated.id, email: updated.email, role: 'agency' });
     return success(res, {
@@ -428,12 +402,6 @@ async function register(req, res) {
       return error(res, 'Bu email bilan agency akkaunt mavjud. Login qiling.', 409);
     }
 
-    // Cross-check: bu email foydalanuvchi akkaunti sifatida band bo'lmasin (bir email — bir rol).
-    const userAccount = await prisma.user.findUnique({ where: { email } });
-    if (userAccount) {
-      return error(res, 'Bu email foydalanuvchi akkaunti sifatida ro‘yxatdan o‘tgan. Agentlik sifatida ro‘yxatdan o‘tib bo‘lmaydi.', 409);
-    }
-
     const account = existing
       ? await prisma.agencyAccount.update({
           where: { id: existing.id },
@@ -500,59 +468,6 @@ async function login(req, res) {
 
     return success(res, { token, account: publicAccount(updated) });
   } catch (err) {
-    return error(res, err.errors?.[0]?.message || err.message, 400);
-  }
-}
-
-
-async function googleAuth(req, res) {
-  try {
-    const input = googleAuthSchema.parse(req.body || {});
-    const googleProfile = await verifyGoogleIdToken(input.idToken);
-    let account = await prisma.agencyAccount.findFirst({
-      where: {
-        OR: [{ googleId: googleProfile.googleId }, { email: googleProfile.email }],
-      },
-    });
-
-    if (account?.status === 'blocked') {
-      return error(res, 'Agency akkaunt bloklangan', 403);
-    }
-
-    if (!account) {
-      const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
-      account = await prisma.agencyAccount.create({
-        data: {
-          email: googleProfile.email,
-          googleId: googleProfile.googleId,
-          passwordHash,
-          emailVerified: true,
-          emailVerifiedAt: new Date(),
-          lastLoginAt: new Date(),
-          status: 'pending',
-        },
-      });
-    } else {
-      account = await prisma.agencyAccount.update({
-        where: { id: account.id },
-        data: {
-          googleId: account.googleId || googleProfile.googleId,
-          emailVerified: true,
-          emailVerifiedAt: account.emailVerifiedAt || new Date(),
-          lastLoginAt: new Date(),
-        },
-      });
-    }
-
-    const token = signAgencyToken({ id: account.id, email: account.email, role: 'agency' });
-    return success(res, { token, account: publicAccount(account) });
-  } catch (err) {
-    if (err.message === 'GOOGLE_AUDIENCE_MISMATCH') {
-      return error(res, 'Google client ID mos kelmadi.', 401);
-    }
-    if (err.message === 'GOOGLE_EMAIL_NOT_VERIFIED') {
-      return error(res, 'Google akkauntdagi email tasdiqlanmagan.', 401);
-    }
     return error(res, err.errors?.[0]?.message || err.message, 400);
   }
 }
@@ -710,10 +625,6 @@ async function createTour(req, res) {
         description: input.description || null,
         price: input.price || null,
         priceMin: input.priceMin ?? null,
-        priceLockUntil:
-          input.priceLockMinutes && input.priceLockMinutes > 0
-            ? new Date(Date.now() + input.priceLockMinutes * 60000)
-            : null,
         imageUrl: input.imageUrl ? await materializeDataImage(input.imageUrl, 'agency') : null,
         responseTimeMinutes: input.responseTimeMinutes,
         slug,
@@ -749,14 +660,6 @@ async function updateTour(req, res) {
       ...(input.description !== undefined ? { description: input.description || null } : {}),
       ...(input.price !== undefined ? { price: input.price || null } : {}),
       ...(input.priceMin !== undefined ? { priceMin: input.priceMin ?? null } : {}),
-      ...(input.priceLockMinutes !== undefined
-        ? {
-            priceLockUntil:
-              input.priceLockMinutes && input.priceLockMinutes > 0
-                ? new Date(Date.now() + input.priceLockMinutes * 60000)
-                : null,
-          }
-        : {}),
       ...(input.imageUrl !== undefined
         ? { imageUrl: input.imageUrl ? await materializeDataImage(input.imageUrl, 'agency') : null }
         : {}),
@@ -839,40 +742,6 @@ async function listBookings(req, res) {
   }
 }
 
-const BOOKING_PUSH = {
-  confirmed: {
-    title: 'So‘rovingiz qabul qilindi 🎉',
-    body: (t) => `${t} bo‘yicha agentlik so‘rovingizni qabul qildi. Tez orada bog‘lanadi.`,
-  },
-  rejected: {
-    title: 'So‘rov rad etildi',
-    body: (t) => `Afsuski, ${t} bo‘yicha so‘rovingiz rad etildi. Boshqa turlarni ko‘rib chiqing.`,
-  },
-  cancelled: {
-    title: 'So‘rov bekor qilindi',
-    body: (t) => `${t} bo‘yicha so‘rov bekor qilindi.`,
-  },
-  completed: {
-    title: 'Safaringiz yakunlandi ✅',
-    body: (t) => `${t} — sayohatingiz yakunlandi. Fikringizni bildiring!`,
-  },
-};
-
-async function notifyBookingStatus(booking) {
-  if (!booking || !booking.userId) return;
-  const tpl = BOOKING_PUSH[booking.status];
-  if (!tpl) return;
-  const user = await prisma.user.findUnique({ where: { id: booking.userId }, select: { expoPushToken: true } });
-  if (!user || !user.expoPushToken) return;
-  const tourTitle = booking.tour && booking.tour.title ? booking.tour.title : 'Tur';
-  await sendPushNotification({
-    to: user.expoPushToken,
-    title: tpl.title,
-    body: tpl.body(tourTitle),
-    data: { type: 'booking_status', bookingId: booking.id, status: booking.status },
-  });
-}
-
 async function updateBookingStatus(req, res) {
   try {
     const agency = await ensureApprovedAgency(req, res);
@@ -940,6 +809,60 @@ async function updateAgencyProfile(req, res) {
   }
 }
 
+async function createManualLead(req, res) {
+  try {
+    const agency = await ensureApprovedAgency(req, res);
+    if (!agency) return;
+    const b = req.body || {};
+    const name = String(b.customerName || '').trim();
+    if (name.length < 2) return error(res, 'Mijoz ismini kiriting', 400);
+    const est = b.totalEstimate != null && b.totalEstimate !== ''
+      ? Math.max(0, parseInt(String(b.totalEstimate).replace(/[^0-9]/g, ''), 10) || 0) : null;
+    const booking = await prisma.tourBooking.create({
+      data: {
+        agencyId: agency.id,
+        tourId: null,
+        customerName: name,
+        customerPhone: b.customerPhone ? String(b.customerPhone).trim() : null,
+        customerEmail: b.customerEmail ? String(b.customerEmail).trim().toLowerCase() : null,
+        travelers: b.travelers ? Math.max(1, parseInt(b.travelers, 10) || 1) : 1,
+        leadTour: b.leadTour ? String(b.leadTour).trim() : (b.tourTitle ? String(b.tourTitle).trim() : null),
+        message: b.message ? String(b.message).trim() : null,
+        totalEstimate: est,
+        currency: 'USD',
+        source: 'manual',
+        status: 'pending',
+        pipelineStage: 'new',
+      },
+      include: { tour: true, agency: true },
+    });
+    return success(res, { booking: formatBooking(booking) }, 201);
+  } catch (err) {
+    return error(res, err.message, 400);
+  }
+}
+
+async function updatePipelineStage(req, res) {
+  try {
+    const agency = await ensureApprovedAgency(req, res);
+    if (!agency) return;
+    const STAGES = ['new', 'contacted', 'quoted', 'won', 'completed', 'lost'];
+    const stage = String(req.body && req.body.stage || '').trim();
+    if (!STAGES.includes(stage)) return error(res, 'Notogri bosqich', 400);
+    const existing = await prisma.tourBooking.findFirst({ where: { id: req.params.id, agencyId: agency.id } });
+    if (!existing) return error(res, 'Lid topilmadi', 404);
+    const now = new Date();
+    const data = { pipelineStage: stage };
+    if (stage === 'won') { data.status = 'confirmed'; if (!existing.confirmedAt) data.confirmedAt = now; }
+    else if (stage === 'completed') { data.status = 'completed'; if (!existing.confirmedAt) data.confirmedAt = now; data.completedAt = now; }
+    else if (stage === 'lost') { data.status = 'rejected'; data.rejectedAt = now; }
+    const updated = await prisma.tourBooking.update({ where: { id: existing.id }, data, include: { tour: true, agency: true } });
+    return success(res, { booking: formatBooking(updated), stats: await getBookingStats(agency.id) });
+  } catch (err) {
+    return error(res, (err.errors && err.errors[0] && err.errors[0].message) || err.message, 400);
+  }
+}
+
 async function deleteTour(req, res) {
   try {
     const agency = await ensureApprovedAgency(req, res);
@@ -959,7 +882,6 @@ async function deleteTour(req, res) {
 
 module.exports = {
   ensureApprovedAgency,
-  googleAuth,
   register,
   verifyEmail,
   requestEmailChange,
@@ -978,5 +900,7 @@ module.exports = {
   submitTour,
   listBookings,
   updateBookingStatus,
+  createManualLead,
+  updatePipelineStage,
   deleteTour,
 };

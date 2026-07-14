@@ -4,7 +4,6 @@ const { adminReviewSchema } = require('../schemas/agency.schema');
 const { bookingStatusSchema } = require('../schemas/booking.schema');
 const { formatBooking } = require('./bookings.controller');
 const { resolveTourImageUrl } = require('../utils/tourImage');
-const { sendPushNotification } = require('../services/push.service');
 const crypto = require('crypto');
 const fs = require('fs/promises');
 const path = require('path');
@@ -1142,27 +1141,6 @@ async function updateBookingStatus(req, res) {
       include: { tour: true, agency: true },
     });
 
-    // Foydalanuvchiga push (token bor bo'lsa) — fire-and-forget
-    if (updated.userId) {
-      const labels = { confirmed: 'qabul qilindi', rejected: 'rad etildi', cancelled: 'bekor qilindi', completed: 'yakunlandi' };
-      const label = labels[updated.status];
-      if (label) {
-        prisma.user
-          .findUnique({ where: { id: updated.userId }, select: { expoPushToken: true } })
-          .then((user) => {
-            if (user?.expoPushToken) {
-              return sendPushNotification({
-                to: user.expoPushToken,
-                title: 'Booking holati yangilandi',
-                body: `${updated.tour?.title || 'Tur'} bo‘yicha so‘rovingiz ${label}.`,
-                data: { type: 'booking_status', bookingId: updated.id, status: updated.status },
-              });
-            }
-          })
-          .catch(() => {});
-      }
-    }
-
     return success(res, { booking: formatBooking(updated) });
   } catch (err) {
     return error(res, err.errors?.[0]?.message || err.message, 400);
@@ -1474,133 +1452,7 @@ async function deleteFeedback(req, res) {
   }
 }
 
-// ===== Yangi premium admin panel endpointlari =====
-async function updateFeedbackStatus(req, res) {
-  try {
-    const next = String(req.body?.status || '').toLowerCase() === 'resolved' ? 'resolved' : 'new';
-    const item = await prisma.feedback.update({ where: { id: req.params.id }, data: { status: next } });
-    return success(res, { id: item.id, status: item.status });
-  } catch (err) {
-    return error(res, err.message, 500);
-  }
-}
-
-async function deleteAdminTour(req, res) {
-  try {
-    await prisma.tour.delete({ where: { id: req.params.id } });
-    return success(res, { deleted: true });
-  } catch (err) {
-    return error(res, err.message, 500);
-  }
-}
-
-async function getReviews(req, res) {
-  try {
-    const items = await prisma.tripReview.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-      include: {
-        user: { select: { name: true, email: true } },
-        trip: { select: { title: true } },
-      },
-    });
-    return success(res, {
-      items: items.map((r) => ({
-        id: r.id,
-        rating: r.rating,
-        comment: r.comment,
-        createdAt: r.createdAt,
-        author: r.user?.name || 'Foydalanuvchi',
-        authorEmail: r.user?.email || null,
-        tourTitle: r.trip?.title || 'Sayohat',
-      })),
-      total: items.length,
-    });
-  } catch (err) {
-    return error(res, err.message, 500);
-  }
-}
-
-async function deleteReview(req, res) {
-  try {
-    await prisma.tripReview.delete({ where: { id: req.params.id } });
-    return success(res, { deleted: true });
-  } catch (err) {
-    return error(res, err.message, 500);
-  }
-}
-
-async function getReports(req, res) {
-  try {
-    const COMMISSION = 0.05;
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const [bookings, statusGroups, paidCount, last30] = await Promise.all([
-      prisma.tourBooking.findMany({
-        select: { totalEstimate: true, status: true, tourId: true, tour: { select: { title: true, city: true } } },
-      }),
-      prisma.tourBooking.groupBy({ by: ['status'], _count: { _all: true } }),
-      prisma.tourBooking.count({ where: { status: { in: ['confirmed', 'completed'] } } }),
-      prisma.tourBooking.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
-    ]);
-
-    const paid = bookings.filter((b) => b.status === 'confirmed' || b.status === 'completed');
-    const totalRevenue = paid.reduce((s, b) => s + (b.totalEstimate || 0), 0);
-    const tourMap = {};
-    for (const b of paid) {
-      if (!tourMap[b.tourId]) tourMap[b.tourId] = { title: b.tour?.title || 'Tur', city: b.tour?.city || '', bookings: 0, revenue: 0 };
-      tourMap[b.tourId].bookings += 1;
-      tourMap[b.tourId].revenue += b.totalEstimate || 0;
-    }
-    const topTours = Object.values(tourMap).sort((a, b) => b.revenue - a.revenue).slice(0, 8);
-
-    return success(res, {
-      totalRevenue,
-      commission: Math.round(totalRevenue * COMMISSION),
-      commissionRate: COMMISSION,
-      paidBookings: paidCount,
-      last30Days: last30,
-      byStatus: statusGroups.map((g) => ({ status: g.status, count: g._count._all })),
-      topTours,
-      currency: 'USD',
-    });
-  } catch (err) {
-    return error(res, err.message, 500);
-  }
-}
-
-async function createPartner(req, res) {
-  try {
-    const bcrypt = require('bcryptjs');
-    const email = String(req.body?.email || '').trim().toLowerCase();
-    const password = String(req.body?.password || '');
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || password.length < 8) {
-      return error(res, 'Email va kamida 8 belgili parol majburiy.', 422);
-    }
-    const exists = await prisma.agencyAccount.findUnique({ where: { email } });
-    if (exists) return error(res, 'Bu email bilan hamkor allaqachon mavjud.', 409);
-    const userExists = await prisma.user.findUnique({ where: { email } });
-    if (userExists) return error(res, 'Bu email foydalanuvchi sifatida ro‘yxatdan o‘tgan.', 409);
-
-    const passwordHash = await bcrypt.hash(password, 10);
-    const account = await prisma.agencyAccount.create({
-      data: { email, passwordHash, status: 'approved', emailVerified: true, emailVerifiedAt: new Date() },
-    });
-    return success(res, { id: account.id, email: account.email, status: account.status }, 201);
-  } catch (err) {
-    return error(res, err.message, 500);
-  }
-}
-
-// Admin panel sessiyasini tekshirish (AdminGate uchun) — JWT(role=admin) yetarli.
-async function adminMe(req, res) {
-  const u = req.adminUser || {};
-  return success(res, { user: { name: u.username || 'Admin', username: u.username || 'admin', email: u.email || '', role: 'admin' } });
-}
-
 module.exports = {
-  adminMe,
   getStats,
   getUsers, getUser, blockUser, deleteUser,
   getTrips, getTrip, deleteTrip,
@@ -1614,5 +1466,4 @@ module.exports = {
   getTransportProviders, createTransportProvider, updateTransportProvider, deleteTransportProvider,
   getTransportRoutes, createTransportRoute, updateTransportRoute, deleteTransportRoute,
   getFeedback, deleteFeedback,
-  updateFeedbackStatus, deleteAdminTour, getReviews, deleteReview, getReports, createPartner,
 };

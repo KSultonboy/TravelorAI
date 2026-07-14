@@ -69,17 +69,6 @@ async function register(req, res) {
       });
     }
 
-    // Cross-check: bu email agentlik akkaunti sifatida band bo'lmasin (bir email — bir rol).
-    const agencyAccount = await prisma.agencyAccount.findUnique({ where: { email: normalizedEmail } });
-    if (agencyAccount?.emailVerified) {
-      return error(
-        res,
-        'Bu email agentlik akkaunti sifatida ro‘yxatdan o‘tgan. Foydalanuvchi sifatida ro‘yxatdan o‘tib bo‘lmaydi.',
-        409,
-        { accountType: 'agency' }
-      );
-    }
-
     const hashedPassword = await bcrypt.hash(password, PASSWORD_SALT_ROUNDS);
 
     const user = await prisma.user.create({
@@ -227,46 +216,6 @@ async function login(req, res) {
   }
 }
 
-// ===== Admin panel auth: login + parol → JWT (role=admin). Email/2FA yo'q. =====
-async function adminLogin(req, res) {
-  try {
-    const username = String(req.body.username || req.body.email || '').trim();
-    const password = String(req.body.password || '');
-    const expectedUser = process.env.ADMIN_USERNAME || 'admin';
-    const expectedPass = process.env.ADMIN_PASSWORD || 'admin123';
-    if (username !== expectedUser || password !== expectedPass) {
-      return error(res, 'Login yoki parol noto\'g\'ri.', 401);
-    }
-    const token = signToken({ role: 'admin', username, admin: true });
-    return success(res, { token, user: { name: username, username, role: 'admin' } });
-  } catch (err) {
-    return error(res, err.message, 500);
-  }
-}
-
-async function adminLoginVerify(req, res) {
-  try {
-    const normalizedEmail = normalizeEmail(req.body.email || '');
-    const code = String(req.body.code || '').trim();
-    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-    if (!user || user.role !== 'admin') {
-      return error(res, 'Admin hisob topilmadi.', 403);
-    }
-    try {
-      await consumeAuthCode({ userId: user.id, type: AuthCodeType.EMAIL_VERIFICATION, code });
-    } catch (codeErr) {
-      return mapCodeError(res, codeErr);
-    }
-    const updated = await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-    return success(res, {
-      token: signToken({ id: updated.id, email: updated.email, role: 'admin' }),
-      user: { ...buildPublicUser(updated), role: 'admin' },
-    });
-  } catch (err) {
-    return error(res, err.message, 500);
-  }
-}
-
 async function forgotPassword(req, res) {
   try {
     const normalizedEmail = normalizeEmail(req.body.email);
@@ -300,8 +249,6 @@ async function resetPassword(req, res) {
       return error(res, 'Foydalanuvchi topilmadi.', 404);
     }
 
-    // Google orqali ochilgan hisob (paroli yo'q) ham email kodi orqali parol o'rnatishi mumkin —
-    // shunda hisob ham Google, ham email+parol bilan kiradigan bo'ladi (account linking).
     try {
       await consumeAuthCode({ userId: user.id, type: AuthCodeType.PASSWORD_RESET, code });
     } catch (err) {
@@ -341,18 +288,6 @@ async function googleAuth(req, res) {
       })) || null;
 
     if (!user) {
-      // Cross-check: agentlik emaili Google orqali ham foydalanuvchi akkauntini yaratmasin.
-      const agencyAccount = await prisma.agencyAccount.findUnique({
-        where: { email: normalizeEmail(googleProfile.email) },
-      });
-      if (agencyAccount?.emailVerified) {
-        return error(
-          res,
-          'Bu email agentlik akkaunti sifatida ro‘yxatdan o‘tgan. Agentlik portalidan kiring.',
-          409,
-          { accountType: 'agency' }
-        );
-      }
       user = await prisma.user.create({
         data: {
           name: googleProfile.name,
@@ -387,9 +322,6 @@ async function googleAuth(req, res) {
     }
 
     if (err.message === 'GOOGLE_AUDIENCE_MISMATCH') {
-      try {
-        require('../config/logger').logger.warn('GOOGLE_AUDIENCE_MISMATCH', err.meta || {});
-      } catch {}
       return error(res, 'Google client ID mos kelmadi. Android OAuth client (package + SHA-1) ni tekshiring.', 401, err.meta || undefined);
     }
 
@@ -647,20 +579,6 @@ async function deleteAccount(req, res) {
   }
 }
 
-
-async function savePushToken(req, res) {
-  try {
-    const token = String((req.body && req.body.token) || '').trim();
-    if (token.length < 20) {
-      return error(res, 'Yaroqsiz push token', 400);
-    }
-    await prisma.user.update({ where: { id: req.user.id }, data: { expoPushToken: token } });
-    return success(res, { saved: true });
-  } catch (err) {
-    return error(res, err.message, 500);
-  }
-}
-
 module.exports = {
   register,
   verifyEmail,
@@ -669,8 +587,6 @@ module.exports = {
   forgotPassword,
   resetPassword,
   googleAuth,
-  adminLogin,
-  adminLoginVerify,
   updateProfile,
   getMe,
   getPreferences,
@@ -679,5 +595,4 @@ module.exports = {
   verifyEmailChange,
   requestAccountDeletion,
   deleteAccount,
-  savePushToken,
 };

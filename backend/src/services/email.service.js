@@ -22,14 +22,6 @@ function getTransporter() {
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT),
       secure: String(process.env.SMTP_SECURE || 'false') === 'true',
-      // Hang'lardan himoya: SMTP sekin bo'lsa cheksiz kutib qolmasin.
-      connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT || 10000),
-      greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT || 10000),
-      socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT || 20000),
-      // Ulanishni qayta ishlatish — har email uchun yangi TLS handshake (sekin) qilmaslik.
-      pool: true,
-      maxConnections: Number(process.env.SMTP_MAX_CONNECTIONS || 3),
-      maxMessages: Number(process.env.SMTP_MAX_MESSAGES || 50),
       ...(SMTP_ALLOW_INVALID_TLS ? { tls: { rejectUnauthorized: false } } : {}),
       auth: process.env.SMTP_USER
         ? {
@@ -139,34 +131,6 @@ async function sendEmailChangeCodeEmail({ email, name, code, expiresInMinutes, n
     text: `Email almashtirish kodi: ${code}. Yangi email: ${safeText(newEmail)}. Kod ${expiresInMinutes} daqiqa amal qiladi.`,
     logMeta: { type: 'agency_email_change', code, email, newEmail: safeText(newEmail) },
   });
-}
-
-// Email almashtirish YAKUNLANGANDA xabarnoma — eski va yangi manzilga (kodsiz)
-async function sendEmailChangedNoticeEmail({ oldEmail, newEmail }) {
-  const html = `
-    <div style="font-family:Arial,sans-serif;background:#f4f7f5;padding:24px;">
-      <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:20px;padding:32px;border:1px solid #eaf0eb;">
-        <p style="margin:0 0 8px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#1a6b3c;">${APP_NAME}</p>
-        <h1 style="margin:0 0 12px;font-size:24px;color:#122117;">Email muvaffaqiyatli o'zgartirildi ✅</h1>
-        <p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#4f6355;">
-          Agency akkauntingiz login emaili <b>${safeText(oldEmail)}</b> dan <b>${safeText(newEmail)}</b> ga almashtirildi.
-          Endi tizimga yangi email bilan kirasiz.
-        </p>
-        <p style="margin:0 0 10px;font-size:13px;line-height:1.7;color:#7c8a81;">
-          Eslatma: Google orqali kirish eski hisobdan uzildi — Google bilan kirish uchun endi yangi emailingizdagi Google akkauntdan foydalaning.
-        </p>
-        <p style="margin:0;font-size:13px;line-height:1.7;color:#7c8a81;">
-          Agar bu o'zgarishni siz qilmagan bo'lsangiz, darhol support bilan bog'laning: ${SUPPORT_EMAIL}
-        </p>
-      </div>
-    </div>
-  `;
-  const text = `Agency login emailingiz ${safeText(oldEmail)} dan ${safeText(newEmail)} ga almashtirildi. Bu siz bo'lmasangiz: ${SUPPORT_EMAIL}`;
-  const results = await Promise.allSettled([
-    sendMail({ to: newEmail, subject: `${APP_NAME} — email o'zgartirildi`, html, text, logMeta: { type: 'agency_email_changed_notice', email: newEmail } }),
-    sendMail({ to: oldEmail, subject: `${APP_NAME} — email o'zgartirildi`, html, text, logMeta: { type: 'agency_email_changed_notice', email: oldEmail } }),
-  ]);
-  return results;
 }
 
 async function sendPasswordResetCodeEmail({ email, name, code, expiresInMinutes }) {
@@ -299,7 +263,7 @@ async function sendBookingLeadEmail({ to, agencyName, tourTitle, customerName, c
           </ul>
           ${message ? `<p style="margin:12px 0 0;font-size:14px;color:#1c2b22;white-space:pre-wrap;">"${safeText(message)}"</p>` : ''}
         </div>
-        <p style="margin:18px 0 0;font-size:13px;color:#6f7b74;">Mijoz bilan telefon yoki Telegram orqali bog'laning. Portal: travelorai.com/agency</p>
+        <p style="margin:18px 0 0;font-size:13px;color:#6f7b74;">Mijoz bilan telefon yoki Telegram orqali bog'laning. Portal: agency.travelorai.com</p>
       </div>
     </div>
   `;
@@ -321,7 +285,6 @@ async function sendBookingLeadEmail({ to, agencyName, tourTitle, customerName, c
 module.exports = {
   sendVerificationCodeEmail,
   sendEmailChangeCodeEmail,
-  sendEmailChangedNoticeEmail,
   sendPasswordResetCodeEmail,
   sendAccountDeleteCodeEmail,
   sendSupportFeedbackEmail,

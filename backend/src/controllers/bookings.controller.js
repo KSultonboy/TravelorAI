@@ -21,6 +21,8 @@ function formatBooking(booking) {
     totalEstimate: booking.totalEstimate,
     currency: booking.currency,
     source: booking.source,
+    pipelineStage: booking.pipelineStage || 'new',
+    leadTour: booking.leadTour || null,
     agencyNote: booking.agencyNote,
     adminNote: booking.adminNote,
     confirmedAt: booking.confirmedAt,

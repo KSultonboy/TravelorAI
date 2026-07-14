@@ -130,12 +130,7 @@ const tourSchema = z.object({
   destinationCountry: optionalText,
   tourGroup: optionalText,
   nights: z.coerce.number().int().nonnegative().optional().nullable(),
-  days: z.coerce.number().int().nonnegative().optional().nullable(),
   hotelIncluded: z.coerce.boolean().optional().default(false),
-  flightIncluded: z.coerce.boolean().optional().default(false),
-  discount: optionalText,
-  priceBasisPeople: z.coerce.number().int().positive().optional().nullable(),
-  priceLockMinutes: z.coerce.number().int().nonnegative().max(100000).optional().nullable(),
   hotelName: optionalText,
   hotelCategory: optionalText,
   hotelLocation: optionalText,
@@ -152,16 +147,11 @@ const tourSchema = z.object({
   priceExcludes: stringList,
 });
 
-const googleAuthSchema = z.object({
-  idToken: z.string().trim().min(10, 'Google idToken talab qilinadi'),
-});
-
 const adminReviewSchema = z.object({
   adminNote: z.string().trim().max(800).optional().or(z.literal('')),
 });
 
 module.exports = {
-  googleAuthSchema,
   registerSchema,
   verifyEmailSchema,
   emailChangeRequestSchema,

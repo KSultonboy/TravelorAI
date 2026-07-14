@@ -6,7 +6,6 @@ const telegram = require('../controllers/telegram.controller');
 router.post('/auth/register', agency.register);
 router.post('/auth/verify-email', agency.verifyEmail);
 router.post('/auth/login', agency.login);
-router.post('/auth/google', agency.googleAuth);
 
 router.use(agencyAuthMiddleware);
 
@@ -29,6 +28,8 @@ router.delete('/tours/:id', agency.deleteTour);
 
 router.get('/bookings', agency.listBookings);
 router.patch('/bookings/:id/status', agency.updateBookingStatus);
+router.post('/leads', agency.createManualLead);
+router.patch('/bookings/:id/stage', agency.updatePipelineStage);
 
 router.get('/telegram', telegram.getTelegram);
 router.post('/telegram/connect', telegram.connectTelegram);

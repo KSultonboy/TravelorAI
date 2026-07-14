@@ -7,8 +7,6 @@ const {
   forgotPassword,
   resetPassword,
   googleAuth,
-  adminLogin,
-  adminLoginVerify,
   updateProfile,
   getMe,
   getPreferences,
@@ -17,7 +15,6 @@ const {
   verifyEmailChange,
   requestAccountDeletion,
   deleteAccount,
-  savePushToken,
 } = require('../controllers/auth.controller');
 const { authMiddleware } = require('../middleware/auth.middleware');
 const { validate } = require('../middleware/validate.middleware');
@@ -44,8 +41,6 @@ router.post('/login', validate(loginSchema), login);
 router.post('/forgot-password', validate(forgotPasswordSchema), forgotPassword);
 router.post('/reset-password', validate(resetPasswordSchema), resetPassword);
 router.post('/google', validate(googleAuthSchema), googleAuth);
-router.post('/admin/login', adminLogin);
-router.post('/admin/login/verify', adminLoginVerify);
 router.get('/me', authMiddleware, getMe);
 router.put('/profile', authMiddleware, validate(profileSchema), updateProfile);
 router.get('/preferences', authMiddleware, getPreferences);
@@ -53,7 +48,6 @@ router.put('/preferences', authMiddleware, validate(preferencesSchema), updatePr
 router.post('/email-change/request', authMiddleware, validate(requestEmailChangeSchema), requestEmailChange);
 router.post('/email-change/verify', authMiddleware, validate(verifyEmailChangeSchema), verifyEmailChange);
 router.post('/account-deletion/request', authMiddleware, validate(requestAccountDeletionSchema), requestAccountDeletion);
-router.post('/push-token', authMiddleware, savePushToken);
 router.delete('/account', authMiddleware, validate(deleteAccountSchema), deleteAccount);
 
 module.exports = router;

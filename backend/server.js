@@ -1,4 +1,4 @@
-require('dotenv').config({ override: true });
+require('dotenv').config();
 
 if (process.env.NODE_ENV !== 'production') {
   process.env.DATABASE_URL ||= 'postgresql://travelorai:travelorai_pass@localhost:5433/travelorai_db';

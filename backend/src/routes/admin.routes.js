@@ -4,7 +4,6 @@ const admin = require('../controllers/admin.controller');
 
 router.use(adminAuthMiddleware);
 
-router.get('/me', admin.adminMe);
 router.get('/stats', admin.getStats);
 
 router.get('/users', admin.getUsers);
@@ -59,13 +58,5 @@ router.delete('/transport/routes/:id', admin.deleteTransportRoute);
 
 router.get('/feedback', admin.getFeedback);
 router.delete('/feedback/:id', admin.deleteFeedback);
-router.patch('/feedback/:id/status', admin.updateFeedbackStatus);
-
-// Premium admin panel qo'shimcha endpointlari
-router.get('/reports', admin.getReports);
-router.get('/reviews', admin.getReviews);
-router.delete('/reviews/:id', admin.deleteReview);
-router.delete('/tours/:id', admin.deleteAdminTour);
-router.post('/business', admin.createPartner);
 
 module.exports = router;

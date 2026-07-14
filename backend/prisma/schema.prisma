@@ -43,8 +43,6 @@ model User {
   emailVerifiedAt DateTime?
   lastLoginAt     DateTime?
   blocked         Boolean         @default(false)
-  role            String          @default("traveler")
-  expoPushToken   String?
   emailChangeResendCount   Int      @default(0)
   emailChangeRequestedAt   DateTime?
   accountDeleteResendCount Int      @default(0)
@@ -79,7 +77,6 @@ model AgencyAccount {
   email                  String              @unique
   pendingEmail           String?             @unique
   passwordHash           String
-  googleId               String?             @unique
   emailVerified          Boolean             @default(false)
   emailVerifiedAt        DateTime?
   emailChangeResendCount Int                 @default(0)
@@ -461,12 +458,6 @@ model Tour {
   promo               Boolean       @default(false)
   priceIncludes       String[]      @default([])
   priceExcludes       String[]      @default([])
-  days                Int?
-  flightIncluded      Boolean       @default(false)
-  discount            String?
-  priceBasisPeople    Int?
-  priceLockMinutes    Int?
-  priceLockUntil      DateTime?
   active              Boolean       @default(true)
   agencyId            String?
   agency              TourAgency?   @relation(fields: [agencyId], references: [id], onDelete: SetNull)
@@ -494,8 +485,8 @@ model Tour {
 
 model TourBooking {
   id                 String      @id @default(cuid())
-  tourId             String
-  tour               Tour        @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  tourId             String?
+  tour               Tour?       @relation(fields: [tourId], references: [id], onDelete: Cascade)
   agencyId           String?
   agency             TourAgency? @relation(fields: [agencyId], references: [id], onDelete: SetNull)
   userId             String?
@@ -519,6 +510,10 @@ model TourBooking {
   completedAt        DateTime?
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
+
+  pipelineStage      String      @default("new")
+  leadTour           String?
+  telegramChatId     String?
 
   @@index([tourId])
   @@index([agencyId, status])
@@ -554,7 +549,6 @@ model Feedback {
   contactEmail String?
   platform     String?
   appVersion   String?
-  status       String           @default("new")
   createdAt    DateTime         @default(now())
 
   @@index([userId])
