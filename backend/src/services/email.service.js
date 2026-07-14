@@ -299,7 +299,7 @@ async function sendBookingLeadEmail({ to, agencyName, tourTitle, customerName, c
           </ul>
           ${message ? `<p style="margin:12px 0 0;font-size:14px;color:#1c2b22;white-space:pre-wrap;">"${safeText(message)}"</p>` : ''}
         </div>
-        <p style="margin:18px 0 0;font-size:13px;color:#6f7b74;">Mijoz bilan telefon yoki Telegram orqali bog'laning. Portal: agency.travelorai.com</p>
+        <p style="margin:18px 0 0;font-size:13px;color:#6f7b74;">Mijoz bilan telefon yoki Telegram orqali bog'laning. Portal: travelorai.com/agency</p>
       </div>
     </div>
   `;
