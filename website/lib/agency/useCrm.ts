@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { agencyApi } from "./api";
 import { useAgencySession } from "./session";
+import { pushNotif } from "./notify";
 import type { BookingStats } from "./types";
 import {
   buildCustomers,
@@ -47,11 +48,17 @@ export function useCrm() {
       if (result.success) {
         await refreshBookings();
         await refresh(true);
+        const sub = `${lead.customerName}${lead.tourTitle ? ` • ${lead.tourTitle}` : ""}`;
+        if (target === "won") pushNotif(agencyId, { kind: "stage", stage: target, title: "Kelishuv yopildi", sub });
+        else if (target === "completed") pushNotif(agencyId, { kind: "payment", stage: target, title: "To'lov qabul qilindi", sub });
+        else if (target === "lost") pushNotif(agencyId, { kind: "stage", stage: target, title: "Lid yo'qotildi", sub });
+        else if (target === "contacted") pushNotif(agencyId, { kind: "stage", stage: target, title: "Mijoz bilan bog'lanildi", sub });
+        else if (target === "quoted") pushNotif(agencyId, { kind: "stage", stage: target, title: "Taklif yuborildi", sub });
       }
       setBusyId("");
       return result.success;
     },
-    [refreshBookings, refresh]
+    [refreshBookings, refresh, agencyId]
   );
 
   return { agencyId, leads, hiddenLeads, tasks, customers, move, busyId };

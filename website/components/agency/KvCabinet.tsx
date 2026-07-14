@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAgencySession } from "@/lib/agency/session";
 import { useCrm } from "@/lib/agency/useCrm";
-import { agencyApi, formatMoney, formatDate, statusLabel } from "@/lib/agency/api";
+import { agencyApi, formatMoney, formatDate, statusLabel, readImage } from "@/lib/agency/api";
+import { getNotifs, markRead, markAllRead, pushNotif, seedNotifs, type KvNotif } from "@/lib/agency/notify";
 import {
   CRM_STAGES,
   toggleTask,
@@ -61,8 +62,106 @@ const PKG_GRADS = [
   "linear-gradient(135deg,#B5761A,#8A5A08)",
 ];
 
+const NOTIF_KIND: Record<string, string> = {
+  new: "Yangi lid keldi",
+  contacted: "Mijoz bilan bog'lanildi",
+  quoted: "Taklif yuborildi",
+  won: "Kelishuv yopildi",
+  completed: "Sayohat yakunlandi",
+  lost: "Lid yo'qotildi",
+};
+
+function notifDot(n: KvNotif) {
+  if (n.kind === "payment" || n.kind === "booking") return "s-won";
+  if (n.kind === "tour") return "s-quoted";
+  return `s-${n.stage || "new"}`;
+}
+
+function NotificationBell({ agencyId, leads, go }: { agencyId: string; leads: CrmLead[]; go: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<KvNotif[]>([]);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!agencyId || agencyId === "anon") return;
+    const seenKey = `kv_seen_${agencyId}`;
+    let seen: string[] | null = null;
+    try { const raw = window.localStorage.getItem(seenKey); seen = raw ? JSON.parse(raw) : null; } catch { seen = null; }
+    if (seen === null) {
+      // birinchi ochilish: feed'ni mavjud lidlardan to'ldiramiz, spam qilmaymiz
+      const recent = [...leads].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).slice(0, 8);
+      seedNotifs(agencyId, recent.map((l) => ({
+        kind: "lead" as const,
+        stage: l.stage,
+        title: NOTIF_KIND[l.stage] || "Lid yangilandi",
+        sub: `${l.customerName}${l.tourTitle ? ` • ${l.tourTitle}` : ""}`,
+        ts: new Date(l.createdAt || Date.now()).getTime(),
+        read: l.stage !== "new",
+      })));
+    } else {
+      // yangi lid keldi (qo'lda yoki marketplace) — seen ro'yxatida yo'q bo'lsa
+      const known = new Set(seen);
+      for (const l of leads) {
+        if (l.stage === "new" && !known.has(l.id)) {
+          pushNotif(agencyId, { kind: "lead", stage: "new", title: "Yangi lid keldi", sub: `${l.customerName}${l.tourTitle ? ` • ${l.tourTitle}` : ""}` });
+        }
+      }
+    }
+    try { window.localStorage.setItem(seenKey, JSON.stringify(leads.map((l) => l.id))); } catch { /* ignore */ }
+    const sync = () => setItems(getNotifs(agencyId));
+    sync();
+    window.addEventListener("kv:notif", sync);
+    return () => window.removeEventListener("kv:notif", sync);
+  }, [agencyId, leads]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("pointerdown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+
+  const unread = items.filter((n) => !n.read).length;
+
+  return (
+    <div className={`notif${open ? " open" : ""}`} ref={ref} onPointerDown={(e) => e.stopPropagation()}>
+      <button className="icon-btn" aria-label="Bildirishnomalar" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        {unread > 0 ? <span className="nbadge">{unread > 9 ? "9+" : unread}</span> : null}
+        <Ic d={I.bell} s={19} />
+      </button>
+      <div className="notif-menu" role="menu">
+        <div className="notif-head"><b>Bildirishnomalar</b>{unread > 0 ? <button className="notif-allread" onClick={() => markAllRead(agencyId)}>Barchasini o&apos;qish</button> : null}</div>
+        <div className="notif-list">
+          {items.length === 0 ? (
+            <div className="notif-empty">Hozircha bildirishnoma yo&apos;q</div>
+          ) : (
+            items.map((n) => (
+              <div key={n.id} className={`notif-item${n.read ? " read" : ""}`}>
+                <span className={`kdot ${notifDot(n)}`} />
+                <button className="notif-tx" onClick={() => { markRead(agencyId, n.id); setOpen(false); go("leads"); }}>
+                  <b>{n.title}</b>
+                  {n.sub ? <small>{n.sub}</small> : null}
+                  <time>{timeAgo(new Date(n.ts).toISOString())}</time>
+                </button>
+                {!n.read ? (
+                  <button className="notif-ack" title="Ko'rib chiqildi" aria-label="Ko'rib chiqildi" onClick={() => markRead(agencyId, n.id)}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                  </button>
+                ) : null}
+              </div>
+            ))
+          )}
+        </div>
+        <button className="notif-foot" onClick={() => { setOpen(false); go("leads"); }}>Barcha lidlar &rarr;</button>
+      </div>
+    </div>
+  );
+}
+
 export default function KvCabinet() {
-  const { phase, me, tours, bookings, bookingStats, logout, refreshBookings } = useAgencySession();
+  const { phase, me, tours, bookings, bookingStats, logout, refresh, refreshBookings, refreshTours } = useAgencySession();
   const { agencyId, leads, tasks, customers, move, busyId } = useCrm();
   const [view, setView] = useState("dashboard");
   const [showAdd, setShowAdd] = useState(false);
@@ -99,8 +198,10 @@ export default function KvCabinet() {
         {/* ===== sidebar ===== */}
         <aside className="sidebar">
           <div className="brand">
-            <div className="mark"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#EAB308" strokeWidth="2" strokeLinecap="round"><path d="M4 17c3-7 6-7 8-7s5 0 8-7" strokeDasharray="1.5 3" /><circle cx="4" cy="17" r="2" fill="#EAB308" stroke="none" /><circle cx="20" cy="10" r="2" fill="#EAB308" stroke="none" /></svg></div>
-            <div><b>TravelorAI</b><small>Sayohat CRM</small></div>
+            {agency?.imageUrl
+              ? <div className="mark logo"><img src={agency.imageUrl} alt="" /></div>
+              : <div className="mark"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#EAB308" strokeWidth="2" strokeLinecap="round"><path d="M4 17c3-7 6-7 8-7s5 0 8-7" strokeDasharray="1.5 3" /><circle cx="4" cy="17" r="2" fill="#EAB308" stroke="none" /><circle cx="20" cy="10" r="2" fill="#EAB308" stroke="none" /></svg></div>}
+            <div><b>{agency?.name || "TravelorAI"}</b><small>Sayohat CRM</small></div>
           </div>
           {["Asosiy", "Sotuv", "Boshqa"].map((g) => (
             <div className="nav-group" key={g}>
@@ -124,9 +225,8 @@ export default function KvCabinet() {
         <div className="main">
           <header className="topbar">
             <h1>{TITLES[view]}</h1>
-            <div className="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m20 20-3-3" /></svg><input placeholder="Mijoz, bron yoki lid qidirish..." aria-label="Qidirish" /></div>
             <div className="top-actions">
-              <button className="icon-btn" aria-label="Bildirishnomalar">{openLeads > 0 ? <span className="dot" /> : null}<Ic d={I.bell} s={19} /></button>
+              <NotificationBell agencyId={agencyId} leads={leads} go={setView} />
               <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Ic d={I.plus} s={16} /> Yangi lid</button>
             </div>
           </header>
@@ -135,16 +235,16 @@ export default function KvCabinet() {
             <Dashboard show={view === "dashboard"} leads={leads} tasks={tasks} stats={bookingStats} agencyId={agencyId} go={setView} />
             <Leads show={view === "leads"} leads={leads} move={move} busyId={busyId} dragId={dragId} setDragId={setDragId} over={over} setOver={setOver} />
             <Customers show={view === "customers"} customers={customers} />
-            <Packages show={view === "packages"} tours={tours} />
-            <Bookings show={view === "bookings"} bookings={bookings} />
-            <Payments show={view === "payments"} leads={leads} />
+            <Packages show={view === "packages"} tours={tours} agencyId={agencyId} refreshTours={refreshTours} />
+            <Bookings show={view === "bookings"} bookings={bookings} agencyId={agencyId} refreshBookings={refreshBookings} refresh={refresh} />
+            <Payments show={view === "payments"} leads={leads} move={move} busyId={busyId} />
             <Reports show={view === "reports"} leads={leads} />
-            <Settings show={view === "settings"} agency={agency} agencyId={agencyId} logout={logout} />
+            <Settings show={view === "settings"} agency={agency} agencyId={agencyId} refresh={refresh} logout={logout} />
           </div>
         </div>
       </div>
 
-      {showAdd ? <AddLead onClose={() => setShowAdd(false)} onCreated={refreshBookings} /> : null}
+      {showAdd ? <AddLead agencyId={agencyId} onClose={() => setShowAdd(false)} onCreated={refreshBookings} /> : null}
     </div>
   );
 }
@@ -329,10 +429,21 @@ function Customers({ show, customers }: any) {
 }
 
 /* ================= PACKAGES / TOURS ================= */
-function Packages({ show, tours }: any) {
+function Packages({ show, tours, agencyId, refreshTours }: any) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [busyId, setBusyId] = useState("");
+  async function submitTour(t: any) {
+    setBusyId(t.id);
+    const res = await agencyApi(`/tours/${t.id}/submit`, { method: "POST" });
+    if (res.success) { pushNotif(agencyId, { kind: "tour", title: "Tur tekshiruvga yuborildi", sub: t.title }); await refreshTours(); }
+    setBusyId("");
+  }
   return (
     <section className={`view${show ? " active" : ""}`}>
-      <div className="section-head"><div><h2>Turlar / Paketlar</h2><div className="sub">{tours.length} ta tur</div></div></div>
+      <div className="section-head">
+        <div><h2>Turlar / Paketlar</h2><div className="sub">{tours.length} ta tur</div></div>
+        <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Ic d={I.plus} s={16} /> Yangi tur</button>
+      </div>
       {tours.length ? (
         <div className="grid g3">
           {tours.map((t: any, i: number) => (
@@ -345,34 +456,61 @@ function Packages({ show, tours }: any) {
                 <div className="meta">{t.city}{t.duration ? ` · ${t.duration}` : ""}</div>
                 {Array.isArray(t.highlights) && t.highlights.length ? <div className="chips">{t.highlights.slice(0, 4).map((h: string, i: number) => <span className="chip" key={i}>{h}</span>)}</div> : null}
                 <div className="pf"><div className="price">{t.price || (t.priceMin ? formatMoney(t.priceMin) : "—")}</div>{t.active ? <span className="badge2 b-green">Faol</span> : <span className="badge2 b-grey">Nofaol</span>}</div>
+                {t.approvalStatus === "draft" ? (
+                  <button className="btn btn-ghost btn-sm" style={{ marginTop: 10, width: "100%" }} disabled={busyId === t.id} onClick={() => void submitTour(t)}>{busyId === t.id ? "Yuborilmoqda..." : "Tasdiqlashga yuborish"}</button>
+                ) : null}
               </div>
             </div>
           ))}
         </div>
-      ) : <div className="card"><Empty icon={I.box} text="Hali tur yo'q. Tur qo'shsangiz shu yerda ko'rinadi." /></div>}
+      ) : <div className="card"><Empty icon={I.box} text="Hali tur yo'q. 'Yangi tur' tugmasi orqali qo'shing." /></div>}
+      {showAdd ? <AddTour agencyId={agencyId} onClose={() => setShowAdd(false)} onCreated={refreshTours} /> : null}
     </section>
   );
 }
 
 /* ================= BOOKINGS ================= */
-function Bookings({ show, bookings }: any) {
+function Bookings({ show, bookings, agencyId, refreshBookings, refresh }: any) {
+  const [busyId, setBusyId] = useState("");
   const paid = bookings.filter((b: any) => b.status === "completed" || b.status === "confirmed").length;
+  const pend = bookings.filter((b: any) => b.status === "pending").length;
+  async function setStatus(b: any, status: string) {
+    setBusyId(b.id);
+    const res = await agencyApi(`/bookings/${b.id}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
+    if (res.success) {
+      if (status === "confirmed") pushNotif(agencyId, { kind: "booking", title: "Bron tasdiqlandi", sub: b.customerName });
+      else if (status === "completed") pushNotif(agencyId, { kind: "payment", title: "Bron yakunlandi", sub: b.customerName });
+      await refreshBookings(); await refresh(true);
+    }
+    setBusyId("");
+  }
+  const bookLabel = (s: string) => (s === "pending" ? "Tasdiqlash kutilmoqda" : statusLabel(s));
   return (
     <section className={`view${show ? " active" : ""}`}>
-      <div className="section-head"><div><h2>Bronlar</h2><div className="sub">Jami {bookings.length} bron · {paid} tasdiqlangan</div></div></div>
+      <div className="section-head"><div><h2>Bronlar</h2><div className="sub">Jami {bookings.length} bron · {paid} tasdiqlangan{pend ? ` · ${pend} kutilmoqda` : ""}</div></div></div>
       <div className="card tbl-wrap">
         {bookings.length ? (
           <table>
-            <thead><tr><th>Mijoz</th><th>Yo&apos;nalish</th><th>Sana</th><th>Kishi</th><th className="r">Summa</th><th>Holat</th></tr></thead>
+            <thead><tr><th>Mijoz</th><th>Yo&apos;nalish</th><th>Sana</th><th>Kishi</th><th className="r">Summa</th><th>Holat</th><th>Amal</th></tr></thead>
             <tbody>
               {bookings.map((b: any) => (
                 <tr key={b.id}>
                   <td><div className="cell"><span className="av-sm">{initials(b.customerName)}</span><b>{b.customerName}</b></div></td>
-                  <td>{b.tour?.title || b.tour?.city || "—"}</td>
+                  <td>{b.tour?.title || b.tour?.city || b.leadTour || "—"}</td>
                   <td>{b.travelDate ? formatDate(b.travelDate) : "—"}</td>
                   <td>{b.travelers}</td>
                   <td className="r money">{formatMoney(b.totalEstimate)}</td>
-                  <td><span className={`badge2 ${b.status === "confirmed" ? "b-green" : b.status === "completed" ? "b-green" : b.status === "pending" ? "b-amber" : "b-rose"}`}>{statusLabel(b.status)}</span></td>
+                  <td><span className={`badge2 ${b.status === "confirmed" || b.status === "completed" ? "b-green" : b.status === "pending" ? "b-amber" : "b-rose"}`}>{bookLabel(b.status)}</span></td>
+                  <td>
+                    {b.status === "pending" ? (
+                      <div className="row-act">
+                        <button className="act-btn ok" disabled={busyId === b.id} onClick={() => void setStatus(b, "confirmed")} title="Tasdiqlash" aria-label="Tasdiqlash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg></button>
+                        <button className="act-btn no" disabled={busyId === b.id} onClick={() => void setStatus(b, "rejected")} title="Rad etish" aria-label="Rad etish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg></button>
+                      </div>
+                    ) : b.status === "confirmed" ? (
+                      <button className="act-btn done-btn" disabled={busyId === b.id} onClick={() => void setStatus(b, "completed")}>Yakunlash</button>
+                    ) : <span className="act-dim">—</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -384,7 +522,7 @@ function Bookings({ show, bookings }: any) {
 }
 
 /* ================= PAYMENTS ================= */
-function Payments({ show, leads }: any) {
+function Payments({ show, leads, move, busyId }: any) {
   const m = useMemo(() => {
     const paid = leads.filter((l: CrmLead) => l.stage === "won" || l.stage === "completed");
     const pending = leads.filter((l: CrmLead) => l.stage === "quoted");
@@ -405,7 +543,7 @@ function Payments({ show, leads }: any) {
       <div className="card tbl-wrap" style={{ marginTop: 16 }}>
         {m.rows.length ? (
           <table>
-            <thead><tr><th>Mijoz</th><th>Yo&apos;nalish</th><th className="r">Summa</th><th>Manba</th><th>Holat</th></tr></thead>
+            <thead><tr><th>Mijoz</th><th>Yo&apos;nalish</th><th className="r">Summa</th><th>Manba</th><th>Holat</th><th>To&apos;lov</th></tr></thead>
             <tbody>
               {m.rows.map((l: CrmLead) => (
                 <tr key={l.id}>
@@ -414,6 +552,11 @@ function Payments({ show, leads }: any) {
                   <td className="r money">{formatMoney(l.totalEstimate)}</td>
                   <td><span className="badge2 b-grey">{l.source === "manual" ? "Qo'lda" : "Marketplace"}</span></td>
                   <td><span className="badge2 b-green">{l.stage === "completed" ? "Yakunlandi" : "Kelishildi"}</span></td>
+                  <td>
+                    {l.stage === "won" ? (
+                      <button className="act-btn done-btn" disabled={busyId === l.id} onClick={() => void move(l, "completed")}>{busyId === l.id ? "..." : "To'lovni tasdiqlash"}</button>
+                    ) : <span className="badge2 b-gold">To&apos;langan</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -502,7 +645,7 @@ const INTS = [
   { key: "payme", name: "Payme", desc: "Onlayn to'lov va bo'lib to'lash — tez orada", def: false },
   { key: "instagram", name: "Instagram Direct", desc: "Direct xabarlaridan lid yig'ish — tez orada", def: false },
 ];
-function Settings({ show, agency, agencyId, logout }: any) {
+function Settings({ show, agency, agencyId, refresh, logout }: any) {
   const [ints, setInts] = useState<Record<string, boolean>>({});
   useEffect(() => {
     try { const raw = window.localStorage.getItem(`kv_int_${agencyId}`); setInts(raw ? JSON.parse(raw) : Object.fromEntries(INTS.map((i) => [i.key, i.def]))); } catch { setInts(Object.fromEntries(INTS.map((i) => [i.key, i.def]))); }
@@ -515,11 +658,8 @@ function Settings({ show, agency, agencyId, logout }: any) {
       <div className="section-head"><div><h2>Sozlamalar</h2></div></div>
       <div className="note"><Ic d={I.bolt} s={20} />Lokal integratsiyalar — Telegram, Click, Payme. Arxitektura tayyor; ulanish keyingi bosqichda ishga tushiriladi.</div>
 
-      <div className="section-head"><div><h2>Agentlik ma&apos;lumoti</h2></div></div>
-      <div className="card mini" style={{ padding: 6 }}>
-        <div className="r"><div className="av-sm">{initials(agency?.name || "AG")}</div><div><b>{agency?.name || "Agentlik"}</b><small>{agency?.city || "—"}{agency?.specialty ? ` · ${agency.specialty}` : ""}</small></div><div className="end"><span className="badge2 b-green">Tasdiqlangan</span></div></div>
-        {agency?.phone ? <div className="r"><div><b>Telefon</b><small>{agency.phone}</small></div></div> : null}
-      </div>
+      <div className="section-head"><div><h2>Agentlik ma&apos;lumoti</h2><div className="sub">Nomi, logotipi va telefoni — sidebar va CRM&apos;da shu ma&apos;lumot ko&apos;rinadi</div></div></div>
+      <ProfileForm agency={agency} refresh={refresh} />
 
       <div className="section-head"><div><h2>Integratsiyalar</h2></div></div>
       <div className="card">
@@ -584,5 +724,106 @@ function AddLead({ onClose, onCreated }: any) {
         </form>
       </div>
     </div>
+  );
+}
+
+/* ================= ADD TOUR MODAL ================= */
+function AddTour({ agencyId, onClose, onCreated }: any) {
+  const [f, setF] = useState({ title: "", city: "", subtitle: "", duration: "", price: "", highlights: "" });
+  const [img, setImg] = useState("");
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
+  async function pickImg(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return;
+    try { setImg(await readImage(file)); } catch (er) { setErr(er instanceof Error ? er.message : "Rasm xato"); }
+  }
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (f.title.trim().length < 3) return setErr("Tur nomi kamida 3 harf bo'lsin.");
+    if (f.city.trim().length < 2) return setErr("Shahar / yo'nalishni kiriting.");
+    if (f.subtitle.trim().length < 3) return setErr("Qisqa tavsif kiriting.");
+    if (f.duration.trim().length < 2) return setErr("Davomiylikni kiriting (masalan: 5 kun).");
+    setBusy(true); setErr("");
+    const priceMin = f.price ? Number(f.price.replace(/[^\d]/g, "")) || undefined : undefined;
+    const highlights = f.highlights.split(",").map((s) => s.trim()).filter((s) => s.length >= 2).slice(0, 20);
+    const res = await agencyApi("/tours", { method: "POST", body: JSON.stringify({
+      title: f.title.trim(), city: f.city.trim(), subtitle: f.subtitle.trim(), duration: f.duration.trim(),
+      price: f.price.trim() || undefined, priceMin, highlights, imageUrl: img || undefined,
+    }) });
+    setBusy(false);
+    if (res.success) { pushNotif(agencyId, { kind: "tour", title: "Yangi tur qo'shildi", sub: f.title.trim() }); await onCreated?.(); onClose(); }
+    else setErr(res.message || "Tur qo'shib bo'lmadi.");
+  }
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="card modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="section-head" style={{ margin: "0 0 12px" }}><div><h2>Yangi tur qo&apos;shish</h2><div className="sub">Tur qo&apos;shilgach admin tasdig&apos;idan so&apos;ng marketplace&apos;da ko&apos;rinadi</div></div></div>
+        {err ? <div className="note note-err">{err}</div> : null}
+        <form onSubmit={save}>
+          <div className="fld"><label>Tur nomi *</label><input value={f.title} onChange={set("title")} placeholder="Masalan: Dubay 5 kun" /></div>
+          <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div className="fld"><label>Shahar / yo&apos;nalish *</label><input value={f.city} onChange={set("city")} placeholder="Dubay" /></div>
+            <div className="fld"><label>Davomiyligi *</label><input value={f.duration} onChange={set("duration")} placeholder="5 kun 4 kecha" /></div>
+          </div>
+          <div className="fld"><label>Qisqa tavsif *</label><input value={f.subtitle} onChange={set("subtitle")} placeholder="All inclusive, aviabilet + mehmonxona" /></div>
+          <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div className="fld"><label>Narx</label><input value={f.price} onChange={set("price")} placeholder="$900" /></div>
+            <div className="fld"><label>Xizmatlar (vergul bilan)</label><input value={f.highlights} onChange={set("highlights")} placeholder="Aviabilet, Transfer, Gid" /></div>
+          </div>
+          <div className="fld"><label>Rasm (ixtiyoriy)</label><input type="file" accept="image/*" onChange={pickImg} /></div>
+          {img ? <img src={img} alt="" style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 10, marginBottom: 10 }} /> : null}
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 6 }}>
+            <button type="button" className="btn btn-ghost" onClick={onClose}>Bekor</button>
+            <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Qo'shilmoqda..." : "Qo'shish"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ================= PROFILE FORM (settings) ================= */
+function ProfileForm({ agency, refresh }: any) {
+  const [name, setName] = useState(agency?.name || "");
+  const [city, setCity] = useState(agency?.city || "");
+  const [phone, setPhone] = useState(agency?.phone || "");
+  const [img, setImg] = useState(agency?.imageUrl || "");
+  const [busy, setBusy] = useState(false); const [msg, setMsg] = useState(""); const [err, setErr] = useState("");
+  useEffect(() => {
+    setName(agency?.name || ""); setCity(agency?.city || ""); setPhone(agency?.phone || ""); setImg(agency?.imageUrl || "");
+  }, [agency]);
+  async function pickImg(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return;
+    try { setImg(await readImage(file)); setMsg(""); } catch (er) { setErr(er instanceof Error ? er.message : "Rasm xato"); }
+  }
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (name.trim().length < 2) { setErr("Agentlik nomini kiriting."); return; }
+    setBusy(true); setErr(""); setMsg("");
+    const body: Record<string, unknown> = { name: name.trim(), phone: phone.trim() || null };
+    if (city.trim()) body.city = city.trim();
+    if (img !== (agency?.imageUrl || "")) body.imageUrl = img || null;
+    const res = await agencyApi("/profile", { method: "PUT", body: JSON.stringify(body) });
+    setBusy(false);
+    if (res.success) { setMsg("Saqlandi ✓"); await refresh(true); }
+    else setErr(res.message || "Saqlab bo'lmadi.");
+  }
+  return (
+    <form className="card prof" onSubmit={save}>
+      <div className="prof-logo">
+        {img ? <img src={img} alt="" /> : <span className="prof-ini">{initials(name || "AG")}</span>}
+        <label className="prof-pick">Logotip tanlash<input type="file" accept="image/*" onChange={pickImg} style={{ display: "none" }} /></label>
+      </div>
+      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div className="fld"><label>Agentlik nomi *</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Demo Travel CRM" /></div>
+        <div className="fld"><label>Shahar</label><input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Toshkent" /></div>
+      </div>
+      <div className="fld"><label>Telefon</label><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+998 90 000 00 00" /></div>
+      {err ? <div className="note note-err" style={{ marginBottom: 10 }}>{err}</div> : null}
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Saqlanmoqda..." : "Saqlash"}</button>
+        {msg ? <span style={{ color: "var(--primary)", fontSize: 13, fontWeight: 600 }}>{msg}</span> : null}
+      </div>
+    </form>
   );
 }
