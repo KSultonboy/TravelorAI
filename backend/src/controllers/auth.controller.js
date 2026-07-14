@@ -11,6 +11,14 @@ const {
 } = require('../services/auth.service');
 const { signToken } = require('../utils/jwt');
 const { success, error } = require('../utils/response');
+const {
+  SUPPORT_EMAIL,
+  withDecay,
+  getActiveLock,
+  lockedResponse,
+  registerFailure,
+  RESET_ON_SUCCESS,
+} = require('../services/loginSecurity.service');
 
 const PASSWORD_SALT_ROUNDS = 10;
 const DEFAULT_PREFERENCES = {
@@ -192,24 +200,45 @@ async function login(req, res) {
   try {
     const { email, password } = req.body;
     const normalizedEmail = normalizeEmail(email);
-    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    const found = await prisma.user.findUnique({ where: { email: normalizedEmail } });
 
-    if (!user) {
+    if (!found) {
       return error(res, 'Email yoki parol noto\'g\'ri.', 401);
     }
 
-    if (!user.password) {
+    if (found.blocked) {
+      return error(res, 'Hisobingiz bloklangan. Qo\'llab-quvvatlashga murojaat qiling.', 403, {
+        blocked: true,
+        supportEmail: SUPPORT_EMAIL,
+      });
+    }
+
+    if (!found.password) {
       return error(res, 'Bu email Google orqali ro\'yxatdan o\'tgan. Google bilan kiring.', 400, {
         authProvider: 'google',
       });
     }
 
+    const now = new Date();
+    const user = withDecay(found, now);
+
+    // Reject early if the account is still inside a lockout window.
+    const lock = getActiveLock(user, now);
+    if (lock.locked) {
+      const payload = lockedResponse(lock);
+      return error(res, payload.message, payload.status, payload.extra);
+    }
+
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
-      return error(res, 'Email yoki parol noto\'g\'ri.', 401);
+      const failure = registerFailure(user, now);
+      await prisma.user.update({ where: { id: user.id }, data: failure.data });
+      return error(res, failure.message, failure.status, failure.extra);
     }
 
     if (!user.emailVerified) {
+      // Correct password → clear the brute-force counters, but still require verification.
+      await prisma.user.update({ where: { id: user.id }, data: RESET_ON_SUCCESS });
       return error(res, 'Email tasdiqlanmagan.', 403, {
         requiresVerification: true,
         email: user.email,
@@ -218,7 +247,7 @@ async function login(req, res) {
 
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: { ...RESET_ON_SUCCESS, lastLoginAt: now },
     });
 
     return success(res, createAuthPayload(updatedUser));
@@ -320,6 +349,8 @@ async function resetPassword(req, res) {
         emailVerified: true,
         emailVerifiedAt: user.emailVerifiedAt || new Date(),
         lastLoginAt: new Date(),
+        // A successful reset also lifts any brute-force lockout.
+        ...RESET_ON_SUCCESS,
       },
     });
 
@@ -343,6 +374,13 @@ async function googleAuth(req, res) {
           OR: [{ googleId: googleProfile.googleId }, { email: googleProfile.email }],
         },
       })) || null;
+
+    if (user?.blocked) {
+      return error(res, 'Hisobingiz bloklangan. Qo\'llab-quvvatlashga murojaat qiling.', 403, {
+        blocked: true,
+        supportEmail: SUPPORT_EMAIL,
+      });
+    }
 
     if (!user) {
       // Cross-check: agentlik emaili Google orqali ham foydalanuvchi akkauntini yaratmasin.
@@ -401,6 +439,21 @@ async function googleAuth(req, res) {
       return error(res, 'Google akkauntdagi email tasdiqlanmagan.', 401);
     }
 
+    return error(res, err.message, 500);
+  }
+}
+
+// Public "am I logged in?" probe. Uses optionalAuth, so guests get 200 {user:null}
+// instead of a 401 — this keeps the website header/session check out of the
+// browser error console. Authenticated callers get the same public user shape.
+async function getSession(req, res) {
+  try {
+    if (!req.user?.id) {
+      return success(res, { user: null });
+    }
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    return success(res, { user: user ? buildPublicUser(user) : null });
+  } catch (err) {
     return error(res, err.message, 500);
   }
 }
@@ -677,6 +730,7 @@ module.exports = {
   adminLoginVerify,
   updateProfile,
   getMe,
+  getSession,
   getPreferences,
   updatePreferences,
   requestEmailChange,

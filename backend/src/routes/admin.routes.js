@@ -10,6 +10,7 @@ router.get('/stats', admin.getStats);
 router.get('/users', admin.getUsers);
 router.get('/users/:id', admin.getUser);
 router.patch('/users/:id/block', admin.blockUser);
+router.post('/users/:id/send-password-reset', admin.sendUserPasswordReset);
 router.delete('/users/:id', admin.deleteUser);
 
 router.get('/trips', admin.getTrips);
