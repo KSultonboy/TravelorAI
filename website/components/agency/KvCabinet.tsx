@@ -849,7 +849,12 @@ function TelegramChat({ lead, onClose }: { lead: CrmLead; onClose: () => void })
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [templates, setTemplates] = useState<TgTpl[]>([]);
   const bodyRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    void agencyApi<{ templates: TgTpl[] }>("/telegram/config").then((r) => { if (r.success) setTemplates(r.data.templates || []); });
+  }, []);
 
   const load = async () => {
     const res = await agencyApi<{ messages: any[]; canReply: boolean }>(`/telegram/messages?bookingId=${encodeURIComponent(lead.id)}`);
@@ -885,10 +890,13 @@ function TelegramChat({ lead, onClose }: { lead: CrmLead; onClose: () => void })
             ))}
         </div>
         {canReply ? (
-          <form className="tg-chat-input" onSubmit={send}>
-            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Javob yozing…" />
-            <button type="submit" className="btn btn-primary" disabled={busy || !text.trim()}>Yuborish</button>
-          </form>
+          <div className="tg-reply">
+            {templates.length ? <div className="tg-quick">{templates.map((t) => <button key={t.id} type="button" className="tg-quick-btn" onClick={() => setText(t.text)}>{t.title}</button>)}</div> : null}
+            <form className="tg-chat-input" onSubmit={send}>
+              <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Javob yozing…" />
+              <button type="submit" className="btn btn-primary" disabled={busy || !text.trim()}>Yuborish</button>
+            </form>
+          </div>
         ) : <div className="tg-noreply">Bu lidda Telegram identifikatori yo&apos;q</div>}
       </div>
     </div>
@@ -896,6 +904,8 @@ function TelegramChat({ lead, onClose }: { lead: CrmLead; onClose: () => void })
 }
 
 /* ================= TELEGRAM SETTINGS ================= */
+type TgCmd = { command: string; description: string; reply: string };
+type TgTpl = { id: string; title: string; text: string };
 function TelegramSettings() {
   const [state, setState] = useState<{ connected: boolean; username: string | null; welcome: string }>({ connected: false, username: null, welcome: "" });
   const [token, setToken] = useState("");
@@ -905,8 +915,12 @@ function TelegramSettings() {
   const [loading, setLoading] = useState(true);
   const [profOpen, setProfOpen] = useState(false);
   const [profLoading, setProfLoading] = useState(false);
-  const [prof, setProf] = useState({ name: "", desc: "", short: "", cmds: "" });
+  const [prof, setProf] = useState({ name: "", desc: "", short: "" });
   const [profMsg, setProfMsg] = useState("");
+  const [cfgOpen, setCfgOpen] = useState(false);
+  const [cfgLoading, setCfgLoading] = useState(false);
+  const [cfg, setCfg] = useState<{ commands: TgCmd[]; templates: TgTpl[] }>({ commands: [], templates: [] });
+  const [cfgMsg, setCfgMsg] = useState("");
 
   const load = async () => {
     const res = await agencyApi<{ connected: boolean; username: string | null; welcome: string }>("/telegram");
@@ -937,24 +951,34 @@ function TelegramSettings() {
   }
   async function loadProfile() {
     setProfLoading(true);
-    const res = await agencyApi<{ name: string; description: string; shortDescription: string; commands: { command: string; description: string }[] }>("/telegram/profile");
-    if (res.success) {
-      const d = res.data;
-      setProf({ name: d.name || "", desc: d.description || "", short: d.shortDescription || "", cmds: (d.commands || []).map((c) => `${c.command} - ${c.description}`).join("\n") });
-    }
+    const res = await agencyApi<{ name: string; description: string; shortDescription: string }>("/telegram/profile");
+    if (res.success) { const d = res.data; setProf({ name: d.name || "", desc: d.description || "", short: d.shortDescription || "" }); }
     setProfLoading(false);
   }
   async function saveProfile() {
     setBusy("profile"); setProfMsg("");
-    const commands = prof.cmds.split("\n").map((l) => {
-      const i = l.indexOf(" - ");
-      if (i < 0) { const s = l.trim(); return s ? { command: s, description: s } : null; }
-      return { command: l.slice(0, i).trim(), description: l.slice(i + 3).trim() };
-    }).filter((c): c is { command: string; description: string } => !!c && !!c.command);
-    const res = await agencyApi("/telegram/profile", { method: "PUT", body: JSON.stringify({ name: prof.name.trim(), description: prof.desc, shortDescription: prof.short, commands }) });
+    const res = await agencyApi("/telegram/profile", { method: "PUT", body: JSON.stringify({ name: prof.name.trim(), description: prof.desc, shortDescription: prof.short }) });
     setBusy("");
     setProfMsg(res.success ? "Saqlandi ✓" : (res.message || "Xato"));
   }
+  async function loadConfig() {
+    setCfgLoading(true);
+    const res = await agencyApi<{ commands: TgCmd[]; templates: TgTpl[] }>("/telegram/config");
+    if (res.success) setCfg({ commands: res.data.commands || [], templates: res.data.templates || [] });
+    setCfgLoading(false);
+  }
+  async function saveConfig() {
+    setBusy("cfg"); setCfgMsg("");
+    const res = await agencyApi("/telegram/config", { method: "PUT", body: JSON.stringify(cfg) });
+    setBusy("");
+    setCfgMsg(res.success ? "Saqlandi ✓" : (res.message || "Xato"));
+  }
+  const addCmd = () => setCfg((c) => ({ ...c, commands: [...c.commands, { command: "", description: "", reply: "" }] }));
+  const updCmd = (i: number, k: keyof TgCmd, v: string) => setCfg((c) => ({ ...c, commands: c.commands.map((x, j) => (j === i ? { ...x, [k]: v } : x)) }));
+  const delCmd = (i: number) => setCfg((c) => ({ ...c, commands: c.commands.filter((_, j) => j !== i) }));
+  const addTpl = () => setCfg((c) => ({ ...c, templates: [...c.templates, { id: Math.random().toString(36).slice(2, 9), title: "", text: "" }] }));
+  const updTpl = (i: number, k: keyof TgTpl, v: string) => setCfg((c) => ({ ...c, templates: c.templates.map((x, j) => (j === i ? { ...x, [k]: v } : x)) }));
+  const delTpl = (i: number) => setCfg((c) => ({ ...c, templates: c.templates.filter((_, j) => j !== i) }));
   if (loading) return <div className="card" style={{ padding: 18, color: "var(--t2)", fontSize: 13 }}>Yuklanmoqda…</div>;
   return (
     <div className="card tg-set">
@@ -990,7 +1014,7 @@ function TelegramSettings() {
         </div>
         <div className="tg-profile">
           <button type="button" className="tg-prof-toggle" onClick={() => { if (!profOpen) void loadProfile(); setProfOpen((o) => !o); }}>
-            <span>Bot profili — nom, tavsif, buyruqlar</span>
+            <span>Bot profili — nom va tavsif</span>
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: profOpen ? "rotate(180deg)" : "none", transition: ".2s" }}><path d="M6 9l6 6 6-6" /></svg>
           </button>
           {profOpen ? (profLoading ? <div className="tg-empty" style={{ padding: 14 }}>Yuklanmoqda…</div> : (
@@ -998,11 +1022,47 @@ function TelegramSettings() {
               <div className="fld"><label>Bot nomi</label><input value={prof.name} maxLength={64} onChange={(e) => setProf((p) => ({ ...p, name: e.target.value }))} /></div>
               <div className="fld"><label>Tavsif — «What can this bot do?» (start&apos;dan oldin ko&apos;rinadi)</label><textarea value={prof.desc} maxLength={512} rows={2} onChange={(e) => setProf((p) => ({ ...p, desc: e.target.value }))} /></div>
               <div className="fld"><label>Qisqa tavsif (profil ostidagi bio)</label><textarea value={prof.short} maxLength={120} rows={2} onChange={(e) => setProf((p) => ({ ...p, short: e.target.value }))} /></div>
-              <div className="fld"><label>Buyruqlar menyusi (har qatorda: buyruq - izoh)</label><textarea value={prof.cmds} rows={3} placeholder={"order - Buyurtma berish\nhelp - Yordam"} onChange={(e) => setProf((p) => ({ ...p, cmds: e.target.value }))} /></div>
               <div className="tg-prof-note">Logotip (rasm/avatar) faqat <b>@BotFather → /setuserpic</b> orqali o&apos;zgartiriladi — Telegram Bot API bunga ruxsat bermaydi.</div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
                 <button className="btn btn-primary btn-sm" disabled={busy === "profile"} onClick={() => void saveProfile()}>{busy === "profile" ? "Saqlanmoqda..." : "Bot profilini saqlash"}</button>
                 {profMsg ? <span style={{ color: "var(--primary)", fontSize: 13, fontWeight: 600 }}>{profMsg}</span> : null}
+              </div>
+            </div>
+          )) : null}
+        </div>
+        <div className="tg-profile">
+          <button type="button" className="tg-prof-toggle" onClick={() => { if (!cfgOpen) void loadConfig(); setCfgOpen((o) => !o); }}>
+            <span>Buyruqlar va xabar shablonlari</span>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: cfgOpen ? "rotate(180deg)" : "none", transition: ".2s" }}><path d="M6 9l6 6 6-6" /></svg>
+          </button>
+          {cfgOpen ? (cfgLoading ? <div className="tg-empty" style={{ padding: 14 }}>Yuklanmoqda…</div> : (
+            <div className="tg-cfg">
+              <div className="tg-cfg-h"><b>Buyruqlar</b><button type="button" className="tg-add" onClick={addCmd}>+ Buyruq</button></div>
+              <div className="tg-cfg-hint">Menyuga chiqadi; avto-javob yozsangiz bot o&apos;sha buyruqqa avtomatik javob beradi.</div>
+              {cfg.commands.length === 0 ? <div className="tg-cfg-empty">Buyruq yo&apos;q</div> : cfg.commands.map((c, i) => (
+                <div className="tg-cfg-row" key={i}>
+                  <div className="tg-cfg-top">
+                    <input className="tg-cfg-cmd" placeholder="buyruq (masalan: narx)" value={c.command} onChange={(e) => updCmd(i, "command", e.target.value)} />
+                    <input placeholder="Menyu izohi" value={c.description} onChange={(e) => updCmd(i, "description", e.target.value)} />
+                    <button type="button" className="tg-cfg-del" onClick={() => delCmd(i)} aria-label="O'chirish">×</button>
+                  </div>
+                  <textarea placeholder="Avto-javob (ixtiyoriy)" value={c.reply} rows={2} onChange={(e) => updCmd(i, "reply", e.target.value)} />
+                </div>
+              ))}
+              <div className="tg-cfg-h" style={{ marginTop: 16 }}><b>Xabar shablonlari</b><button type="button" className="tg-add" onClick={addTpl}>+ Shablon</button></div>
+              <div className="tg-cfg-hint">Suhbatda bir bosishda qo&apos;yiladigan tayyor javoblar.</div>
+              {cfg.templates.length === 0 ? <div className="tg-cfg-empty">Shablon yo&apos;q</div> : cfg.templates.map((t, i) => (
+                <div className="tg-cfg-row" key={t.id || i}>
+                  <div className="tg-cfg-top">
+                    <input placeholder="Nomi (masalan: Ish vaqti)" value={t.title} onChange={(e) => updTpl(i, "title", e.target.value)} />
+                    <button type="button" className="tg-cfg-del" onClick={() => delTpl(i)} aria-label="O'chirish">×</button>
+                  </div>
+                  <textarea placeholder="Xabar matni" value={t.text} rows={2} onChange={(e) => updTpl(i, "text", e.target.value)} />
+                </div>
+              ))}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
+                <button className="btn btn-primary btn-sm" disabled={busy === "cfg"} onClick={() => void saveConfig()}>{busy === "cfg" ? "Saqlanmoqda..." : "Saqlash"}</button>
+                {cfgMsg ? <span style={{ color: "var(--primary)", fontSize: 13, fontWeight: 600 }}>{cfgMsg}</span> : null}
               </div>
             </div>
           )) : null}

@@ -376,6 +376,7 @@ model TourAgency {
   telegramBotUsername String?
   telegramBotActive   Boolean  @default(false)
   telegramWelcome     String?
+  telegramConfig      String?
   website          String?
   imageUrl         String?
   active           Boolean             @default(true)

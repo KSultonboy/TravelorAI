@@ -127,17 +127,15 @@ async function getProfile(req, res) {
     if (!agency) return;
     if (!agency.telegramBotToken) return error(res, 'Telegram bot ulanmagan', 400);
     const t = agency.telegramBotToken;
-    const [name, desc, shortDesc, commands] = await Promise.all([
+    const [name, desc, shortDesc] = await Promise.all([
       tg.getMyName(t).catch(() => ({})),
       tg.getMyDescription(t).catch(() => ({})),
       tg.getMyShortDescription(t).catch(() => ({})),
-      tg.getMyCommands(t).catch(() => []),
     ]);
     return success(res, {
       name: name.name || '',
       description: desc.description || '',
       shortDescription: shortDesc.short_description || '',
-      commands: Array.isArray(commands) ? commands : [],
     });
   } catch (err) {
     return error(res, err.message, 500);
@@ -154,17 +152,51 @@ async function setProfile(req, res) {
     if (b.name !== undefined) await tg.setMyName(t, String(b.name).trim().slice(0, 64));
     if (b.description !== undefined) await tg.setMyDescription(t, String(b.description).slice(0, 512));
     if (b.shortDescription !== undefined) await tg.setMyShortDescription(t, String(b.shortDescription).slice(0, 120));
-    if (Array.isArray(b.commands)) {
-      const cmds = b.commands
-        .map((c) => ({
-          command: String((c && c.command) || '').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 32),
-          description: String((c && c.description) || '').slice(0, 256),
-        }))
-        .filter((c) => c.command && c.description)
-        .slice(0, 100);
-      await tg.setMyCommands(t, cmds);
-    }
     return success(res, { saved: true });
+  } catch (err) {
+    return error(res, err.message, 400);
+  }
+}
+
+function parseConfig(agency) {
+  const base = { commands: [], templates: [] };
+  try { return agency.telegramConfig ? { ...base, ...JSON.parse(agency.telegramConfig) } : base; } catch { return base; }
+}
+
+async function getConfig(req, res) {
+  try {
+    const agency = await ensureApprovedAgency(req, res);
+    if (!agency) return;
+    return success(res, parseConfig(agency));
+  } catch (err) {
+    return error(res, err.message, 500);
+  }
+}
+
+async function setConfig(req, res) {
+  try {
+    const agency = await ensureApprovedAgency(req, res);
+    if (!agency) return;
+    if (!agency.telegramBotToken) return error(res, 'Telegram bot ulanmagan', 400);
+    const b = req.body || {};
+    const commands = (Array.isArray(b.commands) ? b.commands : []).map((c) => ({
+      command: String((c && c.command) || '').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 32),
+      description: String((c && c.description) || '').slice(0, 256),
+      reply: String((c && c.reply) || '').slice(0, 2000),
+    })).filter((c) => c.command).slice(0, 100);
+    const templates = (Array.isArray(b.templates) ? b.templates : []).map((t) => ({
+      id: String((t && t.id) || Math.random().toString(36).slice(2, 9)),
+      title: String((t && t.title) || '').trim().slice(0, 64),
+      text: String((t && t.text) || '').slice(0, 2000),
+    })).filter((t) => t.title && t.text).slice(0, 50);
+
+    // Telegram menyusini sinxronlaymiz (izohi bor buyruqlar)
+    const menu = commands.filter((c) => c.description).map((c) => ({ command: c.command, description: c.description }));
+    try { await tg.setMyCommands(agency.telegramBotToken, menu); } catch { /* ignore */ }
+
+    const cfg = { commands, templates };
+    await prisma.tourAgency.update({ where: { id: agency.id }, data: { telegramConfig: JSON.stringify(cfg) } });
+    return success(res, cfg);
   } catch (err) {
     return error(res, err.message, 400);
   }
@@ -219,11 +251,28 @@ async function webhook(req, res) {
 
     // Salomlashishni birinchi kontaktda YOKI /start bosilganda yuboramiz
     const isStart = text.trim().toLowerCase().startsWith('/start');
+
+    // Buyruqqa avto-javob (config.commands.reply)
+    let cmdReply = null;
+    if (text.trim().startsWith('/') && !isStart) {
+      const cmd = text.trim().slice(1).split(/[\s@]/)[0].toLowerCase();
+      const match = parseConfig(agency).commands.find((c) => c.command === cmd && c.reply);
+      if (match) cmdReply = match.reply;
+    }
+
     if ((isNew || isStart) && agency.telegramWelcome) {
       try {
         await tg.sendMessage(agency.telegramBotToken, chatId, agency.telegramWelcome);
         await prisma.telegramMessage.create({
           data: { agencyId: agency.id, bookingId: booking.id, direction: 'out', text: agency.telegramWelcome, fromName: 'Bot' },
+        });
+      } catch { /* ignore send failure */ }
+    }
+    if (cmdReply) {
+      try {
+        await tg.sendMessage(agency.telegramBotToken, chatId, cmdReply);
+        await prisma.telegramMessage.create({
+          data: { agencyId: agency.id, bookingId: booking.id, direction: 'out', text: cmdReply, fromName: 'Bot' },
         });
       } catch { /* ignore send failure */ }
     }
@@ -235,4 +284,4 @@ async function webhook(req, res) {
   }
 }
 
-module.exports = { getTelegram, connectTelegram, disconnectTelegram, setWelcome, getProfile, setProfile, listMessages, reply, webhook };
+module.exports = { getTelegram, connectTelegram, disconnectTelegram, setWelcome, getProfile, setProfile, getConfig, setConfig, listMessages, reply, webhook };

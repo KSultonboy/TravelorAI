@@ -333,6 +333,27 @@
   .tg-prof-toggle{ width:100%; display:flex; align-items:center; justify-content:space-between; background:none; border:none; cursor:pointer; font-family:var(--disp); font-size:13px; font-weight:600; color:var(--primary); padding:2px 0; }
   .tg-prof-body{ margin-top:12px; }
   .tg-prof-note{ font-size:12px; color:var(--gold-ink); background:var(--gold-soft); border:1px solid #F0D9A6; border-radius:9px; padding:9px 12px; margin-bottom:12px; }
+  .tg-cfg{ margin-top:12px; }
+  .tg-cfg-h{ display:flex; align-items:center; justify-content:space-between; }
+  .tg-cfg-h b{ font-size:13px; font-weight:600; }
+  .tg-add{ font-size:12px; font-weight:600; color:var(--primary); background:none; border:1px solid var(--border); border-radius:8px; padding:4px 10px; cursor:pointer; }
+  .tg-add:hover{ border-color:var(--primary); background:var(--primary-soft); }
+  .tg-cfg-hint{ font-size:12px; color:var(--t3); margin:4px 0 10px; }
+  .tg-cfg-empty{ font-size:12.5px; color:var(--t3); padding:8px 0; }
+  .tg-cfg-row{ border:1px solid var(--border); border-radius:11px; padding:10px; margin-bottom:8px; background:var(--canvas); }
+  .tg-cfg-top{ display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+  .tg-cfg-top input{ flex:1; min-width:0; border:1px solid var(--border); border-radius:8px; padding:7px 10px; font-family:inherit; font-size:13px; outline:none; background:var(--surface); }
+  .tg-cfg-top input:focus{ border-color:var(--primary); }
+  .tg-cfg-cmd{ max-width:150px; }
+  .tg-cfg-del{ flex-shrink:0; width:28px; height:28px; border-radius:7px; border:1px solid var(--border); background:var(--surface); color:var(--rose); font-size:18px; line-height:1; cursor:pointer; }
+  .tg-cfg-del:hover{ background:var(--rose); color:#fff; border-color:var(--rose); }
+  .tg-cfg-row textarea{ width:100%; border:1px solid var(--border); border-radius:8px; padding:7px 10px; font-family:inherit; font-size:13px; outline:none; resize:vertical; background:var(--surface); }
+  .tg-cfg-row textarea:focus{ border-color:var(--primary); }
+  .tg-reply{ border-top:1px solid var(--border); }
+  .tg-reply .tg-chat-input{ border-top:none; }
+  .tg-quick{ display:flex; gap:6px; flex-wrap:wrap; padding:10px 14px 0; }
+  .tg-quick-btn{ font-size:12px; font-weight:600; color:var(--primary); background:var(--primary-soft); border:1px solid #CDE3D6; border-radius:999px; padding:5px 12px; cursor:pointer; }
+  .tg-quick-btn:hover{ background:var(--primary); color:#fff; border-color:var(--primary); }
 
   /* brand logo */
   .brand .mark.logo{ padding:0; overflow:hidden; background:var(--surface); }
