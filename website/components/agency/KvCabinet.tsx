@@ -667,19 +667,7 @@ function Reports({ show, leads }: any) {
 }
 
 /* ================= SETTINGS ================= */
-const INTS = [
-  { key: "click", name: "Click", desc: "Onlayn to'lov va avans — tez orada", def: false },
-  { key: "payme", name: "Payme", desc: "Onlayn to'lov va bo'lib to'lash — tez orada", def: false },
-  { key: "instagram", name: "Instagram Direct", desc: "Direct xabarlaridan lid yig'ish — tez orada", def: false },
-];
-function Settings({ show, agency, agencyId, refresh, logout }: any) {
-  const [ints, setInts] = useState<Record<string, boolean>>({});
-  useEffect(() => {
-    try { const raw = window.localStorage.getItem(`kv_int_${agencyId}`); setInts(raw ? JSON.parse(raw) : Object.fromEntries(INTS.map((i) => [i.key, i.def]))); } catch { setInts(Object.fromEntries(INTS.map((i) => [i.key, i.def]))); }
-  }, [agencyId]);
-  function toggle(k: string) {
-    setInts((p) => { const next = { ...p, [k]: !p[k] }; try { window.localStorage.setItem(`kv_int_${agencyId}`, JSON.stringify(next)); } catch { /* ignore */ } return next; });
-  }
+function Settings({ show, agency, refresh, logout }: any) {
   return (
     <section className={`view${show ? " active" : ""}`}>
       <div className="section-head"><div><h2>Sozlamalar</h2></div></div>
@@ -689,17 +677,6 @@ function Settings({ show, agency, agencyId, refresh, logout }: any) {
 
       <div className="section-head"><div><h2>Telegram bot</h2><div className="sub">Botni ulang — mijoz xabarlari avtomatik lid bo&apos;ladi, javobni ham shu yerdan yozasiz</div></div></div>
       <TelegramSettings />
-
-      <div className="section-head"><div><h2>Boshqa integratsiyalar</h2></div></div>
-      <div className="card">
-        {INTS.map((i) => (
-          <div className="set-row" key={i.key}>
-            <div className="si"><Ic d={I.bolt} s={18} /></div>
-            <div><b>{i.name}</b><small>{i.desc}</small></div>
-            <div className="end"><button className={`switch${ints[i.key] ? " on" : ""}`} aria-label={i.name} onClick={() => toggle(i.key)} /></div>
-          </div>
-        ))}
-      </div>
 
       <div className="section-head"><div><h2>Rollar va ruxsatlar</h2></div></div>
       <div className="card mini" style={{ padding: 6 }}>
