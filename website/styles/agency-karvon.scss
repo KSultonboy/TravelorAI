@@ -297,6 +297,27 @@
   .act-btn.done-btn:hover{ background:var(--gold); color:#3a2500; border-color:var(--gold); }
   .act-btn:disabled{ opacity:.5; cursor:default; }
   .act-dim{ color:var(--t3); }
+  .act-btn.back{ padding:0 11px; gap:5px; color:var(--t2); }
+  .act-btn.back svg{ width:14px; height:14px; }
+  .act-btn.back:hover{ border-color:var(--primary); color:var(--primary); background:var(--primary-soft); }
+
+  /* reports entrance animations — re-run each time the view becomes active */
+  @keyframes kvBarGrow{ from{ transform:scaleY(0); } to{ transform:scaleY(1); } }
+  @keyframes kvFillX{ from{ transform:scaleX(0); } to{ transform:scaleX(1); } }
+  @keyframes kvDonutIn{ from{ transform:rotate(-140deg) scale(.82); opacity:0; } to{ transform:rotate(0) scale(1); opacity:1; } }
+  @keyframes kvRise{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:translateY(0); } }
+  .reports.active .bars .bar{ transform-origin:bottom; animation:kvBarGrow .6s cubic-bezier(.2,.8,.2,1) both; }
+  .reports.active .bars .b:nth-child(1) .bar{ animation-delay:.04s; } .reports.active .bars .b:nth-child(2) .bar{ animation-delay:.1s; }
+  .reports.active .bars .b:nth-child(3) .bar{ animation-delay:.16s; } .reports.active .bars .b:nth-child(4) .bar{ animation-delay:.22s; }
+  .reports.active .bars .b:nth-child(5) .bar{ animation-delay:.28s; } .reports.active .bars .b:nth-child(6) .bar{ animation-delay:.34s; }
+  .reports.active .bars .b .v{ animation:kvRise .5s ease both; animation-delay:.32s; }
+  .reports.active .donut{ animation:kvDonutIn .75s cubic-bezier(.2,.7,.2,1) both; }
+  .reports.active .legend .l{ animation:kvRise .5s ease both; }
+  .reports.active .legend .l:nth-child(2){ animation-delay:.16s; } .reports.active .legend .l:nth-child(3){ animation-delay:.26s; }
+  .reports.active .hbar .fl{ transform-origin:left; animation:kvFillX .7s cubic-bezier(.2,.8,.2,1) both; }
+  .reports.active .hbar:nth-child(1) .fl{ animation-delay:.08s; } .reports.active .hbar:nth-child(2) .fl{ animation-delay:.16s; }
+  .reports.active .hbar:nth-child(3) .fl{ animation-delay:.24s; } .reports.active .hbar:nth-child(4) .fl{ animation-delay:.32s; }
+  .reports.active .hbar:nth-child(5) .fl{ animation-delay:.4s; }
 
   /* profile form */
   .prof{ padding:20px; }
@@ -312,7 +333,7 @@
   .kv-center h2{ font-family:var(--disp); color:var(--t1); font-size:20px; }
   .kv-center a.btn-primary{ text-decoration:none; }
 
-  @media (prefers-reduced-motion:reduce){ .view.active{ animation:none; } *{ transition:none !important; } }
+  @media (prefers-reduced-motion:reduce){ .view.active{ animation:none; } .reports.active .bar, .reports.active .hbar .fl, .reports.active .donut, .reports.active .bars .b .v, .reports.active .legend .l{ animation:none !important; } *{ transition:none !important; } }
   @media (max-width:1080px){ .g4{ grid-template-columns:repeat(2,1fr); } .g2{ grid-template-columns:1fr; } .g3{ grid-template-columns:repeat(2,1fr); } }
   @media (max-width:760px){
     .app{ grid-template-columns:1fr; }

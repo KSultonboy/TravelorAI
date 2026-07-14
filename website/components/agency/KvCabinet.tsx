@@ -508,7 +508,14 @@ function Bookings({ show, bookings, agencyId, refreshBookings, refresh }: any) {
                         <button className="act-btn no" disabled={busyId === b.id} onClick={() => void setStatus(b, "rejected")} title="Rad etish" aria-label="Rad etish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg></button>
                       </div>
                     ) : b.status === "confirmed" ? (
-                      <button className="act-btn done-btn" disabled={busyId === b.id} onClick={() => void setStatus(b, "completed")}>Yakunlash</button>
+                      <div className="row-act">
+                        <button className="act-btn done-btn" disabled={busyId === b.id} onClick={() => void setStatus(b, "completed")}>Yakunlash</button>
+                        <button className="act-btn back" disabled={busyId === b.id} onClick={() => void setStatus(b, "pending")} title="Orqaga qaytarish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>Orqaga</button>
+                      </div>
+                    ) : b.status === "completed" ? (
+                      <button className="act-btn back" disabled={busyId === b.id} onClick={() => void setStatus(b, "confirmed")} title="Yakunlashni bekor qilish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>Orqaga</button>
+                    ) : b.status === "rejected" ? (
+                      <button className="act-btn back" disabled={busyId === b.id} onClick={() => void setStatus(b, "pending")} title="Qayta ochish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>Qayta ochish</button>
                     ) : <span className="act-dim">—</span>}
                   </td>
                 </tr>
@@ -555,7 +562,9 @@ function Payments({ show, leads, move, busyId }: any) {
                   <td>
                     {l.stage === "won" ? (
                       <button className="act-btn done-btn" disabled={busyId === l.id} onClick={() => void move(l, "completed")}>{busyId === l.id ? "..." : "To'lovni tasdiqlash"}</button>
-                    ) : <span className="badge2 b-gold">To&apos;langan</span>}
+                    ) : (
+                      <button className="act-btn back" disabled={busyId === l.id} onClick={() => void move(l, "won")} title="To'lovni bekor qilish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>Bekor qilish</button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -603,7 +612,7 @@ function Reports({ show, leads }: any) {
   const stops = srcEntries.map(([k, v]) => { const start = (acc / r.total) * 100; acc += v; const end = (acc / r.total) * 100; return `${srcColors[k] || "var(--sky)"} ${start}% ${end}%`; }).join(", ");
 
   return (
-    <section className={`view${show ? " active" : ""}`}>
+    <section className={`view reports${show ? " active" : ""}`}>
       <div className="section-head"><div><h2>Oylik aylanma</h2><div className="sub">yopilgan bitimlar · so&apos;nggi 6 oy</div></div></div>
       <div className="card">
         <div className="bars">
