@@ -168,7 +168,9 @@ async function webhook(req, res) {
       data: { agencyId: agency.id, bookingId: booking.id, direction: 'in', text, fromName: uname || fromName },
     });
 
-    if (isNew && agency.telegramWelcome) {
+    // Salomlashishni birinchi kontaktda YOKI /start bosilganda yuboramiz
+    const isStart = text.trim().toLowerCase().startsWith('/start');
+    if ((isNew || isStart) && agency.telegramWelcome) {
       try {
         await tg.sendMessage(agency.telegramBotToken, chatId, agency.telegramWelcome);
         await prisma.telegramMessage.create({
