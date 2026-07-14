@@ -34,6 +34,8 @@ router.get('/telegram', telegram.getTelegram);
 router.post('/telegram/connect', telegram.connectTelegram);
 router.post('/telegram/disconnect', telegram.disconnectTelegram);
 router.put('/telegram/welcome', telegram.setWelcome);
+router.get('/telegram/profile', telegram.getProfile);
+router.put('/telegram/profile', telegram.setProfile);
 router.get('/telegram/messages', telegram.listMessages);
 router.post('/telegram/reply', telegram.reply);
 

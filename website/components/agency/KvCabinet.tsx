@@ -926,6 +926,10 @@ function TelegramSettings() {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState(""); const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(true);
+  const [profOpen, setProfOpen] = useState(false);
+  const [profLoading, setProfLoading] = useState(false);
+  const [prof, setProf] = useState({ name: "", desc: "", short: "", cmds: "" });
+  const [profMsg, setProfMsg] = useState("");
 
   const load = async () => {
     const res = await agencyApi<{ connected: boolean; username: string | null; welcome: string }>("/telegram");
@@ -954,6 +958,26 @@ function TelegramSettings() {
     setBusy("");
     if (res.success) setMsg("Saqlandi ✓");
   }
+  async function loadProfile() {
+    setProfLoading(true);
+    const res = await agencyApi<{ name: string; description: string; shortDescription: string; commands: { command: string; description: string }[] }>("/telegram/profile");
+    if (res.success) {
+      const d = res.data;
+      setProf({ name: d.name || "", desc: d.description || "", short: d.shortDescription || "", cmds: (d.commands || []).map((c) => `${c.command} - ${c.description}`).join("\n") });
+    }
+    setProfLoading(false);
+  }
+  async function saveProfile() {
+    setBusy("profile"); setProfMsg("");
+    const commands = prof.cmds.split("\n").map((l) => {
+      const i = l.indexOf(" - ");
+      if (i < 0) { const s = l.trim(); return s ? { command: s, description: s } : null; }
+      return { command: l.slice(0, i).trim(), description: l.slice(i + 3).trim() };
+    }).filter((c): c is { command: string; description: string } => !!c && !!c.command);
+    const res = await agencyApi("/telegram/profile", { method: "PUT", body: JSON.stringify({ name: prof.name.trim(), description: prof.desc, shortDescription: prof.short, commands }) });
+    setBusy("");
+    setProfMsg(res.success ? "Saqlandi ✓" : (res.message || "Xato"));
+  }
   if (loading) return <div className="card" style={{ padding: 18, color: "var(--t2)", fontSize: 13 }}>Yuklanmoqda…</div>;
   return (
     <div className="card tg-set">
@@ -978,14 +1002,35 @@ function TelegramSettings() {
           </div>
         </div>
       ) : (
+        <>
         <div className="tg-welcome">
-          <label>Avtomatik salomlashish (birinchi xabarda bot yuboradi)</label>
+          <label>Avtomatik salomlashish (birinchi xabarda / start bosilganda bot yuboradi)</label>
           <textarea value={welcome} onChange={(e) => setWelcome(e.target.value)} rows={2} placeholder="Salom! So'rovingiz qabul qilindi, tez orada bog'lanamiz." />
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
             <button className="btn btn-primary btn-sm" disabled={busy === "welcome"} onClick={() => void saveWelcome()}>{busy === "welcome" ? "..." : "Saqlash"}</button>
             {msg ? <span style={{ color: "var(--primary)", fontSize: 13, fontWeight: 600 }}>{msg}</span> : null}
           </div>
         </div>
+        <div className="tg-profile">
+          <button type="button" className="tg-prof-toggle" onClick={() => { if (!profOpen) void loadProfile(); setProfOpen((o) => !o); }}>
+            <span>Bot profili — nom, tavsif, buyruqlar</span>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: profOpen ? "rotate(180deg)" : "none", transition: ".2s" }}><path d="M6 9l6 6 6-6" /></svg>
+          </button>
+          {profOpen ? (profLoading ? <div className="tg-empty" style={{ padding: 14 }}>Yuklanmoqda…</div> : (
+            <div className="tg-prof-body">
+              <div className="fld"><label>Bot nomi</label><input value={prof.name} maxLength={64} onChange={(e) => setProf((p) => ({ ...p, name: e.target.value }))} /></div>
+              <div className="fld"><label>Tavsif — «What can this bot do?» (start&apos;dan oldin ko&apos;rinadi)</label><textarea value={prof.desc} maxLength={512} rows={2} onChange={(e) => setProf((p) => ({ ...p, desc: e.target.value }))} /></div>
+              <div className="fld"><label>Qisqa tavsif (profil ostidagi bio)</label><textarea value={prof.short} maxLength={120} rows={2} onChange={(e) => setProf((p) => ({ ...p, short: e.target.value }))} /></div>
+              <div className="fld"><label>Buyruqlar menyusi (har qatorda: buyruq - izoh)</label><textarea value={prof.cmds} rows={3} placeholder={"order - Buyurtma berish\nhelp - Yordam"} onChange={(e) => setProf((p) => ({ ...p, cmds: e.target.value }))} /></div>
+              <div className="tg-prof-note">Logotip (rasm/avatar) faqat <b>@BotFather → /setuserpic</b> orqali o&apos;zgartiriladi — Telegram Bot API bunga ruxsat bermaydi.</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
+                <button className="btn btn-primary btn-sm" disabled={busy === "profile"} onClick={() => void saveProfile()}>{busy === "profile" ? "Saqlanmoqda..." : "Bot profilini saqlash"}</button>
+                {profMsg ? <span style={{ color: "var(--primary)", fontSize: 13, fontWeight: 600 }}>{profMsg}</span> : null}
+              </div>
+            </div>
+          )) : null}
+        </div>
+        </>
       )}
     </div>
   );

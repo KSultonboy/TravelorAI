@@ -121,6 +121,55 @@ async function reply(req, res) {
   }
 }
 
+async function getProfile(req, res) {
+  try {
+    const agency = await ensureApprovedAgency(req, res);
+    if (!agency) return;
+    if (!agency.telegramBotToken) return error(res, 'Telegram bot ulanmagan', 400);
+    const t = agency.telegramBotToken;
+    const [name, desc, shortDesc, commands] = await Promise.all([
+      tg.getMyName(t).catch(() => ({})),
+      tg.getMyDescription(t).catch(() => ({})),
+      tg.getMyShortDescription(t).catch(() => ({})),
+      tg.getMyCommands(t).catch(() => []),
+    ]);
+    return success(res, {
+      name: name.name || '',
+      description: desc.description || '',
+      shortDescription: shortDesc.short_description || '',
+      commands: Array.isArray(commands) ? commands : [],
+    });
+  } catch (err) {
+    return error(res, err.message, 500);
+  }
+}
+
+async function setProfile(req, res) {
+  try {
+    const agency = await ensureApprovedAgency(req, res);
+    if (!agency) return;
+    if (!agency.telegramBotToken) return error(res, 'Telegram bot ulanmagan', 400);
+    const t = agency.telegramBotToken;
+    const b = req.body || {};
+    if (b.name !== undefined) await tg.setMyName(t, String(b.name).trim().slice(0, 64));
+    if (b.description !== undefined) await tg.setMyDescription(t, String(b.description).slice(0, 512));
+    if (b.shortDescription !== undefined) await tg.setMyShortDescription(t, String(b.shortDescription).slice(0, 120));
+    if (Array.isArray(b.commands)) {
+      const cmds = b.commands
+        .map((c) => ({
+          command: String((c && c.command) || '').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 32),
+          description: String((c && c.description) || '').slice(0, 256),
+        }))
+        .filter((c) => c.command && c.description)
+        .slice(0, 100);
+      await tg.setMyCommands(t, cmds);
+    }
+    return success(res, { saved: true });
+  } catch (err) {
+    return error(res, err.message, 400);
+  }
+}
+
 /* ============ PUBLIC WEBHOOK (no auth) ============ */
 
 async function webhook(req, res) {
@@ -186,4 +235,4 @@ async function webhook(req, res) {
   }
 }
 
-module.exports = { getTelegram, connectTelegram, disconnectTelegram, setWelcome, listMessages, reply, webhook };
+module.exports = { getTelegram, connectTelegram, disconnectTelegram, setWelcome, getProfile, setProfile, listMessages, reply, webhook };
