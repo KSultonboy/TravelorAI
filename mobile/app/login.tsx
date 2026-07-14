@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Linking, Platform, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -57,6 +57,28 @@ export default function LoginScreen() {
       }
 
       const message = error instanceof ApiError ? error.message : t('auth.errorLogin');
+      const supportEmail =
+        error instanceof ApiError && typeof error.data?.supportEmail === 'string'
+          ? error.data.supportEmail
+          : undefined;
+
+      // Locked-out / blocked accounts get a direct "contact support" shortcut.
+      if (supportEmail) {
+        Alert.alert(t('auth.errorTitle'), message, [
+          {
+            text: t('auth.contactSupport', { defaultValue: 'Qo‘llab-quvvatlash' }),
+            onPress: () =>
+              Linking.openURL(
+                `mailto:${supportEmail}?subject=${encodeURIComponent('TravelorAI - kirish muammosi')}&body=${encodeURIComponent(
+                  `Hisob: ${normalizedEmail}\nMuammo: hisobga kira olmayapman.`
+                )}`
+              ),
+          },
+          { text: t('common.ok', { defaultValue: 'OK' }), style: 'cancel' },
+        ]);
+        return;
+      }
+
       Alert.alert(t('auth.errorTitle'), message);
     } finally {
       setLoading(false);

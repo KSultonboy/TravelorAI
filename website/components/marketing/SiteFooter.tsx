@@ -54,7 +54,7 @@ export default function SiteFooter() {
               <h4>{col.title}</h4>
               <ul>
                 {col.links.map(([label, href]) => (
-                  <li key={label}><Link href={href}>{label}</Link></li>
+                  <li key={label}><Link href={href} prefetch={false}>{label}</Link></li>
                 ))}
               </ul>
             </div>

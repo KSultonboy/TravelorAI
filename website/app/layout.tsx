@@ -101,14 +101,17 @@ const jsonLd = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="uz" className={jakarta.variable}>
+    // suppressHydrationWarning: dark-mode sets `data-theme` on <html> before
+    // hydration (and browser extensions inject attributes on <body>) — this keeps
+    // those expected attribute differences from throwing a hydration error.
+    <html lang="uz" className={jakarta.variable} suppressHydrationWarning>
       <head>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       </head>
-      <body>{children}</body>
+      <body suppressHydrationWarning>{children}</body>
     </html>
   );
 }

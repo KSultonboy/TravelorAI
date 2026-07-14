@@ -42,8 +42,10 @@ export default function MyTripsClient() {
     let alive = true;
     (async () => {
       try {
-        const me = await fetch("/api/backend/auth/me", { cache: "no-store" });
-        if (!me.ok) {
+        const me = await fetch("/api/backend/auth/session", { cache: "no-store" });
+        const meJson = await me.json().catch(() => ({}));
+        const authedUser = meJson?.data?.user ?? meJson?.user ?? null;
+        if (!me.ok || !authedUser) {
           if (alive) { setAuthed(false); window.location.href = "/signin?next=/my-trips"; }
           return;
         }
