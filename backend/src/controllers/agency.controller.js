@@ -795,10 +795,10 @@ async function submitTour(req, res) {
     const tour = await prisma.tour.update({
       where: { id: existing.id },
       data: {
-        approvalStatus: 'pending_review',
-        active: false,
+        approvalStatus: 'approved',
+        active: true,
         submittedAt: new Date(),
-        approvedAt: null,
+        approvedAt: new Date(),
         rejectedAt: null,
         adminNote: null,
       },

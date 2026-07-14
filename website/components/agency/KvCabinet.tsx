@@ -437,7 +437,7 @@ function Packages({ show, tours, agencyId, refreshTours }: any) {
   async function submitTour(t: any) {
     setBusyId(t.id);
     const res = await agencyApi(`/tours/${t.id}/submit`, { method: "POST" });
-    if (res.success) { pushNotif(agencyId, { kind: "tour", title: "Tur tekshiruvga yuborildi", sub: t.title }); await refreshTours(); }
+    if (res.success) { pushNotif(agencyId, { kind: "tour", title: "Tur saytda e'lon qilindi", sub: t.title }); await refreshTours(); }
     setBusyId("");
   }
   async function doDelete() {
@@ -471,7 +471,7 @@ function Packages({ show, tours, agencyId, refreshTours }: any) {
                   <button className="pkg-abtn del" onClick={() => { setDelErr(""); setDelTour(t); }} title="O'chirish" aria-label="O'chirish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></button>
                 </div>
                 {t.approvalStatus === "draft" ? (
-                  <button className="btn btn-ghost btn-sm" style={{ marginTop: 8, width: "100%" }} disabled={busyId === t.id} onClick={() => void submitTour(t)}>{busyId === t.id ? "Yuborilmoqda..." : "Tasdiqlashga yuborish"}</button>
+                  <button className="btn btn-primary btn-sm" style={{ marginTop: 8, width: "100%" }} disabled={busyId === t.id} onClick={() => void submitTour(t)}>{busyId === t.id ? "E'lon qilinmoqda..." : "Saytda e'lon qilish"}</button>
                 ) : null}
               </div>
             </div>
@@ -761,17 +761,20 @@ function AddTour({ agencyId, tour, onClose, onCreated }: any) {
   });
   const [img, setImg] = useState(tour?.imageUrl || "");
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
   async function pickImg(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
     try { setImg(await readImage(file)); } catch (er) { setErr(er instanceof Error ? er.message : "Rasm xato"); }
   }
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    if (f.title.trim().length < 3) return setErr("Tur nomi kamida 3 harf bo'lsin.");
-    if (f.city.trim().length < 2) return setErr("Shahar / yo'nalishni kiriting.");
-    if (f.subtitle.trim().length < 3) return setErr("Qisqa tavsif kiriting.");
-    if (f.duration.trim().length < 2) return setErr("Davomiylikni kiriting (masalan: 5 kun).");
+  function validate() {
+    if (f.title.trim().length < 3) { setErr("Tur nomi kamida 3 harf bo'lsin."); return false; }
+    if (f.city.trim().length < 2) { setErr("Shahar / yo'nalishni kiriting."); return false; }
+    if (f.subtitle.trim().length < 3) { setErr("Qisqa tavsif kiriting."); return false; }
+    if (f.duration.trim().length < 2) { setErr("Davomiylikni kiriting (masalan: 5 kun)."); return false; }
+    setErr(""); return true;
+  }
+  async function doSave(publish: boolean) {
     setBusy(true); setErr("");
     const priceMin = f.price ? Number(f.price.replace(/[^\d]/g, "")) || undefined : undefined;
     const highlights = String(f.highlights).split(",").map((s: string) => s.trim()).filter((s: string) => s.length >= 2).slice(0, 20);
@@ -781,18 +784,35 @@ function AddTour({ agencyId, tour, onClose, onCreated }: any) {
     };
     if (img !== (tour?.imageUrl || "")) body.imageUrl = img || null;
     const res = editing
-      ? await agencyApi(`/tours/${tour.id}`, { method: "PUT", body: JSON.stringify(body) })
-      : await agencyApi("/tours", { method: "POST", body: JSON.stringify(body) });
+      ? await agencyApi<{ id: string }>(`/tours/${tour.id}`, { method: "PUT", body: JSON.stringify(body) })
+      : await agencyApi<{ id: string }>("/tours", { method: "POST", body: JSON.stringify(body) });
+    if (!res.success) { setBusy(false); setConfirming(false); setErr(res.message || "Saqlab bo'lmadi."); return; }
+    const tourId = editing ? tour.id : res.data.id;
+    if (publish && tourId) {
+      const pub = await agencyApi(`/tours/${tourId}/submit`, { method: "POST" });
+      if (!pub.success) { setBusy(false); setConfirming(false); setErr(pub.message || "E'lon qilib bo'lmadi."); return; }
+    }
     setBusy(false);
-    if (res.success) { pushNotif(agencyId, { kind: "tour", title: editing ? "Tur yangilandi" : "Yangi tur qo'shildi", sub: f.title.trim() }); await onCreated?.(); onClose(); }
-    else setErr(res.message || (editing ? "Turni yangilab bo'lmadi." : "Tur qo'shib bo'lmadi."));
+    pushNotif(agencyId, { kind: "tour", title: publish ? "Tur saytda e'lon qilindi" : "Tur qoralama saqlandi", sub: f.title.trim() });
+    await onCreated?.(); onClose();
   }
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="card modal-card" onClick={(e) => e.stopPropagation()}>
-        <div className="section-head" style={{ margin: "0 0 12px" }}><div><h2>{editing ? "Turni tahrirlash" : "Yangi tur qo'shish"}</h2><div className="sub">{editing ? "O'zgartirilgach admin qayta tasdiqlashi kerak — tur vaqtincha saytdan tushadi" : "Tur qo'shilgach admin tasdig'idan so'ng marketplace'da ko'rinadi"}</div></div></div>
+        <div className="section-head" style={{ margin: "0 0 12px" }}><div><h2>{editing ? "Turni tahrirlash" : "Yangi tur qo'shish"}</h2><div className="sub">To'ldirib «E'lon qilish»ni bossangiz — tur to'g'ridan-to'g'ri saytda ko'rinadi. Yoki qoralama saqlab keyin e'lon qilasiz.</div></div></div>
         {err ? <div className="note note-err">{err}</div> : null}
-        <form onSubmit={save}>
+        {confirming ? (
+          <div className="pub-confirm">
+            <div className="pub-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" /></svg></div>
+            <b>Turni e&apos;lon qilamizmi?</b>
+            <p>&laquo;{f.title.trim()}&raquo; darhol travelorai.com&apos;da barcha foydalanuvchilarga ko&apos;rinadi. Keyin istalgan vaqtda tahrirlashingiz mumkin.</p>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 4 }}>
+              <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => setConfirming(false)}>Orqaga</button>
+              <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void doSave(true)}>{busy ? "E'lon qilinmoqda..." : "Ha, e'lon qilish"}</button>
+            </div>
+          </div>
+        ) : (
+        <form onSubmit={(e) => { e.preventDefault(); if (validate()) setConfirming(true); }}>
           <div className="fld"><label>Tur nomi *</label><input value={f.title} onChange={set("title")} placeholder="Masalan: Dubay 5 kun" /></div>
           <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div className="fld"><label>Shahar / yo&apos;nalish *</label><input value={f.city} onChange={set("city")} placeholder="Dubay" /></div>
@@ -812,11 +832,13 @@ function AddTour({ agencyId, tour, onClose, onCreated }: any) {
             </label>
             {img ? <img className="filepick-preview" src={img} alt="" /> : null}
           </div>
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 6 }}>
+          <div className="modal-foot">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Bekor</button>
-            <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Saqlanmoqda..." : (editing ? "Saqlash" : "Qo'shish")}</button>
+            <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => { if (validate()) void doSave(false); }}>Qoralama saqlash</button>
+            <button type="submit" className="btn btn-primary" disabled={busy}>{editing ? "Saqlash va e'lon qilish" : "E'lon qilish"}</button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );

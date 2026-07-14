@@ -302,6 +302,12 @@
   .modal-card{ width:min(520px,100%); padding:22px; margin:auto; }
   .note.note-err{ background:var(--rose-soft); color:#8f2a20; border-color:#f3c9c4; margin-bottom:12px; }
   .btn-sm{ padding:7px 12px; font-size:12.5px; }
+  .modal-foot{ display:flex; gap:8px; justify-content:flex-end; margin-top:8px; flex-wrap:wrap; }
+  .pub-confirm{ text-align:center; padding:14px 8px 6px; }
+  .pub-ic{ width:52px; height:52px; border-radius:15px; background:var(--primary-soft); color:var(--primary); display:grid; place-items:center; margin:0 auto 12px; }
+  .pub-ic svg{ width:26px; height:26px; }
+  .pub-confirm b{ font-family:var(--disp); font-size:16px; display:block; }
+  .pub-confirm p{ color:var(--t2); font-size:13.5px; margin:8px auto 14px; max-width:350px; line-height:1.5; }
 
   /* row actions (bookings / payments) */
   .row-act{ display:flex; gap:6px; }
