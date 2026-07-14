@@ -257,7 +257,7 @@ function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver }: 
                 <div className="dir">{l.tourTitle || "Tur ko'rsatilmagan"}</div>
                 {l.totalEstimate ? <span className="sum">{formatMoney(l.totalEstimate)}</span> : <span className="dir">Summa yo'q</span>}
                 <div className="foot"><span className={`badge2 ${SRC_BADGE[l.source] || "b-grey"}`}>{l.source === "manual" ? "Qo'lda" : "Marketplace"}</span><small>{timeAgo(l.createdAt)}</small></div>
-                <select className="fld" style={{ marginTop: 8, padding: "5px 8px", fontSize: 12 }} value={l.stage} onChange={(e) => void move(l, e.target.value as CrmStage)}>
+                <select className="kstage" value={l.stage} onChange={(e) => void move(l, e.target.value as CrmStage)}>
                   {CRM_STAGES.map((st) => <option key={st.key} value={st.key}>{st.label}</option>)}
                 </select>
               </article>
