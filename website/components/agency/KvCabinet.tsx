@@ -430,7 +430,9 @@ function Customers({ show, customers }: any) {
 
 /* ================= PACKAGES / TOURS ================= */
 function Packages({ show, tours, agencyId, refreshTours }: any) {
-  const [showAdd, setShowAdd] = useState(false);
+  const [modal, setModal] = useState<{ tour?: any } | null>(null);
+  const [delTour, setDelTour] = useState<any>(null);
+  const [delErr, setDelErr] = useState(""); const [delBusy, setDelBusy] = useState(false);
   const [busyId, setBusyId] = useState("");
   async function submitTour(t: any) {
     setBusyId(t.id);
@@ -438,11 +440,19 @@ function Packages({ show, tours, agencyId, refreshTours }: any) {
     if (res.success) { pushNotif(agencyId, { kind: "tour", title: "Tur tekshiruvga yuborildi", sub: t.title }); await refreshTours(); }
     setBusyId("");
   }
+  async function doDelete() {
+    if (!delTour) return;
+    setDelBusy(true); setDelErr("");
+    const res = await agencyApi(`/tours/${delTour.id}`, { method: "DELETE" });
+    setDelBusy(false);
+    if (res.success) { pushNotif(agencyId, { kind: "tour", title: "Tur o'chirildi", sub: delTour.title }); setDelTour(null); await refreshTours(); }
+    else setDelErr(res.message || "Turni o'chirib bo'lmadi.");
+  }
   return (
     <section className={`view${show ? " active" : ""}`}>
       <div className="section-head">
         <div><h2>Turlar / Paketlar</h2><div className="sub">{tours.length} ta tur</div></div>
-        <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Ic d={I.plus} s={16} /> Yangi tur</button>
+        <button className="btn btn-primary" onClick={() => setModal({})}><Ic d={I.plus} s={16} /> Yangi tur</button>
       </div>
       {tours.length ? (
         <div className="grid g3">
@@ -456,15 +466,20 @@ function Packages({ show, tours, agencyId, refreshTours }: any) {
                 <div className="meta">{t.city}{t.duration ? ` · ${t.duration}` : ""}</div>
                 {Array.isArray(t.highlights) && t.highlights.length ? <div className="chips">{t.highlights.slice(0, 4).map((h: string, i: number) => <span className="chip" key={i}>{h}</span>)}</div> : null}
                 <div className="pf"><div className="price">{t.price || (t.priceMin ? formatMoney(t.priceMin) : "—")}</div>{t.active ? <span className="badge2 b-green">Faol</span> : <span className="badge2 b-grey">Nofaol</span>}</div>
+                <div className="pkg-act">
+                  <button className="pkg-abtn" onClick={() => setModal({ tour: t })}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>Tahrirlash</button>
+                  <button className="pkg-abtn del" onClick={() => { setDelErr(""); setDelTour(t); }} title="O'chirish" aria-label="O'chirish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></button>
+                </div>
                 {t.approvalStatus === "draft" ? (
-                  <button className="btn btn-ghost btn-sm" style={{ marginTop: 10, width: "100%" }} disabled={busyId === t.id} onClick={() => void submitTour(t)}>{busyId === t.id ? "Yuborilmoqda..." : "Tasdiqlashga yuborish"}</button>
+                  <button className="btn btn-ghost btn-sm" style={{ marginTop: 8, width: "100%" }} disabled={busyId === t.id} onClick={() => void submitTour(t)}>{busyId === t.id ? "Yuborilmoqda..." : "Tasdiqlashga yuborish"}</button>
                 ) : null}
               </div>
             </div>
           ))}
         </div>
       ) : <div className="card"><Empty icon={I.box} text="Hali tur yo'q. 'Yangi tur' tugmasi orqali qo'shing." /></div>}
-      {showAdd ? <AddTour agencyId={agencyId} onClose={() => setShowAdd(false)} onCreated={refreshTours} /> : null}
+      {modal ? <AddTour agencyId={agencyId} tour={modal.tour} onClose={() => setModal(null)} onCreated={refreshTours} /> : null}
+      {delTour ? <ConfirmDelete tour={delTour} busy={delBusy} err={delErr} onCancel={() => setDelTour(null)} onConfirm={doDelete} /> : null}
     </section>
   );
 }
@@ -737,9 +752,14 @@ function AddLead({ onClose, onCreated }: any) {
 }
 
 /* ================= ADD TOUR MODAL ================= */
-function AddTour({ agencyId, onClose, onCreated }: any) {
-  const [f, setF] = useState({ title: "", city: "", subtitle: "", duration: "", price: "", highlights: "" });
-  const [img, setImg] = useState("");
+function AddTour({ agencyId, tour, onClose, onCreated }: any) {
+  const editing = !!tour;
+  const [f, setF] = useState({
+    title: tour?.title || "", city: tour?.city || "", subtitle: tour?.subtitle || "",
+    duration: tour?.duration || "", price: tour?.price || (tour?.priceMin ? `$${tour.priceMin}` : ""),
+    highlights: Array.isArray(tour?.highlights) ? tour.highlights.join(", ") : "",
+  });
+  const [img, setImg] = useState(tour?.imageUrl || "");
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
   async function pickImg(e: React.ChangeEvent<HTMLInputElement>) {
@@ -754,19 +774,23 @@ function AddTour({ agencyId, onClose, onCreated }: any) {
     if (f.duration.trim().length < 2) return setErr("Davomiylikni kiriting (masalan: 5 kun).");
     setBusy(true); setErr("");
     const priceMin = f.price ? Number(f.price.replace(/[^\d]/g, "")) || undefined : undefined;
-    const highlights = f.highlights.split(",").map((s) => s.trim()).filter((s) => s.length >= 2).slice(0, 20);
-    const res = await agencyApi("/tours", { method: "POST", body: JSON.stringify({
+    const highlights = String(f.highlights).split(",").map((s: string) => s.trim()).filter((s: string) => s.length >= 2).slice(0, 20);
+    const body: Record<string, unknown> = {
       title: f.title.trim(), city: f.city.trim(), subtitle: f.subtitle.trim(), duration: f.duration.trim(),
-      price: f.price.trim() || undefined, priceMin, highlights, imageUrl: img || undefined,
-    }) });
+      price: f.price.trim() || undefined, priceMin, highlights,
+    };
+    if (img !== (tour?.imageUrl || "")) body.imageUrl = img || null;
+    const res = editing
+      ? await agencyApi(`/tours/${tour.id}`, { method: "PUT", body: JSON.stringify(body) })
+      : await agencyApi("/tours", { method: "POST", body: JSON.stringify(body) });
     setBusy(false);
-    if (res.success) { pushNotif(agencyId, { kind: "tour", title: "Yangi tur qo'shildi", sub: f.title.trim() }); await onCreated?.(); onClose(); }
-    else setErr(res.message || "Tur qo'shib bo'lmadi.");
+    if (res.success) { pushNotif(agencyId, { kind: "tour", title: editing ? "Tur yangilandi" : "Yangi tur qo'shildi", sub: f.title.trim() }); await onCreated?.(); onClose(); }
+    else setErr(res.message || (editing ? "Turni yangilab bo'lmadi." : "Tur qo'shib bo'lmadi."));
   }
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="card modal-card" onClick={(e) => e.stopPropagation()}>
-        <div className="section-head" style={{ margin: "0 0 12px" }}><div><h2>Yangi tur qo&apos;shish</h2><div className="sub">Tur qo&apos;shilgach admin tasdig&apos;idan so&apos;ng marketplace&apos;da ko&apos;rinadi</div></div></div>
+        <div className="section-head" style={{ margin: "0 0 12px" }}><div><h2>{editing ? "Turni tahrirlash" : "Yangi tur qo'shish"}</h2><div className="sub">{editing ? "O'zgartirilgach admin qayta tasdiqlashi kerak — tur vaqtincha saytdan tushadi" : "Tur qo'shilgach admin tasdig'idan so'ng marketplace'da ko'rinadi"}</div></div></div>
         {err ? <div className="note note-err">{err}</div> : null}
         <form onSubmit={save}>
           <div className="fld"><label>Tur nomi *</label><input value={f.title} onChange={set("title")} placeholder="Masalan: Dubay 5 kun" /></div>
@@ -790,9 +814,25 @@ function AddTour({ agencyId, onClose, onCreated }: any) {
           </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 6 }}>
             <button type="button" className="btn btn-ghost" onClick={onClose}>Bekor</button>
-            <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Qo'shilmoqda..." : "Qo'shish"}</button>
+            <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Saqlanmoqda..." : (editing ? "Saqlash" : "Qo'shish")}</button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+/* ================= CONFIRM DELETE ================= */
+function ConfirmDelete({ tour, busy, err, onCancel, onConfirm }: any) {
+  return (
+    <div className="modal-bg" onClick={onCancel}>
+      <div className="card modal-card" style={{ maxWidth: 430 }} onClick={(e) => e.stopPropagation()}>
+        <div className="section-head" style={{ margin: "0 0 10px" }}><div><h2>Turni o&apos;chirish</h2><div className="sub">&laquo;{tour.title}&raquo; butunlay o&apos;chiriladi. Buni qaytarib bo&apos;lmaydi.</div></div></div>
+        {err ? <div className="note note-err">{err}</div> : null}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 6 }}>
+          <button className="btn btn-ghost" onClick={onCancel}>Bekor</button>
+          <button className="btn btn-danger" disabled={busy} onClick={onConfirm}>{busy ? "O'chirilmoqda..." : "O'chirish"}</button>
+        </div>
       </div>
     </div>
   );

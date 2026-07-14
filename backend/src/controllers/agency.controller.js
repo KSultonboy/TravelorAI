@@ -940,6 +940,23 @@ async function updateAgencyProfile(req, res) {
   }
 }
 
+async function deleteTour(req, res) {
+  try {
+    const agency = await ensureApprovedAgency(req, res);
+    if (!agency) return;
+    const existing = await prisma.tour.findFirst({ where: { id: req.params.id, agencyId: agency.id } });
+    if (!existing) return error(res, 'Tur topilmadi', 404);
+    const bookingCount = await prisma.tourBooking.count({ where: { tourId: existing.id } });
+    if (bookingCount > 0) {
+      return error(res, 'Bu turda bronlar mavjud - ochirib bolmaydi. Uni tahrirlab yangilashingiz mumkin.', 409);
+    }
+    await prisma.tour.delete({ where: { id: existing.id } });
+    return success(res, { deleted: true, id: existing.id });
+  } catch (err) {
+    return error(res, err.message, 400);
+  }
+}
+
 module.exports = {
   googleAuth,
   register,
@@ -960,4 +977,5 @@ module.exports = {
   submitTour,
   listBookings,
   updateBookingStatus,
+  deleteTour,
 };

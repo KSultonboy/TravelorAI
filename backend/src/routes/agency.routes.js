@@ -24,6 +24,7 @@ router.get('/tours', agency.listTours);
 router.post('/tours', agency.createTour);
 router.put('/tours/:id', agency.updateTour);
 router.post('/tours/:id/submit', agency.submitTour);
+router.delete('/tours/:id', agency.deleteTour);
 
 router.get('/bookings', agency.listBookings);
 router.patch('/bookings/:id/status', agency.updateBookingStatus);
