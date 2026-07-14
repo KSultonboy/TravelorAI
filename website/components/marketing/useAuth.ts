@@ -25,8 +25,9 @@ export function useAuth() {
 
   const refresh = useCallback(async () => {
     try {
-      // /auth/session is a public probe: guests get 200 {user:null} (no console 401).
-      const res = await fetch("/api/backend/auth/session", { cache: "no-store" });
+      // NOTE: switch to /auth/session once the backend deploy includes it (removes the
+      // guest 401 console noise). Until then /auth/me is what the live backend exposes.
+      const res = await fetch("/api/backend/auth/me", { cache: "no-store" });
       if (!res.ok) {
         setState({ user: null, loading: false });
         return;
