@@ -779,8 +779,15 @@ function AddTour({ agencyId, onClose, onCreated }: any) {
             <div className="fld"><label>Narx</label><input value={f.price} onChange={set("price")} placeholder="$900" /></div>
             <div className="fld"><label>Xizmatlar (vergul bilan)</label><input value={f.highlights} onChange={set("highlights")} placeholder="Aviabilet, Transfer, Gid" /></div>
           </div>
-          <div className="fld"><label>Rasm (ixtiyoriy)</label><input type="file" accept="image/*" onChange={pickImg} /></div>
-          {img ? <img src={img} alt="" style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 10, marginBottom: 10 }} /> : null}
+          <div className="fld">
+            <label>Rasm (ixtiyoriy)</label>
+            <label className="filepick">
+              <span className="filepick-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M17 8l-5-5-5 5" /><path d="M12 3v12" /></svg></span>
+              <span className="filepick-tx"><b>{img ? "Boshqa rasm tanlash" : "Rasm tanlash"}</b><small>PNG yoki JPG &middot; 8 MB gacha</small></span>
+              <input type="file" accept="image/*" onChange={pickImg} hidden />
+            </label>
+            {img ? <img className="filepick-preview" src={img} alt="" /> : null}
+          </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 6 }}>
             <button type="button" className="btn btn-ghost" onClick={onClose}>Bekor</button>
             <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Qo'shilmoqda..." : "Qo'shish"}</button>
