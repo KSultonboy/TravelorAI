@@ -33,6 +33,8 @@ export default function AgencyResetForm({ email, code }: { email: string; code: 
         return;
       }
       setDone(true);
+      // Parol yangilangach — agent login sahifasiga avtomatik o'tkazamiz.
+      setTimeout(() => { window.location.href = "/agency"; }, 1800);
     } catch {
       setErr("Server bilan aloqa bo‘lmadi.");
     } finally {
@@ -57,7 +59,7 @@ export default function AgencyResetForm({ email, code }: { email: string; code: 
           </p>
         ) : done ? (
           <div style={{ marginTop: 14 }}>
-            <p style={{ color: GREEN, fontWeight: 600, lineHeight: 1.6 }}>✅ Parol muvaffaqiyatli yangilandi!</p>
+            <p style={{ color: GREEN, fontWeight: 600, lineHeight: 1.6 }}>✅ Parol yangilandi! Kirish sahifasiga o‘tkazilyapmiz...</p>
             <a href="/agency" style={{ ...btn, display: "block", textAlign: "center", textDecoration: "none", background: GOLD, color: "#1c1400" }}>Agentlik portaliga kirish</a>
           </div>
         ) : (

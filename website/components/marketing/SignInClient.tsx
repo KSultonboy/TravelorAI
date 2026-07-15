@@ -180,9 +180,14 @@ export default function SignInClient() {
                   <button type="button" onClick={() => { setMode(mode === "login" ? "register" : "login"); setErr(""); }}>{mode === "login" ? "Ro‘yxatdan o‘tish" : "Kirish"}</button>
                 </div>
               ) : (
-                <div className="mkt-auth__toggle" style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
-                  <BadgeCheck size={15} style={{ color: "var(--primary)" }} /> Yangi agentlikmi? <a href="/partners" style={{ color: "var(--primary)", fontWeight: 800 }}>Ariza qoldiring</a>
-                </div>
+                <>
+                  <div className="mkt-auth__toggle" style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
+                    <BadgeCheck size={15} style={{ color: "var(--primary)" }} /> Yangi agentlikmi? <a href="/partners" style={{ color: "var(--primary)", fontWeight: 800 }}>Ariza qoldiring</a>
+                  </div>
+                  <div className="mkt-auth__toggle" style={{ marginTop: 8, fontSize: "0.85rem", textAlign: "center", lineHeight: 1.6 }}>
+                    Parolni unutdingizmi? <a href="mailto:support@travelorai.com?subject=Agentlik%20parolni%20tiklash" style={{ color: "var(--primary)", fontWeight: 700 }}>Administratorga murojaat qiling</a> — tiklash havolasi emailingizga yuboriladi.
+                  </div>
+                </>
               )}
             </>
           )}
