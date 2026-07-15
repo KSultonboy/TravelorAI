@@ -184,7 +184,7 @@
 /* ---------- Destination tiles ---------- */
 .mkt-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
 @media (max-width: 900px) { .mkt-tiles { grid-template-columns: repeat(2, 1fr); } }
-.mkt-tile { position: relative; aspect-ratio: 3/4; border-radius: var(--radius-lg); overflow: hidden; text-decoration: none; box-shadow: var(--shadow-sm); }
+.mkt-tile { display: block; position: relative; width: 100%; aspect-ratio: 3/4; border-radius: var(--radius-lg); overflow: hidden; text-decoration: none; box-shadow: var(--shadow-sm); background: linear-gradient(135deg, var(--primary-2, #0f5a3a), #06231a); }
 .mkt-tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; }
 .mkt-tile:hover img { transform: scale(1.07); }
 .mkt-tile__cap { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 18px; background: linear-gradient(0deg, rgba(7,38,26,0.85), transparent 60%); color: #fff; }
