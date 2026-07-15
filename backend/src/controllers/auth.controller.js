@@ -214,7 +214,7 @@ async function login(req, res) {
     }
 
     if (!found.password) {
-      return error(res, 'Bu email Google orqali ro\'yxatdan o\'tgan. Google bilan kiring yoki "Parolni unutdingizmi?" orqali parol o\'rnating.', 400, {
+      return error(res, 'Bu email Google orqali ochilgan (paroli yo\'q). "Parolni unutdingizmi?" orqali parol o\'rnating — keyin email va parol bilan kirasiz.', 400, {
         authProvider: 'google',
       });
     }

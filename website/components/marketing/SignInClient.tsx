@@ -173,7 +173,7 @@ export default function SignInClient() {
               {err ? <div className="mkt-alert mkt-alert--error" style={{ marginBottom: 12 }}>{err}</div> : null}
               {info ? <div className="mkt-alert mkt-alert--ok" style={{ marginBottom: 12 }}>{info}</div> : null}
               <form className="mkt-auth__fields" onSubmit={sendForgot}>
-                <div className="mkt-field"><label>Email</label><div className="mkt-input"><Mail size={16} /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="siz@email.com" /></div></div>
+                <div className="mkt-field"><label>Email</label><div className="mkt-input"><Mail size={16} /><input type="email" name="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="siz@email.com" /></div></div>
                 <button className="btn btn--gold btn--lg btn--block" type="submit" disabled={busy}>{busy ? "Yuborilmoqda..." : "Havola yuborish"}</button>
               </form>
             </>
@@ -187,10 +187,10 @@ export default function SignInClient() {
 
               <form className="mkt-auth__fields" onSubmit={submit}>
                 {mode === "register" && role === "traveler" ? (
-                  <div className="mkt-field"><label>Ism</label><div className="mkt-input"><User size={16} /><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ismingiz" /></div></div>
+                  <div className="mkt-field"><label>Ism</label><div className="mkt-input"><User size={16} /><input name="name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ismingiz" /></div></div>
                 ) : null}
-                <div className="mkt-field"><label>Email</label><div className="mkt-input"><Mail size={16} /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="siz@email.com" /></div></div>
-                <div className="mkt-field"><label>Parol</label><div className="mkt-input"><Lock size={16} /><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Kamida 8 belgi" /></div></div>
+                <div className="mkt-field"><label>Email</label><div className="mkt-input"><Mail size={16} /><input type="email" name="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="siz@email.com" /></div></div>
+                <div className="mkt-field"><label>Parol</label><div className="mkt-input"><Lock size={16} /><input type="password" name="password" autoComplete={mode === "login" ? "current-password" : "new-password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Kamida 8 belgi" /></div></div>
                 <button className="btn btn--gold btn--lg btn--block" type="submit" disabled={busy}>{busy ? "Yuborilmoqda..." : mode === "login" ? "Kirish" : "Ro‘yxatdan o‘tish"}</button>
               </form>
 
