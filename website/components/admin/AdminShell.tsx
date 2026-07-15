@@ -4,14 +4,16 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Bell, Building2, ClipboardList, LayoutDashboard, LogOut, Menu, MessageSquareWarning,
-  PackageSearch, Search, Star, TrendingUp, Users, X,
+  Bell, Building2, ClipboardList, CreditCard, LayoutDashboard, LogOut, Menu, MessageSquareWarning,
+  PackageSearch, Search, Star, TrendingUp, Users, Wallet, X,
 } from "lucide-react";
 import { clearToken, fetchMe, type AdminUser } from "@/lib/adminApi";
 
 const NAV = [
   { href: "/admin", label: "Boshqaruv", icon: LayoutDashboard, exact: true },
   { href: "/admin/partners", label: "Hamkorlar", icon: Building2 },
+  { href: "/admin/billing", label: "To'lovlar & obuna", icon: Wallet },
+  { href: "/admin/tariffs", label: "Tariflar", icon: CreditCard },
   { href: "/admin/listings", label: "Turlar (listing)", icon: PackageSearch },
   { href: "/admin/bookings", label: "Bronlar", icon: ClipboardList },
   { href: "/admin/reports", label: "Hisobotlar", icon: TrendingUp },
@@ -22,6 +24,7 @@ const NAV = [
 
 const TITLES: Record<string, string> = {
   "/admin": "Boshqaruv paneli", "/admin/partners": "Hamkorlar", "/admin/partners/new": "Yangi hamkor",
+  "/admin/billing": "To'lovlar & obuna", "/admin/tariffs": "Tariflar",
   "/admin/listings": "Turlar (listing)", "/admin/bookings": "Bronlar", "/admin/reports": "Hisobotlar",
   "/admin/users": "Foydalanuvchilar", "/admin/reviews": "Sharhlar", "/admin/feedback": "Fikr & shikoyat",
 };

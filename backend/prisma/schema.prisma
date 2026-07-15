@@ -374,6 +374,9 @@ model TourAgency {
   telegramBotActive   Boolean  @default(false)
   telegramWelcome     String?
   telegramConfig      String?
+  tariffId            String?
+  subscriptionStatus  String              @default("none")
+  subscriptionUntil   DateTime?
   website          String?
   imageUrl         String?
   active           Boolean             @default(true)
@@ -394,14 +397,55 @@ model TourAgency {
   tours            Tour[]
   applications     AgencyApplication[]
   bookings         TourBooking[]
+  tariff           Tariff?             @relation(fields: [tariffId], references: [id], onDelete: SetNull)
+  payments         AgencyPayment[]
 
   @@index([active])
+  @@index([tariffId])
+  @@index([subscriptionStatus])
   @@index([city])
   @@index([rating])
   @@index([featured])
   @@index([landingSortOrder])
   @@index([ownerAccountId])
   @@index([approvalStatus])
+}
+
+model Tariff {
+  id            String          @id @default(cuid())
+  name          String
+  slug          String          @unique
+  priceMonthly  Int             @default(0)
+  commissionPct Float           @default(15)
+  features      String?
+  sortOrder     Int             @default(0)
+  active        Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  agencies      TourAgency[]
+  payments      AgencyPayment[]
+
+  @@index([active])
+  @@index([sortOrder])
+}
+
+model AgencyPayment {
+  id           String     @id @default(cuid())
+  agencyId     String
+  agency       TourAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  tariffId     String?
+  tariff       Tariff?    @relation(fields: [tariffId], references: [id], onDelete: SetNull)
+  amount       Int
+  currency     String     @default("USD")
+  periodMonths Int        @default(1)
+  method       String?
+  note         String?
+  paidAt       DateTime   @default(now())
+  createdAt    DateTime   @default(now())
+
+  @@index([agencyId])
+  @@index([tariffId])
+  @@index([paidAt])
 }
 
 model LandingInteraction {

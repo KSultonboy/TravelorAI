@@ -1,10 +1,26 @@
 const router = require('express').Router();
 const { adminAuthMiddleware } = require('../middleware/adminAuth.middleware');
 const admin = require('../controllers/admin.controller');
+const billing = require('../controllers/adminBilling.controller');
 
 router.use(adminAuthMiddleware);
 
 router.get('/stats', admin.getStats);
+
+// ── CRM: tariflar, obunalar, to'lovlar ──
+router.get('/tariffs', billing.getTariffs);
+router.post('/tariffs', billing.createTariff);
+router.put('/tariffs/:id', billing.updateTariff);
+router.delete('/tariffs/:id', billing.deleteTariff);
+
+router.get('/subscriptions', billing.getSubscriptions);
+router.put('/agencies/:id/subscription', billing.setAgencySubscription);
+
+router.get('/payments', billing.getPayments);
+router.post('/payments', billing.createPayment);
+router.delete('/payments/:id', billing.deletePayment);
+
+router.get('/billing/stats', billing.getBillingStats);
 
 router.get('/users', admin.getUsers);
 router.get('/users/:id', admin.getUser);
