@@ -170,17 +170,29 @@ async function sendEmailChangedNoticeEmail({ oldEmail, newEmail }) {
 }
 
 async function sendPasswordResetCodeEmail({ email, name, code, expiresInMinutes }) {
+  const WEB_URL = process.env.PUBLIC_WEB_URL || process.env.SITE_URL || 'https://travelorai.com';
+  const resetUrl = `${WEB_URL}/reset-password?email=${encodeURIComponent(email)}&code=${code}`;
+  const html = `
+    <div style="font-family:Arial,sans-serif;background:#f4f7f5;padding:24px;">
+      <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:20px;padding:32px;border:1px solid #eaf0eb;">
+        <p style="margin:0 0 8px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#1a6b3c;">${APP_NAME}</p>
+        <h1 style="margin:0 0 12px;font-size:26px;color:#122117;">Parolni yangilash</h1>
+        <p style="margin:0 0 20px;font-size:15px;line-height:1.7;color:#4f6355;">${name || 'Salom'}, yangi parol o'rnatish uchun quyidagi tugmani bosing:</p>
+        <div style="margin:24px 0;text-align:center;">
+          <a href="${resetUrl}" style="display:inline-block;background:#1a6b3c;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 28px;border-radius:12px;">Yangi parol o'rnatish</a>
+        </div>
+        <p style="margin:0 0 6px;font-size:13px;line-height:1.6;color:#7c8a81;">Yoki mobil ilovada shu kodni kiriting:</p>
+        <div style="margin:6px 0 18px;padding:14px;border-radius:14px;background:#e7f5ec;text-align:center;font-size:28px;letter-spacing:8px;font-weight:700;color:#1a6b3c;">${code}</div>
+        <p style="margin:0 0 8px;font-size:13px;line-height:1.7;color:#7c8a81;">Havola va kod ${expiresInMinutes} daqiqa amal qiladi.</p>
+        <p style="margin:0;font-size:12px;line-height:1.6;color:#9aa79f;word-break:break-all;">Tugma ishlamasa: ${resetUrl}</p>
+      </div>
+    </div>
+  `;
   return sendMail({
     to: email,
-    subject: `${APP_NAME} parol tiklash kodi`,
-    html: buildHtml({
-      heading: 'Parolni yangilash',
-      intro: `${name || 'Salom'}, parolni tiklash uchun quyidagi koddan foydalaning.`,
-      code,
-      expiresInMinutes,
-      footer: "Agar siz parol tiklash so'rovini yubormagan bo'lsangiz, akkauntingiz xavfsiz qoladi.",
-    }),
-    text: `Parol tiklash kodi: ${code}. Kod ${expiresInMinutes} daqiqa amal qiladi.`,
+    subject: `${APP_NAME} parol tiklash`,
+    html,
+    text: `Parolni yangilash havolasi: ${resetUrl}\nYoki mobil ilovada kod: ${code}. ${expiresInMinutes} daqiqa amal qiladi.`,
     logMeta: { type: 'password_reset', code, email },
   });
 }

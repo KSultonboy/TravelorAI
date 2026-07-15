@@ -8,7 +8,7 @@ import GoogleContinueButton from "../GoogleContinueButton";
 
 const HERO = "https://images.unsplash.com/photo-1539635278303-d4002c07eae3?auto=format&fit=crop&w=1400&q=70";
 type Role = "traveler" | "partner";
-type Step = "role" | "form" | "verify";
+type Step = "role" | "form" | "verify" | "forgot";
 
 const BENEFITS = [
   { icon: Sparkles, title: "AI sayohat rejasi", sub: "Byudjet va qiziqishingizga mos marshrut" },
@@ -88,6 +88,21 @@ export default function SignInClient() {
     }
   }
 
+  async function sendForgot(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(""); setInfo("");
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) { setErr("Email noto‘g‘ri."); return; }
+    setBusy(true);
+    try {
+      await post("/forgot-password", { email: email.trim().toLowerCase() });
+      setInfo("Agar bu email ro‘yxatda bo‘lsa, parol yangilash havolasi yuborildi. Emailingizni (Spam papkasini ham) tekshiring.");
+    } catch {
+      setErr("Server bilan aloqa bo‘lmadi.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onGoogle(idToken: string) {
     setErr(""); setBusy(true);
     try {
@@ -150,6 +165,18 @@ export default function SignInClient() {
                 <button className="btn btn--gold btn--lg btn--block" type="submit" disabled={busy}>{busy ? "Tekshirilmoqda..." : "Tasdiqlash"}</button>
               </form>
             </>
+          ) : step === "forgot" ? (
+            <>
+              <button className="mkt-auth__back" type="button" onClick={() => { setStep("form"); setErr(""); setInfo(""); }}><ArrowLeft size={16} /> Orqaga</button>
+              <h1>Parolni tiklash</h1>
+              <p className="sub">Email manzilingizni kiriting — parol yangilash havolasini yuboramiz.</p>
+              {err ? <div className="mkt-alert mkt-alert--error" style={{ marginBottom: 12 }}>{err}</div> : null}
+              {info ? <div className="mkt-alert mkt-alert--ok" style={{ marginBottom: 12 }}>{info}</div> : null}
+              <form className="mkt-auth__fields" onSubmit={sendForgot}>
+                <div className="mkt-field"><label>Email</label><div className="mkt-input"><Mail size={16} /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="siz@email.com" /></div></div>
+                <button className="btn btn--gold btn--lg btn--block" type="submit" disabled={busy}>{busy ? "Yuborilmoqda..." : "Havola yuborish"}</button>
+              </form>
+            </>
           ) : (
             <>
               <button className="mkt-auth__back" type="button" onClick={() => { setStep("role"); setErr(""); }}><ArrowLeft size={16} /> Hisob turi</button>
@@ -166,6 +193,12 @@ export default function SignInClient() {
                 <div className="mkt-field"><label>Parol</label><div className="mkt-input"><Lock size={16} /><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Kamida 8 belgi" /></div></div>
                 <button className="btn btn--gold btn--lg btn--block" type="submit" disabled={busy}>{busy ? "Yuborilmoqda..." : mode === "login" ? "Kirish" : "Ro‘yxatdan o‘tish"}</button>
               </form>
+
+              {role === "traveler" && mode === "login" ? (
+                <div style={{ textAlign: "center", marginTop: 10 }}>
+                  <button type="button" onClick={() => { setStep("forgot"); setErr(""); setInfo(""); }} style={{ background: "none", border: "none", color: "var(--primary)", fontWeight: 600, fontSize: "0.86rem", cursor: "pointer" }}>Parolni unutdingizmi?</button>
+                </div>
+              ) : null}
 
               {role === "traveler" ? (
                 <>
