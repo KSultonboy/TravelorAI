@@ -38,6 +38,16 @@ export default function PartnersPage() {
     }
   }
 
+  async function sendReset(email?: string | null) {
+    if (!email) { setToast("Bu arizada email yo‘q."); return; }
+    try {
+      const d = await api<{ message: string }>("/admin/agencies/send-password-reset", { method: "POST", body: JSON.stringify({ email }) });
+      setToast(d.message || "Parol yangilash havolasi yuborildi.");
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : "Yuborilmadi");
+    }
+  }
+
   if (!items) return <Spinner />;
 
   return (
@@ -68,6 +78,7 @@ export default function PartnersPage() {
                     <div className="adm-actions">
                       {p.status !== "approved" ? <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => review(p.id, "approve", "approved")}>Tasdiqlash</button> : null}
                       {p.status !== "rejected" ? <button className="adm-btn adm-btn--danger adm-btn--sm" onClick={() => review(p.id, "reject", "rejected")}>Bloklash</button> : null}
+                      {p.account?.email ? <button className="adm-btn adm-btn--sm" onClick={() => sendReset(p.account?.email)}>Parol tiklash</button> : null}
                     </div>
                   </td>
                 </tr>

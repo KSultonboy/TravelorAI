@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { adminAuthMiddleware } = require('../middleware/adminAuth.middleware');
 const admin = require('../controllers/admin.controller');
+const agency = require('../controllers/agency.controller');
 
 router.use(adminAuthMiddleware);
 
@@ -27,6 +28,7 @@ router.post('/hero-slides', admin.createHeroSlide);
 router.put('/hero-slides/:id', admin.updateHeroSlide);
 router.delete('/hero-slides/:id', admin.deleteHeroSlide);
 
+router.post('/agencies/send-password-reset', agency.adminSendPasswordReset);
 router.get('/agencies', admin.getAgencies);
 router.post('/agencies', admin.createAgency);
 router.put('/agencies/:id', admin.updateAgency);

@@ -201,6 +201,31 @@ async function sendAccountDeleteCodeEmail({ email, name, code, expiresInMinutes 
   });
 }
 
+async function sendAgencyPasswordResetLinkEmail({ email, resetUrl, expiresInMinutes }) {
+  const html = `
+    <div style="font-family:Arial,sans-serif;background:#f4f7f5;padding:24px;">
+      <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:20px;padding:32px;border:1px solid #eaf0eb;">
+        <p style="margin:0 0 8px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#1a6b3c;">${APP_NAME} — Agentlik</p>
+        <h1 style="margin:0 0 12px;font-size:26px;color:#122117;">Parolni yangilash</h1>
+        <p style="margin:0 0 20px;font-size:15px;line-height:1.7;color:#4f6355;">Agentlik hisobingiz parolini yangilash so'raldi. Yangi parol o'rnatish uchun quyidagi tugmani bosing:</p>
+        <div style="margin:26px 0;text-align:center;">
+          <a href="${resetUrl}" style="display:inline-block;background:#1a6b3c;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 28px;border-radius:12px;">Yangi parol o'rnatish</a>
+        </div>
+        <p style="margin:0 0 8px;font-size:13px;line-height:1.7;color:#7c8a81;">Havola ${expiresInMinutes} daqiqa ichida amal qiladi.</p>
+        <p style="margin:0;font-size:12px;line-height:1.6;color:#9aa79f;word-break:break-all;">Tugma ishlamasa, shu havolani brauzerga nusxalang:<br>${resetUrl}</p>
+        <p style="margin:16px 0 0;font-size:13px;line-height:1.7;color:#7c8a81;">Agar bu so'rovni siz yubormagan bo'lsangiz, ushbu xatni e'tiborsiz qoldiring — parolingiz o'zgarmaydi.</p>
+      </div>
+    </div>
+  `;
+  return sendMail({
+    to: email,
+    subject: `${APP_NAME} agentlik — parolni yangilash`,
+    html,
+    text: `Agentlik parolini yangilash havolasi: ${resetUrl}\nHavola ${expiresInMinutes} daqiqa amal qiladi.`,
+    logMeta: { type: 'agency_password_reset', email },
+  });
+}
+
 function safeText(value) {
   if (typeof value !== 'string') return '';
   return value.replace(/[<>]/g, '').trim();
@@ -323,6 +348,7 @@ module.exports = {
   sendEmailChangeCodeEmail,
   sendEmailChangedNoticeEmail,
   sendPasswordResetCodeEmail,
+  sendAgencyPasswordResetLinkEmail,
   sendAccountDeleteCodeEmail,
   sendSupportFeedbackEmail,
   sendBookingLeadEmail,

@@ -5,7 +5,7 @@ const { success, error } = require('../utils/response');
 const { signAgencyToken } = require('../utils/agencyJwt');
 const { verifyGoogleIdToken } = require('../services/auth.service');
 const { sendPushNotification } = require('../services/push.service');
-const { sendEmailChangeCodeEmail, sendEmailChangedNoticeEmail, sendVerificationCodeEmail } = require('../services/email.service');
+const { sendEmailChangeCodeEmail, sendEmailChangedNoticeEmail, sendVerificationCodeEmail, sendAgencyPasswordResetLinkEmail } = require('../services/email.service');
 const {
   withDecay,
   getActiveLock,
@@ -24,6 +24,7 @@ const {
   googleAuthSchema,
   loginSchema,
   registerSchema,
+  resetPasswordSchema,
   tourSchema,
   verifyEmailSchema,
 } = require('../schemas/agency.schema');
@@ -153,23 +154,34 @@ async function issueAgencyCode(account, type = 'EMAIL_VERIFICATION') {
     },
   });
 
-  const sendFn =
-    type === 'EMAIL_CHANGE'
-      ? () =>
-          sendEmailChangeCodeEmail({
-            email: account.email,
-            name: account.email,
-            newEmail: account.pendingEmail,
-            code,
-            expiresInMinutes: CODE_EXPIRES_MINUTES,
-          })
-      : () =>
-          sendVerificationCodeEmail({
-            email: account.email,
-            name: account.email,
-            code,
-            expiresInMinutes: CODE_EXPIRES_MINUTES,
-          });
+  const WEB_URL = process.env.PUBLIC_WEB_URL || process.env.SITE_URL || 'https://travelorai.com';
+  let sendFn;
+  if (type === 'EMAIL_CHANGE') {
+    sendFn = () =>
+      sendEmailChangeCodeEmail({
+        email: account.email,
+        name: account.email,
+        newEmail: account.pendingEmail,
+        code,
+        expiresInMinutes: CODE_EXPIRES_MINUTES,
+      });
+  } else if (type === 'PASSWORD_RESET') {
+    const resetUrl = `${WEB_URL}/agency/reset-password?email=${encodeURIComponent(account.email)}&code=${code}`;
+    sendFn = () =>
+      sendAgencyPasswordResetLinkEmail({
+        email: account.email,
+        resetUrl,
+        expiresInMinutes: CODE_EXPIRES_MINUTES,
+      });
+  } else {
+    sendFn = () =>
+      sendVerificationCodeEmail({
+        email: account.email,
+        name: account.email,
+        code,
+        expiresInMinutes: CODE_EXPIRES_MINUTES,
+      });
+  }
 
   // Emailni BLOKLAMASDAN yuboramiz (Gmail SMTP 2-13s olishi mumkin) — javobni
   // kutdirib qo'ymaymiz; kod allaqachon bazaga yozilgan. Xato bo'lsa logga yozamiz.
@@ -582,6 +594,62 @@ async function googleAuth(req, res) {
   }
 }
 
+// Public: agency sets a new password using the code from the reset-link email.
+// No self-service "forgot" form on the portal — the reset is admin-triggered.
+async function resetPassword(req, res) {
+  try {
+    const input = resetPasswordSchema.parse(req.body || {});
+    const email = input.email.toLowerCase();
+    const account = await prisma.agencyAccount.findUnique({ where: { email } });
+    if (!account) return error(res, 'Havola xato yoki muddati tugagan', 400);
+
+    const ok = await consumeAgencyCode(account.id, input.code, 'PASSWORD_RESET');
+    if (!ok) return error(res, 'Havola xato yoki muddati tugagan', 400);
+
+    const passwordHash = await bcrypt.hash(input.newPassword, 10);
+    await prisma.agencyAccount.update({
+      where: { id: account.id },
+      data: {
+        passwordHash,
+        // A successful reset also lifts any brute-force lockout.
+        failedLoginAttempts: 0,
+        lockoutLevel: 0,
+        lockoutUntil: null,
+        lastFailedLoginAt: null,
+      },
+    });
+
+    return success(res, { message: 'Parol yangilandi. Endi yangi parol bilan kiring.' });
+  } catch (err) {
+    return error(res, err.errors?.[0]?.message || err.message, 400);
+  }
+}
+
+// Admin-triggered: emails the agency a password-reset link. Never sets/sees the
+// password — the agency sets its own via the link.
+async function adminSendPasswordReset(req, res) {
+  try {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!email) return error(res, 'Email kiriting', 400);
+    const account = await prisma.agencyAccount.findUnique({ where: { email } });
+    if (!account) return error(res, 'Bu email bilan agentlik akkaunti topilmadi', 404);
+
+    const delivery = await issueAgencyCode(account, 'PASSWORD_RESET');
+    await prisma.agencyAccount.update({
+      where: { id: account.id },
+      data: { failedLoginAttempts: 0, lockoutLevel: 0, lockoutUntil: null, lastFailedLoginAt: null },
+    });
+
+    return success(res, {
+      message: `Parol yangilash havolasi ${account.email} manziliga yuborildi.`,
+      email: account.email,
+      delivery: delivery?.delivery || 'log',
+    });
+  } catch (err) {
+    return error(res, err.message, 400);
+  }
+}
+
 async function me(req, res) {
   try {
     const [application, agency] = await Promise.all([
@@ -973,6 +1041,8 @@ module.exports = {
   resendEmailChange,
   confirmEmailChange,
   login,
+  resetPassword,
+  adminSendPasswordReset,
   me,
   getApplication,
   upsertApplication,

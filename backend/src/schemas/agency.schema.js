@@ -94,6 +94,12 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+const resetPasswordSchema = z.object({
+  email: z.string().trim().email(),
+  code: z.string().trim().regex(/^\d{6}$/, "Kod 6 xonali bo'lishi kerak"),
+  newPassword: z.string().min(8, 'Parol kamida 8 ta belgi'),
+});
+
 const applicationSchema = z.object({
   companyName: z.string().trim().min(2),
   legalName: z.string().trim().optional().or(z.literal('')),
@@ -167,6 +173,7 @@ module.exports = {
   emailChangeRequestSchema,
   emailChangeConfirmSchema,
   loginSchema,
+  resetPasswordSchema,
   applicationSchema,
   tourSchema,
   adminReviewSchema,
