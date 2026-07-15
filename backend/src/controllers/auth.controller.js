@@ -214,7 +214,7 @@ async function login(req, res) {
     }
 
     if (!found.password) {
-      return error(res, 'Bu email Google orqali ro\'yxatdan o\'tgan. Google bilan kiring.', 400, {
+      return error(res, 'Bu email Google orqali ro\'yxatdan o\'tgan. Google bilan kiring yoki "Parolni unutdingizmi?" orqali parol o\'rnating.', 400, {
         authProvider: 'google',
       });
     }
@@ -301,7 +301,9 @@ async function forgotPassword(req, res) {
     const normalizedEmail = normalizeEmail(req.body.email);
     const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
 
-    if (!user || !user.password) {
+    // Google-only accounts (no password yet) are allowed to SET a password this
+    // way — the code goes to their own email, so it's the account owner setting it.
+    if (!user) {
       return success(res, {
         message: 'Agar email mavjud bo\'lsa, parol tiklash kodi yuborildi.',
       });
@@ -329,11 +331,8 @@ async function resetPassword(req, res) {
       return error(res, 'Foydalanuvchi topilmadi.', 404);
     }
 
-    if (!user.password) {
-      return error(res, 'Bu akkaunt Google orqali yaratilgan. Parol tiklash mavjud emas.', 400, {
-        authProvider: 'google',
-      });
-    }
+    // Note: a Google-only account (no password) can set one here — the code was
+    // sent to its own email, so this is the owner adding a password login.
 
     try {
       await consumeAuthCode({ userId: user.id, type: AuthCodeType.PASSWORD_RESET, code });
