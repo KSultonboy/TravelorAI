@@ -1295,7 +1295,27 @@ function Reports({ show, leads }: any) {
     leads.forEach((l: CrmLead) => { const k = (l.tourTitle || l.tourCity || "Boshqa").split(" ")[0]; dest[k] = (dest[k] || 0) + 1; });
     const topDest = Object.entries(dest).sort((a, b) => b[1] - a[1]).slice(0, 5);
     const maxDest = Math.max(1, ...topDest.map((d) => d[1]));
-    return { months, maxRev, src, total, topDest, maxDest };
+
+    // Kanal bo'yicha samaradorlik: qaysi manba faqat lid emas, PUL keltiryapti.
+    // utmSource bo'lsa o'sha, aks holda lidning texnik manbasidan kelib chiqamiz.
+    const chanMap: Record<string, { leads: number; won: number; revenue: number }> = {};
+    leads.forEach((l: CrmLead) => {
+      const key =
+        String(l.utmSource || "").trim().toLowerCase() ||
+        (l.source === "telegram" ? "telegram bot" : l.source === "manual" ? "qo'lda kiritilgan" : "marketplace");
+      const row = chanMap[key] || (chanMap[key] = { leads: 0, won: 0, revenue: 0 });
+      row.leads += 1;
+      if (l.stage === "won" || l.stage === "completed") {
+        row.won += 1;
+        row.revenue += l.totalEstimate || 0;
+      }
+    });
+    const channels = Object.entries(chanMap)
+      .map(([name, v]) => ({ name, ...v, conv: v.leads ? Math.round((v.won / v.leads) * 100) : 0 }))
+      .sort((a, b) => b.revenue - a.revenue || b.leads - a.leads);
+    const maxChanRev = Math.max(1, ...channels.map((c) => c.revenue));
+
+    return { months, maxRev, src, total, topDest, maxDest, channels, maxChanRev };
   }, [leads]);
 
   const srcColors: Record<string, string> = { Marketplace: "var(--primary)", "Qo'lda": "var(--gold)" };
@@ -1335,6 +1355,48 @@ function Reports({ show, leads }: any) {
           </div>
         </div>
       </div>
+
+      <div className="section-head" style={{ marginTop: 22 }}>
+        <div>
+          <h2>Kanal samaradorligi</h2>
+          <div className="sub">qaysi manba faqat lid emas, pul ham keltiryapti</div>
+        </div>
+      </div>
+      <div className="card tbl-wrap">
+        {r.channels.length ? (
+          <table>
+            <thead>
+              <tr><th>Manba</th><th>Lidlar</th><th>Kelishuv</th><th>Konversiya</th><th className="r">Aylanma</th></tr>
+            </thead>
+            <tbody>
+              {r.channels.map((c) => (
+                <tr key={c.name}>
+                  <td><b style={{ textTransform: "capitalize" }}>{c.name}</b></td>
+                  <td>{c.leads}</td>
+                  <td>{c.won}</td>
+                  <td>
+                    <span className={`badge2 ${c.conv >= 30 ? "b-green" : c.conv >= 10 ? "b-amber" : "b-grey"}`}>{c.conv}%</span>
+                  </td>
+                  <td className="r">
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
+                      <div style={{ width: 54, height: 5, borderRadius: 3, background: "rgba(255,255,255,.08)", overflow: "hidden" }}>
+                        <div style={{ width: `${(c.revenue / r.maxChanRev) * 100}%`, height: "100%", background: "#0F5132" }} />
+                      </div>
+                      <b>{formatMoney(c.revenue)}</b>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <Empty icon={I.chart} text="Hali lid yo'q — manba tahlili lidlar kelgach paydo bo'ladi." />
+        )}
+      </div>
+      <p style={{ fontSize: 12.5, color: "#8aa398", margin: "10px 2px 0" }}>
+        Manbani aniqlash uchun reklama havolalariga <code>?utm_source=instagram</code> qo&apos;shing, Telegram uchun esa{" "}
+        <code>t.me/botingiz?start=instagram</code> ko&apos;rinishidagi havolani tarqating.
+      </p>
     </section>
   );
 }

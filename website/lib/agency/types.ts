@@ -105,6 +105,10 @@ export type BookingItem = {
   status: string;
   pipelineStage?: string | null;
   source?: string | null;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  referrer?: string | null;
   leadTour?: string | null;
   responseDeadlineAt?: string | null;
   totalEstimate?: number | null;

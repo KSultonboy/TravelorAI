@@ -583,6 +583,10 @@ model TourBooking {
   pipelineStage      String      @default("new")
   leadTour           String?
   telegramChatId     String?
+  utmSource          String?     // qayerdan keldi: instagram, telegram, google...
+  utmMedium          String?     // cpc, post, story, bio...
+  utmCampaign        String?     // kampaniya nomi
+  referrer           String?     // qaysi saytdan o'tdi
   presentations      TourPresentation[]
 
   @@index([tourId])

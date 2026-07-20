@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { CalendarDays, CheckCircle2, Minus, Phone, Plus } from "lucide-react";
 import { useAuth } from "./useAuth";
+import { getAttribution } from "@/lib/attribution";
 
 const SERVICE_FEE = 0.05;
 
@@ -40,7 +41,7 @@ export default function BookingPanel({
       const res = await fetch("/api/backend/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json", Origin: window.location.origin },
-        body: JSON.stringify({ tourSlug, customerName: user.fullName || user.name, customerEmail: user.email, customerPhone: phone.trim(), travelers, travelDate: date || "", source: "web" }),
+        body: JSON.stringify({ tourSlug, customerName: user.fullName || user.name, customerEmail: user.email, customerPhone: phone.trim(), travelers, travelDate: date || "", source: "web", ...getAttribution() }),
       });
       const j = await res.json().catch(() => ({}));
       if (res.ok || j?.success) { setOk(true); return; }

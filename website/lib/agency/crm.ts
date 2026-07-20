@@ -100,6 +100,11 @@ export type CrmLead = {
   tags: string[];
   activities: Activity[];
   hidden: boolean;
+  // Manba (qaysi reklama/kanal olib kelgan) — Hisobotlar bo'limida ishlatiladi
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  referrer?: string | null;
 };
 
 /* ----------------------------------- keys --------------------------------- */
@@ -328,6 +333,10 @@ export function buildLeads(agencyId: string, bookings: BookingItem[]): CrmLead[]
         tags: meta.tags,
         activities: meta.activities,
         hidden: !!meta.hidden,
+        utmSource: b.utmSource,
+        utmMedium: b.utmMedium,
+        utmCampaign: b.utmCampaign,
+        referrer: b.referrer,
       };
     })
     .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());

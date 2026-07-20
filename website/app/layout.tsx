@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import AttributionCapture from "@/components/marketing/AttributionCapture";
 import "./globals.scss";
 import "../styles/landing-v2.scss";
 import "../styles/marketing.scss";
@@ -109,7 +110,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <AttributionCapture />
+        {children}
+      </body>
     </html>
   );
 }

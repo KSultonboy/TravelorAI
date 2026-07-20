@@ -306,6 +306,11 @@ async function webhook(req, res) {
       return res.status(200).json({ ok: true });
     }
 
+    // Deep-link manbasi: t.me/bot?start=instagram -> lid "instagram"dan kelgani yoziladi.
+    // Agentlik har kanalga alohida havola tarqatadi va qaysi biri ishlayotganini ko'radi.
+    const startMatch = trimmed.match(/^\/start\s+([A-Za-z0-9_-]{1,60})/i);
+    const startPayload = startMatch ? startMatch[1] : '';
+
     let booking = await prisma.tourBooking.findFirst({ where: { agencyId: agency.id, telegramChatId: chatId } });
     let isNew = false;
     if (!booking) {
@@ -321,6 +326,9 @@ async function webhook(req, res) {
           travelers: 1,
           currency: 'USD',
           source: 'telegram',
+          // Birinchi teginish saqlanadi — keyingi havolalar uni almashtirmaydi.
+          utmSource: startPayload || null,
+          utmMedium: startPayload ? 'telegram_link' : null,
           status: 'pending',
           pipelineStage: 'new',
         },

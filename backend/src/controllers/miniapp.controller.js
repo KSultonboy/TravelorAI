@@ -261,6 +261,8 @@ async function request(req, res) {
           travelers: 1,
           currency: 'USD',
           source: 'telegram',
+          utmSource: 'miniapp',
+          utmMedium: 'telegram_miniapp',
           status: 'pending',
           pipelineStage: 'new',
         },
