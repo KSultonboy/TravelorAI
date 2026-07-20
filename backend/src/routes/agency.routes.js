@@ -6,6 +6,7 @@ const telegram = require('../controllers/telegram.controller');
 const team = require('../controllers/agencyTeam.controller');
 const presentation = require('../controllers/presentation.controller');
 const geocodeCtrl = require('../controllers/geocode.controller');
+const aiCtrl = require('../controllers/ai.controller');
 
 router.post('/auth/register', agency.register);
 router.post('/auth/verify-email', agency.verifyEmail);
@@ -39,6 +40,10 @@ router.get('/bookings', agency.listBookings);
 router.patch('/bookings/:id/status', blockWhenReadOnly, agency.updateBookingStatus);
 router.post('/leads', blockWhenReadOnly, requireCapability('manualLeads'), agency.createManualLead);
 router.patch('/bookings/:id/stage', blockWhenReadOnly, agency.updatePipelineStage);
+
+// AI yordamchilar — faqat Premium.
+router.get('/ai/status', requireCapability('ai'), aiCtrl.status);
+router.post('/ai/presentation-note', blockWhenReadOnly, requireCapability('ai'), aiCtrl.presentationNote);
 
 // Dinamik takliflar (Pro va yuqori tarif) — ochilish kuzatuvi bilan.
 router.get('/presentations', requireCapability('presentations'), presentation.listPresentations);

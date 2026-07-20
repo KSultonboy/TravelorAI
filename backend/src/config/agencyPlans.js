@@ -9,11 +9,11 @@ const ALL_SECTIONS = ['dashboard', 'leads', 'customers', 'packages', 'bookings',
 
 const ALL_CAPS = {
   telegram: true, broadcast: true, csvExport: true, analytics: true, manualLeads: true, team: true, integrations: true,
-  presentations: true,
+  presentations: true, ai: true,
 };
 const NO_CAPS = {
   telegram: false, broadcast: false, csvExport: false, analytics: false, manualLeads: false, team: false, integrations: false,
-  presentations: false,
+  presentations: false, ai: false,
 };
 
 const PLANS = {
@@ -27,12 +27,13 @@ const PLANS = {
   },
 
   // $29 — + Hisobotlar, Telegram bot, Broadcast, Dinamik takliflar, Analitika/CSV, qo'lda lidlar.
+  // AI, jamoa va integratsiyalar (Instagram/WhatsApp) — faqat Premium'да.
   pro: {
     sections: ALL_SECTIONS,
-    caps: { ...ALL_CAPS, team: false, integrations: false },
+    caps: { ...ALL_CAPS, team: false, integrations: false, ai: false },
   },
 
-  // $49 — hammasi + jamoa + integratsiyalar.
+  // $59 (Premium) — hammasi + jamoa + AI + integratsiyalar.
   business: { sections: ALL_SECTIONS, caps: { ...ALL_CAPS } },
 
   // Enterprise — hammasi.

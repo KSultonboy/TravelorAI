@@ -870,6 +870,32 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
   const [sent, setSent] = useState("");
   const [sendErr, setSendErr] = useState("");
 
+  // AI izoh yozuvchi — "hidden" tarifda yo'q, "off" kalit sozlanmagan, "ready" ishlaydi
+  const [aiState, setAiState] = useState<"hidden" | "off" | "ready">("hidden");
+  const [aiBusy, setAiBusy] = useState(false);
+  useEffect(() => {
+    void agencyApi<{ configured: boolean }>("/ai/status").then((r) => {
+      setAiState(!r.success ? "hidden" : r.data.configured ? "ready" : "off");
+    });
+  }, []);
+
+  async function aiWrite() {
+    if (aiBusy) return;
+    if (!leadId && !tourId) { setErr("Avval lid yoki tur tanlang — AI shularga qarab yozadi."); return; }
+    setAiBusy(true); setErr("");
+    const res = await agencyApi<{ text: string }>("/ai/presentation-note", {
+      method: "POST",
+      body: JSON.stringify({
+        bookingId: leadId || undefined,
+        tourId: tourId || undefined,
+        priceText: price.trim() || undefined,
+      }),
+    });
+    setAiBusy(false);
+    if (res.success) setNote(res.data.text);
+    else setErr(res.message || "AI izoh yoza olmadi");
+  }
+
   const leadOpts: CrmLead[] = useMemo(() => leads.filter((l: CrmLead) => l.stage !== "lost"), [leads]);
   const leadById = useMemo(() => {
     const m: Record<string, CrmLead> = {};
@@ -1000,7 +1026,23 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Taklif nomi (bo'sh qolsa tur nomi olinadi)" style={{ ...inp, flex: "2 1 240px" }} />
             <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Narx, masalan: 850$ / kishi" style={{ ...inp, flex: "1 1 180px" }} />
           </div>
-          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Mijozga shaxsiy izoh — nega aynan shu tur mos kelishini yozing…" style={{ ...inp, resize: "vertical" }} />
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <small style={{ color: "#8aa398", fontSize: 12.5 }}>Shaxsiy izoh — sahifadagi eng ishontiruvchi qism</small>
+              {aiState !== "hidden" ? (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => void aiWrite()}
+                  disabled={aiBusy || aiState === "off"}
+                  title={aiState === "off" ? "AI hali sozlanmagan — administrator kalit qo'shishi kerak" : "Lid suhbati va tur asosida izoh yozadi"}
+                >
+                  <Ic d={I.bolt} s={14} /> {aiBusy ? "Yozilmoqda…" : "AI yozib bersin"}
+                </button>
+              ) : null}
+            </div>
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Mijozga shaxsiy izoh — nega aynan shu tur mos kelishini yozing…" style={{ ...inp, resize: "vertical", width: "100%" }} />
+          </div>
           {err ? <div style={{ color: "#F43F5E", fontSize: 13 }}>{err}</div> : null}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <small style={{ color: "#8aa398" }}>Havola shaxsiy — mijoz telefoni va emaili sahifada ko&apos;rinmaydi.</small>
