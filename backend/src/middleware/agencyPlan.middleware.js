@@ -62,4 +62,13 @@ function requireCapability(cap) {
   };
 }
 
-module.exports = { agencyPlan, blockWhenReadOnly, requireCapability };
+// Faqat agentlik egasi bajara oladigan amallar (profil, tarif kabi).
+// Xodimlar bir xil agentlik ma'lumotini ko'radi, lekin uni o'zgartira olmaydi.
+function requireOwner(req, res, next) {
+  if (req.memberRole !== 'owner') {
+    return error(res, 'Bu amalni faqat agentlik egasi bajara oladi', 403, { code: 'OWNER_ONLY' });
+  }
+  next();
+}
+
+module.exports = { agencyPlan, blockWhenReadOnly, requireCapability, requireOwner };

@@ -367,8 +367,11 @@ async function ensureApprovedAgency(req, res) {
     return null;
   }
 
-  const agency = await getApprovedAgency(req.agencyAccount.id);
-  if (!agency) {
+  // agencyPlan middleware agentlikni EGASI yoki XODIM (AgencyMember) sifatida topadi.
+  // Faqat ownerAccountId bo'yicha qidirsak, taklif qilingan xodim har bir
+  // endpointda 403 olardi — jamoa imkoniyati shu sababli ishlamas edi.
+  const agency = req.agency || (await getApprovedAgency(req.agencyAccount.id));
+  if (!agency || agency.active !== true || agency.approvalStatus !== 'approved') {
     error(res, 'Tasdiqlangan agency profili topilmadi', 403);
     return null;
   }

@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const agency = require('../controllers/agency.controller');
 const { agencyAuthMiddleware } = require('../middleware/agencyAuth.middleware');
-const { agencyPlan, blockWhenReadOnly, requireCapability } = require('../middleware/agencyPlan.middleware');
+const { agencyPlan, blockWhenReadOnly, requireCapability, requireOwner } = require('../middleware/agencyPlan.middleware');
 const telegram = require('../controllers/telegram.controller');
 const team = require('../controllers/agencyTeam.controller');
 const presentation = require('../controllers/presentation.controller');
@@ -24,7 +24,7 @@ router.put('/application', agency.upsertApplication);
 router.post('/application/submit', agency.submitApplication);
 
 router.get('/profile', agency.getAgencyProfile);
-router.put('/profile', blockWhenReadOnly, agency.updateAgencyProfile);
+router.put('/profile', blockWhenReadOnly, requireOwner, agency.updateAgencyProfile);
 
 router.get('/tours', agency.listTours);
 router.post('/tours', blockWhenReadOnly, agency.createTour);

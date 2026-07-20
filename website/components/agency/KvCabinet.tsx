@@ -1336,9 +1336,9 @@ function SubscriptionCard({ access }: any) {
 }
 
 const TEAM_ROLE_LABEL: Record<string, string> = { owner: "Egasi", manager: "Menejer", agent: "Agent", accountant: "Buxgalter" };
-// Jamoa funksiyasi tayyor (backend + UI), lekin hozircha "tez orada" ko'rsatiladi.
-// Ishga tushirish uchun shu flagni true qiling.
-const TEAM_LIVE: boolean = false;
+// Jamoa: egasi xodim qo'shadi, rol beradi; xodim o'z email/paroli bilan kiradi.
+// Backend xodimni AgencyMember orqali topadi (agencyPlan middleware).
+const TEAM_LIVE: boolean = true;
 
 function AddMember({ onClose, onAdded }: any) {
   const [name, setName] = useState(""); const [email, setEmail] = useState("");
