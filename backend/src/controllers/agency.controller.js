@@ -94,6 +94,58 @@ function publicTour(tour) {
   };
 }
 
+// Galereya — har bir data-URL faylga aylantiriladi (bazada faqat yo'l saqlanadi).
+// Allaqachon /uploads/... bo'lgan qiymatlar materializeDataImage'dan o'zgarmay o'tadi.
+async function materializeGallery(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const item of list.slice(0, 6)) {
+    const value = String(item || '').trim();
+    if (!value) continue;
+    out.push(await materializeDataImage(value, 'agency'));
+  }
+  return out;
+}
+
+// Joy nuqtalari — nomi + koordinatasi to'g'ri bo'lganlari qoladi.
+function sanitizeStops(list, max = 8) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const row of list.slice(0, max)) {
+    if (!row || typeof row !== 'object') continue;
+    const name = String(row.name || '').trim().slice(0, 120);
+    const lat = Number(row.lat);
+    const lng = Number(row.lng);
+    if (!name || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) continue;
+    out.push({ name, lat, lng });
+  }
+  return out;
+}
+
+// Kun bo'yicha reja: [{day, title, places:[{name,lat,lng}]}].
+// Eski formatlar (oddiy matn qatori yoki {day,title}) ham buzilmasdan o'tadi.
+function sanitizeItinerary(value) {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) return null;
+  const out = [];
+  value.slice(0, 30).forEach((row, i) => {
+    if (typeof row === 'string') {
+      const title = row.trim().slice(0, 400);
+      if (title) out.push({ day: i + 1, title });
+      return;
+    }
+    if (!row || typeof row !== 'object') return;
+    const title = String(row.title || row.text || row.description || '').trim().slice(0, 400);
+    if (!title) return;
+    const dayNum = Number(row.day);
+    const day = Number.isFinite(dayNum) && dayNum > 0 ? Math.floor(dayNum) : i + 1;
+    const places = sanitizeStops(row.places);
+    out.push(places.length ? { day, title, places } : { day, title });
+  });
+  return out.length ? out : null;
+}
+
 async function uniqueAgencySlug(base, currentId) {
   const safe = base || `agency-${Date.now()}`;
   let slug = safe;
@@ -474,14 +526,8 @@ async function login(req, res) {
 
 async function me(req, res) {
   try {
-    const [application, agency] = await Promise.all([
-      getLatestApplication(req.agencyAccount.id),
-      prisma.tourAgency.findFirst({
-        where: { ownerAccountId: req.agencyAccount.id },
-        include: { _count: { select: { tours: true } } },
-        orderBy: { updatedAt: 'desc' },
-      }),
-    ]);
+    const agency = req.agency; // agencyPlan middleware yukladi (tariff + _count bilan)
+    const application = await getLatestApplication(req.agencyAccount.id);
 
     const [tourStats, bookingStats] = agency
       ? await Promise.all([
@@ -498,6 +544,7 @@ async function me(req, res) {
       account: publicAccount(req.agencyAccount),
       application: publicApplication(application),
       agency: agency ? { ...publicAgency(agency), tourCount: agency._count.tours } : null,
+      access: req.access, // tarif/obuna enforcement holati (sections, caps, readOnly)
       stats: tourStats.reduce((acc, row) => {
         acc[row.approvalStatus] = row._count._all;
         return acc;
@@ -626,6 +673,10 @@ async function createTour(req, res) {
         price: input.price || null,
         priceMin: input.priceMin ?? null,
         imageUrl: input.imageUrl ? await materializeDataImage(input.imageUrl, 'agency') : null,
+        images: await materializeGallery(input.images),
+        mapAddress: input.mapAddress || null,
+        routeStops: input.routeStops && input.routeStops.length ? input.routeStops : null,
+        itinerary: sanitizeItinerary(input.itinerary) ?? null,
         responseTimeMinutes: input.responseTimeMinutes,
         slug,
         agencyId: agency.id,
@@ -663,6 +714,12 @@ async function updateTour(req, res) {
       ...(input.imageUrl !== undefined
         ? { imageUrl: input.imageUrl ? await materializeDataImage(input.imageUrl, 'agency') : null }
         : {}),
+      ...(input.images !== undefined ? { images: await materializeGallery(input.images) } : {}),
+      ...(input.mapAddress !== undefined ? { mapAddress: input.mapAddress || null } : {}),
+      ...(input.routeStops !== undefined
+        ? { routeStops: input.routeStops.length ? input.routeStops : null }
+        : {}),
+      ...(input.itinerary !== undefined ? { itinerary: sanitizeItinerary(input.itinerary) } : {}),
       ...(input.responseTimeMinutes !== undefined ? { responseTimeMinutes: input.responseTimeMinutes } : {}),
       approvalStatus: nextStatus,
       active: false,

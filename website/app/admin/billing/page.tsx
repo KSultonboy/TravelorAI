@@ -8,7 +8,7 @@ import { StatCard, Spinner, EmptyState, Toast } from "@/components/admin/ui";
 type Stats = { totalRevenue: number; last30: number; mrr: number; activeCount: number; agencyCount: number; paymentsCount: number; byStatus: Record<string, number> };
 type Sub = { id: string; name: string; city?: string; phone?: string; tariffId?: string | null; subscriptionStatus: string; subscriptionUntil?: string | null; tariff?: { id: string; name: string; priceMonthly: number } | null; totalPaid: number };
 type Tariff = { id: string; name: string; priceMonthly: number };
-type PayDraft = { agencyId: string; agencyName: string; tariffId: string; amount: string; periodMonths: string; method: string; note: string };
+type PayDraft = { agencyId: string; agencyName: string; tariffId: string; amount: string; periodMonths: string; paidAt: string; method: string; note: string };
 
 const STATUS_LABEL: Record<string, string> = { none: "Yo‘q", trial: "Sinov", active: "Faol", expired: "Muddati o‘tgan" };
 const STATUS_STYLE: Record<string, { background: string; color: string }> = {
@@ -42,7 +42,7 @@ export default function BillingPage() {
 
   function openPay(a: Sub) {
     const t = tariffs.find((x) => x.id === a.tariffId);
-    setPay({ agencyId: a.id, agencyName: a.name, tariffId: a.tariffId || "", amount: t ? String(t.priceMonthly) : "", periodMonths: "1", method: "", note: "" });
+    setPay({ agencyId: a.id, agencyName: a.name, tariffId: a.tariffId || "", amount: t ? String(t.priceMonthly) : "", periodMonths: "1", paidAt: new Date().toISOString().slice(0, 10), method: "", note: "" });
   }
 
   async function submitPay() {
@@ -53,6 +53,7 @@ export default function BillingPage() {
       await api("/admin/payments", { method: "POST", body: JSON.stringify({
         agencyId: pay.agencyId, tariffId: pay.tariffId || undefined,
         amount: Number(pay.amount), periodMonths: Number(pay.periodMonths) || 1,
+        paidAt: pay.paidAt || undefined,
         method: pay.method || undefined, note: pay.note || undefined,
       }) });
       setPay(null); await load();
@@ -107,7 +108,7 @@ export default function BillingPage() {
 
       {pay ? (
         <div style={{ position: "fixed", inset: 0, background: "rgba(11,42,30,.42)", backdropFilter: "blur(3px)", zIndex: 60, display: "grid", placeItems: "center", padding: 16 }} onClick={() => setPay(null)}>
-          <div className="adm-card" style={{ width: "min(440px,100%)", padding: 22 }} onClick={(e) => e.stopPropagation()}>
+          <div className="adm-card" style={{ width: "min(440px,100%)", padding: 22, maxHeight: "90vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
             <h2 style={{ margin: "0 0 4px", fontSize: 18 }}>To‘lov qo‘shish</h2>
             <p className="adm-sub" style={{ marginBottom: 16 }}>{pay.agencyName}</p>
             <div className="adm-field"><label>Tarif</label>
@@ -120,6 +121,8 @@ export default function BillingPage() {
               <div className="adm-field" style={{ flex: 1 }}><label>Summa ($)</label><input type="number" value={pay.amount} onChange={(e) => setPay({ ...pay, amount: e.target.value })} /></div>
               <div className="adm-field" style={{ flex: 1 }}><label>Oy (davr)</label><input type="number" value={pay.periodMonths} onChange={(e) => setPay({ ...pay, periodMonths: e.target.value })} /></div>
             </div>
+            <div className="adm-field"><label>To‘lov sanasi</label><input type="date" value={pay.paidAt} onChange={(e) => setPay({ ...pay, paidAt: e.target.value })} /></div>
+            <p style={{ margin: "-6px 0 14px", fontSize: 12, color: "var(--muted)" }}>Obuna shu sanadan {pay.periodMonths || 1} oyga hisoblanadi. Muddat tugagach agentlik avtomatik faqat o‘qish rejimiga o‘tadi, keyingi to‘lovda o‘zi qayta ochiladi — qo‘lда hech narsa qilish shart emas.</p>
             <div className="adm-field"><label>Usul (ixtiyoriy)</label><input value={pay.method} onChange={(e) => setPay({ ...pay, method: e.target.value })} placeholder="Payme / Click / naqd" /></div>
             <div className="adm-field"><label>Izoh (ixtiyoriy)</label><input value={pay.note} onChange={(e) => setPay({ ...pay, note: e.target.value })} /></div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>

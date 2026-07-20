@@ -88,9 +88,27 @@ model AgencyAccount {
   authCodes              AgencyAuthCode[]
   applications           AgencyApplication[]
   agencies               TourAgency[]
+  memberships            AgencyMember[]
 
   @@index([status])
   @@index([emailVerified])
+}
+
+model AgencyMember {
+  id        String        @id @default(cuid())
+  agencyId  String
+  agency    TourAgency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  accountId String
+  account   AgencyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  name      String
+  role      String        @default("agent") // manager | agent | accountant (owner emas — u ownerAccountId)
+  status    String        @default("active")
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@unique([agencyId, accountId])
+  @@index([agencyId])
+  @@index([accountId])
 }
 
 model AgencyAuthCode {
@@ -374,6 +392,7 @@ model TourAgency {
   telegramBotActive   Boolean  @default(false)
   telegramWelcome     String?
   telegramConfig      String?
+  notifyChatId        String? // agent xabarnoma oladigan Telegram chat (mijoz lidi EMAS)
   tariffId            String?
   subscriptionStatus  String              @default("none")
   subscriptionUntil   DateTime?
@@ -399,6 +418,8 @@ model TourAgency {
   bookings         TourBooking[]
   tariff           Tariff?             @relation(fields: [tariffId], references: [id], onDelete: SetNull)
   payments         AgencyPayment[]
+  members          AgencyMember[]
+  presentations    TourPresentation[]
 
   @@index([active])
   @@index([tariffId])
@@ -502,6 +523,9 @@ model Tour {
   promo               Boolean       @default(false)
   priceIncludes       String[]      @default([])
   priceExcludes       String[]      @default([])
+  images              String[]      @default([]) // galereya (asosiy rasmdan tashqari)
+  mapAddress          String?                    // xarita uchun matn manzil (geokodlash shart emas)
+  routeStops          Json?                      // marshrut nuqtalari: [{name, lat, lng}] — chiziq bilan bog'lanadi
   active              Boolean       @default(true)
   agencyId            String?
   agency              TourAgency?   @relation(fields: [agencyId], references: [id], onDelete: SetNull)
@@ -517,6 +541,7 @@ model Tour {
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
   bookings            TourBooking[]
+  presentations       TourPresentation[]
 
   @@index([active])
   @@index([badge])
@@ -558,12 +583,41 @@ model TourBooking {
   pipelineStage      String      @default("new")
   leadTour           String?
   telegramChatId     String?
+  presentations      TourPresentation[]
 
   @@index([tourId])
   @@index([agencyId, status])
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@index([customerEmail])
+}
+
+// Dinamik taklif (prezentatsiya) — agent mijozga shaxsiy link yuboradi, ochilishi kuzatiladi.
+// Public sahifada mijoz telefoni/emaili KO'RSATILMAYDI — faqat ism (agent o'zi kiritadi).
+model TourPresentation {
+  id            String       @id @default(cuid())
+  token         String       @unique
+  agencyId      String
+  agency        TourAgency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  bookingId     String?
+  booking       TourBooking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  tourId        String?
+  tour          Tour?        @relation(fields: [tourId], references: [id], onDelete: SetNull)
+  title         String
+  customerName  String?
+  priceText     String?
+  note          String?
+  status        String       @default("sent") // sent | viewed | interested
+  openCount     Int          @default(0)
+  firstOpenedAt DateTime?
+  lastOpenedAt  DateTime?
+  interestedAt  DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([agencyId, createdAt])
+  @@index([bookingId])
+  @@index([tourId])
 }
 
 model WishlistItem {

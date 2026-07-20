@@ -90,7 +90,7 @@ export default function TariffsPage() {
 
       {editing ? (
         <div style={{ position: "fixed", inset: 0, background: "rgba(11,42,30,.42)", backdropFilter: "blur(3px)", zIndex: 60, display: "grid", placeItems: "center", padding: 16 }} onClick={() => setEditing(null)}>
-          <div className="adm-card" style={{ width: "min(440px,100%)", padding: 22 }} onClick={(e) => e.stopPropagation()}>
+          <div className="adm-card" style={{ width: "min(440px,100%)", padding: 22, maxHeight: "90vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
             <h2 style={{ margin: "0 0 16px", fontSize: 18 }}>{editing.id ? "Tarifni tahrirlash" : "Yangi tarif"}</h2>
             <div className="adm-field"><label>Nomi</label><input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} placeholder="Masalan: Pro" /></div>
             <div style={{ display: "flex", gap: 10 }}>

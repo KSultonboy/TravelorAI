@@ -20,10 +20,20 @@ function webhookSecret(token) {
 }
 
 const getMe = (token) => tgCall(token, 'getMe');
+// MUHIM: callback_query ham kerak — usiz inline tugma bosishlari umuman kelmaydi.
 const setWebhook = (token, url, secret) =>
-  tgCall(token, 'setWebhook', { url, secret_token: secret, allowed_updates: ['message'], drop_pending_updates: true });
+  tgCall(token, 'setWebhook', {
+    url,
+    secret_token: secret,
+    allowed_updates: ['message', 'callback_query'],
+    drop_pending_updates: true,
+  });
 const deleteWebhook = (token) => tgCall(token, 'deleteWebhook', {});
-const sendMessage = (token, chatId, text) => tgCall(token, 'sendMessage', { chat_id: chatId, text });
+// extra — reply_markup va boshqa Bot API maydonlari uchun (eski chaqiruvlar buzilmaydi)
+const sendMessage = (token, chatId, text, extra = {}) =>
+  tgCall(token, 'sendMessage', { chat_id: chatId, text, ...extra });
+const answerCallbackQuery = (token, callbackQueryId, text) =>
+  tgCall(token, 'answerCallbackQuery', { callback_query_id: callbackQueryId, ...(text ? { text } : {}) });
 
 // Bot profili — CRM'dan boshqariladi (rasm/avatar Bot API'da yo'q, faqat @BotFather)
 const getMyName = (token) => tgCall(token, 'getMyName');
@@ -32,11 +42,13 @@ const getMyDescription = (token) => tgCall(token, 'getMyDescription');
 const setMyDescription = (token, description) => tgCall(token, 'setMyDescription', { description });
 const getMyShortDescription = (token) => tgCall(token, 'getMyShortDescription');
 const setMyShortDescription = (token, shortDescription) => tgCall(token, 'setMyShortDescription', { short_description: shortDescription });
+// Bot menyusidagi tugma — Mini App'ni ochadi
+const setChatMenuButton = (token, menuButton) => tgCall(token, 'setChatMenuButton', { menu_button: menuButton });
 const getMyCommands = (token) => tgCall(token, 'getMyCommands');
 const setMyCommands = (token, commands) => tgCall(token, 'setMyCommands', { commands });
 
 module.exports = {
-  tgCall, getMe, setWebhook, deleteWebhook, sendMessage, webhookSecret,
+  tgCall, getMe, setWebhook, deleteWebhook, sendMessage, answerCallbackQuery, webhookSecret,
   getMyName, setMyName, getMyDescription, setMyDescription,
-  getMyShortDescription, setMyShortDescription, getMyCommands, setMyCommands,
+  getMyShortDescription, setMyShortDescription, getMyCommands, setMyCommands, setChatMenuButton,
 };

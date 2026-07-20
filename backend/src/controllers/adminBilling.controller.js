@@ -5,6 +5,14 @@ function slugify(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'tarif';
 }
 
+// Jonli (lazy) obuna holati — saqlangan status emas, subscriptionUntil sanasi bo'yicha.
+// Muddat o'tsa 'expired', kelajakda bo'lsa 'active', sanasiz bo'lsa saqlangan status.
+function effectiveStatus(a) {
+  const until = a && a.subscriptionUntil ? new Date(a.subscriptionUntil).getTime() : null;
+  if (until !== null && !Number.isNaN(until)) return until < Date.now() ? 'expired' : 'active';
+  return (a && a.subscriptionStatus) || 'none';
+}
+
 function normalizeTariff(b) {
   const d = {};
   if (b.name !== undefined) d.name = String(b.name).trim().slice(0, 80);
@@ -70,7 +78,7 @@ async function getSubscriptions(req, res) {
     const mapped = items.map((a) => {
       const totalPaid = a.payments.reduce((s, p) => s + p.amount, 0);
       const { payments, ...rest } = a;
-      return { ...rest, totalPaid };
+      return { ...rest, subscriptionStatus: effectiveStatus(a), totalPaid };
     });
     return success(res, { items: mapped, total: mapped.length });
   } catch (err) { return error(res, err.message, 500); }
@@ -123,9 +131,11 @@ async function createPayment(req, res) {
         paidAt: b.paidAt ? new Date(b.paidAt) : new Date(),
       },
     });
-    // Obunani avtomatik yangilash: tarif + muddatni uzaytirish + faollashtirish
-    const now = new Date();
-    const base = agency.subscriptionUntil && agency.subscriptionUntil > now ? new Date(agency.subscriptionUntil) : now;
+    // Obunani avtomatik yangilash: muddat TO'LOV SANASIdan hisoblanadi.
+    // Obuna hali faol bo'lsa — mavjud muddat ustiga qo'shiladi (stacking); aks holda to'lov sanasidan boshlanadi.
+    const base = agency.subscriptionUntil && new Date(agency.subscriptionUntil) > payment.paidAt
+      ? new Date(agency.subscriptionUntil)
+      : new Date(payment.paidAt);
     base.setMonth(base.getMonth() + periodMonths);
     await prisma.tourAgency.update({
       where: { id: agency.id },
@@ -147,16 +157,17 @@ async function getBillingStats(req, res) {
   try {
     const [payments, agencies] = await Promise.all([
       prisma.agencyPayment.findMany({ select: { amount: true, paidAt: true } }),
-      prisma.tourAgency.findMany({ select: { subscriptionStatus: true, tariff: { select: { priceMonthly: true } } } }),
+      prisma.tourAgency.findMany({ select: { subscriptionStatus: true, subscriptionUntil: true, tariff: { select: { priceMonthly: true } } } }),
     ]);
     const totalRevenue = payments.reduce((s, p) => s + p.amount, 0);
     const now = new Date();
     const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
     const last30 = payments.filter((p) => p.paidAt >= monthAgo).reduce((s, p) => s + p.amount, 0);
-    const active = agencies.filter((a) => a.subscriptionStatus === 'active');
+    // Jonli holat bo'yicha — muddati o'tganlar 'active' hisoblanmaydi
+    const active = agencies.filter((a) => effectiveStatus(a) === 'active');
     const mrr = active.reduce((s, a) => s + (a.tariff?.priceMonthly || 0), 0);
     const byStatus = {};
-    for (const a of agencies) byStatus[a.subscriptionStatus] = (byStatus[a.subscriptionStatus] || 0) + 1;
+    for (const a of agencies) { const st = effectiveStatus(a); byStatus[st] = (byStatus[st] || 0) + 1; }
     return success(res, {
       totalRevenue, last30, mrr,
       activeCount: active.length, agencyCount: agencies.length,
@@ -165,9 +176,53 @@ async function getBillingStats(req, res) {
   } catch (err) { return error(res, err.message, 500); }
 }
 
+/* ─────────── HISOBOTLAR (bronlar bo'yicha) ─────────── */
+async function getReports(req, res) {
+  try {
+    const now = new Date();
+    const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    const PAID = ['confirmed', 'completed'];
+
+    const [statusGroups, last30Days, paid] = await Promise.all([
+      prisma.tourBooking.groupBy({ by: ['status'], _count: { _all: true } }),
+      prisma.tourBooking.count({ where: { createdAt: { gte: monthAgo } } }),
+      prisma.tourBooking.findMany({
+        where: { status: { in: PAID } },
+        select: { totalEstimate: true, currency: true, leadTour: true, tour: { select: { title: true, city: true } } },
+      }),
+    ]);
+
+    const totalRevenue = paid.reduce((s, b) => s + (b.totalEstimate || 0), 0);
+    const commission = Math.round(totalRevenue * 0.05);
+    const currency = (paid.find((b) => b.currency) || {}).currency || 'USD';
+
+    const byStatus = statusGroups
+      .map((g) => ({ status: g.status, count: g._count._all }))
+      .sort((a, b) => b.count - a.count);
+
+    const tourMap = new Map();
+    for (const b of paid) {
+      const title = (b.tour && b.tour.title) || b.leadTour || 'Boshqa';
+      const city = (b.tour && b.tour.city) || '—';
+      const cur = tourMap.get(title) || { title, city, bookings: 0, revenue: 0 };
+      cur.bookings += 1;
+      cur.revenue += b.totalEstimate || 0;
+      tourMap.set(title, cur);
+    }
+    const topTours = [...tourMap.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+
+    return success(res, {
+      totalRevenue, commission,
+      paidBookings: paid.length,
+      last30Days,
+      byStatus, topTours, currency,
+    });
+  } catch (err) { return error(res, err.message, 500); }
+}
+
 module.exports = {
   getTariffs, createTariff, updateTariff, deleteTariff,
   getSubscriptions, setAgencySubscription,
   getPayments, createPayment, deletePayment,
-  getBillingStats,
+  getBillingStats, getReports,
 };

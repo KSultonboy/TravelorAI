@@ -1,7 +1,10 @@
-// Admin panel API client — JWT localStorage'da; /api/backend proxy Authorization'ni backendga uzatadi.
+// Admin panel API klienti — cookie-asosli sessiya (System A).
+// Login  → /api/admin-auth/login  {username,password}'ni ADMIN_USERNAME/ADMIN_PASSWORD bilan tekshiradi,
+//          httpOnly HMAC cookie (travelorai_admin_session) o'rnatadi.
+// Data   → /api/admin-proxy/*  cookie'ni tekshiradi va backend /admin/* ga x-admin-key inject qiladi.
+// localStorage token / Bearer YO'Q — hammasi cookie orqali.
 
-const TOKEN_KEY = "travelora_admin_token";
-const BASE = "/api/backend";
+const BASE = "/api/admin-proxy";
 
 export class ApiError extends Error {
   status: number;
@@ -14,47 +17,51 @@ export class ApiError extends Error {
   }
 }
 
-export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(TOKEN_KEY);
-}
-export function setToken(token: string) {
-  window.localStorage.setItem(TOKEN_KEY, token);
-}
-export function clearToken() {
-  window.localStorage.removeItem(TOKEN_KEY);
-}
-
 export async function api<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = getToken();
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
-  if (typeof window !== "undefined") headers.set("Origin", window.location.origin);
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-
-  const res = await fetch(`${BASE}${path}`, { ...init, headers, cache: "no-store" });
+  const res = await fetch(`${BASE}${path}`, { ...init, headers, cache: "no-store", credentials: "same-origin" });
   let json: any = null;
   try { json = await res.json(); } catch { /* bo'sh */ }
 
   if (!res.ok || json?.success === false) {
     const msg = json?.message || `Xatolik (${res.status})`;
-    if (res.status === 401 || res.status === 403) clearToken();
     throw new ApiError(msg, res.status, json);
   }
   return (json?.data ?? json) as T;
 }
 
-// ---- Auth ---- login + parol → JWT (email/2FA yo'q)
+// ---- Auth (cookie sessiya) ----
 export async function adminLogin(username: string, password: string) {
-  const data = await api<{ token: string; user: AdminUser }>("/auth/admin/login", {
+  const res = await fetch("/api/admin-auth/login", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
+    cache: "no-store",
+    credentials: "same-origin",
   });
-  if (data?.token) setToken(data.token);
-  return data;
+  let json: any = null;
+  try { json = await res.json(); } catch { /* bo'sh */ }
+  if (!res.ok || json?.success === false) {
+    throw new ApiError(json?.message || `Kirib bo'lmadi (${res.status})`, res.status, json);
+  }
+  return (json?.data ?? {}) as { username: string };
 }
-export async function fetchMe() {
-  return api<{ user: AdminUser }>("/admin/me");
+
+export async function adminLogout() {
+  try {
+    await fetch("/api/admin-auth/logout", { method: "POST", credentials: "same-origin" });
+  } catch { /* e'tiborsiz */ }
+}
+
+export async function fetchMe(): Promise<{ user: AdminUser }> {
+  const res = await fetch("/api/admin-auth/session", { cache: "no-store", credentials: "same-origin" });
+  let json: any = null;
+  try { json = await res.json(); } catch { /* bo'sh */ }
+  const authed = Boolean(json?.data?.authenticated);
+  const username: string = json?.data?.username || "";
+  if (!authed) throw new ApiError("Sessiya topilmadi", 401, json);
+  return { user: { name: username || "Admin", username, role: "admin" } };
 }
 
 export type AdminUser = { id?: string; name: string; username?: string; email?: string; role?: string };

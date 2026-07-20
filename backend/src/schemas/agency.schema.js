@@ -145,6 +145,18 @@ const tourSchema = z.object({
   promo: z.coerce.boolean().optional().default(false),
   priceIncludes: stringList,
   priceExcludes: stringList,
+  images: z.array(z.string().min(1)).max(6).optional(),
+  mapAddress: optionalText,
+  routeStops: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(120),
+        lat: z.coerce.number().min(-90).max(90),
+        lng: z.coerce.number().min(-180).max(180),
+      })
+    )
+    .max(12)
+    .optional(),
 });
 
 const adminReviewSchema = z.object({

@@ -135,6 +135,21 @@ export type BookingStats = {
   conversion: number;
 };
 
+export type AgencyAccess = {
+  plan: string;
+  planName: string;
+  status: string;
+  role?: string;
+  canManageTeam?: boolean;
+  active: boolean;
+  readOnly: boolean;
+  expired: boolean;
+  until: string | null;
+  daysLeft: number | null;
+  sections: string[];
+  caps: Record<string, boolean>;
+};
+
 export type MeData = {
   account: Account;
   application: AgencyApplication | null;
@@ -142,6 +157,7 @@ export type MeData = {
   stats: Record<string, number>;
   bookingStats?: BookingStats;
   supportEmail?: string;
+  access?: AgencyAccess;
 };
 
 export type BookingStatusAction = "confirmed" | "rejected" | "cancelled" | "completed";

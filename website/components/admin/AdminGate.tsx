@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { getToken, fetchMe } from "@/lib/adminApi";
+import { fetchMe } from "@/lib/adminApi";
 import { Spinner } from "./ui";
 
 export default function AdminGate({ children }: { children: ReactNode }) {
@@ -10,7 +10,6 @@ export default function AdminGate({ children }: { children: ReactNode }) {
   const [state, setState] = useState<"checking" | "ok">("checking");
 
   useEffect(() => {
-    if (!getToken()) { router.replace("/admin/login"); return; }
     let alive = true;
     fetchMe()
       .then((d) => {

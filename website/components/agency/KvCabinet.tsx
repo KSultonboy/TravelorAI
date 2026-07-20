@@ -8,8 +8,14 @@ import { getNotifs, markRead, markAllRead, pushNotif, seedNotifs, type KvNotif }
 import {
   CRM_STAGES,
   STAGE_LABEL,
+  addTask,
   toggleTask,
+  deleteTask,
   timeAgo,
+  whatsappLink,
+  telegramLink,
+  greetingTemplate,
+  normalizePhone,
   type CrmLead,
   type CrmStage,
 } from "@/lib/agency/crm";
@@ -33,6 +39,10 @@ const I = {
   pin: "M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z",
   trash: "M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14",
   bolt: "M13 2 3 14h7l-1 8 10-12h-7z",
+  lock: "M5 11h14v10H5z M9 11V7a3 3 0 0 1 6 0v4",
+  send: "M22 2 11 13 M22 2l-7 20-4-9-9-4z",
+  eye: "M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+  copy: "M9 9h10v12H9z M5 15H3V3h12v2",
 };
 function Ic({ d, s = 18 }: { d: string; s?: number }) {
   return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
@@ -40,12 +50,44 @@ function Ic({ d, s = 18 }: { d: string; s?: number }) {
 function initials(name: string) {
   return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 }
+type DueKind = "overdue" | "today" | "soon" | "far" | "none";
+function dueInfo(dueAt?: string): { kind: DueKind; label: string; cls: string } {
+  if (!dueAt) return { kind: "none", label: "Muddatsiz", cls: "b-grey" };
+  const d = new Date(dueAt);
+  const t = d.getTime();
+  if (Number.isNaN(t)) return { kind: "none", label: "Muddatsiz", cls: "b-grey" };
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startDue = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startDue - startToday) / 86400000);
+  if (t < now.getTime()) return { kind: "overdue", label: "Muddati o'tgan", cls: "b-rose" };
+  if (days === 0) return { kind: "today", label: "Bugun", cls: "b-amber" };
+  if (days === 1) return { kind: "soon", label: "Ertaga", cls: "b-amber" };
+  if (days <= 7) return { kind: "soon", label: `${days} kundan keyin`, cls: "b-green" };
+  return { kind: "far", label: formatDate(dueAt), cls: "b-grey" };
+}
+function isOverdue(t: any): boolean {
+  return !t.done && !!t.dueAt && new Date(t.dueAt).getTime() < Date.now();
+}
+
+// Brauzer bildirishnomasi — CRM boshqa tabda bo'lsa ham ko'rinadi.
+// Ruxsat berilmagan bo'lsa jimgina o'tkazib yuboriladi (o'zimiz so'ramaymiz — foydalanuvchi tugma bosadi).
+function browserNotify(title: string, body: string) {
+  try {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    new Notification(title, { body, icon: "/favicon.ico" });
+  } catch {
+    /* ignore */
+  }
+}
 
 const NAV: { key: string; label: string; icon: string; group: string; badge?: "leads" | "tasks" }[] = [
   { key: "dashboard", label: "Boshqaruv paneli", icon: I.grid, group: "Asosiy" },
   { key: "leads", label: "Lidlar / Voronka", icon: I.list, group: "Asosiy", badge: "leads" },
   { key: "customers", label: "Mijozlar", icon: I.users, group: "Asosiy" },
+  { key: "tasks", label: "Vazifalar", icon: I.clock, group: "Asosiy", badge: "tasks" },
   { key: "packages", label: "Turlar / Paketlar", icon: I.box, group: "Sotuv" },
+  { key: "presentations", label: "Takliflar", icon: I.send, group: "Sotuv" },
   { key: "bookings", label: "Bronlar", icon: I.cal, group: "Sotuv" },
   { key: "payments", label: "To'lovlar", icon: I.card, group: "Sotuv" },
   { key: "reports", label: "Hisobotlar", icon: I.chart, group: "Boshqa" },
@@ -161,6 +203,23 @@ function NotificationBell({ agencyId, leads, go }: { agencyId: string; leads: Cr
   );
 }
 
+function UpgradeNotice({ section, planName, go }: { section: string; planName?: string; go: (v: string) => void }) {
+  const label = TITLES[section] || "Bu bo'lim";
+  return (
+    <div className="kv-upg">
+      <div className="kv-upg__ic"><Ic d={I.lock} s={26} /></div>
+      <h3>{label} — yuqoriroq tarifda</h3>
+      <p>Bu bo&apos;lim joriy tarifingizda{planName ? ` (${planName})` : ""} mavjud emas. Ochish uchun tarifni yuqoriga ko&apos;taring.</p>
+      <div className="kv-upg__tiers">
+        <div><b>Pro</b><span>Telegram bot · Hisobotlar · Broadcast · Analitika</span></div>
+        <div><b>Business</b><span>Jamoa · Integratsiyalar · Hammasi</span></div>
+      </div>
+      <p className="kv-upg__hint">Tarifni yangilash uchun administrator bilan bog&apos;laning.</p>
+      <button className="btn btn-primary" onClick={() => go("settings")}>Sozlamalarga o&apos;tish</button>
+    </div>
+  );
+}
+
 export default function KvCabinet() {
   const { phase, me, tours, bookings, bookingStats, logout, refresh, refreshBookings, refreshTours } = useAgencySession();
   const { agencyId, leads, tasks, customers, move, busyId } = useCrm();
@@ -179,6 +238,54 @@ export default function KvCabinet() {
     }
   }, []);
 
+  // Dinamik takliflar (Pro+) — ochilish statistikasi kanban kartalarida ham ko'rinadi.
+  const [presentations, setPresentations] = useState<any[]>([]);
+  async function reloadPresentations() {
+    const r = await agencyApi<{ items: any[] }>("/presentations");
+    if (r.success) setPresentations(r.data.items || []);
+  }
+  const canPresent = me?.access?.caps?.presentations !== false;
+  useEffect(() => {
+    if (!me?.agency || !canPresent) return;
+    void reloadPresentations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me?.agency?.id, canPresent]);
+
+  // Jonli yangilanish — mijoz taklifni ochsa CRM o'zi biladi, F5 bosish shart emas.
+  // Tab ko'rinmayotgan bo'lsa so'rov yubormaymiz (behuda trafik bo'lmasin).
+  const presRef = useRef<any[]>([]);
+  useEffect(() => { presRef.current = presentations; }, [presentations]);
+  useEffect(() => {
+    const agId = me?.agency?.id;
+    if (!agId || !canPresent) return;
+    const tick = async () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      const r = await agencyApi<{ items: any[] }>("/presentations");
+      if (!r.success) return;
+      const next = r.data.items || [];
+      const before = presRef.current;
+      if (before.length) {
+        const byId = new Map(before.map((x: any) => [x.id, x]));
+        for (const n of next) {
+          const o: any = byId.get(n.id);
+          if (!o) continue;
+          const who = `${n.customerName || "Mijoz"} · ${n.title}`;
+          if (n.status === "interested" && o.status !== "interested") {
+            pushNotif(agId, { kind: "stage", title: "Mijoz qiziqish bildirdi", sub: who });
+            browserNotify("Mijoz qiziqish bildirdi", who);
+          } else if ((n.openCount || 0) > (o.openCount || 0)) {
+            pushNotif(agId, { kind: "stage", title: "Taklif ko'rildi", sub: who });
+            browserNotify("Taklif ko'rildi", who);
+          }
+        }
+      }
+      presRef.current = next;
+      setPresentations(next);
+    };
+    const id = setInterval(tick, 25000);
+    return () => clearInterval(id);
+  }, [me?.agency?.id, canPresent]);
+
   if (phase === "loading") {
     return <div className="kv"><div className="kv-center"><svg className="kv-spin" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.2-8.5" /></svg><p>Yuklanmoqda…</p></div></div>;
   }
@@ -191,6 +298,33 @@ export default function KvCabinet() {
 
   const agency = me?.agency;
   const openLeads = leads.filter((l) => OPEN.includes(l.stage)).length;
+  const overdueCount = tasks.filter((t: any) => isOverdue(t)).length;
+
+  // Lid → eng "kuchli" taklif holati (qiziqdi > ko'rildi > yuborildi) — kanban kartasi uchun.
+  const presRank = (p: any) => (p.status === "interested" ? 3 : p.status === "viewed" ? 2 : 1);
+  const presByLead: Record<string, any> = {};
+  for (const p of presentations) {
+    if (!p.bookingId) continue;
+    const cur = presByLead[p.bookingId];
+    if (!cur || presRank(p) > presRank(cur)) presByLead[p.bookingId] = p;
+  }
+
+  // ── Obuna / tarif enforcement ──
+  const access = me?.access;
+  const readOnly = !!access?.readOnly;
+  const caps = access?.caps || {};
+  const canExport = caps.csvExport !== false;
+  const allowedSections = access?.sections || null; // null = cheklovsiz (grandfather / eski agentlik)
+  const sectionAllowed = (key: string) => {
+    if (key === "dashboard" || key === "settings" || key === "tasks") return true; // doim ochiq
+    if (key === "telegram") return caps.telegram !== false;
+    if (key === "presentations") return caps.presentations !== false;
+    if (!allowedSections) return true;
+    return allowedSections.includes(key);
+  };
+  // Muddat o'tган bo'lsa pipeline ko'chirishni bloklaymiz (backend ham 402 qaytaradi)
+  const guardedMove = (readOnly ? ((async () => {}) as typeof move) : move);
+  const curAllowed = sectionAllowed(view);
 
   return (
     <div className="kv">
@@ -207,12 +341,18 @@ export default function KvCabinet() {
           {["Asosiy", "Sotuv", "Boshqa"].map((g) => (
             <div className="nav-group" key={g}>
               <div className="lbl">{g}</div>
-              {NAV.filter((n) => n.group === g).map((n) => (
-                <button key={n.key} className={`nav-item${view === n.key ? " active" : ""}`} onClick={() => setView(n.key)}>
-                  <Ic d={n.icon} />{n.label}
-                  {n.badge === "leads" && openLeads > 0 ? <span className="badge">{openLeads}</span> : null}
-                </button>
-              ))}
+              {NAV.filter((n) => n.group === g).map((n) => {
+                const locked = !sectionAllowed(n.key);
+                return (
+                  <button key={n.key} className={`nav-item${view === n.key ? " active" : ""}${locked ? " locked" : ""}`} onClick={() => setView(n.key)} title={locked ? "Yuqoriroq tarifda ochiladi" : undefined}>
+                    <Ic d={n.icon} />{n.label}
+                    {locked ? <span className="nav-lock"><Ic d={I.lock} s={13} /></span>
+                      : (n.badge === "leads" && openLeads > 0 ? <span className="badge">{openLeads}</span>
+                        : n.badge === "tasks" && overdueCount > 0 ? <span className="badge" style={{ background: "#F43F5E", color: "#fff" }}>{overdueCount}</span>
+                        : null)}
+                  </button>
+                );
+              })}
             </div>
           ))}
           <div className="side-foot">
@@ -228,20 +368,38 @@ export default function KvCabinet() {
             <h1>{TITLES[view]}</h1>
             <div className="top-actions">
               <NotificationBell agencyId={agencyId} leads={leads} go={setView} />
-              <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Ic d={I.plus} s={16} /> Yangi lid</button>
+              <button className="btn btn-primary" onClick={() => setShowAdd(true)} disabled={readOnly} title={readOnly ? "Obuna tugagan — faqat o'qish rejimi" : undefined}><Ic d={I.plus} s={16} /> Yangi lid</button>
             </div>
           </header>
 
           <div className="content">
-            <Dashboard show={view === "dashboard"} leads={leads} tasks={tasks} stats={bookingStats} agencyId={agencyId} go={setView} />
-            <Leads show={view === "leads"} leads={leads} move={move} busyId={busyId} dragId={dragId} setDragId={setDragId} over={over} setOver={setOver} />
-            <Customers show={view === "customers"} customers={customers} />
-            <Packages show={view === "packages"} tours={tours} agencyId={agencyId} refreshTours={refreshTours} />
-            <Bookings show={view === "bookings"} bookings={bookings} agencyId={agencyId} refreshBookings={refreshBookings} refresh={refresh} />
-            <Payments show={view === "payments"} leads={leads} move={move} busyId={busyId} />
-            <Reports show={view === "reports"} leads={leads} />
-            <Settings show={view === "settings"} agency={agency} agencyId={agencyId} refresh={refresh} logout={logout} go={setView} />
-            <TelegramPage show={view === "telegram"} leads={leads} go={setView} />
+            {readOnly ? (
+              <div className="kv-lockbar">
+                <span className="kv-lockbar__ic"><Ic d={I.clock} s={18} /></span>
+                <div className="kv-lockbar__tx">
+                  <b>Obuna muddati tugagan — faqat o&apos;qish rejimi.</b>
+                  <span>Ma&apos;lumotlaringiz saqlanib turibdi. Yangi tur qo&apos;shish, lidlarni boshqarish va Telegram uchun to&apos;lovni yangilang.</span>
+                </div>
+                <button className="btn btn-primary" onClick={() => setView("settings")}>Batafsil</button>
+              </div>
+            ) : null}
+            {!curAllowed ? (
+              <UpgradeNotice section={view} planName={access?.planName} go={setView} />
+            ) : (
+              <>
+                <Dashboard show={view === "dashboard"} leads={leads} tasks={tasks} stats={bookingStats} agencyId={agencyId} go={setView} />
+                <Leads show={view === "leads"} leads={leads} move={guardedMove} busyId={busyId} dragId={dragId} setDragId={setDragId} over={over} setOver={setOver} readOnly={readOnly} canExport={canExport} presByLead={presByLead} />
+                <Customers show={view === "customers"} customers={customers} canExport={canExport} />
+                <Tasks show={view === "tasks"} agencyId={agencyId} tasks={tasks} leads={leads} readOnly={readOnly} />
+                <Packages show={view === "packages"} tours={tours} agencyId={agencyId} refreshTours={refreshTours} readOnly={readOnly} />
+                <Presentations show={view === "presentations"} items={presentations} leads={leads} tours={tours} reload={reloadPresentations} readOnly={readOnly} />
+                <Bookings show={view === "bookings"} bookings={bookings} agencyId={agencyId} refreshBookings={refreshBookings} refresh={refresh} readOnly={readOnly} canExport={canExport} />
+                <Payments show={view === "payments"} leads={leads} move={guardedMove} busyId={busyId} readOnly={readOnly} canExport={canExport} />
+                <Reports show={view === "reports"} leads={leads} />
+                <Settings show={view === "settings"} agency={agency} agencyId={agencyId} refresh={refresh} logout={logout} go={setView} access={access} readOnly={readOnly} caps={caps} />
+                <TelegramPage show={view === "telegram"} leads={leads} go={setView} readOnly={readOnly} />
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -294,13 +452,13 @@ function Dashboard({ show, leads, tasks, stats, agencyId, go }: any) {
           </div>
         </div>
         <div className="card">
-          <div className="section-head" style={{ margin: "16px 18px 2px" }}><div><h2>Vazifalar</h2><div className="sub">{tasks.length - doneTasks} ochiq</div></div></div>
+          <div className="section-head" style={{ margin: "16px 18px 2px" }}><div><h2>Vazifalar</h2><div className="sub">{tasks.length - doneTasks} ochiq</div></div><button className="link" onClick={() => go("tasks")}>Ochish →</button></div>
           <div className="list">
             {tasks.length ? tasks.slice(0, 5).map((t: any) => (
               <div className={`task${t.done ? " done" : ""}`} key={t.id}>
                 <button className="box" onClick={() => { toggleTask(agencyId, t.id); setV((x) => x + 1); }}><Ic d={I.check} s={13} /></button>
                 <span className="tx">{t.title}</span>
-                <span className="time">{t.dueAt ? timeAgo(t.dueAt) : "—"}</span>
+                <span className="time" style={isOverdue(t) ? { color: "#F43F5E", fontWeight: 600 } : undefined}>{t.dueAt ? dueInfo(t.dueAt).label : "—"}</span>
               </div>
             )) : <Empty icon={I.check} text="Hozircha vazifa yo'q." />}
           </div>
@@ -335,9 +493,92 @@ function Empty({ icon, text }: any) {
   return <div className="empty"><Ic d={icon} s={30} /><p>{text}</p></div>;
 }
 
+/* ================= CSV EKSPORT ================= */
+type CsvCol = { label: string; get: (r: any) => any };
+function downloadCsv(filename: string, columns: CsvCol[], rows: any[]) {
+  const esc = (v: any) => {
+    const s = v === null || v === undefined ? "" : String(v);
+    return /[",\r\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [columns.map((c) => esc(c.label)).join(",")];
+  for (const r of rows) lines.push(columns.map((c) => esc(c.get(r))).join(","));
+  const csv = "﻿" + lines.join("\r\n"); // BOM — Excel'да o'zbek harflari to'g'ri ochilishi uchun
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const stamp = new Date().toISOString().slice(0, 10);
+  const a = document.createElement("a");
+  a.href = url; a.download = `${filename}-${stamp}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+function ExportBtn({ rows, filename, columns }: { rows: any[]; filename: string; columns: CsvCol[] }) {
+  const empty = !rows || rows.length === 0;
+  return (
+    <button type="button" className="btn btn-ghost btn-sm" disabled={empty}
+      style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+      title={empty ? "Eksport uchun ma'lumot yo'q" : "CSV faylга yuklab olish"}
+      onClick={() => downloadCsv(filename, columns, rows)}>
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+      CSV
+    </button>
+  );
+}
+const CUST_COLS: CsvCol[] = [
+  { label: "Mijoz", get: (c) => c.name },
+  { label: "Telefon", get: (c) => c.phone || "" },
+  { label: "So'rovlar", get: (c) => (c.leads?.length ?? 0) },
+  { label: "Jami qiymat", get: (c) => (c.totalValue ?? 0) },
+  { label: "Holat", get: (c) => (c.totalValue >= 1500 ? "VIP" : c.wonCount > 1 ? "Doimiy" : c.wonCount ? "Faol" : "Yangi") },
+];
+const BOOK_COLS: CsvCol[] = [
+  { label: "Mijoz", get: (b) => b.customerName },
+  { label: "Telefon", get: (b) => b.customerPhone || "" },
+  { label: "Email", get: (b) => b.customerEmail || "" },
+  { label: "Yo'nalish", get: (b) => b.tour?.title || b.tour?.city || b.leadTour || "" },
+  { label: "Sana", get: (b) => (b.travelDate ? String(b.travelDate).slice(0, 10) : "") },
+  { label: "Kishi", get: (b) => (b.travelers ?? "") },
+  { label: "Summa", get: (b) => (b.totalEstimate ?? "") },
+  { label: "Valyuta", get: (b) => b.currency || "" },
+  { label: "Holat", get: (b) => (({ pending: "Kutilmoqda", confirmed: "Tasdiqlangan", completed: "Yakunlangan", rejected: "Rad etilgan", cancelled: "Bekor qilingan" } as Record<string, string>)[b.status] || b.status) },
+];
+const LEAD_COLS: CsvCol[] = [
+  { label: "Mijoz", get: (l) => l.customerName },
+  { label: "Telefon", get: (l) => l.customerPhone || "" },
+  { label: "Yo'nalish", get: (l) => l.tourTitle || "" },
+  { label: "Bosqich", get: (l) => (CRM_STAGES.find((s: any) => s.key === l.stage)?.label || l.stage) },
+  { label: "Summa", get: (l) => (l.totalEstimate ?? "") },
+  { label: "Manba", get: (l) => srcLabel(l.source) },
+  { label: "Sana", get: (l) => (l.createdAt ? String(l.createdAt).slice(0, 10) : "") },
+];
+const PAY_COLS: CsvCol[] = [
+  { label: "Mijoz", get: (l) => l.customerName },
+  { label: "Yo'nalish", get: (l) => l.tourTitle || "" },
+  { label: "Summa", get: (l) => (l.totalEstimate ?? "") },
+  { label: "Manba", get: (l) => srcLabel(l.source) },
+  { label: "Holat", get: (l) => (l.stage === "completed" ? "Yakunlandi" : "Kelishildi") },
+];
+
 /* ================= LEADS / KANBAN ================= */
 const SRC_BADGE: Record<string, string> = { manual: "b-amber", marketplace: "b-green", telegram: "b-sky" };
 const srcLabel = (s: string) => (s === "manual" ? "Qo'lda" : s === "telegram" ? "Telegram" : "Marketplace");
+
+/* Tez aloqa: WhatsApp / Telegram / qo'ng'iroq — mijoz telefoni bo'lsa (chiquvchi havolalar) */
+function ContactActions({ lead }: { lead: { customerName: string; customerPhone?: string | null; tourTitle?: string | null } }) {
+  const phone = lead.customerPhone;
+  const wa = phone ? whatsappLink(phone, greetingTemplate(lead)) : null;
+  const tg = phone ? telegramLink(phone) : null;
+  const tel = phone ? `tel:${normalizePhone(phone)}` : null;
+  if (!wa && !tg && !tel) return null;
+  const stop = (e: any) => e.stopPropagation();
+  const base: any = { width: 30, height: 30, borderRadius: 8, display: "inline-grid", placeItems: "center", color: "#fff", textDecoration: "none", flex: "none" };
+  return (
+    <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }} onPointerDown={stop}>
+      {wa ? <a href={wa} target="_blank" rel="noreferrer" title="WhatsApp" onClick={stop} style={{ ...base, background: "#25D366" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.5 14.4c-.3-.15-1.7-.85-2-.95-.26-.1-.45-.15-.64.15-.19.28-.73.94-.9 1.13-.16.19-.33.21-.61.07-.3-.15-1.25-.46-2.38-1.47-.88-.78-1.47-1.75-1.64-2.04-.17-.29-.02-.44.13-.59.13-.13.3-.34.44-.51.15-.17.19-.29.29-.48.1-.19.05-.36-.02-.51-.08-.15-.64-1.55-.88-2.12-.23-.55-.47-.48-.64-.49h-.55c-.19 0-.5.07-.76.36-.26.29-1 .98-1 2.38s1.02 2.76 1.17 2.95c.14.19 2.01 3.08 4.88 4.32.68.29 1.21.47 1.63.6.68.22 1.3.19 1.79.11.55-.08 1.7-.69 1.94-1.36.24-.67.24-1.24.17-1.36-.07-.12-.26-.19-.55-.34zM12 2a10 10 0 0 0-8.6 15.06L2 22l5.06-1.33A10 10 0 1 0 12 2z" /></svg></a> : null}
+      {tg ? <a href={tg} target="_blank" rel="noreferrer" title="Telegram" onClick={stop} style={{ ...base, background: "#229ED9" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.3 18.7 19.4c-.24 1.06-.87 1.32-1.76.82l-4.87-3.59-2.35 2.26c-.26.26-.48.48-.98.48l.35-4.96 9.02-8.15c.39-.35-.09-.55-.6-.2L6.83 13.2l-4.8-1.5c-1.04-.33-1.06-1.04.22-1.54l18.77-7.23c.87-.32 1.63.2 1.35 1.37z" /></svg></a> : null}
+      {tel ? <a href={tel} title="Qo'ng'iroq" onClick={stop} style={{ ...base, background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.2)" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.5-1.1a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z" /></svg></a> : null}
+    </div>
+  );
+}
 function StageSelect({ value, onChange, disabled }: { value: CrmStage; onChange: (s: CrmStage) => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -370,7 +611,7 @@ function StageSelect({ value, onChange, disabled }: { value: CrmStage; onChange:
   );
 }
 
-function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver }: any) {
+function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver, readOnly, canExport, presByLead }: any) {
   const [chat, setChat] = useState<CrmLead | null>(null);
   const byStage = useMemo(() => {
     const map: Record<CrmStage, CrmLead[]> = { new: [], contacted: [], quoted: [], won: [], completed: [], lost: [] };
@@ -379,7 +620,7 @@ function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver }: 
   }, [leads]);
   return (
     <section className={`view${show ? " active" : ""}`}>
-      <div className="section-head"><div><h2>Sotuv voronkasi</h2><div className="sub">Jami {leads.length} ta lid — kartani suring yoki bosqichni tanlang</div></div></div>
+      <div className="section-head"><div><h2>Sotuv voronkasi</h2><div className="sub">Jami {leads.length} ta lid — kartani suring yoki bosqichni tanlang</div></div>{canExport ? <ExportBtn rows={leads} filename="lidlar" columns={LEAD_COLS} /> : null}</div>
       <div className="kanban">
         {CRM_STAGES.map((s, i) => (
           <div key={s.key} className={`kcol c${i}${over === s.key ? " over" : ""}`}
@@ -388,12 +629,14 @@ function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver }: 
             onDrop={() => { const l = leads.find((x: CrmLead) => x.id === dragId); setOver(""); setDragId(""); if (l) void move(l, s.key); }}>
             <div className="khead"><span className="acc" /><b>{s.label}</b><span className="n">{byStage[s.key as CrmStage].length}</span></div>
             {byStage[s.key as CrmStage].map((l) => (
-              <article key={l.id} className="kcard" draggable onDragStart={() => setDragId(l.id)} onDragEnd={() => setDragId("")} style={busyId === l.id ? { opacity: 0.5 } : undefined}>
+              <article key={l.id} className="kcard" draggable={!readOnly} onDragStart={() => setDragId(l.id)} onDragEnd={() => setDragId("")} style={busyId === l.id ? { opacity: 0.5 } : undefined}>
                 <b>{l.customerName}</b>
                 <div className="dir">{l.tourTitle || "Tur ko'rsatilmagan"}</div>
                 {l.totalEstimate ? <span className="sum">{formatMoney(l.totalEstimate)}</span> : <span className="dir">Summa yo'q</span>}
                 <div className="foot"><span className={`badge2 ${SRC_BADGE[l.source] || "b-grey"}`}>{srcLabel(l.source)}</span><small>{timeAgo(l.createdAt)}</small></div>
-                <StageSelect value={l.stage} onChange={(s) => void move(l, s)} disabled={busyId === l.id} />
+                <StageSelect value={l.stage} onChange={(s) => void move(l, s)} disabled={busyId === l.id || readOnly} />
+                <ContactActions lead={l} />
+                {presByLead?.[l.id] ? <PresBadge p={presByLead[l.id]} /> : null}
                 {l.source === "telegram" ? <button className="tg-chat-btn" onClick={() => setChat(l)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>Telegram suhbat</button> : null}
               </article>
             ))}
@@ -401,21 +644,21 @@ function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver }: 
           </div>
         ))}
       </div>
-      {chat ? <TelegramChat lead={chat} onClose={() => setChat(null)} /> : null}
+      {chat ? <TelegramChat lead={chat} onClose={() => setChat(null)} readOnly={readOnly} /> : null}
     </section>
   );
 }
 
 /* ================= CUSTOMERS ================= */
-function Customers({ show, customers }: any) {
+function Customers({ show, customers, canExport }: any) {
   const vip = customers.filter((c: any) => c.totalValue >= 1500).length;
   return (
     <section className={`view${show ? " active" : ""}`}>
-      <div className="section-head"><div><h2>Mijozlar bazasi</h2><div className="sub">Jami {customers.length} mijoz · {vip} yuqori qiymatli</div></div></div>
+      <div className="section-head"><div><h2>Mijozlar bazasi</h2><div className="sub">Jami {customers.length} mijoz · {vip} yuqori qiymatli</div></div>{canExport ? <ExportBtn rows={customers} filename="mijozlar" columns={CUST_COLS} /> : null}</div>
       <div className="card tbl-wrap">
         {customers.length ? (
           <table>
-            <thead><tr><th>Mijoz</th><th>Telefon</th><th>So&apos;rovlar</th><th className="r">Jami qiymat</th><th>Holat</th></tr></thead>
+            <thead><tr><th>Mijoz</th><th>Telefon</th><th>So&apos;rovlar</th><th className="r">Jami qiymat</th><th>Holat</th><th>Aloqa</th></tr></thead>
             <tbody>
               {customers.map((c: any) => (
                 <tr key={c.keyId}>
@@ -424,6 +667,7 @@ function Customers({ show, customers }: any) {
                   <td>{c.leads.length}</td>
                   <td className="r money">{formatMoney(c.totalValue)}</td>
                   <td><span className={`badge2 ${c.totalValue >= 1500 ? "b-amber" : c.wonCount > 1 ? "b-green" : c.wonCount ? "b-grey" : "b-sky"}`}>{c.totalValue >= 1500 ? "VIP" : c.wonCount > 1 ? "Doimiy" : c.wonCount ? "Faol" : "Yangi"}</span></td>
+                  <td><ContactActions lead={{ customerName: c.name, customerPhone: c.phone, tourTitle: c.leads[0]?.tourTitle }} /></td>
                 </tr>
               ))}
             </tbody>
@@ -434,8 +678,391 @@ function Customers({ show, customers }: any) {
   );
 }
 
+/* ================= VAZIFALAR / ESLATMALAR ================= */
+function Tasks({ show, agencyId, tasks, leads, readOnly }: any) {
+  const [title, setTitle] = useState("");
+  const [due, setDue] = useState("");
+  const [leadId, setLeadId] = useState("");
+  const openLeadOpts: CrmLead[] = useMemo(() => leads.filter((l: CrmLead) => OPEN.includes(l.stage)), [leads]);
+
+  const g = useMemo(() => {
+    const byDue = (a: any, b: any) => new Date(a.dueAt || "2999-01-01").getTime() - new Date(b.dueAt || "2999-01-01").getTime();
+    const active = tasks.filter((t: any) => !t.done);
+    const pick = (k: string) => active.filter((t: any) => dueInfo(t.dueAt).kind === k).sort(byDue);
+    return {
+      overdue: pick("overdue"),
+      today: pick("today"),
+      upcoming: [...pick("soon"), ...pick("far")].sort(byDue),
+      noDue: pick("none"),
+      done: tasks.filter((t: any) => t.done).sort((a: any, b: any) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))),
+    };
+  }, [tasks]);
+
+  const openTaskLeadIds = useMemo(() => new Set(tasks.filter((t: any) => !t.done && t.leadId).map((t: any) => t.leadId)), [tasks]);
+  const untracked = useMemo(() => openLeadOpts.filter((l) => !openTaskLeadIds.has(l.id)), [openLeadOpts, openTaskLeadIds]);
+  const activeCount = g.overdue.length + g.today.length + g.upcoming.length + g.noDue.length;
+  const inp: any = { padding: "10px 12px", border: "1px solid rgba(255,255,255,.15)", background: "rgba(255,255,255,.04)", color: "inherit", borderRadius: 10, fontSize: 14, minWidth: 0 };
+
+  function submit(e?: any) {
+    e?.preventDefault?.();
+    const t = title.trim();
+    if (!t || readOnly) return;
+    const lead = leads.find((x: CrmLead) => x.id === leadId);
+    addTask(agencyId, { title: t, dueAt: due ? new Date(due).toISOString() : undefined, leadId: leadId || undefined, leadName: lead?.customerName });
+    setTitle(""); setDue(""); setLeadId("");
+  }
+  function quickForLead(l: CrmLead) {
+    if (readOnly) return;
+    addTask(agencyId, { title: `${l.customerName} bilan bog'lanish`, leadId: l.id, leadName: l.customerName, dueAt: new Date(Date.now() + 86400000).toISOString() });
+  }
+
+  const renderRow = (t: any) => {
+    const info = dueInfo(t.dueAt);
+    return (
+      <div className={`task${t.done ? " done" : ""}`} key={t.id}>
+        <button className="box" disabled={readOnly} onClick={() => toggleTask(agencyId, t.id)} aria-label="Bajarildi"><Ic d={I.check} s={13} /></button>
+        <span className="tx">{t.title}{t.leadName ? <small style={{ color: "#8aa398", marginLeft: 6 }}>· {t.leadName}</small> : null}</span>
+        <span className={`badge2 ${t.done ? "b-grey" : info.cls}`}>{t.done ? "Bajarildi" : info.label}</span>
+        {!readOnly ? <button onClick={() => deleteTask(agencyId, t.id)} title="O'chirish" aria-label="O'chirish" style={{ background: "transparent", border: "none", color: "inherit", opacity: 0.45, cursor: "pointer", padding: 4, display: "inline-flex" }}><Ic d={I.trash} s={14} /></button> : null}
+      </div>
+    );
+  };
+  const renderGroup = (label: string, items: any[], accent?: string) =>
+    items.length ? (
+      <div className="card" style={{ marginTop: 12 }} key={label}>
+        <div className="section-head" style={{ margin: "14px 18px 2px" }}><div><h2 style={accent ? { color: accent } : undefined}>{label}</h2><div className="sub">{items.length} ta</div></div></div>
+        <div className="list">{items.map(renderRow)}</div>
+      </div>
+    ) : null;
+
+  return (
+    <section className={`view${show ? " active" : ""}`}>
+      <div className="section-head"><div><h2>Vazifalar va eslatmalar</h2><div className="sub">{activeCount} ochiq{g.overdue.length ? ` · ${g.overdue.length} muddati o'tgan` : ""}</div></div></div>
+
+      {!readOnly ? (
+        <form className="card" style={{ padding: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }} onSubmit={submit}>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Eslatma yoki vazifa…" style={{ ...inp, flex: "2 1 240px" }} />
+          <input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} style={{ ...inp, flex: "1 1 180px" }} />
+          <select value={leadId} onChange={(e) => setLeadId(e.target.value)} style={{ ...inp, flex: "1 1 170px" }}>
+            <option value="">Lidga bog'lash (ixtiyoriy)</option>
+            {openLeadOpts.map((l) => <option key={l.id} value={l.id}>{l.customerName}</option>)}
+          </select>
+          <button type="submit" className="btn btn-primary btn-sm" disabled={!title.trim()}><Ic d={I.plus} s={15} /> Qo&apos;shish</button>
+        </form>
+      ) : null}
+
+      {untracked.length ? (
+        <div className="card" style={{ marginTop: 12, borderColor: "rgba(234,179,8,.4)" }}>
+          <div className="section-head" style={{ margin: "14px 18px 2px" }}><div><h2 style={{ color: "#EAB308" }}>Vazifasiz lidlar</h2><div className="sub">{untracked.length} ta faol lidda eslatma yo&apos;q — unutib qo&apos;ymang</div></div></div>
+          <div className="list">
+            {untracked.slice(0, 6).map((l) => (
+              <div className="task" key={l.id}>
+                <span className="av-sm">{initials(l.customerName)}</span>
+                <span className="tx">{l.customerName}<small style={{ marginLeft: 6, color: "#8aa398" }}>· {STAGE_LABEL[l.stage as CrmStage]}</small></span>
+                {!readOnly ? <button className="btn btn-ghost btn-sm" onClick={() => quickForLead(l)}><Ic d={I.plus} s={14} /> Eslatma</button> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {activeCount === 0 && g.done.length === 0 ? <div className="card" style={{ marginTop: 12 }}><Empty icon={I.check} text="Hali vazifa yo'q. Yuqoridagi shakl orqali eslatma qo'shing." /></div> : null}
+
+      {renderGroup("Muddati o'tgan", g.overdue, "#F43F5E")}
+      {renderGroup("Bugun", g.today, "#EAB308")}
+      {renderGroup("Keyingi kunlar", g.upcoming)}
+      {renderGroup("Muddatsiz", g.noDue)}
+      {g.done.length ? renderGroup("Bajarilgan", g.done.slice(0, 12)) : null}
+    </section>
+  );
+}
+
+/* ================= PRESENTATIONS (dinamik takliflar) ================= */
+const PRES_STATE: Record<string, { label: string; cls: string; icon: string }> = {
+  sent: { label: "Yuborildi", cls: "b-grey", icon: I.send },
+  viewed: { label: "Ko'rildi", cls: "b-green", icon: I.eye },
+  interested: { label: "Qiziqish bildirdi", cls: "b-amber", icon: I.check },
+};
+
+function PresBadge({ p }: { p: any }) {
+  const s = PRES_STATE[p.status] || PRES_STATE.sent;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+      <span className={`badge2 ${s.cls}`} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <Ic d={s.icon} s={11} /> {s.label}
+      </span>
+      {p.openCount > 0 ? <small style={{ color: "#8aa398", fontSize: 11 }}>{p.openCount}×</small> : null}
+    </div>
+  );
+}
+
+/* Brauzer bildirishnomasi — ruxsatni foydalanuvchi o'zi bosib beradi */
+function NotifyToggle() {
+  const [perm, setPerm] = useState<string>("unsupported");
+  useEffect(() => {
+    if (typeof Notification !== "undefined") setPerm(Notification.permission);
+  }, []);
+  if (perm === "unsupported") return null;
+  if (perm === "granted") return <span className="badge2 b-green">Bildirishnoma yoqilgan</span>;
+  if (perm === "denied") {
+    return <span className="badge2 b-grey" title="Brauzer sozlamalaridan sayt uchun ruxsat bering">Bildirishnoma bloklangan</span>;
+  }
+  return (
+    <button className="btn btn-ghost btn-sm" onClick={() => { void Notification.requestPermission().then(setPerm); }}>
+      <Ic d={I.bell} s={14} /> Bildirishnomani yoqish
+    </button>
+  );
+}
+
+/* Telegramга xabarnoma — agent o'z botiga kod yuboradi, o'sha chat manzil bo'lib qoladi */
+function TelegramAlertSetup() {
+  const [d, setD] = useState<any>(null);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    void agencyApi<any>("/telegram").then((r) => { if (r.success) setD(r.data); });
+  }, []);
+  if (!d || !d.connected || !d.notifyCode) return null;
+
+  if (d.notifyEnabled) {
+    return (
+      <div className="card" style={{ padding: 12, marginBottom: 12, fontSize: 13.5 }}>
+        <b style={{ color: "#1E9E63" }}>Telegram xabarnomasi yoqilgan</b>
+        <span style={{ color: "#8aa398" }}> — mijoz taklifni ochganda @{d.username} sizga yozadi.</span>
+      </div>
+    );
+  }
+
+  const cmd = `/xabarnoma ${d.notifyCode}`;
+  return (
+    <div className="card" style={{ padding: 14, marginBottom: 12, borderColor: "rgba(234,179,8,.4)" }}>
+      <b style={{ color: "#EAB308" }}>Telefoningizga xabar keladigan qiling</b>
+      <p style={{ margin: "6px 0 10px", fontSize: 13.5, color: "#8aa398" }}>
+        Telegramda <b>@{d.username}</b> botini oching va shu buyruqni yuboring. Shundan keyin mijoz taklifni ochishi bilan
+        botingiz sizga darhol xabar beradi — CRM ochiq bo&apos;lmasa ham.
+      </p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <code style={{ padding: "9px 12px", background: "rgba(255,255,255,.06)", borderRadius: 9, fontSize: 13.5 }}>{cmd}</code>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={() => { void navigator.clipboard.writeText(cmd).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); }).catch(() => {}); }}
+        >
+          <Ic d={I.copy} s={13} /> {copied ? "Nusxalandi" : "Nusxalash"}
+        </button>
+        <a className="btn btn-ghost btn-sm" href={`https://t.me/${d.username}`} target="_blank" rel="noopener noreferrer">
+          Botni ochish
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
+  const [leadId, setLeadId] = useState("");
+  const [tourId, setTourId] = useState("");
+  const [title, setTitle] = useState("");
+  const [price, setPrice] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [copied, setCopied] = useState("");
+  const [created, setCreated] = useState<any>(null);
+  const [sending, setSending] = useState("");
+  const [sent, setSent] = useState("");
+  const [sendErr, setSendErr] = useState("");
+
+  const leadOpts: CrmLead[] = useMemo(() => leads.filter((l: CrmLead) => l.stage !== "lost"), [leads]);
+  const leadById = useMemo(() => {
+    const m: Record<string, CrmLead> = {};
+    for (const l of leads) m[(l as CrmLead).id] = l as CrmLead;
+    return m;
+  }, [leads]);
+
+  // Lid tanlanganda uning yo'nalishiga mos turni O'ZI tanlaydi.
+  // Yo'nalish Telegram botdagi savoldan yoki qo'lda kiritilgandan keladi.
+  const selectedLead = leadId ? leadById[leadId] : null;
+  const leadDest = String(selectedLead?.tourTitle || "").trim();
+  useEffect(() => {
+    if (!leadDest) return;
+    const d = leadDest.toLowerCase();
+    const match = tours.find((t: any) => {
+      const title = String(t.title || "").toLowerCase();
+      const city = String(t.city || "").toLowerCase();
+      if (title && (title.includes(d) || d.includes(title))) return true;
+      if (city.length >= 3 && (city.includes(d) || d.includes(city))) return true;
+      return false;
+    });
+    if (match) setTourId(match.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leadId]);
+  const stats = useMemo(() => ({
+    total: items.length,
+    viewed: items.filter((p: any) => p.status === "viewed" || p.status === "interested").length,
+    interested: items.filter((p: any) => p.status === "interested").length,
+  }), [items]);
+
+  const inp: any = { padding: "10px 12px", border: "1px solid rgba(255,255,255,.15)", background: "rgba(255,255,255,.04)", color: "inherit", borderRadius: 10, fontSize: 14, minWidth: 0 };
+
+  async function copy(url: string, id: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(id);
+      setTimeout(() => setCopied(""), 1800);
+    } catch {
+      /* clipboard yopiq bo'lsa — link baribir ko'rinib turibdi */
+    }
+  }
+
+  async function submit(e?: any) {
+    e?.preventDefault?.();
+    if (readOnly || busy) return;
+    if (!tourId && !title.trim()) { setErr("Tur tanlang yoki taklif nomini yozing."); return; }
+    setBusy(true); setErr("");
+    const lead = leads.find((x: CrmLead) => x.id === leadId);
+    const res = await agencyApi<any>("/presentations", {
+      method: "POST",
+      body: JSON.stringify({
+        bookingId: leadId || undefined,
+        tourId: tourId || undefined,
+        title: title.trim() || undefined,
+        customerName: lead?.customerName || undefined,
+        priceText: price.trim() || undefined,
+        note: note.trim() || undefined,
+      }),
+    });
+    setBusy(false);
+    if (!res.success) { setErr(res.message || "Taklif yaratilmadi"); return; }
+    setCreated(res.data);
+    setTitle(""); setPrice(""); setNote(""); setTourId(""); setLeadId("");
+    await reload();
+  }
+
+  async function remove(id: string) {
+    if (readOnly) return;
+    const res = await agencyApi(`/presentations/${id}`, { method: "DELETE" });
+    if (res.success) await reload();
+  }
+
+  // Telegramdan kelgan lidga taklifni to'g'ridan-to'g'ri botdan yuborish.
+  async function sendTelegram(p: any) {
+    if (readOnly || sending) return;
+    setSending(p.id); setSendErr("");
+    const text = `${p.title}\n\n${p.note ? `${p.note}\n\n` : ""}Taklifni ko'rish: ${p.url}`;
+    const res = await agencyApi("/telegram/reply", { method: "POST", body: JSON.stringify({ bookingId: p.bookingId, text }) });
+    setSending("");
+    if (res.success) { setSent(p.id); setTimeout(() => setSent(""), 2500); }
+    else setSendErr(res.message || "Telegramga yuborilmadi");
+  }
+
+  return (
+    <section className={`view${show ? " active" : ""}`}>
+      <div className="section-head">
+        <div>
+          <h2>Dinamik takliflar</h2>
+          <div className="sub">{stats.total} ta yuborilgan · {stats.viewed} ko&apos;rildi · {stats.interested} qiziqish bildirdi</div>
+        </div>
+        <NotifyToggle />
+      </div>
+
+      <TelegramAlertSetup />
+
+      {created ? (
+        <div className="card" style={{ padding: 16, marginBottom: 12, borderColor: "rgba(234,179,8,.45)" }}>
+          <b style={{ color: "#EAB308" }}>Taklif tayyor — havolani mijozga yuboring</b>
+          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <code style={{ flex: "1 1 260px", padding: "10px 12px", background: "rgba(255,255,255,.05)", borderRadius: 10, fontSize: 13, wordBreak: "break-all" }}>{created.url}</code>
+            <button className="btn btn-primary btn-sm" onClick={() => void copy(created.url, "new")}>
+              <Ic d={I.copy} s={14} /> {copied === "new" ? "Nusxalandi" : "Nusxalash"}
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setCreated(null)}>Yopish</button>
+          </div>
+        </div>
+      ) : null}
+
+      {!readOnly ? (
+        <form className="card" style={{ padding: 16, display: "grid", gap: 10 }} onSubmit={submit}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <select value={leadId} onChange={(e) => setLeadId(e.target.value)} style={{ ...inp, flex: "1 1 200px" }}>
+              <option value="">Lidni tanlang (ixtiyoriy)</option>
+              {leadOpts.map((l) => <option key={l.id} value={l.id}>{l.customerName} · {STAGE_LABEL[l.stage]}</option>)}
+            </select>
+            <select value={tourId} onChange={(e) => setTourId(e.target.value)} style={{ ...inp, flex: "1 1 200px" }}>
+              <option value="">Turni tanlang</option>
+              {tours.map((t: any) => <option key={t.id} value={t.id}>{t.title}</option>)}
+            </select>
+          </div>
+          {leadDest ? (
+            <div style={{ fontSize: 13, color: "#8aa398", marginTop: -2 }}>
+              Mijoz qiziqqan yo&apos;nalish: <b style={{ color: "#EAB308" }}>{leadDest}</b>
+              {tourId ? " — mos tur avtomatik tanlandi" : " — bunga mos tur topilmadi, qo'lda tanlang"}
+            </div>
+          ) : null}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Taklif nomi (bo'sh qolsa tur nomi olinadi)" style={{ ...inp, flex: "2 1 240px" }} />
+            <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Narx, masalan: 850$ / kishi" style={{ ...inp, flex: "1 1 180px" }} />
+          </div>
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Mijozga shaxsiy izoh — nega aynan shu tur mos kelishini yozing…" style={{ ...inp, resize: "vertical" }} />
+          {err ? <div style={{ color: "#F43F5E", fontSize: 13 }}>{err}</div> : null}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <small style={{ color: "#8aa398" }}>Havola shaxsiy — mijoz telefoni va emaili sahifada ko&apos;rinmaydi.</small>
+            <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
+              <Ic d={I.send} s={14} /> {busy ? "Yaratilmoqda…" : "Taklif yaratish"}
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      {sendErr ? <div className="card" style={{ marginTop: 12, padding: 12, color: "#F43F5E", fontSize: 13 }}>{sendErr}</div> : null}
+
+      {items.length === 0 ? (
+        <div className="card" style={{ marginTop: 12 }}>
+          <Empty icon={I.send} text="Hali taklif yuborilmagan. Yuqoridagi shakl orqali mijozga shaxsiy havola tayyorlang." />
+        </div>
+      ) : (
+        <div className="card tbl-wrap" style={{ marginTop: 12 }}>
+          <table>
+            <thead>
+              <tr><th>Taklif</th><th>Mijoz</th><th>Holat</th><th>Ko&apos;rishlar</th><th>Oxirgi ochilish</th><th>Havola</th></tr>
+            </thead>
+            <tbody>
+              {items.map((p: any) => {
+                const s = PRES_STATE[p.status] || PRES_STATE.sent;
+                return (
+                  <tr key={p.id}>
+                    <td><b>{p.title}</b>{p.tourTitle && p.tourTitle !== p.title ? <><br /><small style={{ color: "#8aa398" }}>{p.tourTitle}</small></> : null}</td>
+                    <td>{p.customerName || <span style={{ color: "#8aa398" }}>—</span>}</td>
+                    <td><span className={`badge2 ${s.cls}`} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Ic d={s.icon} s={11} /> {s.label}</span></td>
+                    <td>{p.openCount || 0}</td>
+                    <td>{p.lastOpenedAt ? timeAgo(p.lastOpenedAt) : <span style={{ color: "#8aa398" }}>Ochilmagan</span>}</td>
+                    <td>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button className="btn btn-ghost btn-sm" onClick={() => void copy(p.url, p.id)}>
+                          <Ic d={I.copy} s={13} /> {copied === p.id ? "Nusxalandi" : "Nusxalash"}
+                        </button>
+                        {!readOnly && p.bookingId && leadById[p.bookingId]?.source === "telegram" ? (
+                          <button className="btn btn-ghost btn-sm" onClick={() => void sendTelegram(p)} disabled={sending === p.id}>
+                            <Ic d={I.send} s={13} /> {sent === p.id ? "Yuborildi" : sending === p.id ? "Yuborilmoqda…" : "Telegram"}
+                          </button>
+                        ) : null}
+                        {!readOnly ? (
+                          <button className="btn btn-ghost btn-sm" onClick={() => void remove(p.id)} title="O'chirish" aria-label="O'chirish">
+                            <Ic d={I.trash} s={13} />
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 /* ================= PACKAGES / TOURS ================= */
-function Packages({ show, tours, agencyId, refreshTours }: any) {
+function Packages({ show, tours, agencyId, refreshTours, readOnly }: any) {
   const [modal, setModal] = useState<{ tour?: any } | null>(null);
   const [delTour, setDelTour] = useState<any>(null);
   const [delErr, setDelErr] = useState(""); const [delBusy, setDelBusy] = useState(false);
@@ -458,7 +1085,7 @@ function Packages({ show, tours, agencyId, refreshTours }: any) {
     <section className={`view${show ? " active" : ""}`}>
       <div className="section-head">
         <div><h2>Turlar / Paketlar</h2><div className="sub">{tours.length} ta tur</div></div>
-        <button className="btn btn-primary" onClick={() => setModal({})}><Ic d={I.plus} s={16} /> Yangi tur</button>
+        <button className="btn btn-primary" onClick={() => setModal({})} disabled={readOnly} title={readOnly ? "Obuna tugagan — faqat o'qish rejimi" : undefined}><Ic d={I.plus} s={16} /> Yangi tur</button>
       </div>
       {tours.length ? (
         <div className="grid g3">
@@ -472,11 +1099,13 @@ function Packages({ show, tours, agencyId, refreshTours }: any) {
                 <div className="meta">{t.city}{t.duration ? ` · ${t.duration}` : ""}</div>
                 {Array.isArray(t.highlights) && t.highlights.length ? <div className="chips">{t.highlights.slice(0, 4).map((h: string, i: number) => <span className="chip" key={i}>{h}</span>)}</div> : null}
                 <div className="pf"><div className="price">{t.price || (t.priceMin ? formatMoney(t.priceMin) : "—")}</div>{t.active ? <span className="badge2 b-green">Faol</span> : <span className="badge2 b-grey">Nofaol</span>}</div>
-                <div className="pkg-act">
-                  <button className="pkg-abtn" onClick={() => setModal({ tour: t })}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>Tahrirlash</button>
-                  <button className="pkg-abtn del" onClick={() => { setDelErr(""); setDelTour(t); }} title="O'chirish" aria-label="O'chirish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></button>
-                </div>
-                {t.approvalStatus === "draft" ? (
+                {!readOnly ? (
+                  <div className="pkg-act">
+                    <button className="pkg-abtn" onClick={() => setModal({ tour: t })}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>Tahrirlash</button>
+                    <button className="pkg-abtn del" onClick={() => { setDelErr(""); setDelTour(t); }} title="O'chirish" aria-label="O'chirish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></button>
+                  </div>
+                ) : null}
+                {!readOnly && t.approvalStatus === "draft" ? (
                   <button className="btn btn-primary btn-sm" style={{ marginTop: 8, width: "100%" }} disabled={busyId === t.id} onClick={() => void submitTour(t)}>{busyId === t.id ? "E'lon qilinmoqda..." : "Saytda e'lon qilish"}</button>
                 ) : null}
               </div>
@@ -491,7 +1120,7 @@ function Packages({ show, tours, agencyId, refreshTours }: any) {
 }
 
 /* ================= BOOKINGS ================= */
-function Bookings({ show, bookings, agencyId, refreshBookings, refresh }: any) {
+function Bookings({ show, bookings, agencyId, refreshBookings, refresh, readOnly, canExport }: any) {
   const [busyId, setBusyId] = useState("");
   const paid = bookings.filter((b: any) => b.status === "completed" || b.status === "confirmed").length;
   const pend = bookings.filter((b: any) => b.status === "pending").length;
@@ -508,7 +1137,7 @@ function Bookings({ show, bookings, agencyId, refreshBookings, refresh }: any) {
   const bookLabel = (s: string) => (s === "pending" ? "Tasdiqlash kutilmoqda" : statusLabel(s));
   return (
     <section className={`view${show ? " active" : ""}`}>
-      <div className="section-head"><div><h2>Bronlar</h2><div className="sub">Jami {bookings.length} bron · {paid} tasdiqlangan{pend ? ` · ${pend} kutilmoqda` : ""}</div></div></div>
+      <div className="section-head"><div><h2>Bronlar</h2><div className="sub">Jami {bookings.length} bron · {paid} tasdiqlangan{pend ? ` · ${pend} kutilmoqda` : ""}</div></div>{canExport ? <ExportBtn rows={bookings} filename="bronlar" columns={BOOK_COLS} /> : null}</div>
       <div className="card tbl-wrap">
         {bookings.length ? (
           <table>
@@ -523,7 +1152,7 @@ function Bookings({ show, bookings, agencyId, refreshBookings, refresh }: any) {
                   <td className="r money">{formatMoney(b.totalEstimate)}</td>
                   <td><span className={`badge2 ${b.status === "confirmed" || b.status === "completed" ? "b-green" : b.status === "pending" ? "b-amber" : "b-rose"}`}>{bookLabel(b.status)}</span></td>
                   <td>
-                    {b.status === "pending" ? (
+                    {readOnly ? <span className="act-dim">—</span> : b.status === "pending" ? (
                       <div className="row-act">
                         <button className="act-btn ok" disabled={busyId === b.id} onClick={() => void setStatus(b, "confirmed")} title="Tasdiqlash" aria-label="Tasdiqlash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg></button>
                         <button className="act-btn no" disabled={busyId === b.id} onClick={() => void setStatus(b, "rejected")} title="Rad etish" aria-label="Rad etish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg></button>
@@ -550,7 +1179,7 @@ function Bookings({ show, bookings, agencyId, refreshBookings, refresh }: any) {
 }
 
 /* ================= PAYMENTS ================= */
-function Payments({ show, leads, move, busyId }: any) {
+function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
   const m = useMemo(() => {
     const paid = leads.filter((l: CrmLead) => l.stage === "won" || l.stage === "completed");
     const pending = leads.filter((l: CrmLead) => l.stage === "quoted");
@@ -562,7 +1191,7 @@ function Payments({ show, leads, move, busyId }: any) {
   }, [leads]);
   return (
     <section className={`view${show ? " active" : ""}`}>
-      <div className="section-head"><div><h2>To&apos;lovlar</h2></div></div>
+      <div className="section-head"><div><h2>To&apos;lovlar</h2></div>{canExport ? <ExportBtn rows={m.rows} filename="tolovlar" columns={PAY_COLS} /> : null}</div>
       <div className="grid g3">
         <div className="card kpi gold"><div className="top"><div className="ico"><Ic d={I.check} s={19} /></div></div><div className="val">{formatMoney(m.accepted)}</div><div className="lbl">Qabul qilingan (kelishilgan)</div></div>
         <div className="card kpi"><div className="top"><div className="ico"><Ic d={I.clock} s={19} /></div></div><div className="val">{formatMoney(m.pending)}</div><div className="lbl">Kutilayotgan (taklifda)</div></div>
@@ -581,7 +1210,7 @@ function Payments({ show, leads, move, busyId }: any) {
                   <td><span className="badge2 b-grey">{srcLabel(l.source)}</span></td>
                   <td><span className="badge2 b-green">{l.stage === "completed" ? "Yakunlandi" : "Kelishildi"}</span></td>
                   <td>
-                    {l.stage === "won" ? (
+                    {readOnly ? <span className="act-dim">—</span> : l.stage === "won" ? (
                       <button className="act-btn done-btn" disabled={busyId === l.id} onClick={() => void move(l, "completed")}>{busyId === l.id ? "..." : "To'lovni tasdiqlash"}</button>
                     ) : (
                       <button className="act-btn back" disabled={busyId === l.id} onClick={() => void move(l, "won")} title="To'lovni bekor qilish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>Bekor qilish</button>
@@ -669,24 +1298,177 @@ function Reports({ show, leads }: any) {
 }
 
 /* ================= SETTINGS ================= */
-function Settings({ show, agency, refresh, logout, go }: any) {
+function SubscriptionCard({ access }: any) {
+  if (!access) return null;
+  const { planName, status, readOnly, expired, until, daysLeft, caps } = access;
+  const badge = expired
+    ? { c: "b-rose", t: "Muddati tugagan" }
+    : status === "active"
+    ? { c: "b-green", t: "Faol" }
+    : status === "trial"
+    ? { c: "b-amber", t: "Sinov" }
+    : { c: "b-grey", t: "Cheklovsiz" };
+  const feats = [
+    caps?.telegram && "Telegram bot",
+    caps?.broadcast && "Broadcast",
+    caps?.analytics && "Analitika / CSV",
+    caps?.integrations && "Integratsiyalar",
+  ].filter(Boolean) as string[];
+  return (
+    <div className="card sub-card">
+      <div className="sub-card__head">
+        <div>
+          <div className="sub-card__plan">{planName || "Tarif"}</div>
+          <div className="sub-card__meta">
+            {until
+              ? <>Amal qiladi: <b>{formatDate(until)}</b>{typeof daysLeft === "number" ? (daysLeft >= 0 ? ` · ${daysLeft} kun qoldi` : " · muddat o'tgan") : ""}</>
+              : "Muddat cheklovi yo'q"}
+          </div>
+        </div>
+        <span className={`badge2 ${badge.c}`}>{badge.t}</span>
+      </div>
+      {readOnly ? (
+        <div className="sub-card__warn">Obuna muddati tugagan — hozir faqat o&apos;qish rejimi. To&apos;lovni yangilash uchun administrator bilan bog&apos;laning.</div>
+      ) : null}
+      {feats.length ? <div className="sub-card__feats">{feats.map((f) => <span key={f} className="chip">{f}</span>)}</div> : null}
+    </div>
+  );
+}
+
+const TEAM_ROLE_LABEL: Record<string, string> = { owner: "Egasi", manager: "Menejer", agent: "Agent", accountant: "Buxgalter" };
+// Jamoa funksiyasi tayyor (backend + UI), lekin hozircha "tez orada" ko'rsatiladi.
+// Ishga tushirish uchun shu flagni true qiling.
+const TEAM_LIVE: boolean = false;
+
+function AddMember({ onClose, onAdded }: any) {
+  const [name, setName] = useState(""); const [email, setEmail] = useState("");
+  const [role, setRole] = useState("agent"); const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (name.trim().length < 2) { setErr("Ism kiriting."); return; }
+    if (password.length < 6) { setErr("Parol kamida 6 belgi bo'lsin."); return; }
+    setBusy(true); setErr("");
+    const r = await agencyApi("/team", { method: "POST", body: JSON.stringify({ name: name.trim(), email: email.trim(), role, password }) });
+    setBusy(false);
+    if (r.success) { await onAdded?.(); onClose(); }
+    else setErr(r.message || "Qo'shib bo'lmadi.");
+  }
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="card modal-card" onClick={(e) => e.stopPropagation()}>
+        <h2 style={{ margin: "0 0 4px", fontSize: 18 }}>Xodim qo&apos;shish</h2>
+        <p className="sub" style={{ marginBottom: 14 }}>Xodim shu email va parol bilan kabinetga kiradi. Parolni unga bering.</p>
+        <form onSubmit={submit}>
+          <div className="fld"><label>Ism *</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ism Familiya" /></div>
+          <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div className="fld"><label>Email *</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="xodim@email.com" /></div>
+            <div className="fld"><label>Rol *</label><select value={role} onChange={(e) => setRole(e.target.value)}>
+              <option value="manager">Menejer</option><option value="agent">Agent</option><option value="accountant">Buxgalter</option>
+            </select></div>
+          </div>
+          <div className="fld"><label>Parol *</label><input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="kamida 6 belgi" /></div>
+          {err ? <div className="note note-err" style={{ marginBottom: 10 }}>{err}</div> : null}
+          <div className="modal-foot">
+            <button type="button" className="btn btn-ghost" onClick={onClose}>Bekor</button>
+            <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Qo'shilyapti..." : "Qo'shish"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function TeamSection({ access }: any) {
+  const canManage = !!access?.canManageTeam;
+  const hasTeamCap = !!access?.caps?.team;
+  const readOnly = !!access?.readOnly;
+  const [members, setMembers] = useState<any[] | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [note, setNote] = useState("");
+  const load = async () => {
+    const r = await agencyApi<{ items: any[] }>("/team");
+    setMembers(r.success ? (r.data.items || []) : []);
+  };
+  useEffect(() => { if (TEAM_LIVE) void load(); }, []);
+  async function changeRole(id: string, role: string) {
+    const r = await agencyApi(`/team/${id}`, { method: "PUT", body: JSON.stringify({ role }) });
+    if (r.success) void load(); else setNote(r.message || "Xato");
+  }
+  async function remove(id: string) {
+    const r = await agencyApi(`/team/${id}`, { method: "DELETE" });
+    if (r.success) void load(); else setNote(r.message || "Xato");
+  }
+
+  // Hozircha "tez orada" — funksiya tayyor, lekin hali ochilmagan (eng katta tarif ham).
+  if (!TEAM_LIVE) {
+    return (
+      <>
+        <div className="section-head"><div><h2>Jamoa va rollar</h2><div className="sub">Bir nechta xodim va rollar</div></div></div>
+        <div className="card team-lock">
+          <span className="team-lock__ic"><Ic d={I.clock} s={20} /></span>
+          <div><b>Tez orada ishga tushadi</b><span>Bir nechta xodim qo&apos;shish, rollar berish va lidlarni taqsimlash tez kunda ochiladi.</span></div>
+        </div>
+        {showAdd ? <AddMember onClose={() => setShowAdd(false)} onAdded={load} /> : null}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="section-head">
+        <div><h2>Jamoa va rollar</h2><div className="sub">Xodimlarni qo&apos;shing va rollarni belgilang</div></div>
+        {canManage && hasTeamCap && !readOnly ? <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Ic d={I.plus} s={16} /> Xodim qo&apos;shish</button> : null}
+      </div>
+      {!hasTeamCap ? (
+        <div className="card team-lock">
+          <span className="team-lock__ic"><Ic d={I.lock} s={20} /></span>
+          <div><b>Jamoa — Business tarifda</b><span>Bir nechta xodim qo&apos;shish, rollar berish Business tarifda ochiladi.</span></div>
+        </div>
+      ) : !canManage ? (
+        <div className="card" style={{ padding: 16 }}>
+          <p style={{ fontSize: 13, color: "var(--t2)", margin: 0 }}>Sizning rolingiz: <b>{TEAM_ROLE_LABEL[access?.role] || access?.role}</b>. Jamoani faqat agentlik egasi boshqaradi.</p>
+        </div>
+      ) : (
+        <div className="card team-list">
+          {(members || []).map((m) => (
+            <div className="team-row" key={m.id}>
+              <span className="av-sm">{initials(m.name || m.email || "?")}</span>
+              <div className="team-row__id"><b>{m.name}</b><small>{m.email || "—"}</small></div>
+              {m.isOwner ? <span className="badge2 b-green">Egasi</span> : (
+                <>
+                  <select className="team-role" value={m.role} onChange={(e) => void changeRole(m.id, e.target.value)} disabled={readOnly}>
+                    <option value="manager">Menejer</option><option value="agent">Agent</option><option value="accountant">Buxgalter</option>
+                  </select>
+                  <button className="team-rm" onClick={() => void remove(m.id)} disabled={readOnly} title="O'chirish" aria-label="O'chirish"><Ic d={I.trash} s={15} /></button>
+                </>
+              )}
+            </div>
+          ))}
+          {members && members.length === 1 ? <div className="team-empty">Hali xodim yo&apos;q. &quot;Xodim qo&apos;shish&quot; orqali jamoa a&apos;zosini qo&apos;shing.</div> : null}
+          {note ? <div className="note note-err" style={{ margin: 10 }}>{note}</div> : null}
+        </div>
+      )}
+      {showAdd ? <AddMember onClose={() => setShowAdd(false)} onAdded={load} /> : null}
+    </>
+  );
+}
+
+function Settings({ show, agency, refresh, logout, go, access, readOnly }: any) {
   return (
     <section className={`view${show ? " active" : ""}`}>
       <div className="section-head"><div><h2>Sozlamalar</h2></div></div>
 
+      <div className="section-head"><div><h2>Obuna va tarif</h2><div className="sub">Joriy rejangiz, amal muddati va imkoniyatlar</div></div></div>
+      <SubscriptionCard access={access} />
+
       <div className="section-head"><div><h2>Agentlik ma&apos;lumoti</h2><div className="sub">Nomi, logotipi va telefoni — sidebar va CRM&apos;da shu ma&apos;lumot ko&apos;rinadi</div></div></div>
-      <ProfileForm agency={agency} refresh={refresh} />
+      <ProfileForm agency={agency} refresh={refresh} readOnly={readOnly} />
 
       <div className="section-head"><div><h2>Integratsiyalar</h2><div className="sub">Tashqi kanallarni ulang va boshqaring</div></div></div>
       <TelegramCard go={go} />
 
-      <div className="section-head"><div><h2>Rollar va ruxsatlar</h2></div></div>
-      <div className="card mini" style={{ padding: 6 }}>
-        <div className="r"><span className="av-sm" style={{ background: "var(--gold-soft)", color: "var(--gold-ink)" }}>A</span><div><b>Administrator</b><small>To&apos;liq boshqaruv, sozlamalar, moliya</small></div></div>
-        <div className="r"><span className="av-sm">M</span><div><b>Menejer</b><small>Lidlar, bronlar va agentlar nazorati</small></div></div>
-        <div className="r"><span className="av-sm">A</span><div><b>Agent</b><small>O&apos;z lidlari va bronlari bilan ishlaydi</small></div></div>
-        <div className="r"><span className="av-sm" style={{ background: "var(--sky-soft)", color: "#255d7d" }}>B</span><div><b>Buxgalter</b><small>To&apos;lovlar va hisobotlarni ko&apos;radi</small></div></div>
-      </div>
+      <TeamSection access={access} />
       <div style={{ marginTop: 18 }}><button className="btn btn-ghost" onClick={() => void logout()}><Ic d={I.out} s={16} /> Chiqish</button></div>
       <div style={{ height: 16 }} />
     </section>
@@ -736,20 +1518,138 @@ function AddLead({ onClose, onCreated }: any) {
 }
 
 /* ================= ADD TOUR MODAL ================= */
+/* Joy qidirish (OSM Nominatim) — marshrut va kun rejasida bir xil ishlaydi */
+type GeoPlace = { name: string; lat: number; lng: number };
+function PlacePicker({ onPick, onError, placeholder, small }: {
+  onPick: (place: GeoPlace) => void;
+  onError?: (message: string) => void;
+  placeholder?: string;
+  small?: boolean;
+}) {
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [hits, setHits] = useState<(GeoPlace & { full?: string })[]>([]);
+
+  async function search() {
+    const term = q.trim();
+    if (term.length < 2 || busy) return;
+    setBusy(true); setHits([]);
+    const res = await agencyApi<{ items: (GeoPlace & { full?: string })[] }>(`/geocode?q=${encodeURIComponent(term)}`);
+    setBusy(false);
+    if (!res.success) { onError?.(res.message || "Manzil topilmadi"); return; }
+    const items = res.data.items || [];
+    if (!items.length) onError?.(`«${term}» topilmadi. Boshqacha yozib ko'ring (masalan inglizcha).`);
+    setHits(items);
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void search(); } }}
+          placeholder={placeholder || "Joy nomi — masalan: Masjid al-Haram"}
+          style={{ flex: 1, minWidth: 0, ...(small ? { padding: "8px 10px", fontSize: 13.5 } : {}) }}
+        />
+        <button type="button" className="btn btn-ghost btn-sm" disabled={busy || q.trim().length < 2} onClick={() => void search()}>
+          {busy ? "Qidirilmoqda…" : "Qidirish"}
+        </button>
+      </div>
+      {hits.length ? (
+        <div className="card" style={{ marginTop: 8, padding: 6 }}>
+          {hits.map((h, i) => (
+            <button
+              key={`${h.lat}-${h.lng}-${i}`}
+              type="button"
+              onClick={() => { onPick({ name: h.name, lat: h.lat, lng: h.lng }); setHits([]); setQ(""); }}
+              style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 11px", background: "transparent", border: 0, borderRadius: 8, color: "inherit", cursor: "pointer", fontSize: 14 }}
+            >
+              <b>{h.name}</b>
+              {h.full && h.full !== h.name ? <small style={{ display: "block", marginTop: 2, opacity: 0.6, fontSize: 12.5 }}>{h.full}</small> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function AddTour({ agencyId, tour, onClose, onCreated }: any) {
   const editing = !!tour;
   const [f, setF] = useState({
     title: tour?.title || "", city: tour?.city || "", subtitle: tour?.subtitle || "",
     duration: tour?.duration || "", price: tour?.price || (tour?.priceMin ? `$${tour.priceMin}` : ""),
     highlights: Array.isArray(tour?.highlights) ? tour.highlights.join(", ") : "",
+    mapAddress: tour?.mapAddress || "",
   });
   const [img, setImg] = useState(tour?.imageUrl || "");
+  const [gallery, setGallery] = useState<string[]>(Array.isArray(tour?.images) ? tour.images : []);
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
   async function pickImg(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
     try { setImg(await readImage(file)); } catch (er) { setErr(er instanceof Error ? er.message : "Rasm xato"); }
+  }
+  // ── Marshrut nuqtalari ──
+  type Stop = { name: string; lat: number; lng: number };
+  const STOPS_MAX = 12;
+  const [stops, setStops] = useState<Stop[]>(Array.isArray(tour?.routeStops) ? tour.routeStops : []);
+
+  function addStop(hit: Stop) {
+    if (stops.length >= STOPS_MAX) { setErr(`Marshrutga eng ko'pi ${STOPS_MAX} nuqta sig'adi.`); return; }
+    setStops((p) => [...p, hit]);
+    setErr("");
+  }
+  function moveStop(i: number, dir: -1 | 1) {
+    setStops((p) => {
+      const j = i + dir;
+      if (j < 0 || j >= p.length) return p;
+      const next = [...p];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  }
+
+  // ── Kun bo'yicha reja (har kun o'z joylari bilan → sahifada mini-xarita) ──
+  type Day = { day: number; title: string; places: Stop[] };
+  const DAY_PLACES_MAX = 8;
+  const [days, setDays] = useState<Day[]>(
+    Array.isArray(tour?.itinerary)
+      ? tour.itinerary
+          .map((d: any, i: number) => ({
+            day: Number(d?.day) || i + 1,
+            title: String(d?.title || d?.text || "").trim(),
+            places: Array.isArray(d?.places) ? d.places : [],
+          }))
+          .filter((d: Day) => d.title)
+      : []
+  );
+
+  const patchDay = (i: number, patch: Partial<Day>) =>
+    setDays((p) => p.map((d, x) => (x === i ? { ...d, ...patch } : d)));
+
+  function addDayPlace(i: number, place: Stop) {
+    setDays((p) =>
+      p.map((d, x) => (x === i && d.places.length < DAY_PLACES_MAX ? { ...d, places: [...d.places, place] } : d))
+    );
+    setErr("");
+  }
+
+  const GALLERY_MAX = 6;
+  async function pickGallery(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = ""; // bir xil faylni qayta tanlash mumkin bo'lsin
+    if (!files.length) return;
+    const room = GALLERY_MAX - gallery.length;
+    if (room <= 0) { setErr(`Galereyaga eng ko'pi ${GALLERY_MAX} ta rasm sig'adi.`); return; }
+    try {
+      const added: string[] = [];
+      for (const file of files.slice(0, room)) added.push(await readImage(file));
+      setGallery((p) => [...p, ...added]);
+      setErr(files.length > room ? `Faqat ${room} ta rasm qo'shildi — chegara ${GALLERY_MAX} ta.` : "");
+    } catch (er) { setErr(er instanceof Error ? er.message : "Rasm xato"); }
   }
   function validate() {
     if (f.title.trim().length < 3) { setErr("Tur nomi kamida 3 harf bo'lsin."); return false; }
@@ -767,6 +1667,12 @@ function AddTour({ agencyId, tour, onClose, onCreated }: any) {
       price: f.price.trim() || undefined, priceMin, highlights,
     };
     if (img !== (tour?.imageUrl || "")) body.imageUrl = img || null;
+    body.images = gallery;
+    body.mapAddress = f.mapAddress.trim();
+    body.routeStops = stops;
+    body.itinerary = days
+      .filter((d) => d.title.trim())
+      .map((d, i) => ({ day: i + 1, title: d.title.trim(), places: d.places }));
     const res = editing
       ? await agencyApi<{ id: string }>(`/tours/${tour.id}`, { method: "PUT", body: JSON.stringify(body) })
       : await agencyApi<{ id: string }>("/tours", { method: "POST", body: JSON.stringify(body) });
@@ -816,6 +1722,121 @@ function AddTour({ agencyId, tour, onClose, onCreated }: any) {
             </label>
             {img ? <img className="filepick-preview" src={img} alt="" /> : null}
           </div>
+
+          <div className="fld">
+            <label>Galereya — {gallery.length}/{GALLERY_MAX} rasm</label>
+            <label className="filepick">
+              <span className="filepick-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></svg></span>
+              <span className="filepick-tx"><b>Rasm qo&apos;shish</b><small>Mehmonxona, xona, ko&apos;rinish &middot; bir vaqtda bir nechtasini tanlash mumkin</small></span>
+              <input type="file" accept="image/*" multiple onChange={pickGallery} hidden />
+            </label>
+            {gallery.length ? (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                {gallery.map((src, i) => (
+                  <div key={`${src.slice(0, 24)}-${i}`} style={{ position: "relative", width: 84, height: 64, borderRadius: 10, overflow: "hidden", background: "rgba(255,255,255,.06)" }}>
+                    <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    <button
+                      type="button"
+                      onClick={() => setGallery((p) => p.filter((_, x) => x !== i))}
+                      aria-label={`${i + 1}-rasmni o'chirish`}
+                      style={{ position: "absolute", top: 3, right: 3, width: 20, height: 20, borderRadius: "50%", border: 0, cursor: "pointer", background: "rgba(8,20,14,.72)", color: "#fff", fontSize: 13, lineHeight: 1, display: "grid", placeItems: "center" }}
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="fld">
+            <label>Manzil — xaritada ko&apos;rsatish uchun (ixtiyoriy)</label>
+            <input value={f.mapAddress} onChange={set("mapAddress")} placeholder="Masalan: Swissotel Al Maqam, Makkah" />
+            <small style={{ display: "block", marginTop: 6, color: "#8aa398", fontSize: 12.5 }}>
+              Mehmonxona nomi yoki aniq manzilni yozing — taklif sahifasida xarita chiqadi. Bo&apos;sh qoldirsangiz mehmonxona nomi yoki shahar ishlatiladi.
+            </small>
+          </div>
+
+          <div className="fld">
+            <label>Marshrut — {stops.length}/{STOPS_MAX} nuqta (ixtiyoriy)</label>
+            <PlacePicker onPick={addStop} onError={setErr} placeholder="Joy nomi — masalan: Makkah yoki Samarqand" />
+
+            {stops.length ? (
+              <div style={{ display: "grid", gap: 6, marginTop: 10 }}>
+                {stops.map((s, i) => (
+                  <div key={`${s.lat}-${s.lng}-${i}`} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", borderRadius: 10, background: "rgba(255,255,255,.05)" }}>
+                    <span style={{ flex: "0 0 auto", width: 22, height: 22, borderRadius: "50%", background: "#0F5132", color: "#fff", fontSize: 12, fontWeight: 700, display: "grid", placeItems: "center" }}>{i + 1}</span>
+                    <input
+                      value={s.name}
+                      onChange={(e) => setStops((p) => p.map((x, xi) => (xi === i ? { ...x, name: e.target.value } : x)))}
+                      aria-label={`${i + 1}-nuqta nomi`}
+                      title="Nomni o'zgartirishingiz mumkin — mijoz aynan shuni ko'radi"
+                      style={{ flex: 1, minWidth: 0, padding: "5px 9px", fontSize: 14, background: "transparent", border: "1px solid rgba(255,255,255,.13)", borderRadius: 7, color: "inherit" }}
+                    />
+                    <button type="button" onClick={() => moveStop(i, -1)} disabled={i === 0} aria-label="Yuqoriga" style={{ background: "transparent", border: 0, color: "inherit", cursor: i === 0 ? "default" : "pointer", opacity: i === 0 ? 0.25 : 0.6, padding: 3 }}>↑</button>
+                    <button type="button" onClick={() => moveStop(i, 1)} disabled={i === stops.length - 1} aria-label="Pastga" style={{ background: "transparent", border: 0, color: "inherit", cursor: i === stops.length - 1 ? "default" : "pointer", opacity: i === stops.length - 1 ? 0.25 : 0.6, padding: 3 }}>↓</button>
+                    <button type="button" onClick={() => setStops((p) => p.filter((_, x) => x !== i))} aria-label="O'chirish" style={{ background: "transparent", border: 0, color: "inherit", cursor: "pointer", opacity: 0.45, padding: 3, display: "inline-flex" }}><Ic d={I.trash} s={14} /></button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            <small style={{ display: "block", marginTop: 6, color: "#8aa398", fontSize: 12.5 }}>
+              Borib keladigan joylarni tartib bilan qo&apos;shing — taklif sahifasida ular xaritada raqamlanib, chiziq bilan bog&apos;lanadi.
+            </small>
+          </div>
+
+          <div className="fld">
+            <label>Kun bo&apos;yicha reja — {days.length} kun (ixtiyoriy)</label>
+
+            {days.length ? (
+              <div style={{ display: "grid", gap: 10 }}>
+                {days.map((d, i) => (
+                  <div key={i} style={{ padding: 12, borderRadius: 12, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.09)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 9 }}>
+                      <span style={{ flex: "0 0 auto", padding: "5px 11px", borderRadius: 999, background: "#0F5132", color: "#fff", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{i + 1}-kun</span>
+                      <input
+                        value={d.title}
+                        onChange={(e) => patchDay(i, { title: e.target.value })}
+                        placeholder="Masalan: Masjid al-Haram, umra amallari"
+                        style={{ flex: 1, minWidth: 0 }}
+                      />
+                      <button type="button" onClick={() => setDays((p) => p.filter((_, x) => x !== i))} aria-label={`${i + 1}-kunni o'chirish`} style={{ background: "transparent", border: 0, color: "inherit", cursor: "pointer", opacity: 0.45, padding: 3, display: "inline-flex" }}>
+                        <Ic d={I.trash} s={14} />
+                      </button>
+                    </div>
+
+                    {d.places.length ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 9 }}>
+                        {d.places.map((pl, pi) => (
+                          <span key={`${pl.lat}-${pl.lng}-${pi}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 6px 5px 11px", borderRadius: 999, background: "rgba(255,255,255,.07)", fontSize: 13 }}>
+                            {pl.name}
+                            <button type="button" onClick={() => patchDay(i, { places: d.places.filter((_, y) => y !== pi) })} aria-label={`${pl.name} — o'chirish`} style={{ width: 17, height: 17, borderRadius: "50%", border: 0, cursor: "pointer", background: "rgba(0,0,0,.28)", color: "inherit", fontSize: 12, lineHeight: 1, display: "grid", placeItems: "center" }}>×</button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {d.places.length < DAY_PLACES_MAX ? (
+                      <PlacePicker small onPick={(place) => addDayPlace(i, place)} onError={setErr} placeholder="Shu kunning joyi — mehmonxona, masjid, ziyoratgoh" />
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={{ marginTop: days.length ? 10 : 0 }}
+              onClick={() => setDays((p) => [...p, { day: p.length + 1, title: "", places: [] }])}
+            >
+              <Ic d={I.plus} s={14} /> Kun qo&apos;shish
+            </button>
+
+            <small style={{ display: "block", marginTop: 6, color: "#8aa398", fontSize: 12.5 }}>
+              Har bir kunga joy qo&apos;shsangiz — taklif sahifasida o&apos;sha kun uchun <b>alohida kichik xarita</b> chiziladi va mijoz qayerda bo&apos;lishini ko&apos;radi.
+            </small>
+          </div>
+
           <div className="modal-foot">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Bekor</button>
             <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => { if (validate()) void doSave(false); }}>Qoralama saqlash</button>
@@ -845,7 +1866,7 @@ function ConfirmDelete({ tour, busy, err, onCancel, onConfirm }: any) {
 }
 
 /* ================= TELEGRAM CHAT (drawer) ================= */
-function TelegramChat({ lead, onClose }: { lead: CrmLead; onClose: () => void }) {
+function TelegramChat({ lead, onClose, readOnly }: { lead: CrmLead; onClose: () => void; readOnly?: boolean }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [canReply, setCanReply] = useState(false);
   const [text, setText] = useState("");
@@ -891,7 +1912,9 @@ function TelegramChat({ lead, onClose }: { lead: CrmLead; onClose: () => void })
               </div>
             ))}
         </div>
-        {canReply ? (
+        {readOnly ? (
+          <div className="tg-noreply">Faqat o&apos;qish rejimi — obuna muddati tugagan, javob yozib bo&apos;lmaydi.</div>
+        ) : canReply ? (
           <div className="tg-reply">
             {templates.length ? <div className="tg-quick">{templates.map((t) => <button key={t.id} type="button" className="tg-quick-btn" onClick={() => setText(t.text)}>{t.title}</button>)}</div> : null}
             <form className="tg-chat-input" onSubmit={send}>
@@ -928,7 +1951,54 @@ function TelegramCard({ go }: { go: (v: string) => void }) {
   );
 }
 
-function TelegramPage({ show, leads, go }: { show: boolean; leads: CrmLead[]; go: (v: string) => void }) {
+/* ================= TELEGRAM BROADCAST (ommaviy xabar) ================= */
+function TelegramBroadcast({ tgLeads, readOnly }: { tgLeads: CrmLead[]; readOnly?: boolean }) {
+  const [text, setText] = useState("");
+  const [stage, setStage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const [result, setResult] = useState<{ total: number; sent: number; failed: number } | null>(null);
+  const [err, setErr] = useState("");
+  const count = useMemo(() => (stage ? tgLeads.filter((l) => l.stage === stage).length : tgLeads.length), [tgLeads, stage]);
+  const fld: any = { padding: "10px 12px", border: "1px solid rgba(255,255,255,.15)", background: "rgba(255,255,255,.04)", color: "inherit", borderRadius: 10, fontSize: 14 };
+
+  async function send() {
+    setBusy(true); setErr(""); setResult(null);
+    const res = await agencyApi<{ total: number; sent: number; failed: number }>("/telegram/broadcast", { method: "POST", body: JSON.stringify({ text: text.trim(), stage: stage || undefined }) });
+    setBusy(false); setConfirm(false);
+    if (res.success) { setResult(res.data); setText(""); }
+    else setErr(res.message || "Yuborib bo'lmadi");
+  }
+
+  return (
+    <div className="card" style={{ padding: 16, marginTop: 10 }}>
+      <div className="section-head" style={{ margin: "0 0 10px" }}><div><h2>Ommaviy xabar (broadcast)</h2><div className="sub">Bot orqali barcha yoki tanlangan bosqichdagi lidlarga bir vaqtda xabar yuboring</div></div></div>
+      <textarea value={text} onChange={(e) => setText(e.target.value)} disabled={readOnly || busy} rows={4} maxLength={3000} placeholder="Xabar matni… (masalan: Yangi Turkiya paketlari 20% chegirma bilan!)" style={{ ...fld, width: "100%", resize: "vertical", fontFamily: "inherit" }} />
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
+        <select value={stage} onChange={(e) => setStage(e.target.value)} disabled={readOnly || busy} style={fld}>
+          <option value="">Barcha Telegram lidlar</option>
+          {CRM_STAGES.map((s) => <option key={s.key} value={s.key}>{s.label} bosqichi</option>)}
+        </select>
+        <span className="sub" style={{ fontSize: 13 }}><b>{count}</b> ta qabul qiluvchi</span>
+        <div style={{ marginLeft: "auto" }}>
+          {!confirm ? (
+            <button className="btn btn-primary btn-sm" disabled={readOnly || busy || !text.trim() || count === 0} onClick={() => setConfirm(true)}><Ic d={TG_ICON} s={15} /> Yuborish</button>
+          ) : (
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span className="sub" style={{ fontSize: 13 }}>{count} ta lidga yuborilsinmi?</span>
+              <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setConfirm(false)}>Bekor</button>
+              <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => void send()}>{busy ? "Yuborilmoqda…" : "Ha, yubor"}</button>
+            </div>
+          )}
+        </div>
+      </div>
+      {err ? <div className="sub" style={{ color: "#F43F5E", marginTop: 8 }}>{err}</div> : null}
+      {result ? <div className="sub" style={{ color: "#22C55E", marginTop: 8 }}>✅ {result.sent} ta yuborildi{result.failed ? ` · ${result.failed} ta xato` : ""} (jami {result.total} qabul qiluvchi)</div> : null}
+    </div>
+  );
+}
+
+function TelegramPage({ show, leads, go, readOnly }: { show: boolean; leads: CrmLead[]; go: (v: string) => void; readOnly?: boolean }) {
   const [chat, setChat] = useState<CrmLead | null>(null);
   const tgLeads = useMemo(
     () => (leads || []).filter((l) => l.source === "telegram").sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()),
@@ -943,9 +2013,13 @@ function TelegramPage({ show, leads, go }: { show: boolean; leads: CrmLead[]; go
         </div>
       </div>
 
-      <TelegramSettings />
+      <fieldset disabled={readOnly} className="kv-fieldset">
+        <TelegramSettings />
+      </fieldset>
 
-      <div className="section-head" style={{ marginTop: 10 }}><div><h2>Telegram suhbatlar</h2><div className="sub">Bot orqali kelgan lidlar — bosib javob yozing</div></div></div>
+      <TelegramBroadcast tgLeads={tgLeads} readOnly={readOnly} />
+
+      <div className="section-head" style={{ marginTop: 10 }}><div><h2>Telegram suhbatlar</h2><div className="sub">{readOnly ? "Faqat o'qish — obuna tugagan" : "Bot orqali kelgan lidlar — bosib javob yozing"}</div></div></div>
       <div className="card tbl-wrap">
         {tgLeads.length ? (
           <table>
@@ -964,7 +2038,7 @@ function TelegramPage({ show, leads, go }: { show: boolean; leads: CrmLead[]; go
           </table>
         ) : <Empty icon={I.list} text="Hali Telegram suhbat yo'q. Bot ulangach, mijoz yozganda shu yerda ko'rinadi." />}
       </div>
-      {chat ? <TelegramChat lead={chat} onClose={() => setChat(null)} /> : null}
+      {chat ? <TelegramChat lead={chat} onClose={() => setChat(null)} readOnly={readOnly} /> : null}
     </section>
   );
 }
@@ -1140,14 +2214,20 @@ function TelegramSettings() {
 }
 
 /* ================= PROFILE FORM (settings) ================= */
-function ProfileForm({ agency, refresh }: any) {
+function ProfileForm({ agency, refresh, readOnly }: any) {
   const [name, setName] = useState(agency?.name || "");
   const [city, setCity] = useState(agency?.city || "");
+  const [specialty, setSpecialty] = useState(agency?.specialty || "");
   const [phone, setPhone] = useState(agency?.phone || "");
+  const [telegram, setTelegram] = useState(agency?.telegram || "");
+  const [website, setWebsite] = useState(agency?.website || "");
+  const [description, setDescription] = useState(agency?.description || "");
   const [img, setImg] = useState(agency?.imageUrl || "");
   const [busy, setBusy] = useState(false); const [msg, setMsg] = useState(""); const [err, setErr] = useState("");
   useEffect(() => {
-    setName(agency?.name || ""); setCity(agency?.city || ""); setPhone(agency?.phone || ""); setImg(agency?.imageUrl || "");
+    setName(agency?.name || ""); setCity(agency?.city || ""); setSpecialty(agency?.specialty || "");
+    setPhone(agency?.phone || ""); setTelegram(agency?.telegram || ""); setWebsite(agency?.website || "");
+    setDescription(agency?.description || ""); setImg(agency?.imageUrl || "");
   }, [agency]);
   async function pickImg(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
@@ -1157,8 +2237,13 @@ function ProfileForm({ agency, refresh }: any) {
     e.preventDefault();
     if (name.trim().length < 2) { setErr("Agentlik nomini kiriting."); return; }
     setBusy(true); setErr(""); setMsg("");
-    const body: Record<string, unknown> = { name: name.trim(), phone: phone.trim() || null };
+    const body: Record<string, unknown> = {
+      name: name.trim(), phone: phone.trim() || null,
+      telegram: telegram.trim() || null, website: website.trim() || null,
+      description: description.trim() || null,
+    };
     if (city.trim()) body.city = city.trim();
+    if (specialty.trim()) body.specialty = specialty.trim();
     if (img !== (agency?.imageUrl || "")) body.imageUrl = img || null;
     const res = await agencyApi("/profile", { method: "PUT", body: JSON.stringify(body) });
     setBusy(false);
@@ -1169,16 +2254,28 @@ function ProfileForm({ agency, refresh }: any) {
     <form className="card prof" onSubmit={save}>
       <div className="prof-logo">
         {img ? <img src={img} alt="" /> : <span className="prof-ini">{initials(name || "AG")}</span>}
-        <label className="prof-pick">Logotip tanlash<input type="file" accept="image/*" onChange={pickImg} style={{ display: "none" }} /></label>
+        <div className="prof-logo-tx">
+          <label className="prof-pick">{img ? "Logotipni almashtirish" : "Logotip yuklash"}<input type="file" accept="image/*" onChange={pickImg} style={{ display: "none" }} disabled={readOnly} /></label>
+          <small>PNG yoki JPG · kvadrat rasm tavsiya etiladi</small>
+          {img && !readOnly ? <button type="button" className="prof-logo-rm" onClick={() => setImg("")}>O&apos;chirish</button> : null}
+        </div>
       </div>
       <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div className="fld"><label>Agentlik nomi *</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Demo Travel CRM" /></div>
         <div className="fld"><label>Shahar</label><input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Toshkent" /></div>
       </div>
-      <div className="fld"><label>Telefon</label><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+998 90 000 00 00" /></div>
+      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div className="fld"><label>Yo&apos;nalish (ixtisos)</label><input value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="Ichki va xalqaro turlar" /></div>
+        <div className="fld"><label>Telefon</label><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+998 90 000 00 00" /></div>
+      </div>
+      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div className="fld"><label>Telegram</label><input value={telegram} onChange={(e) => setTelegram(e.target.value)} placeholder="@agentlik yoki t.me/..." /></div>
+        <div className="fld"><label>Vebsayt</label><input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://..." /></div>
+      </div>
+      <div className="fld"><label>Agentlik haqida (tavsif)</label><textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Agentligingiz, yo'nalishlaringiz va afzalliklaringiz haqida qisqacha — marketpleysda mijozlar shuni ko'radi." /></div>
       {err ? <div className="note note-err" style={{ marginBottom: 10 }}>{err}</div> : null}
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Saqlanmoqda..." : "Saqlash"}</button>
+        <button type="submit" className="btn btn-primary" disabled={busy || readOnly} title={readOnly ? "Obuna tugagan — faqat o'qish rejimi" : undefined}>{busy ? "Saqlanmoqda..." : "Saqlash"}</button>
         {msg ? <span style={{ color: "var(--primary)", fontSize: 13, fontWeight: 600 }}>{msg}</span> : null}
       </div>
     </form>

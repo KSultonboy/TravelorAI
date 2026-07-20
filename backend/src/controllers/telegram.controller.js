@@ -1,9 +1,22 @@
+const crypto = require('crypto');
 const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { ensureApprovedAgency } = require('./agency.controller');
 const tg = require('../services/telegram.service');
 
 const PUBLIC_BASE = process.env.PUBLIC_API_URL || 'https://travelorai.com/api/v1';
+const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://travelorai.com').replace(/\/$/, '');
+
+// Agent o'z botiga shu kodni yuborsa — o'sha chat xabarnoma manzili bo'lib qoladi.
+// Kod agentlik id + bot tokenidan kelib chiqadi, alohida saqlash shart emas.
+function notifyCode(agency) {
+  return crypto
+    .createHash('sha256')
+    .update(`${agency.id}|${agency.telegramBotToken || ''}`)
+    .digest('hex')
+    .slice(0, 8)
+    .toUpperCase();
+}
 
 /* ============ AGENCY-FACING (auth) ============ */
 
@@ -15,6 +28,8 @@ async function getTelegram(req, res) {
       connected: !!(agency.telegramBotActive && agency.telegramBotToken),
       username: agency.telegramBotUsername || null,
       welcome: agency.telegramWelcome || '',
+      notifyEnabled: !!agency.notifyChatId,
+      notifyCode: agency.telegramBotToken ? notifyCode(agency) : null,
     });
   } catch (err) {
     return error(res, err.message, 500);
@@ -38,6 +53,16 @@ async function connectTelegram(req, res) {
     const secret = tg.webhookSecret(token);
     const url = `${PUBLIC_BASE}/telegram/webhook/${agency.id}`;
     await tg.setWebhook(token, url, secret);
+
+    // Bot menyusiga Mini App tugmasi — mijoz turlarni bot ichida ko'radi.
+    // Xato bo'lsa ulanish baribir davom etadi (menyu ikkinchi darajali).
+    try {
+      await tg.setChatMenuButton(token, {
+        type: 'web_app',
+        text: 'Turlar',
+        web_app: { url: `${SITE_URL}/tg/${agency.slug}` },
+      });
+    } catch { /* ignore */ }
 
     const updated = await prisma.tourAgency.update({
       where: { id: agency.id },
@@ -213,6 +238,36 @@ async function webhook(req, res) {
     const expected = tg.webhookSecret(agency.telegramBotToken);
     if (req.get('x-telegram-bot-api-secret-token') !== expected) return res.status(403).json({ ok: false });
 
+    // ── Inline tugma bosildi (yo'nalish tanlovi) ──
+    const cb = (req.body && req.body.callback_query) || null;
+    if (cb) {
+      const data = String(cb.data || '');
+      const cbChat = String((cb.message && cb.message.chat && cb.message.chat.id) || '');
+      if (cbChat && data.startsWith('dest:')) {
+        const dest = data.slice(5).trim().slice(0, 80);
+        const bk = await prisma.tourBooking.findFirst({
+          where: { agencyId: agency.id, telegramChatId: cbChat },
+        });
+        if (bk && dest) {
+          await prisma.tourBooking.update({ where: { id: bk.id }, data: { leadTour: dest } });
+          await prisma.telegramMessage.create({
+            data: {
+              agencyId: agency.id, bookingId: bk.id, direction: 'in',
+              text: `Yoʻnalish tanlandi: ${dest}`, fromName: bk.customerName,
+            },
+          });
+          try {
+            await tg.sendMessage(
+              agency.telegramBotToken, cbChat,
+              `Rahmat! «${dest}» boʻyicha eng mos takliflarni tayyorlaymiz — agentimiz tez orada bogʻlanadi.`
+            );
+          } catch { /* ignore */ }
+        }
+      }
+      try { await tg.answerCallbackQuery(agency.telegramBotToken, cb.id); } catch { /* ignore */ }
+      return res.status(200).json({ ok: true });
+    }
+
     const message = (req.body && req.body.message) || null;
     if (!message || !message.chat) return res.status(200).json({ ok: true });
     const text = String(message.text || message.caption || '').slice(0, 4000);
@@ -223,6 +278,33 @@ async function webhook(req, res) {
     const fromName =
       [from.first_name, from.last_name].filter(Boolean).join(' ') || from.username || 'Telegram mijoz';
     const uname = from.username ? `@${from.username}` : null;
+
+    // Agentning o'zi xabarnomani yoqmoqchi — bu LID EMAS, shuning uchun oldinroq ushlaymiz.
+    const trimmed = text.trim();
+    if (/^\/xabarnoma(\s|$)/i.test(trimmed)) {
+      const given = (trimmed.split(/\s+/)[1] || '').toUpperCase();
+      const ok = given && given === notifyCode(agency);
+      if (ok) {
+        await prisma.tourAgency.update({ where: { id: agency.id }, data: { notifyChatId: chatId } });
+      }
+      try {
+        await tg.sendMessage(
+          agency.telegramBotToken,
+          chatId,
+          ok
+            ? 'Xabarnomalar yoqildi. Mijoz taklifni ochganda yoki qiziqish bildirganda shu yerga xabar keladi.'
+            : 'Kod notoʻgʻri. CRM → Telegram sahifasidan toʻgʻri kodni koʻchiring.'
+        );
+      } catch {
+        /* jimgina */
+      }
+      return res.status(200).json({ ok: true });
+    }
+
+    // Xabarnoma chatidan kelgan xabarlar ham lid bo'lmasligi kerak.
+    if (agency.notifyChatId && agency.notifyChatId === chatId) {
+      return res.status(200).json({ ok: true });
+    }
 
     let booking = await prisma.tourBooking.findFirst({ where: { agencyId: agency.id, telegramChatId: chatId } });
     let isNew = false;
@@ -268,6 +350,41 @@ async function webhook(req, res) {
         });
       } catch { /* ignore send failure */ }
     }
+    // Yangi mijozdan yo'nalishni SO'RAYMIZ — javob lidga yoziladi va agent
+    // taklif yaratganda mos tur avtomatik tanlanadi. Tugmalar agentlikning
+    // o'z turlaridan quriladi; turi bo'lmasa savol berilmaydi.
+    if (isNew && !booking.leadTour) {
+      const tours = await prisma.tour.findMany({
+        where: { agencyId: agency.id, active: true },
+        select: { city: true, destinationCountry: true },
+        take: 40,
+      });
+      const seen = new Set();
+      const dests = [];
+      for (const t of tours) {
+        const label = String(t.city || t.destinationCountry || '').trim();
+        if (!label || label.length > 40 || seen.has(label.toLowerCase())) continue;
+        seen.add(label.toLowerCase());
+        dests.push(label);
+        if (dests.length >= 8) break;
+      }
+      if (dests.length) {
+        const rows = [];
+        for (let i = 0; i < dests.length; i += 2) {
+          rows.push(dests.slice(i, i + 2).map((d) => ({ text: d, callback_data: `dest:${d}`.slice(0, 64) })));
+        }
+        const ask = 'Qaysi yoʻnalish sizni qiziqtiradi?';
+        try {
+          await tg.sendMessage(agency.telegramBotToken, chatId, ask, {
+            reply_markup: { inline_keyboard: rows },
+          });
+          await prisma.telegramMessage.create({
+            data: { agencyId: agency.id, bookingId: booking.id, direction: 'out', text: ask, fromName: 'Bot' },
+          });
+        } catch { /* ignore send failure */ }
+      }
+    }
+
     if (cmdReply) {
       try {
         await tg.sendMessage(agency.telegramBotToken, chatId, cmdReply);
@@ -284,4 +401,43 @@ async function webhook(req, res) {
   }
 }
 
-module.exports = { getTelegram, connectTelegram, disconnectTelegram, setWelcome, getProfile, setProfile, getConfig, setConfig, listMessages, reply, webhook };
+async function broadcast(req, res) {
+  try {
+    const agency = await ensureApprovedAgency(req, res);
+    if (!agency) return;
+    if (!agency.telegramBotToken || !agency.telegramBotActive) return error(res, 'Telegram bot ulanmagan', 400);
+    const text = String((req.body && req.body.text) || '').trim();
+    if (!text) return error(res, 'Xabar bosh', 400);
+    if (text.length > 3000) return error(res, 'Xabar juda uzun (maks 3000 belgi)', 400);
+
+    // Ixtiyoriy: bosqich bo'yicha filtr
+    const stage = String((req.body && req.body.stage) || '').trim();
+    const where = { agencyId: agency.id, telegramChatId: { not: null } };
+    if (['new', 'contacted', 'quoted', 'won', 'completed', 'lost'].includes(stage)) where.pipelineStage = stage;
+
+    const targets = await prisma.tourBooking.findMany({ where, select: { id: true, telegramChatId: true } });
+
+    let sent = 0;
+    let failed = 0;
+    const seen = new Set();
+    for (const t of targets) {
+      if (!t.telegramChatId || seen.has(t.telegramChatId)) continue;
+      seen.add(t.telegramChatId);
+      try {
+        await tg.sendMessage(agency.telegramBotToken, t.telegramChatId, text);
+        await prisma.telegramMessage.create({
+          data: { agencyId: agency.id, bookingId: t.id, direction: 'out', text, fromName: 'Broadcast' },
+        });
+        sent += 1;
+      } catch {
+        failed += 1;
+      }
+      await new Promise((r) => setTimeout(r, 40)); // ~25 xabar/sek — Telegram limitidan past
+    }
+    return success(res, { total: seen.size, sent, failed });
+  } catch (err) {
+    return error(res, err.message, 400);
+  }
+}
+
+module.exports = { getTelegram, connectTelegram, disconnectTelegram, setWelcome, getProfile, setProfile, getConfig, setConfig, listMessages, reply, broadcast, webhook };

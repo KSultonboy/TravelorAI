@@ -17,6 +17,8 @@ router.use('/feedback', require('./feedback.routes'));
 router.use('/bookings', require('./bookings.routes'));
 router.use('/agency', require('./agency.routes'));
 router.use('/telegram', require('./telegram.routes'));
+router.use('/p', require('./presentation.routes'));
+router.use('/miniapp', require('./miniapp.routes'));
 router.use('/admin', require('./admin.routes'));
 
 router.get('/health', async (req, res) => {
