@@ -459,7 +459,7 @@ export default function KvCabinet() {
               <>
                 <Dashboard show={view === "dashboard"} leads={leads} tasks={tasks} stats={bookingStats} agencyId={agencyId} go={setView} />
                 <Leads show={view === "leads"} leads={leads} move={guardedMove} busyId={busyId} dragId={dragId} setDragId={setDragId} over={over} setOver={setOver} readOnly={readOnly} canExport={canExport} presByLead={presByLead} />
-                <Customers show={view === "customers"} customers={customers} canExport={canExport} />
+                <Customers show={view === "customers"} customers={customers} canExport={canExport} readOnly={readOnly} refresh={refreshBookings} />
                 <Tasks show={view === "tasks"} agencyId={agencyId} tasks={tasks} leads={leads} readOnly={readOnly} />
                 <Packages show={view === "packages"} tours={tours} agencyId={agencyId} refreshTours={refreshTours} readOnly={readOnly} />
                 <Presentations show={view === "presentations"} items={presentations} leads={leads} tours={tours} reload={reloadPresentations} readOnly={readOnly} />
@@ -719,8 +719,33 @@ function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver, re
   );
 }
 
+/* Mijoz tug'ilgan kuni — o'zgartirilganda serverга yoziladi (avto-tabrik uchun) */
+function BirthdayCell({ customer, readOnly, onSaved }: any) {
+  const [val, setVal] = useState(customer.birthday ? String(customer.birthday).slice(0, 10) : "");
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  async function save(v: string) {
+    setVal(v); setBusy(true); setSaved(false);
+    const res = await agencyApi(`/bookings/${customer.birthdayBookingId}/birthday`, { method: "PATCH", body: JSON.stringify({ birthday: v }) });
+    setBusy(false);
+    if (res.success) { setSaved(true); setTimeout(() => setSaved(false), 1500); await onSaved?.(); }
+  }
+  if (readOnly) return <span style={{ color: "#8aa398", fontSize: 13 }}>{val ? formatDate(val) : "—"}</span>;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <input type="date" value={val} max={new Date().toISOString().slice(0, 10)} disabled={busy}
+        onChange={(e) => void save(e.target.value)}
+        style={{ padding: "5px 8px", border: "1px solid rgba(255,255,255,.14)", background: "rgba(255,255,255,.04)", color: "inherit", borderRadius: 8, fontSize: 13, colorScheme: "dark" }} />
+      {saved ? <span style={{ color: "#1E9E63", fontSize: 13 }}>✓</span> : null}
+      {!customer.hasTelegram && val ? (
+        <span title="Bu mijoz Telegramда bog'lanmagan — avto-tabrik hozircha faqat Telegram orqali yuboriladi" style={{ color: "#CA8A04", fontSize: 13, cursor: "help" }}>⚠</span>
+      ) : null}
+    </div>
+  );
+}
+
 /* ================= CUSTOMERS ================= */
-function Customers({ show, customers, canExport }: any) {
+function Customers({ show, customers, canExport, readOnly, refresh }: any) {
   const vip = customers.filter((c: any) => c.totalValue >= 1500).length;
   return (
     <section className={`view${show ? " active" : ""}`}>
@@ -728,12 +753,13 @@ function Customers({ show, customers, canExport }: any) {
       <div className="card tbl-wrap">
         {customers.length ? (
           <table>
-            <thead><tr><th>Mijoz</th><th>Telefon</th><th>So&apos;rovlar</th><th className="r">Jami qiymat</th><th>Holat</th><th>Aloqa</th></tr></thead>
+            <thead><tr><th>Mijoz</th><th>Telefon</th><th>Tug&apos;ilgan kun</th><th>So&apos;rovlar</th><th className="r">Jami qiymat</th><th>Holat</th><th>Aloqa</th></tr></thead>
             <tbody>
               {customers.map((c: any) => (
                 <tr key={c.keyId}>
                   <td><div className="cell"><span className="av-sm">{initials(c.name)}</span><b>{c.name}</b></div></td>
                   <td>{c.phone || "—"}</td>
+                  <td><BirthdayCell customer={c} readOnly={readOnly} onSaved={refresh} /></td>
                   <td>{c.leads.length}</td>
                   <td className="r money">{formatMoney(c.totalValue)}</td>
                   <td><span className={`badge2 ${c.totalValue >= 1500 ? "b-amber" : c.wonCount > 1 ? "b-green" : c.wonCount ? "b-grey" : "b-sky"}`}>{c.totalValue >= 1500 ? "VIP" : c.wonCount > 1 ? "Doimiy" : c.wonCount ? "Faol" : "Yangi"}</span></td>

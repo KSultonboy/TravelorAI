@@ -928,6 +928,39 @@ async function createManualLead(req, res) {
   }
 }
 
+// Mijoz tug'ilgan kunини belgilash (avto-tabrik uchun). Bir mijozning barcha
+// yozuvlarига (Telegram chat bo'yicha) yoziladi; birdaydayGreetedOn tozalanadi.
+async function setCustomerBirthday(req, res) {
+  try {
+    const agency = await ensureApprovedAgency(req, res);
+    if (!agency) return;
+    const booking = await prisma.tourBooking.findFirst({
+      where: { id: String(req.params.id), agencyId: agency.id },
+    });
+    if (!booking) return error(res, 'Lid topilmadi', 404);
+
+    const raw = String((req.body && req.body.birthday) || '').trim();
+    let birthday = null;
+    if (raw) {
+      const d = new Date(raw);
+      if (Number.isNaN(d.getTime())) return error(res, 'Sana notogri', 400);
+      birthday = d;
+    }
+    const data = { customerBirthday: birthday, birthdayGreetedOn: null };
+    if (booking.telegramChatId) {
+      await prisma.tourBooking.updateMany({
+        where: { agencyId: agency.id, telegramChatId: booking.telegramChatId },
+        data,
+      });
+    } else {
+      await prisma.tourBooking.update({ where: { id: booking.id }, data });
+    }
+    return success(res, { birthday });
+  } catch (err) {
+    return error(res, err.message, 400);
+  }
+}
+
 async function updatePipelineStage(req, res) {
   try {
     const agency = await ensureApprovedAgency(req, res);
@@ -989,5 +1022,6 @@ module.exports = {
   updateBookingStatus,
   createManualLead,
   updatePipelineStage,
+  setCustomerBirthday,
   deleteTour,
 };

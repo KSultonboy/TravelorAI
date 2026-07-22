@@ -105,6 +105,7 @@ export type CrmLead = {
   utmMedium?: string | null;
   utmCampaign?: string | null;
   referrer?: string | null;
+  customerBirthday?: string | null;
 };
 
 /* ----------------------------------- keys --------------------------------- */
@@ -337,6 +338,7 @@ export function buildLeads(agencyId: string, bookings: BookingItem[]): CrmLead[]
         utmMedium: b.utmMedium,
         utmCampaign: b.utmCampaign,
         referrer: b.referrer,
+        customerBirthday: b.customerBirthday,
       };
     })
     .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
@@ -354,6 +356,9 @@ export type CrmCustomer = {
   wonCount: number;
   lastAt: string;
   tags: string[];
+  birthday?: string | null;
+  birthdayBookingId?: string | null;
+  hasTelegram: boolean;
 };
 
 export function buildCustomers(leads: CrmLead[]): CrmCustomer[] {
@@ -381,6 +386,10 @@ export function buildCustomers(leads: CrmLead[]): CrmCustomer[] {
       wonCount: arr.filter((l) => l.stage === "won" || l.stage === "completed").length,
       lastAt: head.createdAt || new Date().toISOString(),
       tags: Array.from(new Set(arr.flatMap((l) => l.tags))),
+      birthday: sorted.find((l) => l.customerBirthday)?.customerBirthday || null,
+      // Tug'ilgan kunни serverга yozish uchun — Telegramли yozuv bo'lsa o'sha, aks holda birinchisi
+      birthdayBookingId: (sorted.find((l) => l.source === "telegram") || head).id,
+      hasTelegram: sorted.some((l) => l.source === "telegram"),
     });
   }
   return out.sort((a, b) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime());

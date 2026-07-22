@@ -110,6 +110,7 @@ export type BookingItem = {
   utmMedium?: string | null;
   utmCampaign?: string | null;
   referrer?: string | null;
+  customerBirthday?: string | null;
   leadTour?: string | null;
   responseDeadlineAt?: string | null;
   totalEstimate?: number | null;

@@ -27,6 +27,7 @@ function formatBooking(booking) {
     referrer: booking.referrer || null,
     pipelineStage: booking.pipelineStage || 'new',
     leadTour: booking.leadTour || null,
+    customerBirthday: booking.customerBirthday || null,
     agencyNote: booking.agencyNote,
     adminNote: booking.adminNote,
     confirmedAt: booking.confirmedAt,

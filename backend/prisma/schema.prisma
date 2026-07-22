@@ -588,6 +588,9 @@ model TourBooking {
   utmMedium          String?     // cpc, post, story, bio...
   utmCampaign        String?     // kampaniya nomi
   referrer           String?     // qaysi saytdan o'tdi
+  customerBirthday   DateTime?   // mijoz tug'ilgan kuni (tabrik uchun)
+  birthdayGreetedOn  String?     // oxirgi tabrik sanasi (YYYY-MM-DD) — takror bo'lmasin
+  tripReminderSentAt DateTime?   // sayohat eslatmasi yuborilgan vaqt
   presentations      TourPresentation[]
 
   @@index([tourId])

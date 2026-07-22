@@ -41,6 +41,7 @@ router.get('/bookings', agency.listBookings);
 router.patch('/bookings/:id/status', blockWhenReadOnly, agency.updateBookingStatus);
 router.post('/leads', blockWhenReadOnly, requireCapability('manualLeads'), agency.createManualLead);
 router.patch('/bookings/:id/stage', blockWhenReadOnly, agency.updatePipelineStage);
+router.patch('/bookings/:id/birthday', blockWhenReadOnly, agency.setCustomerBirthday);
 
 // AI yordamchilar — faqat Premium.
 router.get('/ai/status', requireCapability('ai'), aiCtrl.status);
