@@ -43,6 +43,10 @@ router.post('/leads', blockWhenReadOnly, requireCapability('manualLeads'), agenc
 router.patch('/bookings/:id/stage', blockWhenReadOnly, agency.updatePipelineStage);
 router.patch('/bookings/:id/birthday', blockWhenReadOnly, agency.setCustomerBirthday);
 
+// Mijoz sharhlari + reyting (marketplace'да ko'rinadi) — ko'rish hammaga ochiq.
+router.get('/reviews', agency.listReviews);
+router.patch('/reviews/:id', blockWhenReadOnly, agency.setReviewStatus);
+
 // AI yordamchilar — faqat Premium.
 router.get('/ai/status', requireCapability('ai'), aiCtrl.status);
 router.post('/ai/presentation-note', blockWhenReadOnly, requireCapability('ai'), aiCtrl.presentationNote);

@@ -52,6 +52,7 @@ const I = {
   send: "M22 2 11 13 M22 2l-7 20-4-9-9-4z",
   eye: "M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
   copy: "M9 9h10v12H9z M5 15H3V3h12v2",
+  star: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z",
 };
 function Ic({ d, s = 18 }: { d: string; s?: number }) {
   return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
@@ -98,6 +99,7 @@ const NAV: { key: string; label: string; icon: string; group: string; badge?: "l
   { key: "packages", label: "Turlar / Paketlar", icon: I.box, group: "Sotuv" },
   { key: "presentations", label: "Takliflar", icon: I.send, group: "Sotuv" },
   { key: "bookings", label: "Bronlar", icon: I.cal, group: "Sotuv" },
+  { key: "reviews", label: "Sharhlar", icon: I.star, group: "Sotuv" },
   { key: "payments", label: "To'lovlar", icon: I.card, group: "Sotuv" },
   { key: "reports", label: "Hisobotlar", icon: I.chart, group: "Boshqa" },
   { key: "settings", label: "Sozlamalar", icon: I.gear, group: "Boshqa" },
@@ -395,7 +397,7 @@ export default function KvCabinet() {
   const canExport = caps.csvExport !== false;
   const allowedSections = access?.sections || null; // null = cheklovsiz (grandfather / eski agentlik)
   const sectionAllowed = (key: string) => {
-    if (key === "dashboard" || key === "settings" || key === "tasks") return true; // doim ochiq
+    if (key === "dashboard" || key === "settings" || key === "tasks" || key === "reviews") return true; // doim ochiq
     if (key === "telegram") return caps.telegram !== false;
     if (key === "presentations") return caps.presentations !== false;
     if (!allowedSections) return true;
@@ -473,6 +475,7 @@ export default function KvCabinet() {
                 <Packages show={view === "packages"} tours={tours} agencyId={agencyId} refreshTours={refreshTours} readOnly={readOnly} />
                 <Presentations show={view === "presentations"} items={presentations} leads={leads} tours={tours} reload={reloadPresentations} readOnly={readOnly} />
                 <Bookings show={view === "bookings"} bookings={bookings} agencyId={agencyId} refreshBookings={refreshBookings} refresh={refresh} readOnly={readOnly} canExport={canExport} />
+                <Reviews show={view === "reviews"} readOnly={readOnly} />
                 <Payments show={view === "payments"} leads={leads} move={guardedMove} busyId={busyId} readOnly={readOnly} canExport={canExport} />
                 <Reports show={view === "reports"} leads={leads} />
                 <Settings show={view === "settings"} agency={agency} agencyId={agencyId} refresh={refresh} logout={logout} go={setView} access={access} readOnly={readOnly} caps={caps} />
@@ -1711,6 +1714,98 @@ function TeamSection({ access }: any) {
       )}
       {showAdd ? <AddMember onClose={() => setShowAdd(false)} onAdded={load} /> : null}
     </>
+  );
+}
+
+/* ================= REVIEWS (sharh -> reyting) ================= */
+type Review = { id: string; rating: number; text?: string | null; customerName?: string | null; status: string; createdAt: string };
+function Stars({ n, size = 15 }: { n: number; size?: number }) {
+  return (
+    <span style={{ display: "inline-flex", gap: 1, color: "#EAB308", verticalAlign: "middle" }}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <svg key={i} width={size} height={size} viewBox="0 0 24 24" fill={i <= n ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.4">
+          <path d={I.star} />
+        </svg>
+      ))}
+    </span>
+  );
+}
+function Reviews({ show, readOnly }: { show: boolean; readOnly?: boolean }) {
+  const [data, setData] = useState<{ reviews: Review[]; summary: { count: number; avg: number; dist: number[] } } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState("");
+  const load = async () => {
+    setLoading(true);
+    const res = await agencyApi<{ reviews: Review[]; summary: { count: number; avg: number; dist: number[] } }>("/reviews");
+    setLoading(false);
+    if (res.success) setData(res.data);
+  };
+  useEffect(() => { if (show && !data) void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [show]);
+  async function toggle(r: Review) {
+    setBusy(r.id);
+    const next = r.status === "published" ? "hidden" : "published";
+    const res = await agencyApi(`/reviews/${r.id}`, { method: "PATCH", body: JSON.stringify({ status: next }) });
+    setBusy("");
+    if (res.success) await load();
+  }
+  const s = data?.summary;
+  return (
+    <section className={`view${show ? " active" : ""}`}>
+      <div className="section-head"><div><h2>Mijoz sharhlari</h2><div className="sub">Sayohat «Yakunlandi»ga o&apos;tganda mijozga Telegramда ⭐ baho so&apos;rovi boradi — reyting marketplace sahifangizда ko&apos;rinadi</div></div></div>
+      {loading && !data ? <div className="card" style={{ padding: 20, color: "var(--t2)" }}>Yuklanmoqda…</div> : null}
+      {data ? (
+        s && s.count > 0 ? (
+          <>
+            <div className="card" style={{ padding: 20, display: "flex", gap: 26, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
+              <div style={{ textAlign: "center", minWidth: 110 }}>
+                <div style={{ fontSize: 44, fontWeight: 800, color: "var(--gold-ink)", lineHeight: 1, fontFamily: "var(--disp)" }}>{s.avg.toFixed(1)}</div>
+                <div style={{ marginTop: 6 }}><Stars n={Math.round(s.avg)} size={17} /></div>
+                <div style={{ color: "var(--t3)", fontSize: 12, marginTop: 5 }}>{s.count} ta sharh</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 220 }}>
+                {[5, 4, 3, 2, 1].map((star) => {
+                  const c = s.dist[star - 1] || 0;
+                  const pct = s.count ? Math.round((c / s.count) * 100) : 0;
+                  return (
+                    <div key={star} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, width: 34, color: "var(--t2)", display: "inline-flex", alignItems: "center", gap: 2 }}>{star}<svg width="11" height="11" viewBox="0 0 24 24" fill="#EAB308"><path d={I.star} /></svg></span>
+                      <div style={{ flex: 1, height: 8, background: "var(--canvas)", borderRadius: 5, overflow: "hidden" }}>
+                        <div style={{ width: `${pct}%`, height: "100%", background: "#EAB308" }} />
+                      </div>
+                      <span style={{ fontSize: 12, width: 26, textAlign: "right", color: "var(--t3)" }}>{c}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="card tbl-wrap">
+              <table>
+                <thead><tr><th>Mijoz</th><th>Baho</th><th>Sharh</th><th>Sana</th><th>Holat</th></tr></thead>
+                <tbody>
+                  {data.reviews.map((r) => (
+                    <tr key={r.id} style={r.status === "hidden" ? { opacity: 0.5 } : undefined}>
+                      <td><b>{r.customerName || "Mijoz"}</b></td>
+                      <td><Stars n={r.rating} size={13} /></td>
+                      <td style={{ maxWidth: 360, whiteSpace: "pre-wrap" }}>{r.text || <span style={{ color: "var(--t3)" }}>—</span>}</td>
+                      <td>{formatDate(r.createdAt)}</td>
+                      <td><button className="btn btn-ghost btn-sm" disabled={readOnly || busy === r.id} onClick={() => void toggle(r)}>{r.status === "published" ? "Yashirish" : "Ko'rsatish"}</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <div className="card" style={{ padding: 30, textAlign: "center" }}>
+            <div style={{ marginBottom: 8 }}><Stars n={0} size={22} /></div>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Hali sharhlar yo&apos;q</div>
+            <div style={{ color: "var(--t2)", fontSize: 13.5, maxWidth: 470, margin: "0 auto", lineHeight: 1.6 }}>
+              Telegramда bog&apos;langan mijozning sayohatini <b>«Yakunlandi»</b> bosqichiga o&apos;tkazing — bot avtomatik <b>⭐1–5</b> baho va izoh so&apos;raydi. Natija shu yerда, umumiy reyting esa marketplace&apos;dagi agentlik sahifangizда ko&apos;rinadi.
+            </div>
+          </div>
+        )
+      ) : null}
+    </section>
   );
 }
 

@@ -8,6 +8,7 @@ const { materializeDataImage } = require('../utils/dataImage');
 const { resolveTourImageUrl } = require('../utils/tourImage');
 const { bookingStatusSchema } = require('../schemas/booking.schema');
 const { formatBooking } = require('./bookings.controller');
+const reviewService = require('../services/review.service');
 const {
   applicationSchema,
   emailChangeConfirmSchema,
@@ -976,9 +977,50 @@ async function updatePipelineStage(req, res) {
     else if (stage === 'completed') { data.status = 'completed'; if (!existing.confirmedAt) data.confirmedAt = now; data.completedAt = now; }
     else if (stage === 'lost') { data.status = 'rejected'; data.rejectedAt = now; }
     const updated = await prisma.tourBooking.update({ where: { id: existing.id }, data, include: { tour: true, agency: true } });
+    // Sayohat "yakunlandi"ga o'tdi — mijozdan Telegram orqali baho so'raymiz (fire-and-forget).
+    if (stage === 'completed' && existing.pipelineStage !== 'completed') {
+      reviewService.sendReviewRequest(updated.agency, updated).catch(() => {});
+    }
     return success(res, { booking: formatBooking(updated), stats: await getBookingStats(agency.id) });
   } catch (err) {
     return error(res, (err.errors && err.errors[0] && err.errors[0].message) || err.message, 400);
+  }
+}
+
+/* Mijoz sharhlari — reyting bilan; publish/hide agentlik reytingini qayta hisoblaydi. */
+async function listReviews(req, res) {
+  try {
+    const agency = await ensureApprovedAgency(req, res);
+    if (!agency) return;
+    const reviews = await prisma.tourReview.findMany({
+      where: { agencyId: agency.id },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+    const published = reviews.filter((r) => r.status === 'published');
+    const count = published.length;
+    const avg = count ? Math.round((published.reduce((s, r) => s + r.rating, 0) / count) * 10) / 10 : 0;
+    const dist = [0, 0, 0, 0, 0];
+    for (const r of published) if (r.rating >= 1 && r.rating <= 5) dist[r.rating - 1] += 1;
+    return success(res, { reviews, summary: { count, avg, dist } });
+  } catch (err) {
+    return error(res, err.message, 500);
+  }
+}
+
+async function setReviewStatus(req, res) {
+  try {
+    const agency = await ensureApprovedAgency(req, res);
+    if (!agency) return;
+    const status = String((req.body && req.body.status) || '').trim();
+    if (!['published', 'hidden'].includes(status)) return error(res, 'Notogri holat', 400);
+    const existing = await prisma.tourReview.findFirst({ where: { id: req.params.id, agencyId: agency.id } });
+    if (!existing) return error(res, 'Sharh topilmadi', 404);
+    await prisma.tourReview.update({ where: { id: existing.id }, data: { status } });
+    await reviewService.recomputeAgencyRating(agency.id);
+    return success(res, { id: existing.id, status });
+  } catch (err) {
+    return error(res, err.message, 400);
   }
 }
 
@@ -1023,5 +1065,7 @@ module.exports = {
   createManualLead,
   updatePipelineStage,
   setCustomerBirthday,
+  listReviews,
+  setReviewStatus,
   deleteTour,
 };

@@ -592,6 +592,8 @@ model TourBooking {
   customerBirthday   DateTime?   // mijoz tug'ilgan kuni (tabrik uchun)
   birthdayGreetedOn  String?     // oxirgi tabrik sanasi (YYYY-MM-DD) — takror bo'lmasin
   tripReminderSentAt DateTime?   // sayohat eslatmasi yuborilgan vaqt
+  reviewRequestedAt  DateTime?   // baho so'rovi yuborilgan vaqt (takror bo'lmasin)
+  reviewAwaitingText Boolean     @default(false) // baho berildi, keyingi xabar sharh matni
   presentations      TourPresentation[]
 
   @@index([tourId])
@@ -599,6 +601,24 @@ model TourBooking {
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@index([customerEmail])
+}
+
+// Mijoz sharhi + reyting — sayohat "yakunlandi"ga o'tgach Telegram orqali yig'iladi.
+// Bog'lanishlarsiz (skalyar agencyId/bookingId) — divergent prod DB uchun xavfsiz.
+// Publish bo'lgan sharhlar agentlik reytingini (TourAgency.rating/reviews) oshiradi.
+model TourReview {
+  id             String   @id @default(cuid())
+  agencyId       String
+  bookingId      String?  @unique
+  rating         Int
+  text           String?
+  customerName   String?
+  telegramChatId String?
+  status         String   @default("published") // published | hidden
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([agencyId, status])
 }
 
 // Dinamik taklif (prezentatsiya) — agent mijozga shaxsiy link yuboradi, ochilishi kuzatiladi.

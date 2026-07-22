@@ -4,6 +4,7 @@ const { success, error } = require('../utils/response');
 const { ensureApprovedAgency } = require('./agency.controller');
 const tg = require('../services/telegram.service');
 const { DEFAULT_BIRTHDAY, fillBirthday } = require('../services/scheduler.service');
+const reviewService = require('../services/review.service');
 
 const PUBLIC_BASE = process.env.PUBLIC_API_URL || 'https://travelorai.com/api/v1';
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://travelorai.com').replace(/\/$/, '');
@@ -280,6 +281,40 @@ async function webhook(req, res) {
           } catch { /* ignore */ }
         }
       }
+      // ── Baho berildi (rate:<bookingId>:<n>) ──
+      if (cbChat && data.startsWith('rate:')) {
+        const parts = data.split(':');
+        const bookingId = parts[1];
+        const n = Math.max(0, Math.min(5, parseInt(parts[2], 10) || 0));
+        if (bookingId && n >= 1) {
+          const bk = await prisma.tourBooking.findFirst({
+            where: { id: bookingId, agencyId: agency.id, telegramChatId: cbChat },
+          });
+          if (bk) {
+            await prisma.tourReview.upsert({
+              where: { bookingId: bk.id },
+              update: { rating: n },
+              create: {
+                agencyId: agency.id, bookingId: bk.id, rating: n,
+                customerName: bk.customerName, telegramChatId: cbChat, status: 'published',
+              },
+            });
+            await prisma.tourBooking.update({ where: { id: bk.id }, data: { reviewAwaitingText: true } }).catch(() => {});
+            await reviewService.recomputeAgencyRating(agency.id);
+            const thanks =
+              `Bahoyingiz uchun rahmat! ${'⭐'.repeat(n)}\n\n` +
+              `Istasangiz, tajribangiz haqida ikki og'iz yozib qoldiring — bu boshqa sayohatchilarga yordam beradi.`;
+            try {
+              await tg.sendMessage(agency.telegramBotToken, cbChat, thanks);
+              await prisma.telegramMessage.create({
+                data: { agencyId: agency.id, bookingId: bk.id, direction: 'out', text: thanks, fromName: 'Baho' },
+              });
+            } catch { /* ignore */ }
+          }
+        }
+        try { await tg.answerCallbackQuery(agency.telegramBotToken, cb.id, n ? `Rahmat! ${n}⭐` : ''); } catch { /* ignore */ }
+        return res.status(200).json({ ok: true });
+      }
       try { await tg.answerCallbackQuery(agency.telegramBotToken, cb.id); } catch { /* ignore */ }
       return res.status(200).json({ ok: true });
     }
@@ -320,6 +355,25 @@ async function webhook(req, res) {
     // Xabarnoma chatidan kelgan xabarlar ham lid bo'lmasligi kerak.
     if (agency.notifyChatId && agency.notifyChatId === chatId) {
       return res.status(200).json({ ok: true });
+    }
+
+    // ── Baho berilgandan keyingi xabar — sharh matni (LID EMAS) ──
+    const awaitingReview = await prisma.tourBooking.findFirst({
+      where: { agencyId: agency.id, telegramChatId: chatId, reviewAwaitingText: true },
+      orderBy: { updatedAt: 'desc' },
+    });
+    if (awaitingReview) {
+      // Faqat yaqin vaqtda (1 soat) va buyruq bo'lmasa qabul qilamiz — eski holat qolib ketmasin.
+      const fresh = Date.now() - new Date(awaitingReview.updatedAt).getTime() < 60 * 60 * 1000;
+      await prisma.tourBooking.update({ where: { id: awaitingReview.id }, data: { reviewAwaitingText: false } }).catch(() => {});
+      if (fresh && !trimmed.startsWith('/')) {
+        await prisma.tourReview.update({ where: { bookingId: awaitingReview.id }, data: { text: text.slice(0, 1500) } }).catch(() => {});
+        await prisma.telegramMessage.create({
+          data: { agencyId: agency.id, bookingId: awaitingReview.id, direction: 'in', text, fromName: awaitingReview.customerName },
+        }).catch(() => {});
+        try { await tg.sendMessage(agency.telegramBotToken, chatId, 'Fikringiz uchun rahmat! 🙏'); } catch { /* ignore */ }
+        return res.status(200).json({ ok: true });
+      }
     }
 
     // Deep-link manbasi: t.me/bot?start=instagram -> lid "instagram"dan kelgani yoziladi.
