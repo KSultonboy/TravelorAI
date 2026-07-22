@@ -5,6 +5,7 @@ export type Account = {
   email: string;
   emailVerified: boolean;
   status: string;
+  mustChangePassword?: boolean;
   pendingEmail?: string | null;
   emailChangeResendCount?: number;
   emailChangeResendsRemaining?: number;

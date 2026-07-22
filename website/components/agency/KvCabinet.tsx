@@ -220,6 +220,61 @@ function UpgradeNotice({ section, planName, go }: { section: string; planName?: 
   );
 }
 
+/* ========= Bir martalik parol — birinchi kirishда majburiy almashtirish ========= */
+function ChangePasswordGate({ email, onDone, logout }: { email: string; onDone: () => void; logout: () => Promise<void> | void }) {
+  const [pw1, setPw1] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [ok, setOk] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (pw1.length < 6) { setErr("Parol kamida 6 belgi bo'lsin."); return; }
+    if (pw1 !== pw2) { setErr("Parollar mos kelmadi."); return; }
+    setBusy(true); setErr("");
+    const r = await agencyApi("/auth/change-password", { method: "POST", body: JSON.stringify({ newPassword: pw1 }) });
+    setBusy(false);
+    if (r.success) { setOk(true); setTimeout(() => onDone(), 900); }
+    else setErr(r.message || "Parolni o'zgartirib bo'lmadi.");
+  }
+
+  return (
+    <div className="kv">
+      <div className="kv-center" style={{ maxWidth: 420 }}>
+        <div className="mark" style={{ marginBottom: 6 }}><Ic d={I.lock} s={26} /></div>
+        <h2>Yangi parol o‘rnating</h2>
+        <p style={{ marginBottom: 4 }}>
+          <b>{email}</b> uchun vaqtinchalik parol berilgan. Davom etish uchun o‘zingizning maxfiy parolingizni yarating.
+        </p>
+        {ok ? (
+          <div className="note" style={{ color: "#1E9E63", marginTop: 8 }}>Parol o‘rnatildi — kabinet ochilmoqda…</div>
+        ) : (
+          <form onSubmit={submit} style={{ width: "100%", marginTop: 12, textAlign: "left" }}>
+            <div className="fld">
+              <label>Yangi parol</label>
+              <input type={show ? "text" : "password"} value={pw1} onChange={(e) => setPw1(e.target.value)} placeholder="kamida 6 belgi" autoFocus />
+            </div>
+            <div className="fld">
+              <label>Parolni takrorlang</label>
+              <input type={show ? "text" : "password"} value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="yana bir marta" />
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "#8aa398", cursor: "pointer", margin: "2px 0 12px" }}>
+              <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} /> Parolni ko‘rsatish
+            </label>
+            {err ? <div className="note note-err" style={{ marginBottom: 10 }}>{err}</div> : null}
+            <button type="submit" className="btn btn-primary" disabled={busy} style={{ width: "100%" }}>
+              {busy ? "Saqlanmoqda…" : "Parolni saqlash va kirish"}
+            </button>
+          </form>
+        )}
+        <button className="btn btn-ghost btn-sm" style={{ marginTop: 12 }} onClick={() => void logout()}>Chiqish</button>
+      </div>
+    </div>
+  );
+}
+
 export default function KvCabinet() {
   const { phase, me, tours, bookings, bookingStats, logout, refresh, refreshBookings, refreshTours } = useAgencySession();
   const { agencyId, leads, tasks, customers, move, busyId } = useCrm();
@@ -294,6 +349,10 @@ export default function KvCabinet() {
   }
   if (phase === "onboarding") {
     return <div className="kv"><div className="kv-center"><h2>Hisobingiz ko'rib chiqilmoqda</h2><p>Agentligingiz tasdiqlangach, CRM kabineti ochiladi.</p><button className="btn btn-ghost" onClick={() => void logout()}>Chiqish</button></div></div>;
+  }
+  // Bir martalik parol — o'z parolini o'rnatmaguncha kabinet ochilmaydi.
+  if (me?.account?.mustChangePassword) {
+    return <ChangePasswordGate email={me.account.email} onDone={() => void refresh(true)} logout={logout} />;
   }
 
   const agency = me?.agency;

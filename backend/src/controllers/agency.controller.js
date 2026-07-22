@@ -51,6 +51,7 @@ function publicAccount(account) {
     emailChangeResendCount: account.emailChangeResendCount || 0,
     emailChangeResendsRemaining: Math.max(0, EMAIL_CHANGE_MAX_RESENDS - Number(account.emailChangeResendCount || 0)),
     status: account.status,
+    mustChangePassword: account.mustChangePassword || false,
     createdAt: account.createdAt,
     updatedAt: account.updatedAt,
   };
@@ -527,6 +528,31 @@ async function login(req, res) {
   }
 }
 
+// Bir martalik parolni almashtirish — birinchi kirishда majburlanadi.
+// Har doim ochiq (readOnly/onboarding'да ham), aks holda foydalanuvchi qamalib qoladi.
+async function changePassword(req, res) {
+  try {
+    const account = req.agencyAccount;
+    if (!account) return error(res, 'Avval tizimga kiring', 401);
+    const newPassword = String((req.body && req.body.newPassword) || '');
+    if (newPassword.length < 6) return error(res, 'Yangi parol kamida 6 belgi bo‘lsin', 400);
+    if (newPassword.length > 200) return error(res, 'Parol juda uzun', 400);
+
+    // Eski parolni qayta kiritishni taqiqlaymiz (agar bir martalik bo'lsa foydasiz).
+    const same = await bcrypt.compare(newPassword, account.passwordHash).catch(() => false);
+    if (same) return error(res, 'Yangi parol eskisidan farq qilishi kerak', 400);
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await prisma.agencyAccount.update({
+      where: { id: account.id },
+      data: { passwordHash, mustChangePassword: false },
+    });
+    return success(res, { changed: true });
+  } catch (err) {
+    return error(res, err.message, 400);
+  }
+}
+
 async function me(req, res) {
   try {
     const agency = req.agency; // agencyPlan middleware yukladi (tariff + _count bilan)
@@ -949,6 +975,7 @@ module.exports = {
   confirmEmailChange,
   login,
   me,
+  changePassword,
   getApplication,
   upsertApplication,
   submitApplication,

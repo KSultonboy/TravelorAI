@@ -17,6 +17,7 @@ router.use(agencyPlan); // req.agency + req.access (tarif/obuna) — barcha auth
 
 // Hisob boshqaruvi — readOnly'да ham ochiq (onboarding + email o'zgartirish bloklanmaydi).
 router.get('/auth/me', agency.me);
+router.post('/auth/change-password', agency.changePassword); // bir martalik parol — readOnly'да ham ochiq
 router.post('/auth/email-change/request', agency.requestEmailChange);
 router.post('/auth/email-change/resend', agency.resendEmailChange);
 router.post('/auth/email-change/confirm', agency.confirmEmailChange);

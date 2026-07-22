@@ -82,6 +82,7 @@ model AgencyAccount {
   emailChangeResendCount Int                 @default(0)
   emailChangeRequestedAt DateTime?
   status                 String              @default("pending")
+  mustChangePassword     Boolean             @default(false)
   lastLoginAt            DateTime?
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
