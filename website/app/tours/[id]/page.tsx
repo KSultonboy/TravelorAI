@@ -10,6 +10,8 @@ import { publicImageSrc } from "@/lib/imageUrls";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://travelorai.com").replace(/\/$/, "");
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const tour = await fetchTour(id);
@@ -59,15 +61,39 @@ export default async function TourDetailPage({ params }: { params: Promise<{ id:
   const rating = tour.rating || 0;
   const reviewCount = tour.reviewCount || 0;
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: tour.title,
-    description: tour.subtitle || tour.description || tour.title,
-    image: baseImg || undefined,
-    ...(rating > 0 ? { aggregateRating: { "@type": "AggregateRating", ratingValue: rating, reviewCount: Math.max(reviewCount, 1) } } : {}),
-    ...(tour.priceMin ? { offers: { "@type": "Offer", price: tour.priceMin, priceCurrency: tour.currency || "USD", availability: "https://schema.org/InStock" } } : {}),
-  };
+  const canonical = `${SITE_URL}/tours/${slug}`;
+  const jsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      name: tour.title,
+      description: tour.description || tour.subtitle || `${tour.city} bo‘yicha tasdiqlangan agentlik turi.`,
+      image: baseImg || undefined,
+      category: "Sayohat turi",
+      ...(tour.agency?.name ? { brand: { "@type": "TravelAgency", name: tour.agency.name } } : {}),
+      ...(rating > 0 ? { aggregateRating: { "@type": "AggregateRating", ratingValue: rating, reviewCount: Math.max(reviewCount, 1) } } : {}),
+      ...(tour.priceMin
+        ? {
+            offers: {
+              "@type": "Offer",
+              price: tour.priceMin,
+              priceCurrency: tour.currency || "USD",
+              availability: "https://schema.org/InStock",
+              url: canonical,
+            },
+          }
+        : {}),
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Bosh sahifa", item: SITE_URL },
+        { "@type": "ListItem", position: 2, name: "Turlar", item: `${SITE_URL}/tours` },
+        { "@type": "ListItem", position: 3, name: tour.title, item: canonical },
+      ],
+    },
+  ];
 
   return (
     <MarketingShell>
