@@ -84,6 +84,8 @@ export function AgencySessionProvider({ children }: { children: ReactNode }) {
     setBookings([]);
     setBookingStats(null);
     setPhase("guest");
+    // Chiqishда oraliq "guest" ekranни ko'rsatmay, to'g'ridan-to'g'ri kirish sahifasiga.
+    if (typeof window !== "undefined") window.location.assign("/signin");
   }, []);
 
   useEffect(() => {

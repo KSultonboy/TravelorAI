@@ -242,7 +242,8 @@ function ChangePasswordGate({ email, onDone, logout }: { email: string; onDone: 
 
   return (
     <div className="kv">
-      <div className="kv-center" style={{ maxWidth: 420 }}>
+      <div className="kv-center">
+       <div style={{ width: "100%", maxWidth: 400, display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
         <div className="mark" style={{ marginBottom: 6 }}><Ic d={I.lock} s={26} /></div>
         <h2>Yangi parol o‘rnating</h2>
         <p style={{ marginBottom: 4 }}>
@@ -270,6 +271,7 @@ function ChangePasswordGate({ email, onDone, logout }: { email: string; onDone: 
           </form>
         )}
         <button className="btn btn-ghost btn-sm" style={{ marginTop: 12 }} onClick={() => void logout()}>Chiqish</button>
+       </div>
       </div>
     </div>
   );
