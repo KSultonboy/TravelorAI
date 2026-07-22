@@ -79,13 +79,18 @@ export function AgencySessionProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await agencyApi("/auth/logout", { method: "POST" });
+    // MUHIM: state'ni o'zgartirmasdan darrov navigatsiya qilamiz. Aks holda
+    // setPhase("guest") oraliq ekranni bir zumga chizadi ("miltillash"). Joriy
+    // ekran /signin yuklanguncha turadi — hech qanday oraliq ko'rinmaydi.
+    if (typeof window !== "undefined") {
+      window.location.assign("/signin");
+      return;
+    }
     setMe(null);
     setTours([]);
     setBookings([]);
     setBookingStats(null);
     setPhase("guest");
-    // Chiqishда oraliq "guest" ekranни ko'rsatmay, to'g'ridan-to'g'ri kirish sahifasiga.
-    if (typeof window !== "undefined") window.location.assign("/signin");
   }, []);
 
   useEffect(() => {
