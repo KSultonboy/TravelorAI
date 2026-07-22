@@ -393,6 +393,7 @@ model TourAgency {
   telegramBotActive   Boolean  @default(false)
   telegramWelcome     String?
   telegramConfig      String?
+  birthdayTemplate    String? // tug'ilgan kun tabrigi matni ({name}, {agency})
   notifyChatId        String? // agent xabarnoma oladigan Telegram chat (mijoz lidi EMAS)
   tariffId            String?
   subscriptionStatus  String              @default("none")

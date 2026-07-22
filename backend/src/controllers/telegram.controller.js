@@ -3,6 +3,7 @@ const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { ensureApprovedAgency } = require('./agency.controller');
 const tg = require('../services/telegram.service');
+const { DEFAULT_BIRTHDAY, fillBirthday } = require('../services/scheduler.service');
 
 const PUBLIC_BASE = process.env.PUBLIC_API_URL || 'https://travelorai.com/api/v1';
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://travelorai.com').replace(/\/$/, '');
@@ -28,6 +29,8 @@ async function getTelegram(req, res) {
       connected: !!(agency.telegramBotActive && agency.telegramBotToken),
       username: agency.telegramBotUsername || null,
       welcome: agency.telegramWelcome || '',
+      birthdayTemplate: agency.birthdayTemplate || '',
+      birthdayDefault: DEFAULT_BIRTHDAY,
       notifyEnabled: !!agency.notifyChatId,
       notifyCode: agency.telegramBotToken ? notifyCode(agency) : null,
     });
@@ -102,6 +105,19 @@ async function setWelcome(req, res) {
     const text = String((req.body && req.body.text) || '').trim().slice(0, 1000);
     await prisma.tourAgency.update({ where: { id: agency.id }, data: { telegramWelcome: text || null } });
     return success(res, { welcome: text });
+  } catch (err) {
+    return error(res, err.message, 400);
+  }
+}
+
+// Tug'ilgan kun tabrigi shablonini saqlash. Bo'sh bo'lsa — standart matnga qaytadi.
+async function setBirthdayTemplate(req, res) {
+  try {
+    const agency = await ensureApprovedAgency(req, res);
+    if (!agency) return;
+    const text = String((req.body && req.body.text) || '').trim().slice(0, 1500);
+    await prisma.tourAgency.update({ where: { id: agency.id }, data: { birthdayTemplate: text || null } });
+    return success(res, { birthdayTemplate: text, preview: fillBirthday(text, 'Aziz Karimov', agency.name) });
   } catch (err) {
     return error(res, err.message, 400);
   }
@@ -448,4 +464,4 @@ async function broadcast(req, res) {
   }
 }
 
-module.exports = { getTelegram, connectTelegram, disconnectTelegram, setWelcome, getProfile, setProfile, getConfig, setConfig, listMessages, reply, broadcast, webhook };
+module.exports = { getTelegram, connectTelegram, disconnectTelegram, setWelcome, setBirthdayTemplate, getProfile, setProfile, getConfig, setConfig, listMessages, reply, broadcast, webhook };

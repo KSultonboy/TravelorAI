@@ -4,6 +4,20 @@
 const { prisma } = require('../config/database');
 const tg = require('./telegram.service');
 
+// Standart tabrik matni — agentlik o'zi o'zgartirmasa shu ishlatiladi.
+// {name} = mijoz ismi, {agency} = agentlik nomi.
+const DEFAULT_BIRTHDAY =
+  "🎉 Hurmatli {name}!\n\n" +
+  "{agency} jamoasi Sizni tug'ilgan kuningiz bilan chin dildan tabriklaydi! " +
+  "Hayotingiz go'zal sayohatlar, quvonch va yangi taassurotlarga to'la bo'lsin.\n\n" +
+  "Bayram kunlarida Siz uchun maxsus takliflarimiz tayyor. Yoqimli kayfiyat tilaymiz! 🌍";
+
+function fillBirthday(tpl, name, agencyName) {
+  return String(tpl && tpl.trim() ? tpl : DEFAULT_BIRTHDAY)
+    .replace(/\{name\}/g, name || 'mijoz')
+    .replace(/\{agency\}/g, agencyName || '');
+}
+
 const TZ_OFFSET_MS = 5 * 60 * 60 * 1000; // Asia/Tashkent
 const tashkentNow = () => new Date(Date.now() + TZ_OFFSET_MS);
 const ymd = (d) => d.toISOString().slice(0, 10); // TZ-siljitilgan sanadan UTC qism = mahalliy sana
@@ -30,7 +44,7 @@ async function runBirthdayGreetings() {
     select: {
       id: true, customerName: true, customerBirthday: true, birthdayGreetedOn: true,
       telegramChatId: true, agencyId: true,
-      agency: { select: { name: true, telegramBotToken: true } },
+      agency: { select: { name: true, telegramBotToken: true, birthdayTemplate: true } },
     },
     take: 1000,
   });
@@ -45,11 +59,7 @@ async function runBirthdayGreetings() {
     if (seen.has(key)) continue; // bir mijozга bir marta
     seen.add(key);
 
-    const text =
-      `🎉 Hurmatli ${b.customerName}!\n\n` +
-      `${b.agency.name} jamoasi Sizni tug'ilgan kuningiz bilan chin dildan tabriklaydi! ` +
-      `Hayotingiz go'zal sayohatlar, quvonch va yangi taassurotlarga to'la bo'lsin.\n\n` +
-      `Bayram kunlarida Siz uchun maxsus takliflarimiz tayyor. Yoqimli kayfiyat tilaymiz! 🌍`;
+    const text = fillBirthday(b.agency.birthdayTemplate, b.customerName, b.agency.name);
     try {
       await tg.sendMessage(b.agency.telegramBotToken, b.telegramChatId, text);
       await prisma.telegramMessage.create({
@@ -129,4 +139,4 @@ function startScheduler() {
   setInterval(tick, 30 * 60 * 1000); // keyin har 30 daqiqada
 }
 
-module.exports = { startScheduler, runBirthdayGreetings, runTripReminders };
+module.exports = { startScheduler, runBirthdayGreetings, runTripReminders, DEFAULT_BIRTHDAY, fillBirthday };

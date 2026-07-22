@@ -2250,6 +2250,9 @@ function TelegramSettings() {
   const [state, setState] = useState<{ connected: boolean; username: string | null; welcome: string }>({ connected: false, username: null, welcome: "" });
   const [token, setToken] = useState("");
   const [welcome, setWelcome] = useState("");
+  const [birthday, setBirthday] = useState("");
+  const [birthdayDefault, setBirthdayDefault] = useState("");
+  const [bMsg, setBMsg] = useState("");
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState(""); const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(true);
@@ -2263,8 +2266,13 @@ function TelegramSettings() {
   const [cfgMsg, setCfgMsg] = useState("");
 
   const load = async () => {
-    const res = await agencyApi<{ connected: boolean; username: string | null; welcome: string }>("/telegram");
-    if (res.success) { setState(res.data); setWelcome(res.data.welcome || ""); }
+    const res = await agencyApi<{ connected: boolean; username: string | null; welcome: string; birthdayTemplate?: string; birthdayDefault?: string }>("/telegram");
+    if (res.success) {
+      setState(res.data);
+      setWelcome(res.data.welcome || "");
+      setBirthday(res.data.birthdayTemplate || "");
+      setBirthdayDefault(res.data.birthdayDefault || "");
+    }
     setLoading(false);
   };
   useEffect(() => { void load(); }, []);
@@ -2289,6 +2297,16 @@ function TelegramSettings() {
     setBusy("");
     if (res.success) setMsg("Saqlandi ✓");
   }
+  async function saveBirthday() {
+    setBusy("birthday"); setBMsg("");
+    const res = await agencyApi("/telegram/birthday-template", { method: "PUT", body: JSON.stringify({ text: birthday }) });
+    setBusy("");
+    if (res.success) setBMsg("Saqlandi ✓");
+  }
+  // Namuna ko'rsatish: shablonni (yoki standartни) real ism bilan to'ldirib beradi
+  const bdayPreview = (birthday.trim() || birthdayDefault)
+    .replace(/\{name\}/g, "Aziz Karimov")
+    .replace(/\{agency\}/g, state.username ? state.username : "Agentligingiz");
   async function loadProfile() {
     setProfLoading(true);
     const res = await agencyApi<{ name: string; description: string; shortDescription: string }>("/telegram/profile");
@@ -2350,6 +2368,25 @@ function TelegramSettings() {
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
             <button className="btn btn-primary btn-sm" disabled={busy === "welcome"} onClick={() => void saveWelcome()}>{busy === "welcome" ? "..." : "Saqlash"}</button>
             {msg ? <span style={{ color: "var(--primary)", fontSize: 13, fontWeight: 600 }}>{msg}</span> : null}
+          </div>
+        </div>
+
+        <div className="tg-welcome" style={{ marginTop: 14 }}>
+          <label>🎂 Tug&apos;ilgan kun tabrigi matni (mijoz tug&apos;ilgan kuni bot avtomatik yuboradi)</label>
+          <textarea value={birthday} onChange={(e) => setBirthday(e.target.value)} rows={5} placeholder={birthdayDefault || "Standart matn ishlatiladi"} />
+          <div style={{ fontSize: 12.5, color: "#8aa398", marginTop: 6 }}>
+            Belgilar: <code>{"{name}"}</code> = mijoz ismi · <code>{"{agency}"}</code> = agentlik nomi. Bo&apos;sh qoldirsangiz standart matn ishlatiladi.
+          </div>
+          {bdayPreview ? (
+            <div style={{ marginTop: 10, padding: "10px 12px", background: "rgba(234,179,8,.08)", border: "1px solid rgba(234,179,8,.3)", borderRadius: 10, fontSize: 13.5, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: ".04em", color: "#CA8A04", marginBottom: 5 }}>NAMUNA</div>
+              {bdayPreview}
+            </div>
+          ) : null}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
+            <button className="btn btn-primary btn-sm" disabled={busy === "birthday"} onClick={() => void saveBirthday()}>{busy === "birthday" ? "..." : "Saqlash"}</button>
+            {birthday.trim() ? <button className="btn btn-ghost btn-sm" onClick={() => { setBirthday(""); }}>Standartga qaytarish</button> : null}
+            {bMsg ? <span style={{ color: "var(--primary)", fontSize: 13, fontWeight: 600 }}>{bMsg}</span> : null}
           </div>
         </div>
         <div className="tg-profile">

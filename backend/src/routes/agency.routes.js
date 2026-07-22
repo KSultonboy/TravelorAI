@@ -58,6 +58,7 @@ router.get('/telegram', telegram.getTelegram);
 router.post('/telegram/connect', blockWhenReadOnly, telegram.connectTelegram);
 router.post('/telegram/disconnect', blockWhenReadOnly, telegram.disconnectTelegram);
 router.put('/telegram/welcome', blockWhenReadOnly, telegram.setWelcome);
+router.put('/telegram/birthday-template', blockWhenReadOnly, telegram.setBirthdayTemplate);
 router.get('/telegram/profile', telegram.getProfile);
 router.put('/telegram/profile', blockWhenReadOnly, telegram.setProfile);
 router.get('/telegram/config', telegram.getConfig);
