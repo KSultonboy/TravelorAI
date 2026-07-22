@@ -19,6 +19,15 @@ import {
   type CrmLead,
   type CrmStage,
 } from "@/lib/agency/crm";
+import {
+  DOC_LIST,
+  openDocument,
+  getRequisites,
+  saveRequisites,
+  EMPTY_REQUISITES,
+  type DocType,
+  type DocRequisites,
+} from "@/lib/agency/documents";
 
 /* ---- tiny inline icons ---- */
 const I = {
@@ -649,6 +658,56 @@ function ContactActions({ lead }: { lead: { customerName: string; customerPhone?
     </div>
   );
 }
+/* Hujjat generatsiyasi — lid ma'lumotidan shartnoma/vaucher/hisob-faktura (print → PDF) */
+function DocMenu({ lead }: { lead: CrmLead }) {
+  const { me } = useAgencySession();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("pointerdown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+  if (!me) return null;
+  const agencyId = me.agency?.id || me.account.id || "anon";
+  const stop = (e: any) => e.stopPropagation();
+  function gen(type: DocType) {
+    setOpen(false);
+    const ok = openDocument({
+      type, agencyId, me: me!,
+      lead: {
+        customerName: lead.customerName,
+        customerPhone: lead.customerPhone,
+        customerEmail: lead.customerEmail,
+        travelers: lead.travelers,
+        travelDate: lead.travelDate,
+        tourTitle: lead.tourTitle,
+        tourCity: lead.tourCity,
+        totalEstimate: lead.totalEstimate,
+        currency: lead.currency,
+      },
+    });
+    if (!ok) alert("Brauzer yangi oynani bloklади. Pop-up'ga ruxsat bering va qayta urining.");
+  }
+  return (
+    <div className={`docmenu${open ? " open" : ""}`} ref={ref} onPointerDown={stop}>
+      <button type="button" className="doc-btn" onClick={() => setOpen((o) => !o)}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M8 13h8M8 17h6" /></svg>
+        Hujjat
+      </button>
+      <div className="doc-pop" role="menu">
+        {DOC_LIST.map((d) => (
+          <button key={d.type} type="button" className="doc-opt" onClick={() => gen(d.type)}>
+            <b>{d.label}</b><small>{d.hint}</small>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 function StageSelect({ value, onChange, disabled }: { value: CrmStage; onChange: (s: CrmStage) => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -706,6 +765,7 @@ function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver, re
                 <div className="foot"><span className={`badge2 ${SRC_BADGE[l.source] || "b-grey"}`}>{srcLabel(l.source)}</span><small>{timeAgo(l.createdAt)}</small></div>
                 <StageSelect value={l.stage} onChange={(s) => void move(l, s)} disabled={busyId === l.id || readOnly} />
                 <ContactActions lead={l} />
+                <DocMenu lead={l} />
                 {presByLead?.[l.id] ? <PresBadge p={presByLead[l.id]} /> : null}
                 {l.source === "telegram" ? <button className="tg-chat-btn" onClick={() => setChat(l)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>Telegram suhbat</button> : null}
               </article>
@@ -1654,7 +1714,42 @@ function TeamSection({ access }: any) {
   );
 }
 
-function Settings({ show, agency, refresh, logout, go, access, readOnly }: any) {
+/* Hujjat rekvizitlari — agentlikning huquqiy ma'lumoti (localStorage'да saqlanadi) */
+function DocRequisitesCard({ agencyId, readOnly }: { agencyId: string; readOnly?: boolean }) {
+  const [r, setR] = useState<DocRequisites>(EMPTY_REQUISITES);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { setR(getRequisites(agencyId)); }, [agencyId]);
+  function set(k: keyof DocRequisites, v: string) { setR((p) => ({ ...p, [k]: v })); setSaved(false); }
+  function save() { saveRequisites(agencyId, r); setSaved(true); setTimeout(() => setSaved(false), 1800); }
+  const F: { k: keyof DocRequisites; label: string; ph: string; full?: boolean }[] = [
+    { k: "legalName", label: "To'liq huquqiy nom", ph: "«Guli Travel» MChJ", full: true },
+    { k: "director", label: "Direktor F.I.Sh.", ph: "Abdullayev Aziz" },
+    { k: "stir", label: "STIR (INN)", ph: "300123456" },
+    { k: "phone", label: "Telefon", ph: "+998 90 123 45 67" },
+    { k: "address", label: "Yuridik manzil", ph: "Toshkent sh., Chilonzor t., ...", full: true },
+    { k: "bankName", label: "Bank nomi va filiali", ph: "Ipoteka Bank, Chilonzor f." },
+    { k: "account", label: "Hisob raqami (h/r)", ph: "2020 8000 ..." },
+    { k: "mfo", label: "MFO", ph: "00401" },
+  ];
+  return (
+    <div className="card" style={{ padding: 18 }}>
+      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {F.map((f) => (
+          <div className="fld" key={f.k} style={f.full ? { gridColumn: "1 / -1" } : undefined}>
+            <label>{f.label}</label>
+            <input value={r[f.k]} onChange={(e) => set(f.k, e.target.value)} placeholder={f.ph} disabled={readOnly} />
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+        <button className="btn btn-primary" onClick={save} disabled={readOnly}>Saqlash</button>
+        {saved ? <span style={{ color: "var(--primary)", fontSize: 13, fontWeight: 600 }}>Saqlandi ✓</span> : null}
+        <span style={{ color: "var(--t3)", fontSize: 12, marginLeft: "auto" }}>To&apos;ldirilmagan maydonlar hujjatда bo&apos;sh chiziq bo&apos;lib qoladi</span>
+      </div>
+    </div>
+  );
+}
+function Settings({ show, agency, agencyId, refresh, logout, go, access, readOnly }: any) {
   return (
     <section className={`view${show ? " active" : ""}`}>
       <div className="section-head"><div><h2>Sozlamalar</h2></div></div>
@@ -1664,6 +1759,9 @@ function Settings({ show, agency, refresh, logout, go, access, readOnly }: any) 
 
       <div className="section-head"><div><h2>Agentlik ma&apos;lumoti</h2><div className="sub">Nomi, logotipi va telefoni — sidebar va CRM&apos;da shu ma&apos;lumot ko&apos;rinadi</div></div></div>
       <ProfileForm agency={agency} refresh={refresh} readOnly={readOnly} />
+
+      <div className="section-head"><div><h2>Hujjat rekvizitlari</h2><div className="sub">Shartnoma, vaucher va hisob-fakturaga avtomatik qo&apos;yiladi — bir marta to&apos;ldiring</div></div></div>
+      <DocRequisitesCard agencyId={agencyId} readOnly={readOnly} />
 
       <div className="section-head"><div><h2>Integratsiyalar</h2><div className="sub">Tashqi kanallarni ulang va boshqaring</div></div></div>
       <TelegramCard go={go} />

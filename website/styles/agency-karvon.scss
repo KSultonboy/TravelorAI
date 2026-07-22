@@ -298,6 +298,24 @@
   .tg-chat-btn svg{ width:14px; height:14px; }
   .tg-chat-btn:hover{ background:var(--sky); color:#fff; border-color:var(--sky); }
   .tbl-wrap .tg-chat-btn{ width:auto; margin-top:0; padding:0 14px; display:inline-flex; }
+
+  /* hujjatlar (shartnoma / vaucher / hisob-faktura) */
+  .docmenu{ position:relative; margin-top:8px; }
+  .doc-btn{ width:100%; display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; border-radius:9px; border:1px solid #E7D9AE; background:rgba(184,134,11,.08); color:var(--gold-ink); font-family:var(--disp); font-size:12px; font-weight:600; cursor:pointer; transition:.13s; }
+  .doc-btn svg{ width:14px; height:14px; }
+  .doc-btn:hover{ background:rgba(184,134,11,.16); border-color:var(--gold, #B8860B); }
+  .docmenu.open .doc-btn{ background:rgba(184,134,11,.16); border-color:var(--gold, #B8860B); box-shadow:0 0 0 3px rgba(184,134,11,.14); }
+  .doc-pop{ position:absolute; bottom:calc(100% + 6px); left:0; right:0; z-index:55;
+    background:#fff; border:1px solid var(--border); border-radius:11px; padding:6px; box-shadow:var(--shadow);
+    opacity:0; visibility:hidden; pointer-events:none; transform:translateY(4px) scale(.98); transition:.14s ease; }
+  .docmenu.open .doc-pop{ opacity:1; visibility:visible; pointer-events:auto; transform:translateY(0) scale(1); }
+  .doc-opt{ width:100%; display:block; text-align:left; padding:8px 10px; border:0; border-radius:8px; background:transparent; cursor:pointer; color:var(--t1); }
+  .doc-opt:hover{ background:var(--canvas); }
+  .doc-opt b{ display:block; font-size:12.5px; font-weight:600; }
+  .doc-opt small{ display:block; color:var(--t3); font-size:11px; margin-top:1px; }
+  .tbl-wrap .docmenu{ display:inline-block; width:auto; margin-top:0; vertical-align:middle; }
+  .tbl-wrap .doc-btn{ width:auto; padding:0 14px; height:30px; }
+  .tbl-wrap .doc-pop{ left:auto; right:0; min-width:200px; }
   .tg-chat{ width:min(460px,100%); height:min(620px,90vh); display:flex; flex-direction:column; padding:0; overflow:hidden; }
   .tg-chat-head{ display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--border); }
   .tg-chat-head b{ font-family:var(--disp); font-size:15px; display:block; }
