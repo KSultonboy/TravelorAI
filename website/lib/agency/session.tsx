@@ -82,8 +82,10 @@ export function AgencySessionProvider({ children }: { children: ReactNode }) {
     // MUHIM: state'ni o'zgartirmasdan darrov navigatsiya qilamiz. Aks holda
     // setPhase("guest") oraliq ekranni bir zumga chizadi ("miltillash"). Joriy
     // ekran /signin yuklanguncha turadi — hech qanday oraliq ko'rinmaydi.
+    // replace — assign emas: tarixда /agency qolmaydi, shuning uchun /signin'да
+    // "orqaga" bosilganda guest ekraniga qaytib qolmaydi.
     if (typeof window !== "undefined") {
-      window.location.assign("/signin");
+      window.location.replace("/signin");
       return;
     }
     setMe(null);

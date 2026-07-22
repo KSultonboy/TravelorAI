@@ -220,6 +220,15 @@ function UpgradeNotice({ section, planName, go }: { section: string; planName?: 
   );
 }
 
+/* Chiqib bo'lgan holda /agency'ga kelsa — guest ekranни ko'rsatmay, /signin'ga.
+   replace: /agency tarixда qolmaydi, "orqaga"да bu yerga qaytib qolinmaydi. */
+function RedirectToSignin() {
+  useEffect(() => {
+    if (typeof window !== "undefined") window.location.replace("/signin");
+  }, []);
+  return <div className="kv"><div className="kv-center"><svg className="kv-spin" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.2-8.5" /></svg><p>Yo‘naltirilmoqda…</p></div></div>;
+}
+
 /* ========= Bir martalik parol — birinchi kirishда majburiy almashtirish ========= */
 function ChangePasswordGate({ email, onDone, logout }: { email: string; onDone: () => void; logout: () => Promise<void> | void }) {
   const [pw1, setPw1] = useState("");
@@ -347,7 +356,7 @@ export default function KvCabinet() {
     return <div className="kv"><div className="kv-center"><svg className="kv-spin" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.2-8.5" /></svg><p>Yuklanmoqda…</p></div></div>;
   }
   if (phase === "guest") {
-    return <div className="kv"><div className="kv-center"><h2>Agentlik kabineti</h2><p>Davom etish uchun hamkor sifatida tizimga kiring.</p><a className="btn btn-primary" href="/signin">Kirish</a></div></div>;
+    return <RedirectToSignin />;
   }
   if (phase === "onboarding") {
     return <div className="kv"><div className="kv-center"><h2>Hisobingiz ko'rib chiqilmoqda</h2><p>Agentligingiz tasdiqlangach, CRM kabineti ochiladi.</p><button className="btn btn-ghost" onClick={() => void logout()}>Chiqish</button></div></div>;
