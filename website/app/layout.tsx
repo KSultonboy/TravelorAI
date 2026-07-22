@@ -33,25 +33,32 @@ export const metadata: Metadata = {
   },
   description:
     "AI yordamida sayohatlarni rejalashtiring. Tasdiqlangan joylar, aqlli marshrutlar, agentlik reytinglari va mobil-birinchi sayohat tajribasi.",
-  // Mahalliy xaridor aynan shu so'zlar bilan qidiradi (o'zbek + rus + brend).
+  // Uch bozor: chiqish (o'zbek/rus xaridor), ichki + kirish turizmi (ingliz sayohatchi).
   keywords: [
     "TravelorAI",
+    // Chiqish turizmi — o'zbek
     "tur agentligi",
     "sayohat agentligi",
     "Umra tur",
-    "Umra narxi",
     "Dubay tur",
     "Turkiya tur",
     "chet el turlari",
-    "aviabilet",
     "tur paketlar",
     "O'zbekiston sayohat",
-    "sayohat rejalashtirish",
+    // Chiqish/CIS — rus
     "туры из Ташкента",
     "турагентство Узбекистан",
     "тур в Дубай",
-    "тур в Турцию",
     "Умра из Узбекистана",
+    // Kirish + ichki turizm — ingliz (chet ellik sayohatchilar)
+    "Uzbekistan tours",
+    "Uzbekistan travel agency",
+    "Samarkand tour",
+    "Bukhara tour",
+    "Khiva tour",
+    "Silk Road tour",
+    "Tashkent city tour",
+    "Central Asia travel",
   ],
   authors: [{ name: "TravelorAI" }],
   creator: "TravelorAI",
@@ -119,11 +126,11 @@ const jsonLd = [
     name: "TravelorAI",
     url: BASE_URL,
     description:
-      "O'zbekistondagi sayohat agentliklari uchun onlayn platforma. Tasdiqlangan tur paketlar: Umra, Dubay, Turkiya va boshqa yo'nalishlar. AI yordamida rejalashtiring va ishonchli agentlikdan bron qiling.",
+      "O'zbekistondagi sayohat agentliklari uchun onlayn platforma. Chiqish, ichki va kirish turizmi: Umra, Dubay, Turkiya hamda Samarqand, Buxoro, Xiva bo'ylab tur paketlar. AI yordamida rejalashtiring va ishonchli agentlikdan bron qiling.",
     image: `${BASE_URL}/og-image.svg`,
     priceRange: "$$",
     areaServed: { "@type": "Country", name: "Uzbekistan" },
-    availableLanguage: ["uz", "ru"],
+    availableLanguage: ["uz", "ru", "en"],
     sameAs: SOCIAL_LINKS,
   },
 ];
