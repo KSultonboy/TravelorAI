@@ -34,7 +34,9 @@ const PLANS = {
   },
 
   // $59 (Premium) — hammasi + jamoa + AI + integratsiyalar.
+  // `business` (eski slug) va `premium` (yangi nomdan hosil bo'lishi mumkin) — ikkisi ham to'liq.
   business: { sections: ALL_SECTIONS, caps: { ...ALL_CAPS } },
+  premium: { sections: ALL_SECTIONS, caps: { ...ALL_CAPS } },
 
   // Enterprise — hammasi.
   enterprise: { sections: ALL_SECTIONS, caps: { ...ALL_CAPS } },
