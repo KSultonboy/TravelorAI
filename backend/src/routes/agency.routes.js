@@ -7,6 +7,7 @@ const team = require('../controllers/agencyTeam.controller');
 const presentation = require('../controllers/presentation.controller');
 const geocodeCtrl = require('../controllers/geocode.controller');
 const aiCtrl = require('../controllers/ai.controller');
+const leadFiles = require('../controllers/leadFiles.controller');
 
 router.post('/auth/register', agency.register);
 router.post('/auth/verify-email', agency.verifyEmail);
@@ -46,6 +47,12 @@ router.patch('/bookings/:id/birthday', blockWhenReadOnly, agency.setCustomerBirt
 // Mijoz sharhlari + reyting (marketplace'да ko'rinadi) — ko'rish hammaga ochiq.
 router.get('/reviews', agency.listReviews);
 router.patch('/reviews/:id', blockWhenReadOnly, agency.setReviewStatus);
+
+// Lid fayllari (pasport / viza / shartnoma) — DB'да, faqat egasiga.
+router.get('/bookings/:id/files', leadFiles.listFiles);
+router.post('/bookings/:id/files', blockWhenReadOnly, leadFiles.uploadFile);
+router.get('/files/:id', leadFiles.downloadFile);
+router.delete('/files/:id', blockWhenReadOnly, leadFiles.deleteFile);
 
 // AI yordamchilar — faqat Premium.
 router.get('/ai/status', requireCapability('ai'), aiCtrl.status);

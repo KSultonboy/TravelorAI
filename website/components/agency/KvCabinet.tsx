@@ -711,6 +711,111 @@ function DocMenu({ lead }: { lead: CrmLead }) {
     </div>
   );
 }
+/* Lid hujjatlari (pasport / viza / shartnoma) — DB'да, maxfiy, faqat egasi ko'radi */
+type LeadFileMeta = { id: string; name: string; mimeType: string; size: number; createdAt: string };
+function fileSize(n: number) { return n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`; }
+function FilesButton({ lead, readOnly }: { lead: CrmLead; readOnly?: boolean }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" className="file-btn" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); setOpen(true); }}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
+        Hujjatlar
+      </button>
+      {open ? <FilesModal lead={lead} readOnly={readOnly} onClose={() => setOpen(false)} /> : null}
+    </>
+  );
+}
+function FilesModal({ lead, readOnly, onClose }: { lead: CrmLead; readOnly?: boolean; onClose: () => void }) {
+  const [files, setFiles] = useState<LeadFileMeta[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const load = async () => {
+    const res = await agencyApi<{ files: LeadFileMeta[] }>(`/bookings/${lead.id}/files`);
+    setLoading(false);
+    if (res.success) setFiles(res.data.files);
+  };
+  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (inputRef.current) inputRef.current.value = "";
+    if (!file) return;
+    setErr("");
+    if (file.size > 6 * 1024 * 1024) { setErr("Fayl hajmi 6 MB dan oshmasligi kerak."); return; }
+    if (!["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(file.type)) { setErr("Faqat JPG, PNG, WEBP yoki PDF."); return; }
+    setBusy(true);
+    const dataUrl: string = await new Promise((resolve) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = () => resolve("");
+      r.readAsDataURL(file);
+    });
+    if (!dataUrl) { setBusy(false); setErr("Faylni o'qib bo'lmadi."); return; }
+    const res = await agencyApi(`/bookings/${lead.id}/files`, { method: "POST", body: JSON.stringify({ name: file.name, dataUrl }) });
+    setBusy(false);
+    if (res.success) await load();
+    else setErr(res.message || "Yuklab bo'lmadi.");
+  }
+  async function openFile(f: LeadFileMeta) {
+    setErr("");
+    const res = await agencyApi<{ file: { dataUrl: string } }>(`/files/${f.id}`);
+    if (!res.success) { setErr(res.message || "Ochib bo'lmadi."); return; }
+    try {
+      const b64 = res.data.file.dataUrl.split(",")[1] || "";
+      const bin = atob(b64);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i += 1) arr[i] = bin.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([arr], { type: f.mimeType }));
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch { setErr("Ochib bo'lmadi."); }
+  }
+  async function del(f: LeadFileMeta) {
+    if (typeof window !== "undefined" && !window.confirm(`"${f.name}" o'chirilsinmi?`)) return;
+    setBusy(true);
+    const res = await agencyApi(`/files/${f.id}`, { method: "DELETE" });
+    setBusy(false);
+    if (res.success) await load();
+  }
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(11,42,30,.42)", backdropFilter: "blur(3px)", zIndex: 70, display: "grid", placeItems: "center", padding: 16 }} onPointerDown={(e) => e.stopPropagation()} onClick={onClose}>
+      <div className="card" style={{ width: "min(520px,100%)", padding: 22, maxHeight: "88vh", overflow: "auto" }} onClick={(e) => e.stopPropagation()}>
+        <div className="section-head" style={{ margin: "0 0 12px" }}><div><h2>Hujjatlar</h2><div className="sub">{lead.customerName} — pasport, viza, shartnoma (JPG/PNG/PDF, ≤6 MB)</div></div></div>
+        {err ? <div className="note" style={{ marginBottom: 12, background: "var(--rose-soft)", color: "#8f2a20", borderColor: "#f3c9c4" }}>{err}</div> : null}
+        {!readOnly ? (
+          <div style={{ marginBottom: 14 }}>
+            <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style={{ display: "none" }} onChange={onPick} />
+            <button className="btn btn-primary" disabled={busy} onClick={() => inputRef.current?.click()}>{busy ? "Yuklanmoqda…" : "+ Fayl yuklash"}</button>
+          </div>
+        ) : null}
+        {loading ? (
+          <div style={{ color: "var(--t2)", fontSize: 13 }}>Yuklanmoqda…</div>
+        ) : files.length ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {files.map((f) => (
+              <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", border: "1px solid var(--border)", borderRadius: 10 }}>
+                <span style={{ fontSize: 18, flex: "none" }}>{f.mimeType === "application/pdf" ? "📄" : "🖼"}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.name}</div>
+                  <div style={{ fontSize: 11, color: "var(--t3)" }}>{fileSize(f.size)} · {formatDate(f.createdAt)}</div>
+                </div>
+                <button className="btn btn-ghost btn-sm" onClick={() => void openFile(f)}>Ochish</button>
+                {!readOnly ? <button className="btn btn-ghost btn-sm" style={{ color: "#c0392b" }} disabled={busy} onClick={() => void del(f)}>O&apos;chirish</button> : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ color: "var(--t3)", fontSize: 13, textAlign: "center", padding: "16px 0" }}>Hali hujjat biriktirilmagan.</div>
+        )}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+          <button className="btn btn-ghost" onClick={onClose}>Yopish</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 function StageSelect({ value, onChange, disabled }: { value: CrmStage; onChange: (s: CrmStage) => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -768,7 +873,10 @@ function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver, re
                 <div className="foot"><span className={`badge2 ${SRC_BADGE[l.source] || "b-grey"}`}>{srcLabel(l.source)}</span><small>{timeAgo(l.createdAt)}</small></div>
                 <StageSelect value={l.stage} onChange={(s) => void move(l, s)} disabled={busyId === l.id || readOnly} />
                 <ContactActions lead={l} />
-                <DocMenu lead={l} />
+                <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                  <div style={{ flex: 1 }}><DocMenu lead={l} /></div>
+                  <FilesButton lead={l} readOnly={readOnly} />
+                </div>
                 {presByLead?.[l.id] ? <PresBadge p={presByLead[l.id]} /> : null}
                 {l.source === "telegram" ? <button className="tg-chat-btn" onClick={() => setChat(l)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>Telegram suhbat</button> : null}
               </article>

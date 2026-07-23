@@ -621,6 +621,24 @@ model TourReview {
   @@index([agencyId, status])
 }
 
+// Lidga biriktirilgan hujjat/fayl (pasport, viza, shartnoma skani).
+// Fayl DB'da (bytea) saqlanadi — PII, shuning uchun ochiq /uploads statik yo'lida
+// EMAS; faqat autentifikatsiyalangan endpoint orqali beriladi. Bog'lanishsiz —
+// divergent prod DB uchun xavfsiz.
+model LeadFile {
+  id        String   @id @default(cuid())
+  agencyId  String
+  bookingId String
+  name      String
+  mimeType  String
+  size      Int
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  @@index([bookingId])
+  @@index([agencyId])
+}
+
 // Dinamik taklif (prezentatsiya) — agent mijozga shaxsiy link yuboradi, ochilishi kuzatiladi.
 // Public sahifada mijoz telefoni/emaili KO'RSATILMAYDI — faqat ism (agent o'zi kiritadi).
 model TourPresentation {

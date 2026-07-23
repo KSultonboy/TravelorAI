@@ -300,7 +300,7 @@
   .tbl-wrap .tg-chat-btn{ width:auto; margin-top:0; padding:0 14px; display:inline-flex; }
 
   /* hujjatlar (shartnoma / vaucher / hisob-faktura) */
-  .docmenu{ position:relative; margin-top:8px; }
+  .docmenu{ position:relative; }
   .doc-btn{ width:100%; display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; border-radius:9px; border:1px solid #E7D9AE; background:rgba(184,134,11,.08); color:var(--gold-ink); font-family:var(--disp); font-size:12px; font-weight:600; cursor:pointer; transition:.13s; }
   .doc-btn svg{ width:14px; height:14px; }
   .doc-btn:hover{ background:rgba(184,134,11,.16); border-color:var(--gold, #B8860B); }
@@ -316,6 +316,11 @@
   .tbl-wrap .docmenu{ display:inline-block; width:auto; margin-top:0; vertical-align:middle; }
   .tbl-wrap .doc-btn{ width:auto; padding:0 14px; height:30px; }
   .tbl-wrap .doc-pop{ left:auto; right:0; min-width:200px; }
+
+  /* lid hujjatlari (fayl biriktirish) */
+  .file-btn{ flex:none; display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border-radius:9px; border:1px solid #CDE0EC; background:var(--sky-soft); color:#255d7d; font-family:var(--disp); font-size:12px; font-weight:600; cursor:pointer; transition:.13s; }
+  .file-btn svg{ width:14px; height:14px; }
+  .file-btn:hover{ background:var(--sky); color:#fff; border-color:var(--sky); }
   .tg-chat{ width:min(460px,100%); height:min(620px,90vh); display:flex; flex-direction:column; padding:0; overflow:hidden; }
   .tg-chat-head{ display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--border); }
   .tg-chat-head b{ font-family:var(--disp); font-size:15px; display:block; }
