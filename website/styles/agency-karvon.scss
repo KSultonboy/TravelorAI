@@ -107,6 +107,8 @@
   .section-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin:26px 0 14px; }
   .section-head:first-child{ margin-top:0; }
   .section-head h2{ font-family:var(--disp); font-size:16px; font-weight:600; }
+  /* Barcha sarlavhalar tema token'idan (global qorong'i h2/h3 rangini bekor qiladi) */
+  h1, h2, h3, h4 { color:var(--t1); }
   .section-head .sub{ color:var(--t2); font-size:12.5px; margin-top:2px; }
   .link{ color:var(--primary); font-weight:600; font-size:13px; display:inline-flex; align-items:center; gap:4px; background:none; border:none; }
   .link:hover{ color:var(--primary-ink); }
@@ -593,3 +595,12 @@
 :root[data-theme="dark"] .kv .search{ background:var(--canvas); }
 :root[data-theme="dark"] .kv .sub-card__warn{ color:#f0b3ab; }
 :root[data-theme="dark"] .kv .doc-ph code{ color:var(--primary-ink); }
+/* kanban ustuni, jadval header, funnel yo'lakchasi — dark */
+:root[data-theme="dark"] .kv .kcol{ background:#121c17; }
+:root[data-theme="dark"] .kv thead th{ background:#131e19; }
+:root[data-theme="dark"] .kv .funnel .track{ background:#0c1511; }
+:root[data-theme="dark"] .kv .b-amber{ background:rgba(202,138,4,.22); color:#ecc879; }
+:root[data-theme="dark"] .kv .b-green{ background:rgba(34,168,107,.2); color:#8fe3b6; }
+:root[data-theme="dark"] .kv .b-sky{ background:rgba(62,134,176,.22); color:#a6d3ea; }
+:root[data-theme="dark"] .kv .b-grey{ background:rgba(255,255,255,.08); color:#c3d3ca; }
+:root[data-theme="dark"] .kv .b-rose{ background:rgba(192,57,43,.22); color:#f0b3ab; }

@@ -107,10 +107,8 @@ const NAV: { key: string; label: string; icon: string; group: string; badge?: "l
   { key: "dashboard", label: "Boshqaruv paneli", icon: I.grid, group: "Asosiy" },
   { key: "leads", label: "Lidlar / Voronka", icon: I.list, group: "Asosiy", badge: "leads" },
   { key: "customers", label: "Mijozlar", icon: I.users, group: "Asosiy" },
-  { key: "tasks", label: "Vazifalar", icon: I.clock, group: "Asosiy", badge: "tasks" },
   { key: "packages", label: "Turlar / Paketlar", icon: I.box, group: "Sotuv" },
   { key: "presentations", label: "Takliflar", icon: I.send, group: "Sotuv" },
-  { key: "bookings", label: "Bronlar", icon: I.cal, group: "Sotuv" },
   { key: "reviews", label: "Sharhlar", icon: I.star, group: "Sotuv" },
   { key: "payments", label: "To'lovlar", icon: I.card, group: "Sotuv" },
   { key: "reports", label: "Hisobotlar", icon: I.chart, group: "Boshqa" },
@@ -440,7 +438,7 @@ export default function KvCabinet() {
   const canExport = caps.csvExport !== false;
   const allowedSections = access?.sections || null; // null = cheklovsiz (grandfather / eski agentlik)
   const sectionAllowed = (key: string) => {
-    if (key === "dashboard" || key === "settings" || key === "tasks" || key === "reviews" || key === "documents") return true; // doim ochiq
+    if (key === "dashboard" || key === "settings" || key === "reviews" || key === "documents") return true; // doim ochiq
     if (key === "telegram") return caps.telegram !== false;
     if (key === "presentations") return caps.presentations !== false;
     if (!allowedSections) return true;
@@ -520,10 +518,8 @@ export default function KvCabinet() {
                 <Dashboard show={view === "dashboard"} leads={leads} tasks={tasks} stats={bookingStats} agencyId={agencyId} go={setView} />
                 <Leads show={view === "leads"} leads={leads} move={guardedMove} busyId={busyId} dragId={dragId} setDragId={setDragId} over={over} setOver={setOver} readOnly={readOnly} canExport={canExport} presByLead={presByLead} refresh={refreshBookings} />
                 <Customers show={view === "customers"} customers={customers} canExport={canExport} readOnly={readOnly} refresh={refreshBookings} />
-                <Tasks show={view === "tasks"} agencyId={agencyId} tasks={tasks} leads={leads} readOnly={readOnly} />
                 <Packages show={view === "packages"} tours={tours} agencyId={agencyId} refreshTours={refreshTours} readOnly={readOnly} />
                 <Presentations show={view === "presentations"} items={presentations} leads={leads} tours={tours} reload={reloadPresentations} readOnly={readOnly} />
-                <Bookings show={view === "bookings"} bookings={bookings} agencyId={agencyId} refreshBookings={refreshBookings} refresh={refresh} readOnly={readOnly} canExport={canExport} />
                 <Reviews show={view === "reviews"} readOnly={readOnly} />
                 <Payments show={view === "payments"} leads={leads} move={guardedMove} busyId={busyId} readOnly={readOnly} canExport={canExport} />
                 <Reports show={view === "reports"} leads={leads} />
@@ -542,7 +538,7 @@ export default function KvCabinet() {
 }
 
 /* ================= DASHBOARD ================= */
-function Dashboard({ show, leads, tasks, stats, agencyId, go }: any) {
+function Dashboard({ show, leads, stats, go }: any) {
   const m = useMemo(() => {
     const c = (s: CrmStage) => leads.filter((l: CrmLead) => l.stage === s).length;
     const counts = { new: c("new"), contacted: c("contacted"), quoted: c("quoted"), won: c("won"), completed: c("completed") };
@@ -555,9 +551,6 @@ function Dashboard({ show, leads, tasks, stats, agencyId, go }: any) {
   }, [leads]);
   const upcoming = useMemo(() => leads.filter((l: CrmLead) => l.travelDate && new Date(l.travelDate).getTime() > Date.now() && (l.stage === "won" || l.stage === "completed")).slice(0, 4), [leads]);
   const recent = useMemo(() => leads.filter((l: CrmLead) => (l.stage === "won" || l.stage === "completed") && l.totalEstimate).slice(0, 4), [leads]);
-  const [, setV] = useState(0);
-  const doneTasks = tasks.filter((t: any) => t.done).length;
-
   const FUN: { key: CrmStage; label: string }[] = [
     { key: "new", label: "Yangi so'rov" }, { key: "contacted", label: "Bog'lanildi" }, { key: "quoted", label: "Taklif yuborildi" }, { key: "won", label: "Kelishildi" }, { key: "completed", label: "Yakunlandi" },
   ];
@@ -571,35 +564,21 @@ function Dashboard({ show, leads, tasks, stats, agencyId, go }: any) {
         <Kpi icon={I.chart} val={(stats?.conversion ?? m.conv) + "%"} lbl="Konversiya" />
       </div>
 
-      <div className="grid g2" style={{ marginTop: 16 }}>
-        <div className="card">
-          <div className="section-head" style={{ margin: "16px 20px 4px" }}><div><h2>Sotuv voronkasi</h2></div><button className="link" onClick={() => go("leads")}>Ochish →</button></div>
-          <div className="funnel">
-            {FUN.map((f) => (
-              <div className={`row${f.key === "won" ? " won" : ""}`} key={f.key}>
-                <span className="name">{f.label}</span>
-                <div className="track"><div className="fill" style={{ width: `${Math.max(8, ((m.counts as any)[f.key] / m.maxF) * 100)}%` }}>{(m.counts as any)[f.key]}</div></div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="card">
-          <div className="section-head" style={{ margin: "16px 18px 2px" }}><div><h2>Vazifalar</h2><div className="sub">{tasks.length - doneTasks} ochiq</div></div><button className="link" onClick={() => go("tasks")}>Ochish →</button></div>
-          <div className="list">
-            {tasks.length ? tasks.slice(0, 5).map((t: any) => (
-              <div className={`task${t.done ? " done" : ""}`} key={t.id}>
-                <button className="box" onClick={() => { toggleTask(agencyId, t.id); setV((x) => x + 1); }}><Ic d={I.check} s={13} /></button>
-                <span className="tx">{t.title}</span>
-                <span className="time" style={isOverdue(t) ? { color: "#F43F5E", fontWeight: 600 } : undefined}>{t.dueAt ? dueInfo(t.dueAt).label : "—"}</span>
-              </div>
-            )) : <Empty icon={I.check} text="Hozircha vazifa yo'q." />}
-          </div>
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="section-head" style={{ margin: "16px 20px 4px" }}><div><h2>Sotuv voronkasi</h2></div><button className="link" onClick={() => go("leads")}>Ochish →</button></div>
+        <div className="funnel">
+          {FUN.map((f) => (
+            <div className={`row${f.key === "won" ? " won" : ""}`} key={f.key}>
+              <span className="name">{f.label}</span>
+              <div className="track"><div className="fill" style={{ width: `${Math.max(8, ((m.counts as any)[f.key] / m.maxF) * 100)}%` }}>{(m.counts as any)[f.key]}</div></div>
+            </div>
+          ))}
         </div>
       </div>
 
       <div className="grid g2" style={{ marginTop: 16 }}>
         <div className="card">
-          <div className="section-head" style={{ margin: "16px 18px 2px" }}><div><h2>Yaqinlashayotgan sayohatlar</h2></div><button className="link" onClick={() => go("bookings")}>Barchasi →</button></div>
+          <div className="section-head" style={{ margin: "16px 18px 2px" }}><div><h2>Yaqinlashayotgan sayohatlar</h2></div><button className="link" onClick={() => go("leads")}>Barchasi →</button></div>
           <div className="mini">
             {upcoming.length ? upcoming.map((l: CrmLead) => (
               <div className="r" key={l.id}><div className="av-sm">{initials(l.customerName)}</div><div><b>{l.customerName}</b><small>{l.tourTitle || "Tur"}</small></div><div className="end"><span className="badge2 b-green">{formatDate(l.travelDate)}</span></div></div>
@@ -708,7 +687,7 @@ function ContactActions({ lead }: { lead: { customerName: string; customerPhone?
     <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }} onPointerDown={stop}>
       {wa ? <a href={wa} target="_blank" rel="noreferrer" title="WhatsApp" onClick={stop} style={{ ...base, background: "#25D366" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.5 14.4c-.3-.15-1.7-.85-2-.95-.26-.1-.45-.15-.64.15-.19.28-.73.94-.9 1.13-.16.19-.33.21-.61.07-.3-.15-1.25-.46-2.38-1.47-.88-.78-1.47-1.75-1.64-2.04-.17-.29-.02-.44.13-.59.13-.13.3-.34.44-.51.15-.17.19-.29.29-.48.1-.19.05-.36-.02-.51-.08-.15-.64-1.55-.88-2.12-.23-.55-.47-.48-.64-.49h-.55c-.19 0-.5.07-.76.36-.26.29-1 .98-1 2.38s1.02 2.76 1.17 2.95c.14.19 2.01 3.08 4.88 4.32.68.29 1.21.47 1.63.6.68.22 1.3.19 1.79.11.55-.08 1.7-.69 1.94-1.36.24-.67.24-1.24.17-1.36-.07-.12-.26-.19-.55-.34zM12 2a10 10 0 0 0-8.6 15.06L2 22l5.06-1.33A10 10 0 1 0 12 2z" /></svg></a> : null}
       {tg ? <a href={tg} target="_blank" rel="noreferrer" title="Telegram" onClick={stop} style={{ ...base, background: "#229ED9" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.3 18.7 19.4c-.24 1.06-.87 1.32-1.76.82l-4.87-3.59-2.35 2.26c-.26.26-.48.48-.98.48l.35-4.96 9.02-8.15c.39-.35-.09-.55-.6-.2L6.83 13.2l-4.8-1.5c-1.04-.33-1.06-1.04.22-1.54l18.77-7.23c.87-.32 1.63.2 1.35 1.37z" /></svg></a> : null}
-      {tel ? <a href={tel} title="Qo'ng'iroq" onClick={stop} style={{ ...base, background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.2)" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.5-1.1a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z" /></svg></a> : null}
+      {tel ? <a href={tel} title="Qo'ng'iroq" onClick={stop} style={{ ...base, background: "#64748B" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.5-1.1a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z" /></svg></a> : null}
     </div>
   );
 }
@@ -1463,10 +1442,7 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
           <h2>Dinamik takliflar</h2>
           <div className="sub">{stats.total} ta yuborilgan · {stats.viewed} ko&apos;rildi · {stats.interested} qiziqish bildirdi</div>
         </div>
-        <NotifyToggle />
       </div>
-
-      <TelegramAlertSetup />
 
       {created ? (
         <div className="card" style={{ padding: 16, marginBottom: 12, borderColor: "rgba(234,179,8,.45)" }}>
