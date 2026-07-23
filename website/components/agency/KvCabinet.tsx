@@ -850,6 +850,7 @@ function StageSelect({ value, onChange, disabled }: { value: CrmStage; onChange:
 
 function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver, readOnly, canExport, presByLead }: any) {
   const [chat, setChat] = useState<CrmLead | null>(null);
+  const [detailId, setDetailId] = useState<string>("");
   const byStage = useMemo(() => {
     const map: Record<CrmStage, CrmLead[]> = { new: [], contacted: [], quoted: [], won: [], completed: [], lost: [] };
     for (const l of leads) map[(l as CrmLead).stage].push(l);
@@ -866,27 +867,101 @@ function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver, re
             onDrop={() => { const l = leads.find((x: CrmLead) => x.id === dragId); setOver(""); setDragId(""); if (l) void move(l, s.key); }}>
             <div className="khead"><span className="acc" /><b>{s.label}</b><span className="n">{byStage[s.key as CrmStage].length}</span></div>
             {byStage[s.key as CrmStage].map((l) => (
-              <article key={l.id} className="kcard" draggable={!readOnly} onDragStart={() => setDragId(l.id)} onDragEnd={() => setDragId("")} style={busyId === l.id ? { opacity: 0.5 } : undefined}>
+              <article key={l.id} className="kcard kcard-min" draggable={!readOnly}
+                onDragStart={() => setDragId(l.id)} onDragEnd={() => setDragId("")}
+                onClick={() => setDetailId(l.id)}
+                title="Batafsil ko'rish uchun bosing"
+                style={busyId === l.id ? { opacity: 0.5 } : undefined}>
                 <b>{l.customerName}</b>
-                <div className="dir">{l.tourTitle || "Tur ko'rsatilmagan"}</div>
-                {l.totalEstimate ? <span className="sum">{formatMoney(l.totalEstimate)}</span> : <span className="dir">Summa yo'q</span>}
-                <div className="foot"><span className={`badge2 ${SRC_BADGE[l.source] || "b-grey"}`}>{srcLabel(l.source)}</span><small>{timeAgo(l.createdAt)}</small></div>
-                <StageSelect value={l.stage} onChange={(s) => void move(l, s)} disabled={busyId === l.id || readOnly} />
-                <ContactActions lead={l} />
-                <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                  <div style={{ flex: 1 }}><DocMenu lead={l} /></div>
-                  <FilesButton lead={l} readOnly={readOnly} />
+                <div className="foot">
+                  <span className={`badge2 ${SRC_BADGE[l.source] || "b-grey"}`}>{srcLabel(l.source)}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {presByLead?.[l.id]?.status === "interested" ? <span title="Taklifga qiziqish bildirdi" style={{ color: "#EAB308", fontSize: 11, lineHeight: 1 }}>●</span> : null}
+                    <small>{timeAgo(l.createdAt)}</small>
+                  </div>
                 </div>
-                {presByLead?.[l.id] ? <PresBadge p={presByLead[l.id]} /> : null}
-                {l.source === "telegram" ? <button className="tg-chat-btn" onClick={() => setChat(l)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>Telegram suhbat</button> : null}
               </article>
             ))}
             {byStage[s.key as CrmStage].length === 0 ? <div style={{ textAlign: "center", color: "#aab6b0", fontSize: 12, padding: "10px 0" }}>Bo&apos;sh</div> : null}
           </div>
         ))}
       </div>
+      {(() => {
+        const dl = leads.find((x: CrmLead) => x.id === detailId);
+        return dl ? (
+          <LeadDetail lead={dl} readOnly={readOnly} busyId={busyId} pres={presByLead?.[dl.id]}
+            onMove={move} onClose={() => setDetailId("")}
+            onOpenChat={(l: CrmLead) => { setDetailId(""); setChat(l); }} />
+        ) : null;
+      })()}
       {chat ? <TelegramChat lead={chat} onClose={() => setChat(null)} readOnly={readOnly} /> : null}
     </section>
+  );
+}
+
+/* Lid batafsil oynasi — kartaga bosilganда ochiladi; barcha ma'lumot + amallar shu yerда */
+function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat }: {
+  lead: CrmLead; readOnly?: boolean; busyId?: string; pres?: any;
+  onMove: (l: CrmLead, s: CrmStage) => void; onClose: () => void; onOpenChat: (l: CrmLead) => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const fields: [string, React.ReactNode][] = [
+    ["Telefon", lead.customerPhone || "—"],
+    ["Email", lead.customerEmail || "—"],
+    ["Yo'nalish / Tur", lead.tourTitle || "—"],
+    ["Shahar", lead.tourCity || "—"],
+    ["Kishilar soni", lead.travelers || "—"],
+    ["Sayohat sanasi", lead.travelDate ? formatDate(lead.travelDate) : "—"],
+    ["Taxminiy summa", lead.totalEstimate ? formatMoney(lead.totalEstimate) : "—"],
+    ["Tug'ilgan kun", lead.customerBirthday ? formatDate(lead.customerBirthday) : "—"],
+  ];
+  if (lead.utmSource) fields.push(["Manba (UTM)", lead.utmSource]);
+  return (
+    <div className="ld-overlay" onPointerDown={(e) => e.stopPropagation()} onClick={onClose}>
+      <div className="ld-panel card" onClick={(e) => e.stopPropagation()}>
+        <button className="ld-x" onClick={onClose} aria-label="Yopish"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg></button>
+        <div className="ld-head">
+          <span className="ld-av">{initials(lead.customerName)}</span>
+          <div className="ld-headmeta">
+            <h2>{lead.customerName}</h2>
+            <div className="ld-sub"><span className={`badge2 ${SRC_BADGE[lead.source] || "b-grey"}`}>{srcLabel(lead.source)}</span><small>{timeAgo(lead.createdAt)}</small></div>
+          </div>
+        </div>
+        <div className="ld-stagebar">
+          <span className="ld-k">Bosqich</span>
+          <StageSelect value={lead.stage} onChange={(s) => onMove(lead, s)} disabled={readOnly || busyId === lead.id} />
+        </div>
+        <div className="ld-grid">
+          {fields.map(([k, v]) => (
+            <div className="ld-field" key={k}><span className="ld-k">{k}</span><span className="ld-v">{v}</span></div>
+          ))}
+        </div>
+        {lead.message ? <div className="ld-note"><span className="ld-k">Mijoz xabari</span><p>{lead.message}</p></div> : null}
+        {pres ? <div style={{ marginTop: 12 }}><PresBadge p={pres} /></div> : null}
+        <div className="ld-tools"><ContactActions lead={lead} /></div>
+        <div className="ld-tools2">
+          <div style={{ flex: 1, minWidth: 130 }}><DocMenu lead={lead} /></div>
+          <FilesButton lead={lead} readOnly={readOnly} />
+          {lead.source === "telegram" ? (
+            <button className="tg-chat-btn" style={{ width: "auto", marginTop: 0, padding: "0 14px" }} onClick={() => onOpenChat(lead)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>Telegram suhbat
+            </button>
+          ) : null}
+        </div>
+        {lead.activities?.length ? (
+          <div className="ld-acts">
+            <span className="ld-k">Faoliyat tarixi</span>
+            {lead.activities.slice(0, 6).map((a) => (
+              <div className="ld-act" key={a.id}><span className="ld-act-dot" /><span className="ld-act-tx">{a.text}</span><small>{timeAgo(a.at)}</small></div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
