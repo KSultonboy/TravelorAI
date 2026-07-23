@@ -352,6 +352,11 @@
   .ld-act-dot{ width:7px; height:7px; border-radius:50%; background:var(--primary); flex:none; }
   .ld-act-tx{ flex:1; min-width:0; }
   .ld-act small{ color:var(--t3); font-size:11.5px; flex:none; }
+
+  /* hujjat shablonlari bo'limi */
+  .fld textarea{ resize:vertical; line-height:1.5; }
+  .doc-ph{ display:inline-flex; align-items:center; gap:5px; font-size:11.5px; color:var(--t2); background:var(--canvas); border:1px solid var(--border); border-radius:20px; padding:3px 10px; }
+  .doc-ph code{ font-family:ui-monospace,Menlo,Consolas,monospace; color:var(--primary-ink); font-size:11px; background:none; }
   .tg-chat{ width:min(460px,100%); height:min(620px,90vh); display:flex; flex-direction:column; padding:0; overflow:hidden; }
   .tg-chat-head{ display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--border); }
   .tg-chat-head b{ font-family:var(--disp); font-size:15px; display:block; }

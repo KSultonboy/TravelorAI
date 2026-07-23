@@ -25,8 +25,13 @@ import {
   getRequisites,
   saveRequisites,
   EMPTY_REQUISITES,
+  getTemplates,
+  saveTemplates,
+  DEFAULT_DOC_TEMPLATES,
+  DOC_PLACEHOLDERS,
   type DocType,
   type DocRequisites,
+  type DocTemplates,
 } from "@/lib/agency/documents";
 
 /* ---- tiny inline icons ---- */
@@ -53,6 +58,7 @@ const I = {
   eye: "M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
   copy: "M9 9h10v12H9z M5 15H3V3h12v2",
   star: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z",
+  doc: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M9 13h6 M9 17h4",
 };
 function Ic({ d, s = 18 }: { d: string; s?: number }) {
   return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
@@ -102,6 +108,7 @@ const NAV: { key: string; label: string; icon: string; group: string; badge?: "l
   { key: "reviews", label: "Sharhlar", icon: I.star, group: "Sotuv" },
   { key: "payments", label: "To'lovlar", icon: I.card, group: "Sotuv" },
   { key: "reports", label: "Hisobotlar", icon: I.chart, group: "Boshqa" },
+  { key: "documents", label: "Hujjatlar", icon: I.doc, group: "Boshqa" },
   { key: "settings", label: "Sozlamalar", icon: I.gear, group: "Boshqa" },
 ];
 const TITLES: Record<string, string> = { ...Object.fromEntries(NAV.map((n) => [n.key, n.label])), telegram: "Telegram bot" };
@@ -397,7 +404,7 @@ export default function KvCabinet() {
   const canExport = caps.csvExport !== false;
   const allowedSections = access?.sections || null; // null = cheklovsiz (grandfather / eski agentlik)
   const sectionAllowed = (key: string) => {
-    if (key === "dashboard" || key === "settings" || key === "tasks" || key === "reviews") return true; // doim ochiq
+    if (key === "dashboard" || key === "settings" || key === "tasks" || key === "reviews" || key === "documents") return true; // doim ochiq
     if (key === "telegram") return caps.telegram !== false;
     if (key === "presentations") return caps.presentations !== false;
     if (!allowedSections) return true;
@@ -478,6 +485,7 @@ export default function KvCabinet() {
                 <Reviews show={view === "reviews"} readOnly={readOnly} />
                 <Payments show={view === "payments"} leads={leads} move={guardedMove} busyId={busyId} readOnly={readOnly} canExport={canExport} />
                 <Reports show={view === "reports"} leads={leads} />
+                <DocumentsSection show={view === "documents"} agencyId={agencyId} readOnly={readOnly} />
                 <Settings show={view === "settings"} agency={agency} agencyId={agencyId} refresh={refresh} logout={logout} go={setView} access={access} readOnly={readOnly} caps={caps} />
                 <TelegramPage show={view === "telegram"} leads={leads} go={setView} readOnly={readOnly} />
               </>
@@ -1992,6 +2000,88 @@ function Reviews({ show, readOnly }: { show: boolean; readOnly?: boolean }) {
   );
 }
 
+/* ================= HUJJATLAR (matn shablonlarini sozlash) ================= */
+function DocFld({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="fld" style={{ marginBottom: 10 }}><label>{label}</label>{children}</div>;
+}
+function TplEditor({ title, onPreview, onReset, readOnly, children }: { title: string; onPreview: () => void; onReset: () => void; readOnly?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="card" style={{ padding: 18, marginTop: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 12, gap: 8 }}>
+        <b style={{ fontFamily: "var(--disp)", fontSize: 15 }}>{title}</b>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          {!readOnly ? <button className="btn btn-ghost btn-sm" onClick={onReset}>Standartga qaytarish</button> : null}
+          <button className="btn btn-ghost btn-sm" onClick={onPreview}>Namuna ochish</button>
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+function DocumentsSection({ show, agencyId, readOnly }: { show: boolean; agencyId: string; readOnly?: boolean }) {
+  const { me } = useAgencySession();
+  const [tpl, setTpl] = useState<DocTemplates>(DEFAULT_DOC_TEMPLATES);
+  const [msg, setMsg] = useState("");
+  useEffect(() => { setTpl(getTemplates(agencyId)); }, [agencyId]);
+  function setField(type: DocType, key: string, val: string) {
+    setTpl((p) => ({ ...p, [type]: { ...(p as Record<string, Record<string, string>>)[type], [key]: val } }) as DocTemplates);
+    setMsg("");
+  }
+  function save() { saveTemplates(agencyId, tpl); setMsg("Saqlandi ✓"); setTimeout(() => setMsg(""), 1800); }
+  function resetType(type: DocType) {
+    setTpl((p) => ({ ...p, [type]: JSON.parse(JSON.stringify((DEFAULT_DOC_TEMPLATES as Record<string, unknown>)[type])) }) as DocTemplates);
+    setMsg("");
+  }
+  function preview(type: DocType) {
+    saveTemplates(agencyId, tpl);
+    if (!me) return;
+    const ok = openDocument({
+      type, agencyId, me,
+      lead: { customerName: "Aziz Karimov (namuna)", customerPhone: "+998 90 123 45 67", customerEmail: "aziz@example.com", travelers: 2, travelDate: "2026-08-15", tourTitle: "Dubay dam olish", tourCity: "Dubay", totalEstimate: 1500, currency: "USD" },
+    });
+    if (!ok) alert("Brauzer yangi oynani bloklади. Pop-up'ga ruxsat bering.");
+  }
+  return (
+    <section className={`view${show ? " active" : ""}`}>
+      <div className="section-head"><div><h2>Hujjatlar</h2><div className="sub">Shartnoma, vaucher va hisob-faktura matnini o&apos;zingizga moslang — belgilar lid ma&apos;lumotidan avtomatik to&apos;ladi</div></div></div>
+
+      <div className="section-head"><div><h2>Rekvizitlar</h2><div className="sub">STIR, bank, direktor, manzil — barcha hujjatga qo&apos;yiladi</div></div></div>
+      <DocRequisitesCard agencyId={agencyId} readOnly={readOnly} />
+
+      <div className="card" style={{ padding: 14, marginTop: 16 }}>
+        <b style={{ fontSize: 13 }}>Belgilar (yozganingizда avtomatik to&apos;ladi):</b>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 9 }}>
+          {DOC_PLACEHOLDERS.map((p) => <span key={p.key} className="doc-ph" title={p.label}><code>{p.key}</code> {p.label}</span>)}
+        </div>
+      </div>
+
+      <TplEditor title="Shartnoma" onPreview={() => preview("shartnoma")} onReset={() => resetType("shartnoma")} readOnly={readOnly}>
+        <DocFld label="Sarlavha"><input value={tpl.shartnoma.title} onChange={(e) => setField("shartnoma", "title", e.target.value)} disabled={readOnly} /></DocFld>
+        <DocFld label="Matn — «## » bilan sarlavha, bo&apos;sh qator yangi xatboshi"><textarea rows={12} value={tpl.shartnoma.body} onChange={(e) => setField("shartnoma", "body", e.target.value)} disabled={readOnly} /></DocFld>
+      </TplEditor>
+
+      <TplEditor title="Vaucher" onPreview={() => preview("vaucher")} onReset={() => resetType("vaucher")} readOnly={readOnly}>
+        <DocFld label="Sarlavha"><input value={tpl.vaucher.title} onChange={(e) => setField("vaucher", "title", e.target.value)} disabled={readOnly} /></DocFld>
+        <DocFld label="Standart «kiritilgan xizmatlar» matni"><input value={tpl.vaucher.services} onChange={(e) => setField("vaucher", "services", e.target.value)} disabled={readOnly} /></DocFld>
+        <DocFld label="Izoh matni"><textarea rows={3} value={tpl.vaucher.note} onChange={(e) => setField("vaucher", "note", e.target.value)} disabled={readOnly} /></DocFld>
+      </TplEditor>
+
+      <TplEditor title="Hisob-faktura" onPreview={() => preview("invoice")} onReset={() => resetType("invoice")} readOnly={readOnly}>
+        <DocFld label="Sarlavha"><input value={tpl.invoice.title} onChange={(e) => setField("invoice", "title", e.target.value)} disabled={readOnly} /></DocFld>
+        <DocFld label="To&apos;lov izohi"><textarea rows={3} value={tpl.invoice.note} onChange={(e) => setField("invoice", "note", e.target.value)} disabled={readOnly} /></DocFld>
+      </TplEditor>
+
+      {!readOnly ? (
+        <div style={{ position: "sticky", bottom: 0, background: "var(--canvas)", padding: "12px 0 4px", display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
+          <button className="btn btn-primary" onClick={save}>Barchasini saqlash</button>
+          {msg ? <span style={{ color: "var(--primary)", fontSize: 13, fontWeight: 600 }}>{msg}</span> : null}
+          <span style={{ color: "var(--t3)", fontSize: 12, marginLeft: "auto" }}>«Namuna ochish» — o&apos;zgarishlarni saqlab, chop etish oynasini ko&apos;rsatadi</span>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 /* Hujjat rekvizitlari — agentlikning huquqiy ma'lumoti (localStorage'да saqlanadi) */
 function DocRequisitesCard({ agencyId, readOnly }: { agencyId: string; readOnly?: boolean }) {
   const [r, setR] = useState<DocRequisites>(EMPTY_REQUISITES);
@@ -2027,7 +2117,7 @@ function DocRequisitesCard({ agencyId, readOnly }: { agencyId: string; readOnly?
     </div>
   );
 }
-function Settings({ show, agency, agencyId, refresh, logout, go, access, readOnly }: any) {
+function Settings({ show, agency, go, refresh, logout, access, readOnly }: any) {
   return (
     <section className={`view${show ? " active" : ""}`}>
       <div className="section-head"><div><h2>Sozlamalar</h2></div></div>
@@ -2037,9 +2127,6 @@ function Settings({ show, agency, agencyId, refresh, logout, go, access, readOnl
 
       <div className="section-head"><div><h2>Agentlik ma&apos;lumoti</h2><div className="sub">Nomi, logotipi va telefoni — sidebar va CRM&apos;da shu ma&apos;lumot ko&apos;rinadi</div></div></div>
       <ProfileForm agency={agency} refresh={refresh} readOnly={readOnly} />
-
-      <div className="section-head"><div><h2>Hujjat rekvizitlari</h2><div className="sub">Shartnoma, vaucher va hisob-fakturaga avtomatik qo&apos;yiladi — bir marta to&apos;ldiring</div></div></div>
-      <DocRequisitesCard agencyId={agencyId} readOnly={readOnly} />
 
       <div className="section-head"><div><h2>Integratsiyalar</h2><div className="sub">Tashqi kanallarni ulang va boshqaring</div></div></div>
       <TelegramCard go={go} />

@@ -175,6 +175,115 @@ export type DocLead = {
   currency: string;
 };
 
+/* ---------------------------- matn shablonlari ---------------------------- */
+// Har agentlik hujjat MATNINI o'zi sozlashi mumkin (struktura bir xil bo'lmasa).
+// localStorage'да saqlanadi. Belgilar (placeholder) lid/agentlik ma'lumotidan to'ladi.
+
+export type DocTemplates = {
+  shartnoma: { title: string; body: string };
+  vaucher: { title: string; services: string; note: string };
+  invoice: { title: string; note: string };
+};
+
+export const DEFAULT_DOC_TEMPLATES: DocTemplates = {
+  shartnoma: {
+    title: "TURISTIK XIZMAT KO'RSATISH SHARTNOMASI",
+    body:
+      "Quyida «Ijrochi» deb ataluvchi {agentlik} nomidan direktor {direktor} bir tomondan, hamda " +
+      "«Buyurtmachi» deb ataluvchi {mijoz} ikkinchi tomondan, ushbu shartnomani quyidagilar to'g'risida tuzdilar:\n\n" +
+      "## 1. Shartnoma predmeti\n" +
+      "1.1. Ijrochi Buyurtmachiga turistik xizmat — {yonalish} yo'nalishi bo'yicha sayohatni tashkil etadi. Turistlar soni: {kishilar} kishi.\n" +
+      "1.2. Sayohat sanasi: {sana}.\n\n" +
+      "## 2. Xizmat narxi va to'lov tartibi\n" +
+      "2.1. Xizmatning umumiy qiymati: {narx} ({narx_sozda}).\n" +
+      "2.2. To'lov tartibi: Buyurtmachi shartnoma imzolanganda oldindan 50% miqdorida to'lovni amalga oshiradi, qolgani sayohat boshlanishidan oldin to'lanadi.\n\n" +
+      "## 3. Tomonlarning majburiyatlari\n" +
+      "3.1. Ijrochi xizmatni sifatli va o'z vaqtida ko'rsatish, kerakli hujjatlar (vaucher, bilet, bron) bilan ta'minlash majburiyatini oladi.\n" +
+      "3.2. Buyurtmachi to'lovni o'z vaqtida amalga oshirish va sayohat uchun zarur hujjatlarni (pasport va h.k.) taqdim etish majburiyatini oladi.\n\n" +
+      "## 4. Javobgarlik va nizolar\n" +
+      "4.1. Shartnoma shartlari buzilganda tomonlar O'zbekiston Respublikasi qonunchiligiga muvofiq javobgar bo'ladilar.\n" +
+      "4.2. Nizolar muzokaralar yo'li bilan, kelishilmaganda esa sud tartibida hal etiladi.\n\n" +
+      "## 5. Amal qilish muddati\n" +
+      "5.1. Ushbu shartnoma imzolangan kundan boshlab xizmat to'liq ko'rsatilgunga qadar amal qiladi va ikki nusxada, har ikkala tomon uchun bir xil kuchga ega tuzildi.",
+  },
+  vaucher: {
+    title: "TURISTIK VAUCHER",
+    services: "{yonalish} bo'yicha to'liq paket",
+    note:
+      "Ushbu vaucher {agentlik} tomonidan berilgan bo'lib, yuqorida ko'rsatilgan turistik " +
+      "xizmatlarning to'langanligini va tasdiqlanganligini bildiradi.",
+  },
+  invoice: {
+    title: "HISOB-FAKTURA (TO'LOV UCHUN)",
+    note:
+      "To'lov yuqoridagi bank rekvizitlari bo'yicha 3 bank kuni ichida amalga oshirilishi so'raladi. " +
+      "To'lov maqsadida ushbu hisob-faktura raqamini ko'rsating.",
+  },
+};
+
+/** Foydalanuvchiga ko'rsatiladigan belgilar ro'yxati. */
+export const DOC_PLACEHOLDERS: { key: string; label: string }[] = [
+  { key: "{mijoz}", label: "mijoz ismi" },
+  { key: "{agentlik}", label: "agentlik (huquqiy nomi)" },
+  { key: "{direktor}", label: "direktor F.I.Sh." },
+  { key: "{yonalish}", label: "tur + shahar" },
+  { key: "{tur}", label: "tur nomi" },
+  { key: "{shahar}", label: "shahar" },
+  { key: "{kishilar}", label: "turistlar soni" },
+  { key: "{sana}", label: "sayohat sanasi" },
+  { key: "{narx}", label: "narx (raqamda)" },
+  { key: "{narx_sozda}", label: "narx (so'z bilan)" },
+];
+
+const TPL_KEY = (agencyId: string) => `travelorai_doc_tpl_${agencyId}`;
+
+export function getTemplates(agencyId: string): DocTemplates {
+  const d = DEFAULT_DOC_TEMPLATES;
+  if (typeof window === "undefined") return JSON.parse(JSON.stringify(d));
+  try {
+    const raw = window.localStorage.getItem(TPL_KEY(agencyId));
+    if (!raw) return JSON.parse(JSON.stringify(d));
+    const s = JSON.parse(raw);
+    return {
+      shartnoma: { ...d.shartnoma, ...(s.shartnoma || {}) },
+      vaucher: { ...d.vaucher, ...(s.vaucher || {}) },
+      invoice: { ...d.invoice, ...(s.invoice || {}) },
+    };
+  } catch {
+    return JSON.parse(JSON.stringify(d));
+  }
+}
+
+export function saveTemplates(agencyId: string, t: DocTemplates) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(TPL_KEY(agencyId), JSON.stringify(t));
+  } catch {
+    /* ignore quota */
+  }
+}
+
+function fillTpl(text: string, ctx: Record<string, string>): string {
+  return String(text || "").replace(/\{(\w+)\}/g, (m, k) => (k in ctx ? ctx[k] : m));
+}
+
+/** Mini-belgilash -> HTML: "## " sarlavha, bo'sh qator xatboshini ajratadi. */
+function renderBody(text: string, ctx: Record<string, string>): string {
+  const filled = fillTpl(text, ctx);
+  const lines = filled.split("\n");
+  let html = "";
+  let para: string[] = [];
+  const flush = () => { if (para.length) { html += `<p>${esc(para.join(" "))}</p>`; para = []; } };
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) { flush(); continue; }
+    if (line.startsWith("## ")) { flush(); html += `<h3>${esc(line.slice(3).trim())}</h3>`; }
+    else para.push(line);
+  }
+  flush();
+  return html;
+}
+
 type BuildInput = { type: DocType; agencyId: string; me: MeData; lead: DocLead };
 
 type Ctx = {
@@ -193,7 +302,29 @@ type Ctx = {
   travelers: number;
   total: number | null;
   currency: string;
+  tpl: DocTemplates;
 };
+
+/** Shablon belgilarini lid/agentlik ma'lumotidan to'ldirish uchun kontekst. */
+function tplCtx(c: Ctx): Record<string, string> {
+  const yonalish = c.lead.tourCity
+    ? `${c.lead.tourTitle || "sayohat"} (${c.lead.tourCity})`
+    : (c.lead.tourTitle || "sayohat");
+  return {
+    mijoz: c.lead.customerName || "",
+    agentlik: c.legal || c.brand || "",
+    direktor: c.req.director || "",
+    tur: c.lead.tourTitle || "",
+    shahar: c.lead.tourCity || "",
+    yonalish,
+    kishilar: String(c.travelers || ""),
+    sana: shortDate(c.lead.travelDate),
+    narx: c.total != null ? money(c.total, c.currency) : "____",
+    narx_sozda: c.total != null ? `${sumWordsUz(c.total)} ${currencyLabel(c.currency)}` : "",
+    stir: c.req.stir || "",
+    telefon: c.agencyPhone || "",
+  };
+}
 
 /* Ekranда tahrirlanadigan, chop etishда oddiy matnга aylanadigan maydon. */
 function fill(value: string, placeholder = "________________"): string {
@@ -251,43 +382,11 @@ function signBlock(leftRole: string, leftName: string, rightRole: string, rightN
 /* --------------------------------- shartnoma ------------------------------ */
 
 function contractBody(c: Ctx): string {
-  const dest = c.lead.tourCity ? `${c.lead.tourTitle || "sayohat"} (${c.lead.tourCity})` : (c.lead.tourTitle || "sayohat");
-  const priceStr = c.total != null
-    ? `${money(c.total, c.currency)} (${sumWordsUz(c.total)} ${currencyLabel(c.currency)})`
-    : fill("", "________________ so'm");
+  const ctx = tplCtx(c);
+  const t = c.tpl.shartnoma;
   return `
-    ${titleBlock("TURISTIK XIZMAT KO'RSATISH SHARTNOMASI", c)}
-    <p class="lead-para">
-      Quyida <b>«Ijrochi»</b> deb ataluvchi ${esc(c.legal)} nomidan direktor
-      ${fill(c.req.director || "", "F.I.Sh.")} bir tomondan, hamda <b>«Buyurtmachi»</b> deb ataluvchi
-      <b>${esc(c.lead.customerName)}</b> ikkinchi tomondan, ushbu shartnomani quyidagilar to'g'risida tuzdilar:
-    </p>
-
-    <h3>1. Shartnoma predmeti</h3>
-    <p>1.1. Ijrochi Buyurtmachiga turistik xizmat — <b>${esc(dest)}</b> yo'nalishi bo'yicha
-      sayohatni tashkil etadi. Turistlar soni: <b>${esc(c.travelers)}</b> kishi.</p>
-    <p>1.2. Sayohat sanasi: <b>${esc(shortDate(c.lead.travelDate))}</b>. Qo'shimcha shartlar: ${fill("", "____________________")}.</p>
-
-    <h3>2. Xizmat narxi va to'lov tartibi</h3>
-    <p>2.1. Xizmatning umumiy qiymati: <b>${priceStr}</b>.</p>
-    <p>2.2. To'lov tartibi: Buyurtmachi shartnoma imzolanganda oldindan
-      ${fill("50", "__")}% miqdorида to'lovni amalga oshiradi, qolgani sayohatga
-      ${fill("", "__")} kun qolganda to'lanadi.</p>
-
-    <h3>3. Tomonlarning majburiyatlari</h3>
-    <p>3.1. Ijrochi xizmatni sifatli va o'z vaqtida ko'rsatish, kerakli hujjatlar
-      (vaucher, bilet, bron) bilan ta'minlash majburiyatini oladi.</p>
-    <p>3.2. Buyurtmachi to'lovni o'z vaqtida amalga oshirish va sayohat uchun zarur
-      hujjatlarni (pasport va h.k.) taqdim etish majburiyatini oladi.</p>
-
-    <h3>4. Javobgarlik va nizolar</h3>
-    <p>4.1. Shartnoma shartlari buzilganda tomonlar O'zbekiston Respublikasi
-      qonunchiligiga muvofiq javobgar bo'ladilar.</p>
-    <p>4.2. Nizolar muzokaralar yo'li bilan, kelishilmaganda esa sud tartibida hal etiladi.</p>
-
-    <h3>5. Amal qilish muddati</h3>
-    <p>5.1. Ushbu shartnoma imzolangan kundan boshlab xizmat to'liq ko'rsatilgunga qadar
-      amal qiladi va ikki nusxada, har ikkala tomon uchun bir xil kuchга ega tuzildi.</p>
+    ${titleBlock(fillTpl(t.title, ctx), c)}
+    <div class="doc-body">${renderBody(t.body, ctx)}</div>
 
     <div class="req-cols">
       <div class="req-col">
@@ -315,8 +414,10 @@ function contractBody(c: Ctx): string {
 /* --------------------------------- vaucher -------------------------------- */
 
 function voucherBody(c: Ctx): string {
+  const ctx = tplCtx(c);
+  const t = c.tpl.vaucher;
   return `
-    ${titleBlock("TURISTIK VAUCHER", c)}
+    ${titleBlock(fillTpl(t.title, ctx), c)}
     <table class="kv">
       <tbody>
         <tr><td class="k">Turist(lar)</td><td><b>${esc(c.lead.customerName)}</b></td></tr>
@@ -331,12 +432,9 @@ function voucherBody(c: Ctx): string {
     </table>
 
     <h3>Kiritilgan xizmatlar</h3>
-    <div class="services" contenteditable="true" data-ph="Har bir xizmatni yangi qatorda yozing — aviabilet, mehmonxona, transfer, ekskursiya, sug'urta...">${
-      esc(c.lead.tourTitle ? `${c.lead.tourTitle} bo'yicha to'liq paket` : "")
-    }</div>
+    <div class="services" contenteditable="true" data-ph="Har bir xizmatni yangi qatorda yozing — aviabilet, mehmonxona, transfer, ekskursiya, sug'urta...">${esc(fillTpl(t.services, ctx))}</div>
 
-    <p class="voucher-note">Ushbu vaucher ${esc(c.brand)} tomonidan berilgan bo'lib, yuqorida
-      ko'rsatilgan turistik xizmatlarning to'langanligini va tasdiqlanganligini bildiradi.</p>
+    <p class="voucher-note">${esc(fillTpl(t.note, ctx))}</p>
 
     ${signBlock("Xizmat ko'rsatuvchi", c.req.director || c.brand, "Qabul qildim", c.lead.customerName)}`;
 }
@@ -352,8 +450,10 @@ function invoiceBody(c: Ctx): string {
   const item = c.lead.tourTitle
     ? `${c.lead.tourTitle}${c.lead.tourCity ? ` (${c.lead.tourCity})` : ""} — turistik xizmat`
     : "Turistik xizmat";
+  const ctx = tplCtx(c);
+  const t = c.tpl.invoice;
   return `
-    ${titleBlock("HISOB-FAKTURA (TO'LOV UCHUN)", c)}
+    ${titleBlock(fillTpl(t.title, ctx), c)}
 
     <div class="req-cols">
       <div class="req-col">
@@ -393,8 +493,7 @@ function invoiceBody(c: Ctx): string {
 
     ${words ? `<p class="words">So'z bilan: <b>${esc(words.charAt(0).toUpperCase() + words.slice(1))}</b>.</p>` : ""}
 
-    <p class="pay-note">To'lov yuqoridagi bank rekvizitlari bo'yicha ${fill("", "__")} bank kuni ichida
-      amalga oshirilishi so'raladi. To'lov maqsadida ushbu hisob-faktura raqamini ko'rsating.</p>
+    <p class="pay-note">${esc(fillTpl(t.note, ctx))}</p>
 
     ${signBlock("Rahbar", c.req.director || c.brand, "Bosh hisobchi", "")}`;
 }
@@ -480,6 +579,9 @@ function styles(): string {
   .items tfoot .total-l{font-weight:700; color:var(--green-d); background:#f4f7f5}
   .items tfoot .total-v{font-weight:800; color:var(--green-d); background:#f4f7f5}
   .words{margin-top:8px}
+  .doc-body{margin-top:8px}
+  .doc-body p{text-align:justify; margin:5px 0}
+  .doc-body h3{margin-top:15px}
   .req-cols{display:flex; gap:22px; margin:16px 0 4px}
   .req-col{flex:1; font-size:12.5px; line-height:1.7}
   .req-h{font-weight:750; color:var(--green-d); letter-spacing:.4px; margin-bottom:3px;
@@ -526,6 +628,7 @@ export function buildDocumentHtml(input: BuildInput): string {
     travelers: Math.max(1, lead.travelers || 1),
     total: lead.totalEstimate ?? null,
     currency: lead.currency || "USD",
+    tpl: getTemplates(agencyId),
   };
 
   const docName = DOC_LABEL[type];
