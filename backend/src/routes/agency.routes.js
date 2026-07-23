@@ -43,6 +43,7 @@ router.patch('/bookings/:id/status', blockWhenReadOnly, agency.updateBookingStat
 router.post('/leads', blockWhenReadOnly, requireCapability('manualLeads'), agency.createManualLead);
 router.patch('/bookings/:id/stage', blockWhenReadOnly, agency.updatePipelineStage);
 router.patch('/bookings/:id/birthday', blockWhenReadOnly, agency.setCustomerBirthday);
+router.patch('/bookings/:id', blockWhenReadOnly, agency.updateLead); // lid maydonlarini tahrirlash
 
 // Mijoz sharhlari + reyting (marketplace'да ko'rinadi) — ko'rish hammaga ochiq.
 router.get('/reviews', agency.listReviews);

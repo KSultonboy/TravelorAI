@@ -584,6 +584,7 @@ model TourBooking {
 
   pipelineStage      String      @default("new")
   leadTour           String?
+  leadCity           String?     // qo'lda kiritilgan shahar (bog'langan tur bo'lmasa)
   telegramChatId     String?
   utmSource          String?     // qayerdan keldi: instagram, telegram, google...
   utmMedium          String?     // cpc, post, story, bio...

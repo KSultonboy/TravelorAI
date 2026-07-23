@@ -112,6 +112,7 @@ export type BookingItem = {
   referrer?: string | null;
   customerBirthday?: string | null;
   leadTour?: string | null;
+  leadCity?: string | null;
   responseDeadlineAt?: string | null;
   totalEstimate?: number | null;
   currency: string;

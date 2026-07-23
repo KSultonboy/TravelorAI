@@ -324,7 +324,7 @@ export function buildLeads(agencyId: string, bookings: BookingItem[]): CrmLead[]
         travelDate: b.travelDate,
         message: b.message,
         tourTitle: b.leadTour || b.tour?.title,
-        tourCity: b.tour?.city,
+        tourCity: b.leadCity || b.tour?.city,
         totalEstimate: b.totalEstimate,
         currency: b.currency || "USD",
         createdAt: b.createdAt,

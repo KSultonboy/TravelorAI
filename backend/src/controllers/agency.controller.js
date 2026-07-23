@@ -1024,6 +1024,47 @@ async function setReviewStatus(req, res) {
   }
 }
 
+// Lid maydonlarini tahrirlash — batafsil oynadagi "Tahrirlash" tugmasi uchun.
+async function updateLead(req, res) {
+  try {
+    const agency = await ensureApprovedAgency(req, res);
+    if (!agency) return;
+    const existing = await prisma.tourBooking.findFirst({ where: { id: req.params.id, agencyId: agency.id } });
+    if (!existing) return error(res, 'Lid topilmadi', 404);
+    const b = req.body || {};
+    const data = {};
+    if (b.customerName !== undefined) {
+      const v = String(b.customerName || '').trim();
+      if (!v) return error(res, 'Mijoz ismi bosh bolmasligi kerak', 400);
+      data.customerName = v.slice(0, 120);
+    }
+    if (b.customerEmail !== undefined) data.customerEmail = b.customerEmail ? String(b.customerEmail).trim().slice(0, 160) : null;
+    if (b.customerPhone !== undefined) data.customerPhone = b.customerPhone ? String(b.customerPhone).trim().slice(0, 40) : null;
+    if (b.leadTour !== undefined) data.leadTour = b.leadTour ? String(b.leadTour).trim().slice(0, 200) : null;
+    if (b.leadCity !== undefined) data.leadCity = b.leadCity ? String(b.leadCity).trim().slice(0, 120) : null;
+    if (b.travelers !== undefined) {
+      const n = parseInt(b.travelers, 10);
+      if (!Number.isNaN(n) && n >= 1 && n <= 99) data.travelers = n;
+    }
+    if (b.totalEstimate !== undefined) {
+      if (b.totalEstimate === null || b.totalEstimate === '') data.totalEstimate = null;
+      else {
+        const n = parseInt(String(b.totalEstimate).replace(/[^\d]/g, ''), 10);
+        if (!Number.isNaN(n)) data.totalEstimate = n;
+      }
+    }
+    if (b.travelDate !== undefined) data.travelDate = b.travelDate ? new Date(b.travelDate) : null;
+    if (b.customerBirthday !== undefined) {
+      data.customerBirthday = b.customerBirthday ? new Date(b.customerBirthday) : null;
+      if (b.customerBirthday) data.birthdayGreetedOn = null; // sana o'zgardi — qayta tabriklansin
+    }
+    const updated = await prisma.tourBooking.update({ where: { id: existing.id }, data, include: { tour: true, agency: true } });
+    return success(res, { booking: formatBooking(updated) });
+  } catch (err) {
+    return error(res, (err.errors && err.errors[0] && err.errors[0].message) || err.message, 400);
+  }
+}
+
 async function deleteTour(req, res) {
   try {
     const agency = await ensureApprovedAgency(req, res);
@@ -1065,6 +1106,7 @@ module.exports = {
   createManualLead,
   updatePipelineStage,
   setCustomerBirthday,
+  updateLead,
   listReviews,
   setReviewStatus,
   deleteTour,

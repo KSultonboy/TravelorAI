@@ -63,6 +63,7 @@ const I = {
   moon: "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z",
   expand: "M8 3H5a2 2 0 0 0-2 2v3 M21 8V5a2 2 0 0 0-2-2h-3 M16 21h3a2 2 0 0 0 2-2v-3 M3 16v3a2 2 0 0 0 2 2h3",
   compress: "M8 3v3a2 2 0 0 1-2 2H3 M21 8h-3a2 2 0 0 1-2-2V3 M3 16h3a2 2 0 0 1 2 2v3 M16 21v-3a2 2 0 0 1 2-2h3",
+  edit: "M12 20h9 M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z",
 };
 function Ic({ d, s = 18 }: { d: string; s?: number }) {
   return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
@@ -516,7 +517,7 @@ export default function KvCabinet() {
             ) : (
               <>
                 <Dashboard show={view === "dashboard"} leads={leads} tasks={tasks} stats={bookingStats} agencyId={agencyId} go={setView} />
-                <Leads show={view === "leads"} leads={leads} move={guardedMove} busyId={busyId} dragId={dragId} setDragId={setDragId} over={over} setOver={setOver} readOnly={readOnly} canExport={canExport} presByLead={presByLead} />
+                <Leads show={view === "leads"} leads={leads} move={guardedMove} busyId={busyId} dragId={dragId} setDragId={setDragId} over={over} setOver={setOver} readOnly={readOnly} canExport={canExport} presByLead={presByLead} refresh={refreshBookings} />
                 <Customers show={view === "customers"} customers={customers} canExport={canExport} readOnly={readOnly} refresh={refreshBookings} />
                 <Tasks show={view === "tasks"} agencyId={agencyId} tasks={tasks} leads={leads} readOnly={readOnly} />
                 <Packages show={view === "packages"} tours={tours} agencyId={agencyId} refreshTours={refreshTours} readOnly={readOnly} />
@@ -896,7 +897,7 @@ function StageSelect({ value, onChange, disabled }: { value: CrmStage; onChange:
   );
 }
 
-function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver, readOnly, canExport, presByLead }: any) {
+function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver, readOnly, canExport, presByLead, refresh }: any) {
   const [chat, setChat] = useState<CrmLead | null>(null);
   const [detailId, setDetailId] = useState<string>("");
   // Bosish (batafsil) va surish (drag) ni ajratish: agar kursor siljigan bo'lsa — bu drag, modal ochmaymiz.
@@ -941,7 +942,7 @@ function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver, re
         const dl = leads.find((x: CrmLead) => x.id === detailId);
         return dl ? (
           <LeadDetail lead={dl} readOnly={readOnly} busyId={busyId} pres={presByLead?.[dl.id]}
-            onMove={move} onClose={() => setDetailId("")}
+            onMove={move} onClose={() => setDetailId("")} refresh={refresh}
             onOpenChat={(l: CrmLead) => { setDetailId(""); setChat(l); }} />
         ) : null;
       })()}
@@ -950,16 +951,56 @@ function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver, re
   );
 }
 
-/* Lid batafsil oynasi — kartaga bosilganда ochiladi; barcha ma'lumot + amallar shu yerда */
-function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat }: {
+/* Lid batafsil oynasi — kartaga bosilганда ochiladi; ko'rish + tahrirlash */
+function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat, refresh }: {
   lead: CrmLead; readOnly?: boolean; busyId?: string; pres?: any;
-  onMove: (l: CrmLead, s: CrmStage) => void; onClose: () => void; onOpenChat: (l: CrmLead) => void;
+  onMove: (l: CrmLead, s: CrmStage) => void; onClose: () => void; onOpenChat: (l: CrmLead) => void; refresh?: () => Promise<void>;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { if (editing) setEditing(false); else onClose(); } };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, editing]);
+  function startEdit() {
+    setForm({
+      customerName: lead.customerName || "",
+      customerPhone: lead.customerPhone || "",
+      customerEmail: lead.customerEmail || "",
+      leadTour: lead.tourTitle || "",
+      leadCity: lead.tourCity || "",
+      travelers: String(lead.travelers || 1),
+      travelDate: lead.travelDate ? String(lead.travelDate).slice(0, 10) : "",
+      totalEstimate: lead.totalEstimate ? String(lead.totalEstimate) : "",
+      customerBirthday: lead.customerBirthday ? String(lead.customerBirthday).slice(0, 10) : "",
+    });
+    setErr(""); setEditing(true);
+  }
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  async function save() {
+    if (!(form.customerName || "").trim()) { setErr("Mijoz ismini kiriting."); return; }
+    setBusy(true); setErr("");
+    const res = await agencyApi(`/bookings/${lead.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        customerName: form.customerName.trim(),
+        customerPhone: (form.customerPhone || "").trim(),
+        customerEmail: (form.customerEmail || "").trim(),
+        leadTour: (form.leadTour || "").trim(),
+        leadCity: (form.leadCity || "").trim(),
+        travelers: form.travelers,
+        travelDate: form.travelDate || null,
+        totalEstimate: form.totalEstimate === "" ? null : form.totalEstimate,
+        customerBirthday: form.customerBirthday || null,
+      }),
+    });
+    setBusy(false);
+    if (res.success) { await refresh?.(); setEditing(false); }
+    else setErr(res.message || "Saqlab bo'lmadi.");
+  }
   const fields: [string, React.ReactNode][] = [
     ["Telefon", lead.customerPhone || "—"],
     ["Email", lead.customerEmail || "—"],
@@ -971,9 +1012,20 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat 
     ["Tug'ilgan kun", lead.customerBirthday ? formatDate(lead.customerBirthday) : "—"],
   ];
   if (lead.utmSource) fields.push(["Manba (UTM)", lead.utmSource]);
+  const inp = (k: string, label: string, o?: { type?: string; ph?: string; full?: boolean }) => (
+    <div className="fld" style={{ marginBottom: 0, ...(o?.full ? { gridColumn: "1 / -1" } : {}) }}>
+      <label>{label}</label>
+      <input type={o?.type || "text"} value={form[k] || ""} placeholder={o?.ph}
+        max={o?.type === "date" ? new Date().toISOString().slice(0, 10) : undefined}
+        onChange={(e) => set(k, e.target.value)} />
+    </div>
+  );
   return (
-    <div className="ld-overlay" onPointerDown={(e) => e.stopPropagation()} onClick={onClose}>
+    <div className="ld-overlay" onPointerDown={(e) => e.stopPropagation()} onClick={() => { if (!editing) onClose(); }}>
       <div className="ld-panel card" onClick={(e) => e.stopPropagation()}>
+        {!readOnly && !editing ? (
+          <button className="ld-x" style={{ right: 54 }} onClick={startEdit} title="Tahrirlash" aria-label="Tahrirlash"><Ic d={I.edit} s={16} /></button>
+        ) : null}
         <button className="ld-x" onClick={onClose} aria-label="Yopish"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg></button>
         <div className="ld-head">
           <span className="ld-av">{initials(lead.customerName)}</span>
@@ -984,33 +1036,56 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat 
         </div>
         <div className="ld-stagebar">
           <span className="ld-k">Bosqich</span>
-          <StageSelect value={lead.stage} onChange={(s) => onMove(lead, s)} disabled={readOnly || busyId === lead.id} />
+          <StageSelect value={lead.stage} onChange={(s) => onMove(lead, s)} disabled={readOnly || busyId === lead.id || editing} />
         </div>
-        <div className="ld-grid">
-          {fields.map(([k, v]) => (
-            <div className="ld-field" key={k}><span className="ld-k">{k}</span><span className="ld-v">{v}</span></div>
-          ))}
-        </div>
-        {lead.message ? <div className="ld-note"><span className="ld-k">Mijoz xabari</span><p>{lead.message}</p></div> : null}
-        {pres ? <div style={{ marginTop: 12 }}><PresBadge p={pres} /></div> : null}
-        <div className="ld-tools"><ContactActions lead={lead} /></div>
-        <div className="ld-tools2">
-          <div style={{ flex: 1, minWidth: 130 }}><DocMenu lead={lead} /></div>
-          <FilesButton lead={lead} readOnly={readOnly} />
-          {lead.source === "telegram" ? (
-            <button className="tg-chat-btn" style={{ width: "auto", marginTop: 0, padding: "0 14px" }} onClick={() => onOpenChat(lead)}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>Telegram suhbat
-            </button>
-          ) : null}
-        </div>
-        {lead.activities?.length ? (
-          <div className="ld-acts">
-            <span className="ld-k">Faoliyat tarixi</span>
-            {lead.activities.slice(0, 6).map((a) => (
-              <div className="ld-act" key={a.id}><span className="ld-act-dot" /><span className="ld-act-tx">{a.text}</span><small>{timeAgo(a.at)}</small></div>
-            ))}
-          </div>
-        ) : null}
+        {editing ? (
+          <>
+            {err ? <div className="note" style={{ marginBottom: 12, background: "var(--rose-soft)", color: "#8f2a20", borderColor: "#f3c9c4" }}>{err}</div> : null}
+            <div className="ld-grid" style={{ borderTop: "1px solid var(--border)", paddingTop: 15 }}>
+              {inp("customerName", "Mijoz ismi", { full: true })}
+              {inp("customerPhone", "Telefon", { ph: "+998..." })}
+              {inp("customerEmail", "Email", { type: "email", ph: "email@..." })}
+              {inp("leadTour", "Yo'nalish / Tur")}
+              {inp("leadCity", "Shahar")}
+              {inp("travelers", "Kishilar soni", { type: "number" })}
+              {inp("travelDate", "Sayohat sanasi", { type: "date" })}
+              {inp("totalEstimate", "Taxminiy summa ($)", { ph: "800" })}
+              {inp("customerBirthday", "Tug'ilgan kun", { type: "date" })}
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+              <button className="btn btn-ghost" onClick={() => setEditing(false)} disabled={busy}>Bekor</button>
+              <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>{busy ? "Saqlanmoqda…" : "Saqlash"}</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="ld-grid">
+              {fields.map(([k, v]) => (
+                <div className="ld-field" key={k}><span className="ld-k">{k}</span><span className="ld-v">{v}</span></div>
+              ))}
+            </div>
+            {lead.message ? <div className="ld-note"><span className="ld-k">Mijoz xabari</span><p>{lead.message}</p></div> : null}
+            {pres ? <div style={{ marginTop: 12 }}><PresBadge p={pres} /></div> : null}
+            <div className="ld-tools"><ContactActions lead={lead} /></div>
+            <div className="ld-tools2">
+              <div style={{ flex: 1, minWidth: 130 }}><DocMenu lead={lead} /></div>
+              <FilesButton lead={lead} readOnly={readOnly} />
+              {lead.source === "telegram" ? (
+                <button className="tg-chat-btn" style={{ width: "auto", marginTop: 0, padding: "0 14px" }} onClick={() => onOpenChat(lead)}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>Telegram suhbat
+                </button>
+              ) : null}
+            </div>
+            {lead.activities?.length ? (
+              <div className="ld-acts">
+                <span className="ld-k">Faoliyat tarixi</span>
+                {lead.activities.slice(0, 6).map((a) => (
+                  <div className="ld-act" key={a.id}><span className="ld-act-dot" /><span className="ld-act-tx">{a.text}</span><small>{timeAgo(a.at)}</small></div>
+                ))}
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
     </div>
   );
