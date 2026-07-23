@@ -19,9 +19,12 @@ const BENEFITS = [
 export default function SignInClient() {
   const params = useSearchParams();
   const next = params.get("next") || "";
+  // Desktop app (yoki to'g'ridan-to'g'ri havola) hisob turini o'tkazib, darrov
+  // hamkor login formasini ochsin: /signin?as=agency (yoki ?role=partner).
+  const forcedPartner = params.get("as") === "agency" || params.get("role") === "partner";
 
-  const [step, setStep] = useState<Step>("role");
-  const [role, setRole] = useState<Role>("traveler");
+  const [step, setStep] = useState<Step>(forcedPartner ? "form" : "role");
+  const [role, setRole] = useState<Role>(forcedPartner ? "partner" : "traveler");
   const [mode, setMode] = useState<"login" | "register">("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
