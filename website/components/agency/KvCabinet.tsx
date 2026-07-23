@@ -59,6 +59,8 @@ const I = {
   copy: "M9 9h10v12H9z M5 15H3V3h12v2",
   star: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z",
   doc: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M9 13h6 M9 17h4",
+  sun: "M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z M12 1v2 M12 21v2 M4.22 4.22l1.42 1.42 M18.36 18.36l1.42 1.42 M1 12h2 M21 12h2 M4.22 19.78l1.42-1.42 M18.36 5.64l1.42-1.42",
+  moon: "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z",
 };
 function Ic({ d, s = 18 }: { d: string; s?: number }) {
   return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
@@ -311,6 +313,21 @@ export default function KvCabinet() {
   const [showAdd, setShowAdd] = useState(false);
   const [dragId, setDragId] = useState("");
   const [over, setOver] = useState<CrmStage | "">("");
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  // Tema: saqlangan tanlov -> tizim sozlamasi -> yorug'. <html data-theme> ga qo'yiladi.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem("travelorai_theme");
+    if (saved === "dark" || saved === "light") setTheme(saved);
+    else if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) setTheme("dark");
+  }, []);
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.documentElement.setAttribute("data-theme", theme);
+    try { window.localStorage.setItem("travelorai_theme", theme); } catch { /* ignore */ }
+  }, [theme]);
+  useEffect(() => () => { if (typeof document !== "undefined") document.documentElement.removeAttribute("data-theme"); }, []);
 
   useEffect(() => {
     const id = "kv-fonts";
@@ -455,6 +472,9 @@ export default function KvCabinet() {
           <header className="topbar">
             <h1>{TITLES[view]}</h1>
             <div className="top-actions">
+              <button className="icon-btn" onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))} title={theme === "dark" ? "Yorug' rejim" : "Tungi rejim"} aria-label="Rejimni almashtirish">
+                <Ic d={theme === "dark" ? I.sun : I.moon} s={18} />
+              </button>
               <NotificationBell agencyId={agencyId} leads={leads} go={setView} />
               <button className="btn btn-primary" onClick={() => setShowAdd(true)} disabled={readOnly} title={readOnly ? "Obuna tugagan — faqat o'qish rejimi" : undefined}><Ic d={I.plus} s={16} /> Yangi lid</button>
             </div>
