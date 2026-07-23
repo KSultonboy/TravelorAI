@@ -894,7 +894,7 @@ function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver, re
             onOpenChat={(l: CrmLead) => { setDetailId(""); setChat(l); }} />
         ) : null;
       })()}
-      {chat ? <TelegramChat lead={chat} onClose={() => setChat(null)} readOnly={readOnly} /> : null}
+      {chat ? <TelegramChat lead={chat} onClose={() => setChat(null)} onBack={() => { setDetailId(chat.id); setChat(null); }} readOnly={readOnly} /> : null}
     </section>
   );
 }
@@ -2442,7 +2442,7 @@ function ConfirmDelete({ tour, busy, err, onCancel, onConfirm }: any) {
 }
 
 /* ================= TELEGRAM CHAT (drawer) ================= */
-function TelegramChat({ lead, onClose, readOnly }: { lead: CrmLead; onClose: () => void; readOnly?: boolean }) {
+function TelegramChat({ lead, onClose, onBack, readOnly }: { lead: CrmLead; onClose: () => void; onBack?: () => void; readOnly?: boolean }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [canReply, setCanReply] = useState(false);
   const [text, setText] = useState("");
@@ -2475,7 +2475,10 @@ function TelegramChat({ lead, onClose, readOnly }: { lead: CrmLead; onClose: () 
     <div className="modal-bg" onClick={onClose}>
       <div className="card tg-chat" onClick={(e) => e.stopPropagation()}>
         <div className="tg-chat-head">
-          <div><b>{lead.customerName}</b><small>Telegram suhbat</small></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+            {onBack ? <button className="icon-btn" onClick={onBack} aria-label="Orqaga" title="Mijoz ma'lumotiga qaytish"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg></button> : null}
+            <div style={{ minWidth: 0 }}><b>{lead.customerName}</b><small>Telegram suhbat</small></div>
+          </div>
           <button className="icon-btn" onClick={onClose} aria-label="Yopish"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg></button>
         </div>
         <div className="tg-chat-body" ref={bodyRef}>
