@@ -899,6 +899,8 @@ function StageSelect({ value, onChange, disabled }: { value: CrmStage; onChange:
 function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver, readOnly, canExport, presByLead }: any) {
   const [chat, setChat] = useState<CrmLead | null>(null);
   const [detailId, setDetailId] = useState<string>("");
+  // Bosish (batafsil) va surish (drag) ni ajratish: agar kursor siljigan bo'lsa — bu drag, modal ochmaymiz.
+  const downPt = useRef<{ x: number; y: number } | null>(null);
   const byStage = useMemo(() => {
     const map: Record<CrmStage, CrmLead[]> = { new: [], contacted: [], quoted: [], won: [], completed: [], lost: [] };
     for (const l of leads) map[(l as CrmLead).stage].push(l);
@@ -917,8 +919,9 @@ function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver, re
             {byStage[s.key as CrmStage].map((l) => (
               <article key={l.id} className="kcard kcard-min" draggable={!readOnly}
                 onDragStart={() => setDragId(l.id)} onDragEnd={() => setDragId("")}
-                onClick={() => setDetailId(l.id)}
-                title="Batafsil ko'rish uchun bosing"
+                onMouseDown={(e) => { downPt.current = { x: e.clientX, y: e.clientY }; }}
+                onClick={(e) => { const p = downPt.current; downPt.current = null; if (p && (Math.abs(e.clientX - p.x) > 6 || Math.abs(e.clientY - p.y) > 6)) return; setDetailId(l.id); }}
+                title="Suring — bosqichga o'tkazish · bosing — batafsil"
                 style={busyId === l.id ? { opacity: 0.5 } : undefined}>
                 <b>{l.customerName}</b>
                 <div className="foot">

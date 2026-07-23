@@ -322,8 +322,9 @@
   .file-btn svg{ width:14px; height:14px; }
   .file-btn:hover{ background:var(--sky); color:#fff; border-color:var(--sky); }
 
-  /* minimal lid kartasi — butun karta bosilaidi (batafsil oyna ochiladi) */
-  .kcard-min{ cursor:pointer; }
+  /* minimal lid kartasi — suriladi (bosqichga o'tkazish) yoki bosiladi (batafsil) */
+  .kcard-min{ cursor:grab; }
+  .kcard-min:active{ cursor:grabbing; }
   .kcard-min b{ font-size:13.5px; }
 
   /* lid batafsil oynasi */
