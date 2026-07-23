@@ -116,6 +116,8 @@ export type BookingItem = {
   leadTelegram?: string | null;
   leadWhatsapp?: string | null;
   paidAmount?: number | null;
+  archived?: boolean | null;
+  archivedAt?: string | null;
   responseDeadlineAt?: string | null;
   totalEstimate?: number | null;
   currency: string;

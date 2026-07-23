@@ -310,7 +310,7 @@ function ChangePasswordGate({ email, onDone, logout }: { email: string; onDone: 
 
 export default function KvCabinet() {
   const { phase, me, tours, bookings, bookingStats, logout, refresh, refreshBookings, refreshTours } = useAgencySession();
-  const { agencyId, leads, tasks, customers, move, busyId } = useCrm();
+  const { agencyId, leads, archivedLeads, tasks, customers, move, busyId } = useCrm();
   const [view, setView] = useState("dashboard");
   const [showAdd, setShowAdd] = useState(false);
   const [dragId, setDragId] = useState("");
@@ -516,7 +516,7 @@ export default function KvCabinet() {
             ) : (
               <>
                 <Dashboard show={view === "dashboard"} leads={leads} tasks={tasks} stats={bookingStats} agencyId={agencyId} go={setView} />
-                <Leads show={view === "leads"} leads={leads} move={guardedMove} busyId={busyId} dragId={dragId} setDragId={setDragId} over={over} setOver={setOver} readOnly={readOnly} canExport={canExport} presByLead={presByLead} refresh={refreshBookings} />
+                <Leads show={view === "leads"} leads={leads} archivedLeads={archivedLeads} move={guardedMove} busyId={busyId} dragId={dragId} setDragId={setDragId} over={over} setOver={setOver} readOnly={readOnly} canExport={canExport} presByLead={presByLead} refresh={refreshBookings} />
                 <Customers show={view === "customers"} customers={customers} canExport={canExport} readOnly={readOnly} refresh={refreshBookings} />
                 <Packages show={view === "packages"} tours={tours} agencyId={agencyId} refreshTours={refreshTours} readOnly={readOnly} />
                 <Presentations show={view === "presentations"} items={presentations} leads={leads} tours={tours} reload={reloadPresentations} readOnly={readOnly} />
@@ -878,9 +878,10 @@ function StageSelect({ value, onChange, disabled }: { value: CrmStage; onChange:
   );
 }
 
-function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver, readOnly, canExport, presByLead, refresh }: any) {
+function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, over, setOver, readOnly, canExport, presByLead, refresh }: any) {
   const [chat, setChat] = useState<CrmLead | null>(null);
   const [detailId, setDetailId] = useState<string>("");
+  const [tab, setTab] = useState<"active" | "archive">("active");
   // Bosish (batafsil) va surish (drag) ni ajratish: agar kursor siljigan bo'lsa — bu drag, modal ochmaymiz.
   const downPt = useRef<{ x: number; y: number } | null>(null);
   const byStage = useMemo(() => {
@@ -888,54 +889,92 @@ function Leads({ show, leads, move, busyId, dragId, setDragId, over, setOver, re
     for (const l of leads) map[(l as CrmLead).stage].push(l);
     return map;
   }, [leads]);
+  const arch: CrmLead[] = archivedLeads || [];
+  const dl = leads.find((x: CrmLead) => x.id === detailId) || arch.find((x: CrmLead) => x.id === detailId);
+  async function setArchived(l: CrmLead, val: boolean) {
+    await agencyApi(`/bookings/${l.id}`, { method: "PATCH", body: JSON.stringify({ archived: val }) });
+    await refresh?.();
+  }
   return (
     <section className={`view${show ? " active" : ""}`}>
-      <div className="section-head"><div><h2>Sotuv voronkasi</h2><div className="sub">Jami {leads.length} ta lid — kartani suring yoki bosqichni tanlang</div></div>{canExport ? <ExportBtn rows={leads} filename="lidlar" columns={LEAD_COLS} /> : null}</div>
-      <div className="kanban">
-        {CRM_STAGES.map((s, i) => (
-          <div key={s.key} className={`kcol c${i}${over === s.key ? " over" : ""}`}
-            onDragOver={(e) => { e.preventDefault(); setOver(s.key); }}
-            onDragLeave={() => setOver((c: string) => (c === s.key ? "" : c))}
-            onDrop={() => { const l = leads.find((x: CrmLead) => x.id === dragId); setOver(""); setDragId(""); if (l) void move(l, s.key); }}>
-            <div className="khead"><span className="acc" /><b>{s.label}</b><span className="n">{byStage[s.key as CrmStage].length}</span></div>
-            {byStage[s.key as CrmStage].map((l) => (
-              <article key={l.id} className="kcard kcard-min" draggable={!readOnly}
-                onDragStart={() => setDragId(l.id)} onDragEnd={() => setDragId("")}
-                onMouseDown={(e) => { downPt.current = { x: e.clientX, y: e.clientY }; }}
-                onClick={(e) => { const p = downPt.current; downPt.current = null; if (p && (Math.abs(e.clientX - p.x) > 6 || Math.abs(e.clientY - p.y) > 6)) return; setDetailId(l.id); }}
-                title="Suring — bosqichga o'tkazish · bosing — batafsil"
-                style={busyId === l.id ? { opacity: 0.5 } : undefined}>
-                <b>{l.customerName}</b>
-                <div className="foot">
-                  <span className={`badge2 ${SRC_BADGE[l.source] || "b-grey"}`}>{srcLabel(l.source)}</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    {presByLead?.[l.id]?.status === "interested" ? <span title="Taklifga qiziqish bildirdi" style={{ color: "#EAB308", fontSize: 11, lineHeight: 1 }}>●</span> : null}
-                    <small>{timeAgo(l.createdAt)}</small>
-                  </div>
-                </div>
-              </article>
-            ))}
-            {byStage[s.key as CrmStage].length === 0 ? <div style={{ textAlign: "center", color: "#aab6b0", fontSize: 12, padding: "10px 0" }}>Bo&apos;sh</div> : null}
+      <div className="section-head">
+        <div><h2>Sotuv voronkasi</h2><div className="sub">{tab === "active" ? `Jami ${leads.length} ta faol lid — kartani suring yoki bosing` : `Arxivda ${arch.length} ta lid`}</div></div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <div className="lead-tabs">
+            <button className={tab === "active" ? "on" : ""} onClick={() => setTab("active")}>Faol</button>
+            <button className={tab === "archive" ? "on" : ""} onClick={() => setTab("archive")}>Arxiv{arch.length ? ` (${arch.length})` : ""}</button>
           </div>
-        ))}
+          {canExport ? <ExportBtn rows={tab === "active" ? leads : arch} filename={tab === "active" ? "lidlar" : "arxiv"} columns={LEAD_COLS} /> : null}
+        </div>
       </div>
-      {(() => {
-        const dl = leads.find((x: CrmLead) => x.id === detailId);
-        return dl ? (
-          <LeadDetail lead={dl} readOnly={readOnly} busyId={busyId} pres={presByLead?.[dl.id]}
-            onMove={move} onClose={() => setDetailId("")} refresh={refresh}
-            onOpenChat={(l: CrmLead) => { setDetailId(""); setChat(l); }} />
-        ) : null;
-      })()}
+      {tab === "active" ? (
+        <div className="kanban">
+          {CRM_STAGES.map((s, i) => (
+            <div key={s.key} className={`kcol c${i}${over === s.key ? " over" : ""}`}
+              onDragOver={(e) => { e.preventDefault(); setOver(s.key); }}
+              onDragLeave={() => setOver((c: string) => (c === s.key ? "" : c))}
+              onDrop={() => { const l = leads.find((x: CrmLead) => x.id === dragId); setOver(""); setDragId(""); if (l) void move(l, s.key); }}>
+              <div className="khead"><span className="acc" /><b>{s.label}</b><span className="n">{byStage[s.key as CrmStage].length}</span></div>
+              {byStage[s.key as CrmStage].map((l) => (
+                <article key={l.id} className="kcard kcard-min" draggable={!readOnly}
+                  onDragStart={() => setDragId(l.id)} onDragEnd={() => setDragId("")}
+                  onMouseDown={(e) => { downPt.current = { x: e.clientX, y: e.clientY }; }}
+                  onClick={(e) => { const p = downPt.current; downPt.current = null; if (p && (Math.abs(e.clientX - p.x) > 6 || Math.abs(e.clientY - p.y) > 6)) return; setDetailId(l.id); }}
+                  title="Suring — bosqichga o'tkazish · bosing — batafsil"
+                  style={busyId === l.id ? { opacity: 0.5 } : undefined}>
+                  <b>{l.customerName}</b>
+                  <div className="foot">
+                    <span className={`badge2 ${SRC_BADGE[l.source] || "b-grey"}`}>{srcLabel(l.source)}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      {presByLead?.[l.id]?.status === "interested" ? <span title="Taklifga qiziqish bildirdi" style={{ color: "#EAB308", fontSize: 11, lineHeight: 1 }}>●</span> : null}
+                      <small>{timeAgo(l.createdAt)}</small>
+                    </div>
+                  </div>
+                </article>
+              ))}
+              {byStage[s.key as CrmStage].length === 0 ? <div style={{ textAlign: "center", color: "#aab6b0", fontSize: 12, padding: "10px 0" }}>Bo&apos;sh</div> : null}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="card tbl-wrap">
+          {arch.length ? (
+            <table>
+              <thead><tr><th>Mijoz</th><th>Yo&apos;nalish</th><th>Bosqich</th><th>Manba</th><th>Qo&apos;shilgan</th><th className="r">Amal</th></tr></thead>
+              <tbody>
+                {arch.map((l) => (
+                  <tr key={l.id} style={{ cursor: "pointer" }} onClick={() => setDetailId(l.id)}>
+                    <td><div className="cell"><span className="av-sm">{initials(l.customerName)}</span><b>{l.customerName}</b></div></td>
+                    <td>{l.tourTitle || "—"}</td>
+                    <td><span className={`badge2 ${l.stage === "completed" ? "b-green" : l.stage === "lost" ? "b-rose" : "b-grey"}`}>{STAGE_LABEL[l.stage]}</span></td>
+                    <td><span className="badge2 b-grey">{srcLabel(l.source)}</span></td>
+                    <td>{timeAgo(l.createdAt)}</td>
+                    <td className="r" onClick={(e) => e.stopPropagation()}>
+                      {!readOnly ? <button className="btn btn-ghost btn-sm" disabled={busyId === l.id} onClick={() => void setArchived(l, false)}>Tiklash</button> : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : <Empty icon={I.box} text="Arxiv bo'sh. Yakunlangan yoki yo'qotilgan lidlar 30 kundan keyin avtomatik shu yerga o'tadi — yoki batafsil oynadan qo'lda arxivlang." />}
+        </div>
+      )}
+      {dl ? (
+        <LeadDetail lead={dl} readOnly={readOnly} busyId={busyId} pres={presByLead?.[dl.id]}
+          onMove={move} onClose={() => setDetailId("")} refresh={refresh}
+          onArchive={(val: boolean) => setArchived(dl, val)}
+          onOpenChat={(l: CrmLead) => { setDetailId(""); setChat(l); }} />
+      ) : null}
       {chat ? <TelegramChat lead={chat} onClose={() => setChat(null)} onBack={() => { setDetailId(chat.id); setChat(null); }} readOnly={readOnly} /> : null}
     </section>
   );
 }
 
 /* Lid batafsil oynasi — kartaga bosilганда ochiladi; ko'rish + tahrirlash */
-function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat, refresh }: {
+function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat, refresh, onArchive }: {
   lead: CrmLead; readOnly?: boolean; busyId?: string; pres?: any;
   onMove: (l: CrmLead, s: CrmStage) => void; onClose: () => void; onOpenChat: (l: CrmLead) => void; refresh?: () => Promise<void>;
+  onArchive?: (val: boolean) => Promise<void> | void;
 }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
@@ -1070,6 +1109,13 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat,
                 {lead.activities.slice(0, 6).map((a) => (
                   <div className="ld-act" key={a.id}><span className="ld-act-dot" /><span className="ld-act-tx">{a.text}</span><small>{timeAgo(a.at)}</small></div>
                 ))}
+              </div>
+            ) : null}
+            {!readOnly && onArchive ? (
+              <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end" }}>
+                <button className="btn btn-ghost btn-sm" onClick={async () => { await onArchive(!lead.archived); onClose(); }}>
+                  {lead.archived ? "↩ Arxivdan chiqarish" : "🗄 Arxivlash"}
+                </button>
               </div>
             ) : null}
           </>
@@ -1880,10 +1926,6 @@ function Reports({ show, leads }: any) {
           <Empty icon={I.chart} text="Hali lid yo'q — manba tahlili lidlar kelgach paydo bo'ladi." />
         )}
       </div>
-      <p style={{ fontSize: 12.5, color: "#8aa398", margin: "10px 2px 0" }}>
-        Manbani aniqlash uchun reklama havolalariga <code>?utm_source=instagram</code> qo&apos;shing, Telegram uchun esa{" "}
-        <code>t.me/botingiz?start=instagram</code> ko&apos;rinishidagi havolani tarqating.
-      </p>
     </section>
   );
 }

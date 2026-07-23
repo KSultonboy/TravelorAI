@@ -1062,6 +1062,7 @@ async function updateLead(req, res) {
         if (!Number.isNaN(n)) data.paidAmount = n;
       }
     }
+    if (b.archived !== undefined) { data.archived = !!b.archived; data.archivedAt = b.archived ? new Date() : null; }
     if (b.travelDate !== undefined) data.travelDate = b.travelDate ? new Date(b.travelDate) : null;
     if (b.customerBirthday !== undefined) {
       data.customerBirthday = b.customerBirthday ? new Date(b.customerBirthday) : null;

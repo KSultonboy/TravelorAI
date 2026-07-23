@@ -127,6 +127,25 @@ async function runTripReminders() {
   return sent;
 }
 
+/**
+ * Avto-arxiv — "Yakunlandi"/"Yo'qotilgan" bosqichida 30 kundan ortiq turgan
+ * lidlarni avtomatik arxivlaydi (kanban tozalanib turadi). Mijozlar bazasi va
+ * hisobotlarda qoladi. Yaqinda tahrirlangan (updatedAt yangi) lid tegilmaydi.
+ */
+const ARCHIVE_AFTER_DAYS = 30;
+async function runAutoArchive() {
+  const cutoff = new Date(Date.now() - ARCHIVE_AFTER_DAYS * 24 * 60 * 60 * 1000);
+  const res = await prisma.tourBooking.updateMany({
+    where: {
+      archived: false,
+      pipelineStage: { in: ['completed', 'lost'] },
+      updatedAt: { lt: cutoff },
+    },
+    data: { archived: true, archivedAt: new Date() },
+  });
+  return res.count;
+}
+
 let started = false;
 function startScheduler() {
   if (started) return;
@@ -134,9 +153,10 @@ function startScheduler() {
   const tick = async () => {
     try { await runBirthdayGreetings(); } catch { /* ignore */ }
     try { await runTripReminders(); } catch { /* ignore */ }
+    try { await runAutoArchive(); } catch { /* ignore */ }
   };
   setTimeout(tick, 45_000); // boot'дан 45s keyin bir marta
   setInterval(tick, 30 * 60 * 1000); // keyin har 30 daqiqada
 }
 
-module.exports = { startScheduler, runBirthdayGreetings, runTripReminders, DEFAULT_BIRTHDAY, fillBirthday };
+module.exports = { startScheduler, runBirthdayGreetings, runTripReminders, runAutoArchive, DEFAULT_BIRTHDAY, fillBirthday };

@@ -31,6 +31,8 @@ function formatBooking(booking) {
     leadTelegram: booking.leadTelegram || null,
     leadWhatsapp: booking.leadWhatsapp || null,
     paidAmount: booking.paidAmount ?? null,
+    archived: booking.archived || false,
+    archivedAt: booking.archivedAt || null,
     customerBirthday: booking.customerBirthday || null,
     agencyNote: booking.agencyNote,
     adminNote: booking.adminNote,

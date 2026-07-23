@@ -109,6 +109,7 @@ export type CrmLead = {
   telegramHandle?: string | null;
   whatsappNumber?: string | null;
   paidAmount?: number | null;
+  archived?: boolean;
 };
 
 /* ----------------------------------- keys --------------------------------- */
@@ -345,6 +346,7 @@ export function buildLeads(agencyId: string, bookings: BookingItem[]): CrmLead[]
         telegramHandle: b.leadTelegram,
         whatsappNumber: b.leadWhatsapp,
         paidAmount: b.paidAmount,
+        archived: !!b.archived,
       };
     })
     .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());

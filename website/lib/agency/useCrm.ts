@@ -32,8 +32,9 @@ export function useCrm() {
   }, []);
 
   const allLeads = useMemo(() => buildLeads(agencyId, bookings), [agencyId, bookings, version]);
-  const leads = useMemo(() => allLeads.filter((l) => !l.hidden), [allLeads]);
+  const leads = useMemo(() => allLeads.filter((l) => !l.hidden && !l.archived), [allLeads]);
   const hiddenLeads = useMemo(() => allLeads.filter((l) => l.hidden), [allLeads]);
+  const archivedLeads = useMemo(() => allLeads.filter((l) => l.archived && !l.hidden), [allLeads]);
   const tasks = useMemo(() => getTasks(agencyId), [agencyId, version]);
   const customers = useMemo(() => buildCustomers(leads), [leads]);
 
@@ -61,5 +62,5 @@ export function useCrm() {
     [refreshBookings, refresh, agencyId]
   );
 
-  return { agencyId, leads, hiddenLeads, tasks, customers, move, busyId };
+  return { agencyId, leads, hiddenLeads, archivedLeads, tasks, customers, move, busyId };
 }
