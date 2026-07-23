@@ -114,6 +114,14 @@
   .lead-tabs button{ border:0; background:none; color:var(--t2); font-family:inherit; font-size:13px; font-weight:600; padding:6px 14px; border-radius:8px; cursor:pointer; transition:.13s; }
   .lead-tabs button:hover{ color:var(--t1); }
   .lead-tabs button.on{ background:var(--surface); color:var(--primary); box-shadow:0 1px 2px rgba(11,42,30,.08); }
+  /* Arxiv qidiruv + filtrlar */
+  .arch-tools{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+  .arch-search{ flex:1; min-width:220px; display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:9px 12px; color:var(--t3); }
+  .arch-search input{ border:0; background:none; outline:none; font-family:inherit; font-size:13.5px; color:var(--t1); width:100%; }
+  .arch-clear{ border:0; background:none; color:var(--t3); font-size:19px; line-height:1; cursor:pointer; padding:0 2px; }
+  .arch-clear:hover{ color:var(--t1); }
+  .arch-sel{ border:1px solid var(--border); border-radius:10px; padding:9px 12px; background:var(--surface); color:var(--t1); font-family:inherit; font-size:13.5px; cursor:pointer; }
+  .arch-sel:focus{ outline:none; border-color:var(--primary); }
   .section-head .sub{ color:var(--t2); font-size:12.5px; margin-top:2px; }
   .link{ color:var(--primary); font-weight:600; font-size:13px; display:inline-flex; align-items:center; gap:4px; background:none; border:none; }
   .link:hover{ color:var(--primary-ink); }

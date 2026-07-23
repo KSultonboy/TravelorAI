@@ -882,6 +882,9 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
   const [chat, setChat] = useState<CrmLead | null>(null);
   const [detailId, setDetailId] = useState<string>("");
   const [tab, setTab] = useState<"active" | "archive">("active");
+  const [q, setQ] = useState("");
+  const [fStage, setFStage] = useState("all");
+  const [fSource, setFSource] = useState("all");
   // Bosish (batafsil) va surish (drag) ni ajratish: agar kursor siljigan bo'lsa — bu drag, modal ochmaymiz.
   const downPt = useRef<{ x: number; y: number } | null>(null);
   const byStage = useMemo(() => {
@@ -890,6 +893,14 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
     return map;
   }, [leads]);
   const arch: CrmLead[] = archivedLeads || [];
+  const archFiltered = useMemo(() => {
+    let a: CrmLead[] = archivedLeads || [];
+    const query = q.trim().toLowerCase();
+    if (query) a = a.filter((l: CrmLead) => (l.customerName || "").toLowerCase().includes(query) || (l.customerPhone || "").replace(/\s/g, "").includes(query.replace(/\s/g, "")) || (l.customerEmail || "").toLowerCase().includes(query));
+    if (fStage !== "all") a = a.filter((l: CrmLead) => l.stage === fStage);
+    if (fSource !== "all") a = a.filter((l: CrmLead) => l.source === fSource);
+    return a;
+  }, [archivedLeads, q, fStage, fSource]);
   const dl = leads.find((x: CrmLead) => x.id === detailId) || arch.find((x: CrmLead) => x.id === detailId);
   async function setArchived(l: CrmLead, val: boolean) {
     await agencyApi(`/bookings/${l.id}`, { method: "PATCH", body: JSON.stringify({ archived: val }) });
@@ -937,27 +948,47 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
           ))}
         </div>
       ) : (
-        <div className="card tbl-wrap">
-          {arch.length ? (
-            <table>
-              <thead><tr><th>Mijoz</th><th>Yo&apos;nalish</th><th>Bosqich</th><th>Manba</th><th>Qo&apos;shilgan</th><th className="r">Amal</th></tr></thead>
-              <tbody>
-                {arch.map((l) => (
-                  <tr key={l.id} style={{ cursor: "pointer" }} onClick={() => setDetailId(l.id)}>
-                    <td><div className="cell"><span className="av-sm">{initials(l.customerName)}</span><b>{l.customerName}</b></div></td>
-                    <td>{l.tourTitle || "—"}</td>
-                    <td><span className={`badge2 ${l.stage === "completed" ? "b-green" : l.stage === "lost" ? "b-rose" : "b-grey"}`}>{STAGE_LABEL[l.stage]}</span></td>
-                    <td><span className="badge2 b-grey">{srcLabel(l.source)}</span></td>
-                    <td>{timeAgo(l.createdAt)}</td>
-                    <td className="r" onClick={(e) => e.stopPropagation()}>
-                      {!readOnly ? <button className="btn btn-ghost btn-sm" disabled={busyId === l.id} onClick={() => void setArchived(l, false)}>Tiklash</button> : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : <Empty icon={I.box} text="Arxiv bo'sh. Yakunlangan yoki yo'qotilgan lidlar 30 kundan keyin avtomatik shu yerga o'tadi — yoki batafsil oynadan qo'lda arxivlang." />}
-        </div>
+        <>
+          <div className="arch-tools">
+            <div className="arch-search">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Mijoz ismi, telefon yoki email..." />
+              {q ? <button className="arch-clear" onClick={() => setQ("")} aria-label="Tozalash">×</button> : null}
+            </div>
+            <select className="arch-sel" value={fStage} onChange={(e) => setFStage(e.target.value)}>
+              <option value="all">Barcha bosqich</option>
+              {CRM_STAGES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+            </select>
+            <select className="arch-sel" value={fSource} onChange={(e) => setFSource(e.target.value)}>
+              <option value="all">Barcha manba</option>
+              <option value="manual">Qo&apos;lda</option>
+              <option value="telegram">Telegram</option>
+              <option value="marketplace">Marketplace</option>
+            </select>
+          </div>
+          <div className="card tbl-wrap">
+            {archFiltered.length ? (
+              <table>
+                <thead><tr><th>Mijoz</th><th>Telefon</th><th>Yo&apos;nalish</th><th>Bosqich</th><th>Manba</th><th>Qo&apos;shilgan</th><th className="r">Amal</th></tr></thead>
+                <tbody>
+                  {archFiltered.map((l) => (
+                    <tr key={l.id} style={{ cursor: "pointer" }} onClick={() => setDetailId(l.id)}>
+                      <td><div className="cell"><span className="av-sm">{initials(l.customerName)}</span><b>{l.customerName}</b></div></td>
+                      <td>{l.customerPhone || "—"}</td>
+                      <td>{l.tourTitle || "—"}</td>
+                      <td><span className={`badge2 ${l.stage === "completed" ? "b-green" : l.stage === "lost" ? "b-rose" : "b-grey"}`}>{STAGE_LABEL[l.stage]}</span></td>
+                      <td><span className="badge2 b-grey">{srcLabel(l.source)}</span></td>
+                      <td>{timeAgo(l.createdAt)}</td>
+                      <td className="r" onClick={(e) => e.stopPropagation()}>
+                        {!readOnly ? <button className="btn btn-ghost btn-sm" disabled={busyId === l.id} onClick={() => void setArchived(l, false)}>Tiklash</button> : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : <Empty icon={I.box} text={arch.length ? "Filtrga mos lid topilmadi — qidiruv yoki filtrni o'zgartiring." : "Arxiv bo'sh. Yakunlangan yoki yo'qotilgan lidlar 30 kundan keyin avtomatik shu yerga o'tadi — yoki batafsil oynadan qo'lda arxivlang."} />}
+          </div>
+        </>
       )}
       {dl ? (
         <LeadDetail lead={dl} readOnly={readOnly} busyId={busyId} pres={presByLead?.[dl.id]}
