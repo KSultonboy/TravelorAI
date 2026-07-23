@@ -14,6 +14,7 @@ import {
   timeAgo,
   whatsappLink,
   telegramLink,
+  telegramLinkSmart,
   greetingTemplate,
   normalizePhone,
   type CrmLead,
@@ -694,10 +695,11 @@ const SRC_BADGE: Record<string, string> = { manual: "b-amber", marketplace: "b-g
 const srcLabel = (s: string) => (s === "manual" ? "Qo'lda" : s === "telegram" ? "Telegram" : "Marketplace");
 
 /* Tez aloqa: WhatsApp / Telegram / qo'ng'iroq — mijoz telefoni bo'lsa (chiquvchi havolalar) */
-function ContactActions({ lead }: { lead: { customerName: string; customerPhone?: string | null; tourTitle?: string | null } }) {
+function ContactActions({ lead }: { lead: { customerName: string; customerPhone?: string | null; tourTitle?: string | null; whatsappNumber?: string | null; telegramHandle?: string | null } }) {
   const phone = lead.customerPhone;
-  const wa = phone ? whatsappLink(phone, greetingTemplate(lead)) : null;
-  const tg = phone ? telegramLink(phone) : null;
+  const waNum = lead.whatsappNumber || phone;
+  const wa = waNum ? whatsappLink(waNum, greetingTemplate(lead)) : null;
+  const tg = telegramLinkSmart(lead.telegramHandle, phone);
   const tel = phone ? `tel:${normalizePhone(phone)}` : null;
   if (!wa && !tg && !tel) return null;
   const stop = (e: any) => e.stopPropagation();
@@ -970,6 +972,8 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat,
       customerName: lead.customerName || "",
       customerPhone: lead.customerPhone || "",
       customerEmail: lead.customerEmail || "",
+      leadTelegram: lead.telegramHandle || "",
+      leadWhatsapp: lead.whatsappNumber || "",
       leadTour: lead.tourTitle || "",
       leadCity: lead.tourCity || "",
       travelers: String(lead.travelers || 1),
@@ -989,6 +993,8 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat,
         customerName: form.customerName.trim(),
         customerPhone: (form.customerPhone || "").trim(),
         customerEmail: (form.customerEmail || "").trim(),
+        leadTelegram: (form.leadTelegram || "").trim(),
+        leadWhatsapp: (form.leadWhatsapp || "").trim(),
         leadTour: (form.leadTour || "").trim(),
         leadCity: (form.leadCity || "").trim(),
         travelers: form.travelers,
@@ -1004,6 +1010,8 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat,
   const fields: [string, React.ReactNode][] = [
     ["Telefon", lead.customerPhone || "—"],
     ["Email", lead.customerEmail || "—"],
+    ["Telegram", lead.telegramHandle || "—"],
+    ["WhatsApp", lead.whatsappNumber || "—"],
     ["Yo'nalish / Tur", lead.tourTitle || "—"],
     ["Shahar", lead.tourCity || "—"],
     ["Kishilar soni", lead.travelers || "—"],
@@ -1045,6 +1053,8 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat,
               {inp("customerName", "Mijoz ismi", { full: true })}
               {inp("customerPhone", "Telefon", { ph: "+998..." })}
               {inp("customerEmail", "Email", { type: "email", ph: "email@..." })}
+              {inp("leadTelegram", "Telegram", { ph: "@username yoki link" })}
+              {inp("leadWhatsapp", "WhatsApp", { ph: "+998..." })}
               {inp("leadTour", "Yo'nalish / Tur")}
               {inp("leadCity", "Shahar")}
               {inp("travelers", "Kishilar soni", { type: "number" })}
@@ -1069,7 +1079,6 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat,
             <div className="ld-tools"><ContactActions lead={lead} /></div>
             <div className="ld-tools2">
               <div style={{ flex: 1, minWidth: 130 }}><DocMenu lead={lead} /></div>
-              <FilesButton lead={lead} readOnly={readOnly} />
               {lead.source === "telegram" ? (
                 <button className="tg-chat-btn" style={{ width: "auto", marginTop: 0, padding: "0 14px" }} onClick={() => onOpenChat(lead)}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>Telegram suhbat
@@ -1689,23 +1698,50 @@ function Bookings({ show, bookings, agencyId, refreshBookings, refresh, readOnly
 }
 
 /* ================= PAYMENTS ================= */
+/* To'lovni tasdiqlash — qancha olinganini kiritish oynasi */
+function PayConfirm({ lead, onClose, onConfirm }: { lead: CrmLead; onClose: () => void; onConfirm: (amount: string) => Promise<void> }) {
+  const [amount, setAmount] = useState(lead.totalEstimate ? String(lead.totalEstimate) : "");
+  const [busy, setBusy] = useState(false);
+  async function go() {
+    setBusy(true);
+    await onConfirm(amount.replace(/[^\d]/g, ""));
+    setBusy(false);
+    onClose();
+  }
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(11,42,30,.42)", backdropFilter: "blur(3px)", zIndex: 60, display: "grid", placeItems: "center", padding: 16 }} onClick={onClose}>
+      <div className="card" style={{ width: "min(400px,100%)", padding: 22 }} onClick={(e) => e.stopPropagation()}>
+        <div className="section-head" style={{ margin: "0 0 14px" }}><div><h2>To&apos;lovni tasdiqlash</h2><div className="sub">{lead.customerName} — qancha to&apos;landi?</div></div></div>
+        <div className="fld"><label>Olingan summa ($)</label><input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="masalan 800" autoFocus onKeyDown={(e) => { if (e.key === "Enter") void go(); }} /></div>
+        {lead.totalEstimate ? <div style={{ fontSize: 12.5, color: "var(--t3)", marginTop: -4 }}>Taxminiy summa: {formatMoney(lead.totalEstimate)}</div> : null}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+          <button className="btn btn-ghost" onClick={onClose} disabled={busy}>Bekor</button>
+          <button className="btn btn-primary" onClick={() => void go()} disabled={busy}>{busy ? "Saqlanmoqda…" : "Tasdiqlash"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
+  const [payLead, setPayLead] = useState<CrmLead | null>(null);
   const m = useMemo(() => {
     const paid = leads.filter((l: CrmLead) => l.stage === "won" || l.stage === "completed");
+    const completed = leads.filter((l: CrmLead) => l.stage === "completed");
     const pending = leads.filter((l: CrmLead) => l.stage === "quoted");
     return {
-      accepted: paid.reduce((a: number, l: CrmLead) => a + (l.totalEstimate || 0), 0),
+      received: completed.reduce((a: number, l: CrmLead) => a + (l.paidAmount ?? l.totalEstimate ?? 0), 0),
       pending: pending.reduce((a: number, l: CrmLead) => a + (l.totalEstimate || 0), 0),
       rows: paid,
+      paidCount: completed.length,
     };
   }, [leads]);
   return (
     <section className={`view${show ? " active" : ""}`}>
       <div className="section-head"><div><h2>To&apos;lovlar</h2></div>{canExport ? <ExportBtn rows={m.rows} filename="tolovlar" columns={PAY_COLS} /> : null}</div>
       <div className="grid g3">
-        <div className="card kpi gold"><div className="top"><div className="ico"><Ic d={I.check} s={19} /></div></div><div className="val">{formatMoney(m.accepted)}</div><div className="lbl">Qabul qilingan (kelishilgan)</div></div>
+        <div className="card kpi gold"><div className="top"><div className="ico"><Ic d={I.check} s={19} /></div></div><div className="val">{formatMoney(m.received)}</div><div className="lbl">Olingan to&apos;lov</div></div>
         <div className="card kpi"><div className="top"><div className="ico"><Ic d={I.clock} s={19} /></div></div><div className="val">{formatMoney(m.pending)}</div><div className="lbl">Kutilayotgan (taklifda)</div></div>
-        <div className="card kpi"><div className="top"><div className="ico"><Ic d={I.card} s={19} /></div></div><div className="val">{m.rows.length}</div><div className="lbl">To&apos;langan bronlar</div></div>
+        <div className="card kpi"><div className="top"><div className="ico"><Ic d={I.card} s={19} /></div></div><div className="val">{m.paidCount}</div><div className="lbl">To&apos;langan bronlar</div></div>
       </div>
       <div className="card tbl-wrap" style={{ marginTop: 16 }}>
         {m.rows.length ? (
@@ -1718,12 +1754,15 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
                   <td>{l.tourTitle || "—"}</td>
                   <td className="r money">{formatMoney(l.totalEstimate)}</td>
                   <td><span className="badge2 b-grey">{srcLabel(l.source)}</span></td>
-                  <td><span className="badge2 b-green">{l.stage === "completed" ? "Yakunlandi" : "Kelishildi"}</span></td>
+                  <td><span className={`badge2 ${l.stage === "completed" ? "b-green" : "b-amber"}`}>{l.stage === "completed" ? "Yakunlandi" : "Kelishildi"}</span></td>
                   <td>
                     {readOnly ? <span className="act-dim">—</span> : l.stage === "won" ? (
-                      <button className="act-btn done-btn" disabled={busyId === l.id} onClick={() => void move(l, "completed")}>{busyId === l.id ? "..." : "To'lovni tasdiqlash"}</button>
+                      <button className="act-btn done-btn" disabled={busyId === l.id} onClick={() => setPayLead(l)}>{busyId === l.id ? "..." : "To'lovni tasdiqlash"}</button>
                     ) : (
-                      <button className="act-btn back" disabled={busyId === l.id} onClick={() => void move(l, "won")} title="To'lovni bekor qilish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>Bekor qilish</button>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span className="money" style={{ color: "var(--primary)" }} title="Olingan to'lov">{formatMoney(l.paidAmount ?? l.totalEstimate)} ✓</span>
+                        <button className="act-btn back" disabled={busyId === l.id} onClick={() => void move(l, "won")} title="To'lovni bekor qilish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg></button>
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -1732,6 +1771,10 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
           </table>
         ) : <Empty icon={I.money} text="Hali to'lov yo'q. Lid 'Kelishildi' bosqichiga o'tganda shu yerda ko'rinadi." />}
       </div>
+      {payLead ? (
+        <PayConfirm lead={payLead} onClose={() => setPayLead(null)}
+          onConfirm={async (amount) => { await agencyApi(`/bookings/${payLead.id}`, { method: "PATCH", body: JSON.stringify({ paidAmount: amount === "" ? null : amount }) }); await move(payLead, "completed"); }} />
+      ) : null}
     </section>
   );
 }

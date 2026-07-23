@@ -1042,6 +1042,8 @@ async function updateLead(req, res) {
     if (b.customerPhone !== undefined) data.customerPhone = b.customerPhone ? String(b.customerPhone).trim().slice(0, 40) : null;
     if (b.leadTour !== undefined) data.leadTour = b.leadTour ? String(b.leadTour).trim().slice(0, 200) : null;
     if (b.leadCity !== undefined) data.leadCity = b.leadCity ? String(b.leadCity).trim().slice(0, 120) : null;
+    if (b.leadTelegram !== undefined) data.leadTelegram = b.leadTelegram ? String(b.leadTelegram).trim().slice(0, 120) : null;
+    if (b.leadWhatsapp !== undefined) data.leadWhatsapp = b.leadWhatsapp ? String(b.leadWhatsapp).trim().slice(0, 40) : null;
     if (b.travelers !== undefined) {
       const n = parseInt(b.travelers, 10);
       if (!Number.isNaN(n) && n >= 1 && n <= 99) data.travelers = n;
@@ -1051,6 +1053,13 @@ async function updateLead(req, res) {
       else {
         const n = parseInt(String(b.totalEstimate).replace(/[^\d]/g, ''), 10);
         if (!Number.isNaN(n)) data.totalEstimate = n;
+      }
+    }
+    if (b.paidAmount !== undefined) {
+      if (b.paidAmount === null || b.paidAmount === '') data.paidAmount = null;
+      else {
+        const n = parseInt(String(b.paidAmount).replace(/[^\d]/g, ''), 10);
+        if (!Number.isNaN(n)) data.paidAmount = n;
       }
     }
     if (b.travelDate !== undefined) data.travelDate = b.travelDate ? new Date(b.travelDate) : null;

@@ -585,6 +585,9 @@ model TourBooking {
   pipelineStage      String      @default("new")
   leadTour           String?
   leadCity           String?     // qo'lda kiritilgan shahar (bog'langan tur bo'lmasa)
+  leadTelegram       String?     // mijoz Telegram: @username yoki link
+  leadWhatsapp       String?     // mijoz WhatsApp raqami (telefondan farqli bo'lishi mumkin)
+  paidAmount         Int?        // haqiqatda olingan to'lov (to'lovni tasdiqlashda kiritiladi)
   telegramChatId     String?
   utmSource          String?     // qayerdan keldi: instagram, telegram, google...
   utmMedium          String?     // cpc, post, story, bio...

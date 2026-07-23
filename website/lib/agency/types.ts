@@ -113,6 +113,9 @@ export type BookingItem = {
   customerBirthday?: string | null;
   leadTour?: string | null;
   leadCity?: string | null;
+  leadTelegram?: string | null;
+  leadWhatsapp?: string | null;
+  paidAmount?: number | null;
   responseDeadlineAt?: string | null;
   totalEstimate?: number | null;
   currency: string;

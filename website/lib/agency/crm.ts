@@ -106,6 +106,9 @@ export type CrmLead = {
   utmCampaign?: string | null;
   referrer?: string | null;
   customerBirthday?: string | null;
+  telegramHandle?: string | null;
+  whatsappNumber?: string | null;
+  paidAmount?: number | null;
 };
 
 /* ----------------------------------- keys --------------------------------- */
@@ -339,6 +342,9 @@ export function buildLeads(agencyId: string, bookings: BookingItem[]): CrmLead[]
         utmCampaign: b.utmCampaign,
         referrer: b.referrer,
         customerBirthday: b.customerBirthday,
+        telegramHandle: b.leadTelegram,
+        whatsappNumber: b.leadWhatsapp,
+        paidAmount: b.paidAmount,
       };
     })
     .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
@@ -418,6 +424,19 @@ export function telegramLink(phone?: string | null): string | null {
   const digits = normalizePhone(phone);
   if (!digits) return null;
   return `https://t.me/+${digits}`;
+}
+
+/** Telegram havolasi: @username / t.me link / raqam — biror biri bo'lmasa telefonga qaytadi. */
+export function telegramLinkSmart(handle?: string | null, phone?: string | null): string | null {
+  const h = (handle || "").trim();
+  if (h) {
+    if (/^https?:\/\//i.test(h)) return h;
+    if (h.startsWith("@")) return `https://t.me/${h.slice(1)}`;
+    if (/^[a-zA-Z][a-zA-Z0-9_]{3,}$/.test(h)) return `https://t.me/${h}`;
+    const d = normalizePhone(h);
+    if (d) return `https://t.me/+${d}`;
+  }
+  return telegramLink(phone);
 }
 
 /* --------------------------------- utils ---------------------------------- */
