@@ -61,6 +61,7 @@ const I = {
   doc: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M9 13h6 M9 17h4",
   sun: "M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z M12 1v2 M12 21v2 M4.22 4.22l1.42 1.42 M18.36 18.36l1.42 1.42 M1 12h2 M21 12h2 M4.22 19.78l1.42-1.42 M18.36 5.64l1.42-1.42",
   moon: "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z",
+  minus: "M5 12h14",
 };
 function Ic({ d, s = 18 }: { d: string; s?: number }) {
   return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
@@ -314,6 +315,7 @@ export default function KvCabinet() {
   const [dragId, setDragId] = useState("");
   const [over, setOver] = useState<CrmStage | "">("");
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [zoom, setZoom] = useState(1);
 
   // Tema: saqlangan tanlov -> tizim sozlamasi -> yorug'. <html data-theme> ga qo'yiladi.
   useEffect(() => {
@@ -328,6 +330,21 @@ export default function KvCabinet() {
     try { window.localStorage.setItem("travelorai_theme", theme); } catch { /* ignore */ }
   }, [theme]);
   useEffect(() => () => { if (typeof document !== "undefined") document.documentElement.removeAttribute("data-theme"); }, []);
+
+  // Zoom (katta/kichik) — CSS zoom butun sahifaga, brauzerда ham desktop app'да ham.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const z = parseFloat(window.localStorage.getItem("travelorai_zoom") || "1");
+    if (z >= 0.7 && z <= 1.6) setZoom(z);
+  }, []);
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.documentElement.style.setProperty("zoom", zoom === 1 ? "" : String(zoom));
+    try { window.localStorage.setItem("travelorai_zoom", String(zoom)); } catch { /* ignore */ }
+  }, [zoom]);
+  useEffect(() => () => { if (typeof document !== "undefined") document.documentElement.style.setProperty("zoom", ""); }, []);
+  const zoomIn = () => setZoom((z) => Math.min(1.6, Math.round((z + 0.1) * 10) / 10));
+  const zoomOut = () => setZoom((z) => Math.max(0.7, Math.round((z - 0.1) * 10) / 10));
 
   useEffect(() => {
     const id = "kv-fonts";
@@ -472,6 +489,11 @@ export default function KvCabinet() {
           <header className="topbar">
             <h1>{TITLES[view]}</h1>
             <div className="top-actions">
+              <div className="zoomctl">
+                <button onClick={zoomOut} disabled={zoom <= 0.7} title="Kichiklashtirish" aria-label="Kichiklashtirish"><Ic d={I.minus} s={16} /></button>
+                <button onClick={() => setZoom(1)} title="Asl hajm (100%)">{Math.round(zoom * 100)}%</button>
+                <button onClick={zoomIn} disabled={zoom >= 1.6} title="Kattalashtirish" aria-label="Kattalashtirish"><Ic d={I.plus} s={16} /></button>
+              </div>
               <button className="icon-btn" onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))} title={theme === "dark" ? "Yorug' rejim" : "Tungi rejim"} aria-label="Rejimni almashtirish">
                 <Ic d={theme === "dark" ? I.sun : I.moon} s={18} />
               </button>
