@@ -1,0 +1,6 @@
+# Tauri / Rust build artefaktlari
+src-tauri/target/
+src-tauri/gen/
+
+# Node (agar ishlatilsa)
+node_modules/

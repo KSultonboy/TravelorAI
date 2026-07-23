@@ -1,0 +1,17 @@
+[package]
+name = "travelorai-crm"
+version = "1.0.0"
+description = "TravelorAI CRM — agentlik kabineti"
+authors = ["TravelorAI"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+# Release build — POC uchun tez kompilyatsiya (LTO'siz), lekin ixcham
+[profile.release]
+opt-level = "s"
+strip = true
