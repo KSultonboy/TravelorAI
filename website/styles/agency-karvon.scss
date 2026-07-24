@@ -19,6 +19,7 @@
   --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
   font-family: var(--body); color: var(--t1); font-size: 14px; line-height: 1.5;
   background: var(--canvas); min-height: 100vh; -webkit-font-smoothing: antialiased;
+  color-scheme: light; /* native select/dropdown/scrollbar — light rejim */
 
   *{ box-sizing:border-box; }
   .num{ font-family:var(--disp); font-variant-numeric:tabular-nums; font-weight:600; }
@@ -599,7 +600,11 @@
   --t1:#E9F1EC; --t2:#9FB4AB; --t3:#6E857C;
   --border:#26382D;
   --shadow:0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.45);
+  color-scheme: dark; /* native select ochiluvchi ro'yxati, scrollbar — dark rejim */
 }
+/* Native <select> ochiluvchi ro'yxati (option'lar) — dark rejimda oq fon o'rniga to'q fon.
+   color-scheme yetmagan brauzerlar uchun zaxira. */
+:root[data-theme="dark"] .kv option{ background:#172420; color:#E9F1EC; }
 /* Tungi rejimда ba'zi qattiq oq/och fonlarни moslash */
 :root[data-theme="dark"] .kv .kstage2-btn{ background:var(--surface); }
 :root[data-theme="dark"] .kv .kstage2-btn:hover,
