@@ -1652,7 +1652,7 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
 
 /* ================= PACKAGES / TOURS ================= */
 function Packages({ show, tours, agencyId, refreshTours, readOnly }: any) {
-  const [modal, setModal] = useState<{ tour?: any } | null>(null);
+  const [modal, setModal] = useState<{ tour?: any; duplicate?: boolean } | null>(null);
   const [delTour, setDelTour] = useState<any>(null);
   const [delErr, setDelErr] = useState(""); const [delBusy, setDelBusy] = useState(false);
   const [busyId, setBusyId] = useState("");
@@ -1691,6 +1691,7 @@ function Packages({ show, tours, agencyId, refreshTours, readOnly }: any) {
                 {!readOnly ? (
                   <div className="pkg-act">
                     <button className="pkg-abtn" onClick={() => setModal({ tour: t })}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>Tahrirlash</button>
+                    <button className="pkg-abtn" onClick={() => setModal({ tour: t, duplicate: true })} title="Shu turdan nusxa olib yangi tur yaratish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>Nusxa</button>
                     <button className="pkg-abtn del" onClick={() => { setDelErr(""); setDelTour(t); }} title="O'chirish" aria-label="O'chirish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></button>
                   </div>
                 ) : null}
@@ -1702,7 +1703,7 @@ function Packages({ show, tours, agencyId, refreshTours, readOnly }: any) {
           ))}
         </div>
       ) : <div className="card"><Empty icon={I.box} text="Hali tur yo'q. 'Yangi tur' tugmasi orqali qo'shing." /></div>}
-      {modal ? <AddTour agencyId={agencyId} tour={modal.tour} onClose={() => setModal(null)} onCreated={refreshTours} /> : null}
+      {modal ? <AddTour agencyId={agencyId} tour={modal.tour} duplicate={modal.duplicate} onClose={() => setModal(null)} onCreated={refreshTours} /> : null}
       {delTour ? <ConfirmDelete tour={delTour} busy={delBusy} err={delErr} onCancel={() => setDelTour(null)} onConfirm={doDelete} /> : null}
     </section>
   );
@@ -2465,19 +2466,30 @@ function PlacePicker({ onPick, onError, placeholder, small }: {
   );
 }
 
-function AddTour({ agencyId, tour, onClose, onCreated }: any) {
-  const editing = !!tour;
+function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
+  const editing = !!tour && !duplicate;
   const [f, setF] = useState({
-    title: tour?.title || "", city: tour?.city || "", subtitle: tour?.subtitle || "",
+    title: duplicate && tour?.title ? `${tour.title} (nusxa)` : (tour?.title || ""), city: tour?.city || "", subtitle: tour?.subtitle || "",
     duration: tour?.duration || "", price: tour?.price || (tour?.priceMin ? `$${tour.priceMin}` : ""),
     highlights: Array.isArray(tour?.highlights) ? tour.highlights.join(", ") : "",
     mapAddress: tour?.mapAddress || "",
   });
+  // Yangi tur — forma yig'iq (tezkor: 4-5 maydon + rasm). Tahrir/nusxa — batafsil ochiq.
+  const [advanced, setAdvanced] = useState(!!tour);
   const [img, setImg] = useState(tour?.imageUrl || "");
   const [gallery, setGallery] = useState<string[]>(Array.isArray(tour?.images) ? tour.images : []);
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
+  // Xizmatlar uchun tez tanlov chiplari — bosib qo'shiladi, yozib o'tirilmaydi.
+  const HL_CHIPS = ["Aviabilet", "Transfer", "Gid", "Mehmonxona", "Ovqat", "Viza", "Sug'urta", "Ekskursiya"];
+  const hlHas = (c: string) => String(f.highlights).split(",").map((s: string) => s.trim().toLowerCase()).includes(c.toLowerCase());
+  const toggleHl = (c: string) => setF((p) => {
+    const arr = String(p.highlights).split(",").map((s: string) => s.trim()).filter(Boolean);
+    const i = arr.findIndex((x: string) => x.toLowerCase() === c.toLowerCase());
+    if (i >= 0) arr.splice(i, 1); else arr.push(c);
+    return { ...p, highlights: arr.join(", ") };
+  });
   async function pickImg(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
     try { setImg(await readImage(file)); } catch (er) { setErr(er instanceof Error ? er.message : "Rasm xato"); }
@@ -2556,7 +2568,7 @@ function AddTour({ agencyId, tour, onClose, onCreated }: any) {
       title: f.title.trim(), city: f.city.trim(), subtitle: f.subtitle.trim(), duration: f.duration.trim(),
       price: f.price.trim() || undefined, priceMin, highlights,
     };
-    if (img !== (tour?.imageUrl || "")) body.imageUrl = img || null;
+    if (!editing || img !== (tour?.imageUrl || "")) body.imageUrl = img || null;
     body.images = gallery;
     body.mapAddress = f.mapAddress.trim();
     body.routeStops = stops;
@@ -2579,7 +2591,7 @@ function AddTour({ agencyId, tour, onClose, onCreated }: any) {
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="card modal-card" onClick={(e) => e.stopPropagation()}>
-        <div className="section-head" style={{ margin: "0 0 12px" }}><div><h2>{editing ? "Turni tahrirlash" : "Yangi tur qo'shish"}</h2><div className="sub">To'ldirib «E'lon qilish»ni bossangiz — tur to'g'ridan-to'g'ri saytda ko'rinadi. Yoki qoralama saqlab keyin e'lon qilasiz.</div></div></div>
+        <div className="section-head" style={{ margin: "0 0 12px" }}><div><h2>{editing ? "Turni tahrirlash" : duplicate ? "Turdan nusxa" : "Yangi tur qo'shish"}</h2><div className="sub">{duplicate ? "Barcha ma'lumot nusxalandi — narx/nom/sanani o'zgartirib e'lon qiling." : "To'ldirib «E'lon qilish»ni bossangiz — tur to'g'ridan-to'g'ri saytda ko'rinadi. Yoki qoralama saqlab keyin e'lon qilasiz."}</div></div></div>
         {err ? <div className="note note-err">{err}</div> : null}
         {confirming ? (
           <div className="pub-confirm">
@@ -2601,7 +2613,18 @@ function AddTour({ agencyId, tour, onClose, onCreated }: any) {
           <div className="fld"><label>Qisqa tavsif *</label><input value={f.subtitle} onChange={set("subtitle")} placeholder="All inclusive, aviabilet + mehmonxona" /></div>
           <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div className="fld"><label>Narx</label><input value={f.price} onChange={set("price")} placeholder="$900" /></div>
-            <div className="fld"><label>Xizmatlar (vergul bilan)</label><input value={f.highlights} onChange={set("highlights")} placeholder="Aviabilet, Transfer, Gid" /></div>
+            <div className="fld"><label>Xizmatlar</label><input value={f.highlights} onChange={set("highlights")} placeholder="Aviabilet, Transfer, Gid" /></div>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "-4px 0 2px" }}>
+            {HL_CHIPS.map((c) => {
+              const on = hlHas(c);
+              return (
+                <button type="button" key={c} onClick={() => toggleHl(c)}
+                  style={{ padding: "5px 11px", borderRadius: 999, border: `1px solid ${on ? "var(--primary)" : "var(--border)"}`, background: on ? "var(--primary-soft)" : "var(--surface)", color: on ? "var(--primary)" : "var(--t2)", fontFamily: "inherit", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
+                  {on ? "✓ " : "+ "}{c}
+                </button>
+              );
+            })}
           </div>
           <div className="fld">
             <label>Rasm (ixtiyoriy)</label>
@@ -2613,6 +2636,11 @@ function AddTour({ agencyId, tour, onClose, onCreated }: any) {
             {img ? <img className="filepick-preview" src={img} alt="" /> : null}
           </div>
 
+          <button type="button" className="btn btn-ghost btn-sm" style={{ marginTop: 2 }} onClick={() => setAdvanced((v) => !v)}>
+            {advanced ? "▾ Batafsil ma'lumotni yopish" : "▸ Batafsil qo'shish (ixtiyoriy) — galereya, marshrut, kun bo'yicha reja"}
+          </button>
+          {advanced ? (
+          <>
           <div className="fld">
             <label>Galereya — {gallery.length}/{GALLERY_MAX} rasm</label>
             <label className="filepick">
@@ -2726,6 +2754,8 @@ function AddTour({ agencyId, tour, onClose, onCreated }: any) {
               Har bir kunga joy qo&apos;shsangiz — taklif sahifasida o&apos;sha kun uchun <b>alohida kichik xarita</b> chiziladi va mijoz qayerda bo&apos;lishini ko&apos;radi.
             </small>
           </div>
+          </>
+          ) : null}
 
           <div className="modal-foot">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Bekor</button>
