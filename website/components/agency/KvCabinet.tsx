@@ -65,6 +65,7 @@ const I = {
   expand: "M8 3H5a2 2 0 0 0-2 2v3 M21 8V5a2 2 0 0 0-2-2h-3 M16 21h3a2 2 0 0 0 2-2v-3 M3 16v3a2 2 0 0 0 2 2h3",
   compress: "M8 3v3a2 2 0 0 1-2 2H3 M21 8h-3a2 2 0 0 1-2-2V3 M3 16h3a2 2 0 0 1 2 2v3 M16 21v-3a2 2 0 0 1 2-2h3",
   edit: "M12 20h9 M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z",
+  info: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 16v-4 M12 8h.01",
 };
 function Ic({ d, s = 18 }: { d: string; s?: number }) {
   return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
@@ -1402,31 +1403,18 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
   const [sending, setSending] = useState("");
   const [sent, setSent] = useState("");
   const [sendErr, setSendErr] = useState("");
+  const [help, setHelp] = useState(false);
 
-  // AI izoh yozuvchi — "hidden" tarifda yo'q, "off" kalit sozlanmagan, "ready" ishlaydi
-  const [aiState, setAiState] = useState<"hidden" | "off" | "ready">("hidden");
-  const [aiBusy, setAiBusy] = useState(false);
-  useEffect(() => {
-    void agencyApi<{ configured: boolean }>("/ai/status").then((r) => {
-      setAiState(!r.success ? "hidden" : r.data.configured ? "ready" : "off");
-    });
-  }, []);
-
-  async function aiWrite() {
-    if (aiBusy) return;
-    if (!leadId && !tourId) { setErr("Avval lid yoki tur tanlang — AI shularga qarab yozadi."); return; }
-    setAiBusy(true); setErr("");
-    const res = await agencyApi<{ text: string }>("/ai/presentation-note", {
-      method: "POST",
-      body: JSON.stringify({
-        bookingId: leadId || undefined,
-        tourId: tourId || undefined,
-        priceText: price.trim() || undefined,
-      }),
-    });
-    setAiBusy(false);
-    if (res.success) setNote(res.data.text);
-    else setErr(res.message || "AI izoh yoza olmadi");
+  // Tur tanlanganda uning nomi va narxini avtomatik to'ldiramiz — foydalanuvchi keyin o'zgartira oladi.
+  function fillFromTour(id: string) {
+    const t = tours.find((x: any) => x.id === id);
+    if (!t) return;
+    setTitle(t.title || "");
+    setPrice(t.price || (t.priceMin ? formatMoney(t.priceMin) : ""));
+  }
+  function pickTour(id: string) {
+    setTourId(id);
+    if (id) fillFromTour(id);
   }
 
   const leadOpts: CrmLead[] = useMemo(() => leads.filter((l: CrmLead) => l.stage !== "lost"), [leads]);
@@ -1450,7 +1438,7 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
       if (city.length >= 3 && (city.includes(d) || d.includes(city))) return true;
       return false;
     });
-    if (match) setTourId(match.id);
+    if (match) { setTourId(match.id); fillFromTour(match.id); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadId]);
   const stats = useMemo(() => ({
@@ -1460,6 +1448,9 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
   }), [items]);
 
   const inp: any = { padding: "10px 12px", border: "1px solid rgba(255,255,255,.15)", background: "rgba(255,255,255,.04)", color: "inherit", borderRadius: 10, fontSize: 14, minWidth: 0 };
+  const stepLabel: any = { display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 700 };
+  const stepNum: any = { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: 999, background: "rgba(234,179,8,.15)", color: "#EAB308", fontSize: 12.5, fontWeight: 800, flex: "0 0 auto" };
+  const hint: any = { color: "#8aa398", fontSize: 12.5 };
 
   async function copy(url: string, id: string) {
     try {
@@ -1516,10 +1507,25 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
     <section className={`view${show ? " active" : ""}`}>
       <div className="section-head">
         <div>
-          <h2>Dinamik takliflar</h2>
-          <div className="sub">{stats.total} ta yuborilgan · {stats.viewed} ko&apos;rildi · {stats.interested} qiziqish bildirdi</div>
+          <h2>Takliflar</h2>
+          <div className="sub">Mijozga maxsus havola tayyorlaysiz — tanlangan tur, narx va shaxsiy izoh bilan.</div>
         </div>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setHelp((v) => !v)}>
+          <Ic d={I.info} s={15} /> Bu qanday ishlaydi?
+        </button>
       </div>
+
+      {help ? (
+        <div className="card" style={{ padding: 16, marginBottom: 12, display: "grid", gap: 8, borderColor: "rgba(234,179,8,.35)" }}>
+          <b style={{ color: "#EAB308" }}>Taklif — bu mijoz uchun maxsus sahifa (havola).</b>
+          <div style={{ color: "#8aa398", fontSize: 13.5, lineHeight: 1.65 }}>
+            Turni, narxni va qisqa izohni tanlaysiz — biz mijoz uchun chiroyli sahifa tayyorlaymiz.
+            Havolani unga Telegram yoki WhatsApp orqali yuborasiz. Mijoz sahifani ochsa yoki qiziqsa —
+            pastdagi jadvalда «ko&apos;rildi / qiziqish bildirdi» bo&apos;lib ko&apos;rinadi.
+            Mijozning telefon raqami va emaili sahifada <b>ko&apos;rinmaydi</b>.
+          </div>
+        </div>
+      ) : null}
 
       {created ? (
         <div className="card" style={{ padding: 16, marginBottom: 12, borderColor: "rgba(234,179,8,.45)" }}>
@@ -1535,55 +1541,58 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
       ) : null}
 
       {!readOnly ? (
-        <form className="card" style={{ padding: 16, display: "grid", gap: 10 }} onSubmit={submit}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <select value={leadId} onChange={(e) => setLeadId(e.target.value)} style={{ ...inp, flex: "1 1 200px" }}>
-              <option value="">Lidni tanlang (ixtiyoriy)</option>
+        <form className="card" style={{ padding: 18, display: "grid", gap: 16 }} onSubmit={submit}>
+          {/* 1 — Kimga */}
+          <div style={{ display: "grid", gap: 6 }}>
+            <label style={stepLabel}><span style={stepNum}>1</span> Kimga yuboramiz?</label>
+            <select value={leadId} onChange={(e) => setLeadId(e.target.value)} style={inp}>
+              <option value="">Mijozni tanlang (ixtiyoriy)</option>
               {leadOpts.map((l) => <option key={l.id} value={l.id}>{l.customerName} · {STAGE_LABEL[l.stage]}</option>)}
             </select>
-            <select value={tourId} onChange={(e) => setTourId(e.target.value)} style={{ ...inp, flex: "1 1 200px" }}>
+            <small style={hint}>Telegram lidini tanlasangiz — tayyor havolani to&apos;g&apos;ridan-to&apos;g&apos;ri botdan yuborishingiz mumkin.</small>
+          </div>
+
+          {/* 2 — Qaysi tur */}
+          <div style={{ display: "grid", gap: 6 }}>
+            <label style={stepLabel}><span style={stepNum}>2</span> Qaysi turni taklif qilamiz?</label>
+            <select value={tourId} onChange={(e) => pickTour(e.target.value)} style={inp}>
               <option value="">Turni tanlang</option>
               {tours.map((t: any) => <option key={t.id} value={t.id}>{t.title}</option>)}
             </select>
+            {leadDest ? (
+              <small style={hint}>
+                Mijoz qiziqqan yo&apos;nalish: <b style={{ color: "#EAB308" }}>{leadDest}</b>
+                {tourId ? " — mos tur o'zi tanlandi, nomi va narxi to'ldirildi." : " — mos tur topilmadi, qo'lda tanlang."}
+              </small>
+            ) : null}
           </div>
-          {leadDest ? (
-            <div style={{ fontSize: 13, color: "#8aa398", marginTop: -2 }}>
-              Mijoz qiziqqan yo&apos;nalish: <b style={{ color: "#EAB308" }}>{leadDest}</b>
-              {tourId ? " — mos tur avtomatik tanlandi" : " — bunga mos tur topilmadi, qo'lda tanlang"}
+
+          {/* 3 — Nomi, narx, izoh */}
+          <div style={{ display: "grid", gap: 6 }}>
+            <label style={stepLabel}><span style={stepNum}>3</span> Nomi, narxi va izoh</label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Taklif nomi" style={{ ...inp, flex: "2 1 240px" }} />
+              <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Narx, masalan: 850$ / kishi" style={{ ...inp, flex: "1 1 180px" }} />
             </div>
-          ) : null}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Taklif nomi (bo'sh qolsa tur nomi olinadi)" style={{ ...inp, flex: "2 1 240px" }} />
-            <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Narx, masalan: 850$ / kishi" style={{ ...inp, flex: "1 1 180px" }} />
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Shaxsiy izoh — nega aynan shu tur mos kelishini yozing (ixtiyoriy)…" style={{ ...inp, resize: "vertical", width: "100%" }} />
           </div>
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 6 }}>
-              <small style={{ color: "#8aa398", fontSize: 12.5 }}>Shaxsiy izoh — sahifadagi eng ishontiruvchi qism</small>
-              {aiState !== "hidden" ? (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => void aiWrite()}
-                  disabled={aiBusy || aiState === "off"}
-                  title={aiState === "off" ? "AI hali sozlanmagan — administrator kalit qo'shishi kerak" : "Lid suhbati va tur asosida izoh yozadi"}
-                >
-                  <Ic d={I.bolt} s={14} /> {aiBusy ? "Yozilmoqda…" : "AI yozib bersin"}
-                </button>
-              ) : null}
-            </div>
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Mijozga shaxsiy izoh — nega aynan shu tur mos kelishini yozing…" style={{ ...inp, resize: "vertical", width: "100%" }} />
-          </div>
+
           {err ? <div style={{ color: "#F43F5E", fontSize: 13 }}>{err}</div> : null}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <small style={{ color: "#8aa398" }}>Havola shaxsiy — mijoz telefoni va emaili sahifada ko&apos;rinmaydi.</small>
-            <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
-              <Ic d={I.send} s={14} /> {busy ? "Yaratilmoqda…" : "Taklif yaratish"}
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button type="submit" className="btn btn-primary" disabled={busy}>
+              <Ic d={I.send} s={15} /> {busy ? "Tayyorlanmoqda…" : "Havola tayyorlash"}
             </button>
           </div>
         </form>
       ) : null}
 
       {sendErr ? <div className="card" style={{ marginTop: 12, padding: 12, color: "#F43F5E", fontSize: 13 }}>{sendErr}</div> : null}
+
+      {stats.total > 0 ? (
+        <div style={{ margin: "16px 2px 0", fontSize: 13, color: "#8aa398" }}>
+          <b style={{ color: "var(--t1)" }}>Yuborilgan takliflar</b> · {stats.total} ta · {stats.viewed} ko&apos;rildi · {stats.interested} qiziqish bildirdi
+        </div>
+      ) : null}
 
       {items.length === 0 ? (
         <div className="card" style={{ marginTop: 12 }}>
