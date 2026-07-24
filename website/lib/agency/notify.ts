@@ -59,6 +59,11 @@ export function markAllRead(agencyId: string) {
   write(agencyId, getNotifs(agencyId).map((n) => ({ ...n, read: true })));
 }
 
+/** Barcha bildirishnomalarni butunlay tozalash (o'chirilgan/eski lidlar qoldig'ini ham). */
+export function clearNotifs(agencyId: string) {
+  write(agencyId, []);
+}
+
 /** Do'kon bo'sh bo'lsa, mavjud lidlardan boshlang'ich feed'ni to'ldiradi (bir marta). */
 export function seedNotifs(agencyId: string, seed: Omit<KvNotif, "id">[]) {
   if (typeof window === "undefined") return;

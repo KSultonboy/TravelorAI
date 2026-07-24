@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAgencySession } from "@/lib/agency/session";
 import { useCrm } from "@/lib/agency/useCrm";
 import { agencyApi, formatMoney, formatDate, statusLabel, readImage } from "@/lib/agency/api";
-import { getNotifs, markRead, markAllRead, pushNotif, seedNotifs, type KvNotif } from "@/lib/agency/notify";
+import { getNotifs, markRead, markAllRead, clearNotifs, pushNotif, seedNotifs, type KvNotif } from "@/lib/agency/notify";
 import {
   CRM_STAGES,
   STAGE_LABEL,
@@ -198,7 +198,15 @@ function NotificationBell({ agencyId, leads, go }: { agencyId: string; leads: Cr
         <Ic d={I.bell} s={19} />
       </button>
       <div className="notif-menu" role="menu">
-        <div className="notif-head"><b>Bildirishnomalar</b>{unread > 0 ? <button className="notif-allread" onClick={() => markAllRead(agencyId)}>Barchasini o&apos;qish</button> : null}</div>
+        <div className="notif-head">
+          <b>Bildirishnomalar</b>
+          {items.length > 0 ? (
+            <div className="notif-actions">
+              {unread > 0 ? <button className="notif-allread" onClick={() => markAllRead(agencyId)}>O&apos;qildi</button> : null}
+              <button className="notif-allread notif-clear" onClick={() => clearNotifs(agencyId)}>Tozalash</button>
+            </div>
+          ) : null}
+        </div>
         <div className="notif-list">
           {items.length === 0 ? (
             <div className="notif-empty">Hozircha bildirishnoma yo&apos;q</div>
