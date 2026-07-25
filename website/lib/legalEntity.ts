@@ -19,8 +19,8 @@ export const LEGAL_ENTITY = {
   bankName: "«Agrobank» ATB, Xonqa filiali",
   /** Hisob raqami (h/r) */
   account: "20208000905694231001",
-  /** MFO — bankdan olinadi (to'lov topshiriqnomasida yoki bank ilovasida) */
-  mfo: "",
+  /** MFO */
+  mfo: "00560",
 } as const;
 
 /** Har doim mavjud bo'lgan aloqa ma'lumotlari (yuridik shaxsga bog'liq emas). */
