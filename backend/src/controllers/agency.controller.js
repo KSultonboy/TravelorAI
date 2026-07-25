@@ -4,7 +4,6 @@ const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { signAgencyToken } = require('../utils/agencyJwt');
 const { verifyGoogleIdToken } = require('../services/auth.service');
-const { sendPushNotification } = require('../services/push.service');
 const { sendEmailChangeCodeEmail, sendEmailChangedNoticeEmail, sendVerificationCodeEmail, sendAgencyPasswordResetLinkEmail } = require('../services/email.service');
 const {
   withDecay,
@@ -614,40 +613,6 @@ async function changePassword(req, res) {
 
 // Public: agency sets a new password using the code from the reset-link email.
 // No self-service "forgot" form on the portal — the reset is admin-triggered.
-const BOOKING_PUSH = {
-  confirmed: {
-    title: 'So‘rovingiz qabul qilindi 🎉',
-    body: (t) => `${t} bo‘yicha agentlik so‘rovingizni qabul qildi. Tez orada bog‘lanadi.`,
-  },
-  rejected: {
-    title: 'So‘rov rad etildi',
-    body: (t) => `Afsuski, ${t} bo‘yicha so‘rovingiz rad etildi. Boshqa turlarni ko‘rib chiqing.`,
-  },
-  cancelled: {
-    title: 'So‘rov bekor qilindi',
-    body: (t) => `${t} bo‘yicha so‘rov bekor qilindi.`,
-  },
-  completed: {
-    title: 'Safaringiz yakunlandi ✅',
-    body: (t) => `${t} — sayohatingiz yakunlandi. Fikringizni bildiring!`,
-  },
-};
-
-async function notifyBookingStatus(booking) {
-  if (!booking || !booking.userId) return;
-  const tpl = BOOKING_PUSH[booking.status];
-  if (!tpl) return;
-  const user = await prisma.user.findUnique({ where: { id: booking.userId }, select: { expoPushToken: true } });
-  if (!user || !user.expoPushToken) return;
-  const tourTitle = booking.tour && booking.tour.title ? booking.tour.title : 'Tur';
-  await sendPushNotification({
-    to: user.expoPushToken,
-    title: tpl.title,
-    body: tpl.body(tourTitle),
-    data: { type: 'booking_status', bookingId: booking.id, status: booking.status },
-  });
-}
-
 async function googleAuth(req, res) {
   try {
     const input = googleAuthSchema.parse(req.body || {});
