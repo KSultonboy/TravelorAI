@@ -5,7 +5,16 @@ import { CalendarDays, CheckCircle2, Minus, Phone, Plus } from "lucide-react";
 import { useAuth } from "./useAuth";
 import { getAttribution } from "@/lib/attribution";
 
-const SERVICE_FEE = 0.05;
+const UZ_MONTHS = ["yanvar", "fevral", "mart", "aprel", "may", "iyun", "iyul", "avgust", "sentabr", "oktabr", "noyabr", "dekabr"];
+
+/** Brauzer sana maydonini o'z tilida (mm/dd/yyyy) ko'rsatadi — tanlanganini
+ *  o'zbekcha yozib beramiz, foydalanuvchi chalkashmasin. */
+function uzDate(value: string): string {
+  const [y, m, d] = value.split("-").map(Number);
+  if (!y || !m || !d) return "";
+  return `${d}-${UZ_MONTHS[m - 1]} ${y}`;
+}
+const todayIso = () => new Date().toISOString().slice(0, 10);
 
 export default function BookingPanel({
   tourSlug,
@@ -26,11 +35,7 @@ export default function BookingPanel({
   const [ok, setOk] = useState(false);
   const [err, setErr] = useState("");
 
-  const { subtotal, fee, total } = useMemo(() => {
-    const sub = basePrice * travelers;
-    const f = Math.round(sub * SERVICE_FEE);
-    return { subtotal: sub, fee: f, total: sub + f };
-  }, [basePrice, travelers]);
+  const subtotal = useMemo(() => basePrice * travelers, [basePrice, travelers]);
 
   const money = (v: number) => (basePrice > 0 ? `${v.toLocaleString("uz-UZ")} ${currency}` : "—");
 
@@ -66,7 +71,16 @@ export default function BookingPanel({
         </div>
       ) : (
         <>
-          <div className="mkt-field"><label>Sayohat sanasi</label><div className="mkt-input"><CalendarDays size={16} /><input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div></div>
+          <div className="mkt-field">
+            <label>Sayohat sanasi</label>
+            <div className="mkt-input">
+              <CalendarDays size={16} />
+              <input type="date" lang="uz" min={todayIso()} value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+            <small style={{ color: "var(--subtle)", fontSize: "0.78rem" }}>
+              {date ? `Tanlandi: ${uzDate(date)}` : "Kun · oy · yil — taxminiy sanani tanlang"}
+            </small>
+          </div>
 
           <div className="mkt-field">
             <label>Sayohatchilar</label>
@@ -81,10 +95,12 @@ export default function BookingPanel({
             <div className="mkt-field"><label>Telefon</label><div className="mkt-input"><Phone size={16} /><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+998 .." /></div></div>
           ) : null}
 
+          {/* Bizda turist uchun xizmat haqi YO'Q — bron so'rovi bepul.
+              Yakuniy narxni agentlik belgilaydi, shuning uchun "Jami" emas,
+              "Taxminiy summa" deb ko'rsatamiz. */}
           <div className="mkt-book__rows">
-            <div><span>{money(basePrice)} × {travelers}</span><span>{money(subtotal)}</span></div>
-            <div><span>Xizmat haqi (5%)</span><span>{money(fee)}</span></div>
-            <div className="mkt-book__total"><span>Jami</span><span>{money(total)}</span></div>
+            <div><span>{money(basePrice)} × {travelers} kishi</span><span>{money(subtotal)}</span></div>
+            <div className="mkt-book__total"><span>Taxminiy summa</span><span>{money(subtotal)}</span></div>
           </div>
 
           {err ? <div className="mkt-alert mkt-alert--error" style={{ marginBottom: 10 }}>{err}</div> : null}
@@ -96,7 +112,10 @@ export default function BookingPanel({
           ) : (
             <a className="btn btn--gold btn--lg btn--block" href={`/signin?next=/tours/${encodeURIComponent(tourSlug)}`}>Kirib bron qiling</a>
           )}
-          <p className="mkt-book__note">Bron so‘rovi tasdiqlangan agentligiga yuboriladi. Yakuniy narx agentligi bilan kelishiladi.</p>
+          <p className="mkt-book__note">
+            Bron so‘rovi <b>bepul</b> — hech qanday to‘lov olinmaydi. So‘rov tasdiqlangan agentlikka yuboriladi,
+            yakuniy narx va shartlar agentlik bilan kelishiladi.
+          </p>
         </>
       )}
     </aside>
