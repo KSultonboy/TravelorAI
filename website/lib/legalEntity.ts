@@ -7,19 +7,19 @@
  * Click/Payme shartnomasidan oldin bularni to'ldirish SHART.
  */
 export const LEGAL_ENTITY = {
-  /** To'liq huquqiy nom — masalan: «TRAVELOR AI» MChJ */
-  legalName: "",
+  /** To'liq huquqiy nom (guvohnoma bo'yicha) */
+  legalName: "«RIZEON» oilaviy korxona",
   /** STIR (INN) */
-  stir: "",
+  stir: "310779970",
   /** Yuridik manzil */
-  address: "",
+  address: "Xorazm viloyati, Xonqa tumani, Xonqa, Gulg'uncha MFY, Nafosat ko'chasi, 1/42-uy",
   /** Direktor F.I.Sh. */
-  director: "",
+  director: "Aminov Akmal Komiljonovich",
   /** Bank nomi */
-  bankName: "",
+  bankName: "«Agrobank» ATB, Xonqa filiali",
   /** Hisob raqami (h/r) */
-  account: "",
-  /** MFO */
+  account: "20208000905694231001",
+  /** MFO — bankdan olinadi (to'lov topshiriqnomasida yoki bank ilovasida) */
   mfo: "",
 } as const;
 
