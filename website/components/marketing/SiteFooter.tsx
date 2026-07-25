@@ -65,9 +65,9 @@ export default function SiteFooter() {
         <div className="mkt-footer__bottom">
           <span>© {year} TravelorAI. Barcha huquqlar himoyalangan.</span>
           <span style={{ display: "flex", gap: "18px", flexWrap: "wrap" }}>
-            <span className="mkt-footer__contact" style={{ margin: 0 }}><MapPin size={15} /> Toshkent, O‘zbekiston</span>
-            <span className="mkt-footer__contact" style={{ margin: 0 }}><Phone size={15} /> +998 90 000 00 00</span>
+            <span className="mkt-footer__contact" style={{ margin: 0 }}><MapPin size={15} /> O‘zbekiston</span>
             <span className="mkt-footer__contact" style={{ margin: 0 }}><Mail size={15} /> support@travelorai.com</span>
+            <a className="mkt-footer__contact" style={{ margin: 0 }} href="https://t.me/travelorai" target="_blank" rel="noopener noreferrer"><Send size={15} /> @travelorai</a>
           </span>
         </div>
       </div>
