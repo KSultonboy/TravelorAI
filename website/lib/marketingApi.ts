@@ -86,6 +86,22 @@ export async function fetchTour(idOrSlug: string): Promise<Tour | null> {
   return tours.find((t) => t.slug === idOrSlug || t.id === idOrSlug) || null;
 }
 
+/* ===== Tariflar (ommaviy) — /pricing sahifasi uchun. Narxlar so'mda. ===== */
+export type PublicTariff = {
+  slug: string;
+  name: string;
+  priceMonthly: number;
+  priceMonthlyUzs: number;
+  features: string[];
+  sortOrder: number;
+};
+
+export async function fetchTariffs(): Promise<PublicTariff[]> {
+  const json = await getJson("/tariffs");
+  const items = json?.data;
+  return Array.isArray(items) ? (items as PublicTariff[]) : [];
+}
+
 /* ===== Dinamik taklif (prezentatsiya) — agent mijozga yuboradigan shaxsiy sahifa ===== */
 
 export type PresentationTour = {

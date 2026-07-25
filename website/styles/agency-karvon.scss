@@ -585,6 +585,28 @@
 .kv .sub-card__warn{ margin-top:12px; background:var(--rose-soft); color:#8f2a20; border-radius:10px; padding:10px 13px; font-size:12.5px; }
 .kv .sub-card__feats{ display:flex; flex-wrap:wrap; gap:7px; margin-top:13px; }
 
+/* Obunani to'lash (CLICK) */
+.kv .sub-pay{ margin-top:16px; padding-top:16px; border-top:1px solid var(--border); display:grid; gap:11px; }
+.kv .sub-pay--off{ display:grid; gap:3px; font-size:12.5px; color:var(--t2); }
+.kv .sub-pay--off b{ color:var(--t1); font-family:var(--disp); font-size:13.5px; }
+.kv .sub-pay__head{ font-family:var(--disp); font-size:14px; font-weight:700; color:var(--t1); }
+.kv .sub-pay__plans{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; }
+.kv .sub-pay__plan{ display:grid; gap:2px; text-align:left; padding:11px 13px; border:1.5px solid var(--border); border-radius:11px; background:var(--surface); cursor:pointer; transition:.13s; }
+.kv .sub-pay__plan:hover{ border-color:var(--primary); }
+.kv .sub-pay__plan.on{ border-color:var(--primary); background:var(--primary-soft); }
+.kv .sub-pay__plan b{ font-family:var(--disp); font-size:14px; color:var(--t1); }
+.kv .sub-pay__plan span{ font-size:12px; color:var(--t2); }
+.kv .sub-pay__plan.on span{ color:var(--primary-ink); }
+.kv .sub-pay__months{ display:flex; flex-wrap:wrap; gap:7px; }
+.kv .sub-pay__m{ padding:7px 14px; border:1px solid var(--border); border-radius:999px; background:var(--surface); color:var(--t2); font-family:var(--disp); font-size:12.5px; font-weight:600; cursor:pointer; transition:.13s; }
+.kv .sub-pay__m:hover{ border-color:var(--primary); color:var(--primary); }
+.kv .sub-pay__m.on{ border-color:var(--primary); background:var(--primary); color:#fff; }
+.kv .sub-pay__foot{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.kv .sub-pay__total{ font-size:13px; color:var(--t2); }
+.kv .sub-pay__total b{ font-family:var(--disp); font-size:18px; color:var(--gold-ink); font-variant-numeric:tabular-nums; }
+.kv .sub-pay__note{ font-size:11.5px; color:var(--t3); }
+.kv .sub-pay__note a{ color:var(--primary); }
+
 .kv .kv-fieldset{ border:0; padding:0; margin:0; min-inline-size:auto; }
 .kv .kv-fieldset:disabled{ opacity:.6; }
 

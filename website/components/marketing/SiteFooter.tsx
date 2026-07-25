@@ -16,14 +16,15 @@ const COLS = [
     title: "Hamkorlar uchun",
     links: [
       ["Hamkor bo‘lish", "/partners"],
+      ["Tariflar", "/pricing"],
       ["Agentlik portali", "/agency"],
-      ["Biz haqimizda", "/about"],
       ["Aloqa", "/contact"],
     ],
   },
   {
     title: "Huquqiy",
     links: [
+      ["Ommaviy oferta", "/offer"],
       ["Maxfiylik siyosati", "/privacy"],
       ["Foydalanish shartlari", "/terms"],
     ],

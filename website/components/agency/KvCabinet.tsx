@@ -2010,9 +2010,105 @@ function SubscriptionCard({ access }: any) {
         <span className={`badge2 ${badge.c}`}>{badge.t}</span>
       </div>
       {readOnly ? (
-        <div className="sub-card__warn">Obuna muddati tugagan — hozir faqat o&apos;qish rejimi. To&apos;lovni yangilash uchun administrator bilan bog&apos;laning.</div>
+        <div className="sub-card__warn">Obuna muddati tugagan — hozir faqat o&apos;qish rejimi. Quyida tarifni tanlab to&apos;lov qilsangiz, kabinet darhol tiklanadi.</div>
       ) : null}
       {feats.length ? <div className="sub-card__feats">{feats.map((f) => <span key={f} className="chip">{f}</span>)}</div> : null}
+      <PayPlan />
+    </div>
+  );
+}
+
+const somUz = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+const MONTH_OPTS = [1, 3, 6, 12];
+
+/** Obunani CLICK orqali to'lash — tarif + muddat tanlanadi, havolaga o'tadi. */
+function PayPlan() {
+  const [plans, setPlans] = useState<any[]>([]);
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [slug, setSlug] = useState("");
+  const [months, setMonths] = useState(1);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    void agencyApi<any>("/payments/plans").then((r) => {
+      if (!r.success) { setEnabled(false); return; }
+      setEnabled(!!r.data.clickEnabled);
+      const list = Array.isArray(r.data.plans) ? r.data.plans : [];
+      setPlans(list);
+      if (list.length) setSlug(list[list.length > 1 ? 1 : 0].slug); // odatda "Pro"
+    });
+  }, []);
+
+  const active = useMemo(() => plans.find((p) => p.slug === slug) || null, [plans, slug]);
+  const total = active ? Number(active.priceMonthlyUzs) * months : 0;
+
+  async function pay() {
+    if (!slug || busy) return;
+    setBusy(true); setErr("");
+    const res = await agencyApi<{ payUrl: string }>("/payments/checkout", {
+      method: "POST",
+      body: JSON.stringify({ tariffSlug: slug, months }),
+    });
+    if (!res.success) { setBusy(false); setErr(res.message || "To'lov havolasini olib bo'lmadi"); return; }
+    window.location.href = res.data.payUrl; // CLICK to'lov sahifasi
+  }
+
+  if (enabled === null) return null;
+  if (!enabled) {
+    return (
+      <div className="sub-pay sub-pay--off">
+        <b>Onlayn to&apos;lov hozircha ulanmagan.</b>
+        <span>To&apos;lovni yangilash uchun administrator bilan bog&apos;laning — CLICK/Payme ulanishi jarayonida.</span>
+      </div>
+    );
+  }
+  if (!plans.length) return null;
+
+  return (
+    <div className="sub-pay">
+      <div className="sub-pay__head">Obunani to&apos;lash</div>
+
+      <div className="sub-pay__plans">
+        {plans.map((p) => (
+          <button
+            key={p.slug}
+            type="button"
+            className={`sub-pay__plan${slug === p.slug ? " on" : ""}`}
+            onClick={() => setSlug(p.slug)}
+          >
+            <b>{p.name}</b>
+            <span>{somUz(p.priceMonthlyUzs)} so&apos;m / oy</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="sub-pay__months">
+        {MONTH_OPTS.map((m) => (
+          <button
+            key={m}
+            type="button"
+            className={`sub-pay__m${months === m ? " on" : ""}`}
+            onClick={() => setMonths(m)}
+          >
+            {m} oy
+          </button>
+        ))}
+      </div>
+
+      {err ? <div className="sub-card__warn" style={{ marginTop: 0 }}>{err}</div> : null}
+
+      <div className="sub-pay__foot">
+        <div className="sub-pay__total">
+          Jami: <b>{somUz(total)} so&apos;m</b>
+        </div>
+        <button className="btn btn-primary" disabled={busy || !slug} onClick={() => void pay()}>
+          {busy ? "Havola ochilmoqda…" : "CLICK orqali to'lash"}
+        </button>
+      </div>
+      <div className="sub-pay__note">
+        To&apos;lov o&apos;tgan zahoti obuna avtomatik faollashadi. Shartlar — <a href="/offer" target="_blank" rel="noreferrer">ommaviy oferta</a>.
+      </div>
     </div>
   );
 }

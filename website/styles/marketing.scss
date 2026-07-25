@@ -325,6 +325,25 @@
 .mkt-pkg small { color: var(--muted); }
 .mkt-pkg__price { font-weight: 900; color: var(--primary); }
 
+/* Tariflar (pricing) — /pricing sahifasi */
+.mkt-plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 980px) { .mkt-plans { grid-template-columns: 1fr; max-width: 520px; margin: 0 auto; } }
+.mkt-plan { position: relative; display: flex; flex-direction: column; gap: 16px; padding: 26px 24px; background: #fff; border: 1.5px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+.mkt-plan--best { border-color: var(--primary-3); box-shadow: var(--shadow-md); }
+.mkt-plan__tag { position: absolute; top: -12px; left: 24px; background: linear-gradient(180deg, var(--gold-2), var(--gold)); color: #2a1d00; font-size: 0.7rem; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 12px; border-radius: 999px; }
+.mkt-plan__name { font-size: 1.15rem; font-weight: 800; }
+.mkt-plan__desc { color: var(--muted); font-size: 0.88rem; margin: -8px 0 0; line-height: 1.5; }
+.mkt-plan__price { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+.mkt-plan__price b { font-size: 1.85rem; font-weight: 900; color: var(--primary); font-variant-numeric: tabular-nums; }
+.mkt-plan__price span { color: var(--subtle); font-size: 0.85rem; font-weight: 600; }
+.mkt-plan__usd { color: var(--subtle); font-size: 0.78rem; margin: -10px 0 0; }
+.mkt-plan__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; border-top: 1px solid var(--line); padding-top: 16px; }
+.mkt-plan__list li { display: flex; align-items: flex-start; gap: 9px; font-size: 0.9rem; color: var(--ink); line-height: 1.45; }
+.mkt-plan__list svg { flex: 0 0 auto; margin-top: 2px; color: var(--primary-3); }
+.mkt-plan .btn { margin-top: auto; }
+.mkt-pay-note { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; margin-top: 26px; color: var(--muted); font-size: 0.86rem; }
+.mkt-pay-note strong { color: var(--ink); }
+
 /* Booking panel */
 .mkt-book { position: sticky; top: 92px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); padding: 22px; display: flex; flex-direction: column; gap: 14px; }
 .mkt-book__price { display: flex; align-items: baseline; gap: 8px; }
@@ -514,7 +533,9 @@ html.theme-dark .mkt .mkt-step,
 html.theme-dark .mkt .mkt-trip,
 html.theme-dark .mkt .mkt-detail__section,
 html.theme-dark .mkt .mkt-book,
+html.theme-dark .mkt .mkt-plan,
 html.theme-dark .mkt .mkt-pkg { background: #0e241b; border-color: var(--line); }
+html.theme-dark .mkt .mkt-plan--best { border-color: var(--primary-3); }
 html.theme-dark .mkt .mkt-input,
 html.theme-dark .mkt .mkt-chip-btn,
 html.theme-dark .mkt .mkt-theme-toggle,

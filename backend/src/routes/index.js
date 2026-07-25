@@ -21,6 +21,29 @@ router.use('/p', require('./presentation.routes'));
 router.use('/miniapp', require('./miniapp.routes'));
 router.use('/admin', require('./admin.routes'));
 
+// Ommaviy tariflar — /pricing sahifasi va oferta uchun (narxlar so'mda).
+router.get('/tariffs', async (req, res) => {
+  try {
+    const rows = await prisma.tariff.findMany({
+      where: { active: true },
+      orderBy: { sortOrder: 'asc' },
+      select: {
+        slug: true, name: true, priceMonthly: true, priceMonthlyUzs: true,
+        features: true, sortOrder: true,
+      },
+    });
+    res.json({
+      success: true,
+      data: rows.map((t) => ({
+        ...t,
+        features: t.features ? String(t.features).split('|').map((s) => s.trim()).filter(Boolean) : [],
+      })),
+    });
+  } catch {
+    res.status(500).json({ success: false, message: 'Tariflarni olib bo\'lmadi' });
+  }
+});
+
 router.get('/health', async (req, res) => {
   let dbStatus = 'disconnected';
   let cacheStatus = 'disconnected';

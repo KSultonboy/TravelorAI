@@ -8,6 +8,7 @@ const presentation = require('../controllers/presentation.controller');
 const geocodeCtrl = require('../controllers/geocode.controller');
 const aiCtrl = require('../controllers/ai.controller');
 const leadFiles = require('../controllers/leadFiles.controller');
+const clickPay = require('../controllers/clickPayment.controller');
 
 router.post('/auth/register', agency.register);
 router.post('/auth/verify-email', agency.verifyEmail);
@@ -28,6 +29,13 @@ router.post('/application/submit', agency.submitApplication);
 
 router.get('/profile', agency.getAgencyProfile);
 router.put('/profile', blockWhenReadOnly, requireOwner, agency.updateAgencyProfile);
+
+// Obuna to'lovi (CLICK) — blockWhenReadOnly ATAYIN YO'Q:
+// obunasi tugagan agentlik aynan to'lov qilishi kerak.
+// Diqqat: `/payments/plans` `/payments/:merchantTransId`dan OLDIN turishi shart.
+router.get('/payments/plans', clickPay.listPlans);
+router.post('/payments/checkout', clickPay.checkout);
+router.get('/payments/:merchantTransId', clickPay.paymentStatus);
 
 router.get('/tours', agency.listTours);
 router.post('/tours', blockWhenReadOnly, agency.createTour);

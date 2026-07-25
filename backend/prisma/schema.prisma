@@ -439,6 +439,8 @@ model Tariff {
   name          String
   slug          String          @unique
   priceMonthly  Int             @default(0)
+  /// Oylik narx O'zbekiston so'mida — CLICK/Payme to'lovlari faqat so'mda.
+  priceMonthlyUzs Int           @default(0)
   commissionPct Float           @default(15)
   features      String?
   sortOrder     Int             @default(0)
@@ -469,6 +471,37 @@ model AgencyPayment {
   @@index([agencyId])
   @@index([tariffId])
   @@index([paidAt])
+}
+
+/// CLICK (SHOP API) to'lov tranzaksiyalari — Prepare/Complete oqimi.
+/// Relation YO'Q (prod DB divergent) — agencyId/tariffId oddiy String.
+model ClickTransaction {
+  id               String    @id @default(cuid())
+  provider         String    @default("click")
+  /// Bizning buyurtma raqami — CLICK'ga transaction_param sifatida ketadi
+  merchantTransId  String    @unique
+  agencyId         String
+  tariffId         String?
+  tariffSlug       String?
+  /// Summa so'mda (butun son)
+  amount           Int
+  months           Int       @default(1)
+  /// created | prepared | paid | cancelled
+  state            String    @default("created")
+  clickTransId     String?
+  clickPaydocId    String?
+  /// Prepare bosqichida biz qaytargan merchant_prepare_id (int)
+  prepareId        Int?
+  confirmId        Int?
+  errorNote        String?
+  createdAt        DateTime  @default(now())
+  preparedAt       DateTime?
+  paidAt           DateTime?
+  cancelledAt      DateTime?
+
+  @@index([agencyId])
+  @@index([state])
+  @@index([clickTransId])
 }
 
 model LandingInteraction {
