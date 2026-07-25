@@ -15,12 +15,18 @@
     "preview": {
       "distribution": "internal",
       "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://travelorai.com/api/v1"
+      },
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
       "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://travelorai.com/api/v1"
+      },
       "android": {
         "buildType": "app-bundle"
       }
@@ -28,6 +34,9 @@
     "production-apk": {
       "distribution": "internal",
       "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://travelorai.com/api/v1"
+      },
       "android": {
         "buildType": "apk"
       }
