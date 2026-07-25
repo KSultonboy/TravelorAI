@@ -3,7 +3,16 @@ const crypto = require('crypto');
 const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { signAgencyToken } = require('../utils/agencyJwt');
-const { sendEmailChangeCodeEmail, sendVerificationCodeEmail } = require('../services/email.service');
+const { verifyGoogleIdToken } = require('../services/auth.service');
+const { sendPushNotification } = require('../services/push.service');
+const { sendEmailChangeCodeEmail, sendEmailChangedNoticeEmail, sendVerificationCodeEmail, sendAgencyPasswordResetLinkEmail } = require('../services/email.service');
+const {
+  withDecay,
+  getActiveLock,
+  lockedResponse,
+  registerFailure,
+  RESET_ON_SUCCESS,
+} = require('../services/loginSecurity.service');
 const { materializeDataImage } = require('../utils/dataImage');
 const { resolveTourImageUrl } = require('../utils/tourImage');
 const { bookingStatusSchema } = require('../schemas/booking.schema');
@@ -11,10 +20,12 @@ const { formatBooking } = require('./bookings.controller');
 const reviewService = require('../services/review.service');
 const {
   applicationSchema,
+  googleAuthSchema,
   emailChangeConfirmSchema,
   emailChangeRequestSchema,
   loginSchema,
   registerSchema,
+  resetPasswordSchema,
   tourSchema,
   verifyEmailSchema,
 } = require('../schemas/agency.schema');
@@ -198,23 +209,52 @@ async function issueAgencyCode(account, type = 'EMAIL_VERIFICATION') {
     },
   });
 
-  const delivery =
-    type === 'EMAIL_CHANGE'
-      ? await sendEmailChangeCodeEmail({
-          email: account.email,
-          name: account.email,
-          newEmail: account.pendingEmail,
-          code,
-          expiresInMinutes: CODE_EXPIRES_MINUTES,
-        })
-      : await sendVerificationCodeEmail({
-          email: account.email,
-          name: account.email,
-          code,
-          expiresInMinutes: CODE_EXPIRES_MINUTES,
-        });
+  const WEB_URL = process.env.PUBLIC_WEB_URL || process.env.SITE_URL || 'https://travelorai.com';
+  let sendFn;
+  if (type === 'EMAIL_CHANGE') {
+    sendFn = () =>
+      sendEmailChangeCodeEmail({
+        email: account.email,
+        name: account.email,
+        newEmail: account.pendingEmail,
+        code,
+        expiresInMinutes: CODE_EXPIRES_MINUTES,
+      });
+  } else if (type === 'PASSWORD_RESET') {
+    const resetUrl = `${WEB_URL}/agency/reset-password?email=${encodeURIComponent(account.email)}&code=${code}`;
+    sendFn = () =>
+      sendAgencyPasswordResetLinkEmail({
+        email: account.email,
+        resetUrl,
+        expiresInMinutes: CODE_EXPIRES_MINUTES,
+      });
+  } else {
+    sendFn = () =>
+      sendVerificationCodeEmail({
+        email: account.email,
+        name: account.email,
+        code,
+        expiresInMinutes: CODE_EXPIRES_MINUTES,
+      });
+  }
 
-  return delivery;
+  // Emailni BLOKLAMASDAN yuboramiz (Gmail SMTP 2-13s olishi mumkin) — javobni
+  // kutdirib qo'ymaymiz; kod allaqachon bazaga yozilgan. Xato bo'lsa logga yozamiz.
+  Promise.resolve()
+    .then(sendFn)
+    .catch((err) =>
+      require('../config/logger').logger.error('Agency email send failed (async)', {
+        type,
+        email: account.email,
+        message: err.message,
+      })
+    );
+
+  const willSendEmail = Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT);
+  return {
+    delivery: willSendEmail ? 'smtp' : 'log',
+    ...(process.env.NODE_ENV !== 'production' && !willSendEmail ? { devCode: code } : {}),
+  };
 }
 
 async function consumeAgencyCode(accountId, code, type = 'EMAIL_VERIFICATION') {
@@ -511,15 +551,33 @@ async function login(req, res) {
     const email = input.email.toLowerCase();
     const account = await prisma.agencyAccount.findUnique({ where: { email } });
     if (!account) return error(res, 'Login yoki parol xato', 401);
+    if (account.status === 'blocked') return error(res, 'Agency akkaunt bloklangan', 403);
+
+    const now = new Date();
+    const acc = withDecay(account, now);
+
+    // Reject early if the account is still inside a lockout window.
+    const lock = getActiveLock(acc, now);
+    if (lock.locked) {
+      const payload = lockedResponse(lock);
+      return error(res, payload.message, payload.status, payload.extra);
+    }
 
     const passwordOk = await bcrypt.compare(input.password, account.passwordHash);
-    if (!passwordOk) return error(res, 'Login yoki parol xato', 401);
-    if (!account.emailVerified) return error(res, 'Email tasdiqlanmagan', 403, { code: 'EMAIL_NOT_VERIFIED' });
-    if (account.status === 'blocked') return error(res, 'Agency akkaunt bloklangan', 403);
+    if (!passwordOk) {
+      const failure = registerFailure(acc, now);
+      await prisma.agencyAccount.update({ where: { id: account.id }, data: failure.data });
+      return error(res, failure.message, failure.status, failure.extra);
+    }
+
+    if (!account.emailVerified) {
+      await prisma.agencyAccount.update({ where: { id: account.id }, data: RESET_ON_SUCCESS });
+      return error(res, 'Email tasdiqlanmagan', 403, { code: 'EMAIL_NOT_VERIFIED' });
+    }
 
     const updated = await prisma.agencyAccount.update({
       where: { id: account.id },
-      data: { lastLoginAt: new Date() },
+      data: { ...RESET_ON_SUCCESS, lastLoginAt: now },
     });
     const token = signAgencyToken({ id: updated.id, email: updated.email, role: 'agency' });
 
@@ -549,6 +607,148 @@ async function changePassword(req, res) {
       data: { passwordHash, mustChangePassword: false },
     });
     return success(res, { changed: true });
+  } catch (err) {
+    return error(res, err.message, 400);
+  }
+}
+
+// Public: agency sets a new password using the code from the reset-link email.
+// No self-service "forgot" form on the portal — the reset is admin-triggered.
+const BOOKING_PUSH = {
+  confirmed: {
+    title: 'So‘rovingiz qabul qilindi 🎉',
+    body: (t) => `${t} bo‘yicha agentlik so‘rovingizni qabul qildi. Tez orada bog‘lanadi.`,
+  },
+  rejected: {
+    title: 'So‘rov rad etildi',
+    body: (t) => `Afsuski, ${t} bo‘yicha so‘rovingiz rad etildi. Boshqa turlarni ko‘rib chiqing.`,
+  },
+  cancelled: {
+    title: 'So‘rov bekor qilindi',
+    body: (t) => `${t} bo‘yicha so‘rov bekor qilindi.`,
+  },
+  completed: {
+    title: 'Safaringiz yakunlandi ✅',
+    body: (t) => `${t} — sayohatingiz yakunlandi. Fikringizni bildiring!`,
+  },
+};
+
+async function notifyBookingStatus(booking) {
+  if (!booking || !booking.userId) return;
+  const tpl = BOOKING_PUSH[booking.status];
+  if (!tpl) return;
+  const user = await prisma.user.findUnique({ where: { id: booking.userId }, select: { expoPushToken: true } });
+  if (!user || !user.expoPushToken) return;
+  const tourTitle = booking.tour && booking.tour.title ? booking.tour.title : 'Tur';
+  await sendPushNotification({
+    to: user.expoPushToken,
+    title: tpl.title,
+    body: tpl.body(tourTitle),
+    data: { type: 'booking_status', bookingId: booking.id, status: booking.status },
+  });
+}
+
+async function googleAuth(req, res) {
+  try {
+    const input = googleAuthSchema.parse(req.body || {});
+    const googleProfile = await verifyGoogleIdToken(input.idToken);
+    let account = await prisma.agencyAccount.findFirst({
+      where: {
+        OR: [{ googleId: googleProfile.googleId }, { email: googleProfile.email }],
+      },
+    });
+
+    if (account?.status === 'blocked') {
+      return error(res, 'Agency akkaunt bloklangan', 403);
+    }
+
+    if (!account) {
+      const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+      account = await prisma.agencyAccount.create({
+        data: {
+          email: googleProfile.email,
+          googleId: googleProfile.googleId,
+          passwordHash,
+          emailVerified: true,
+          emailVerifiedAt: new Date(),
+          lastLoginAt: new Date(),
+          status: 'pending',
+        },
+      });
+    } else {
+      account = await prisma.agencyAccount.update({
+        where: { id: account.id },
+        data: {
+          googleId: account.googleId || googleProfile.googleId,
+          emailVerified: true,
+          emailVerifiedAt: account.emailVerifiedAt || new Date(),
+          lastLoginAt: new Date(),
+        },
+      });
+    }
+
+    const token = signAgencyToken({ id: account.id, email: account.email, role: 'agency' });
+    return success(res, { token, account: publicAccount(account) });
+  } catch (err) {
+    if (err.message === 'GOOGLE_AUDIENCE_MISMATCH') {
+      return error(res, 'Google client ID mos kelmadi.', 401);
+    }
+    if (err.message === 'GOOGLE_EMAIL_NOT_VERIFIED') {
+      return error(res, 'Google akkauntdagi email tasdiqlanmagan.', 401);
+    }
+    return error(res, err.errors?.[0]?.message || err.message, 400);
+  }
+}
+
+async function resetPassword(req, res) {
+  try {
+    const input = resetPasswordSchema.parse(req.body || {});
+    const email = input.email.toLowerCase();
+    const account = await prisma.agencyAccount.findUnique({ where: { email } });
+    if (!account) return error(res, 'Havola xato yoki muddati tugagan', 400);
+
+    const ok = await consumeAgencyCode(account.id, input.code, 'PASSWORD_RESET');
+    if (!ok) return error(res, 'Havola xato yoki muddati tugagan', 400);
+
+    const passwordHash = await bcrypt.hash(input.newPassword, 10);
+    await prisma.agencyAccount.update({
+      where: { id: account.id },
+      data: {
+        passwordHash,
+        // A successful reset also lifts any brute-force lockout.
+        failedLoginAttempts: 0,
+        lockoutLevel: 0,
+        lockoutUntil: null,
+        lastFailedLoginAt: null,
+      },
+    });
+
+    return success(res, { message: 'Parol yangilandi. Endi yangi parol bilan kiring.' });
+  } catch (err) {
+    return error(res, err.errors?.[0]?.message || err.message, 400);
+  }
+}
+
+// Admin-triggered: emails the agency a password-reset link. Never sets/sees the
+// password — the agency sets its own via the link.
+async function adminSendPasswordReset(req, res) {
+  try {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!email) return error(res, 'Email kiriting', 400);
+    const account = await prisma.agencyAccount.findUnique({ where: { email } });
+    if (!account) return error(res, 'Bu email bilan agentlik akkaunti topilmadi', 404);
+
+    const delivery = await issueAgencyCode(account, 'PASSWORD_RESET');
+    await prisma.agencyAccount.update({
+      where: { id: account.id },
+      data: { failedLoginAttempts: 0, lockoutLevel: 0, lockoutUntil: null, lastFailedLoginAt: null },
+    });
+
+    return success(res, {
+      message: `Parol yangilash havolasi ${account.email} manziliga yuborildi.`,
+      email: account.email,
+      delivery: delivery?.delivery || 'log',
+    });
   } catch (err) {
     return error(res, err.message, 400);
   }
@@ -1093,6 +1293,7 @@ async function deleteTour(req, res) {
 }
 
 module.exports = {
+  googleAuth,
   ensureApprovedAgency,
   register,
   verifyEmail,
@@ -1100,6 +1301,8 @@ module.exports = {
   resendEmailChange,
   confirmEmailChange,
   login,
+  resetPassword,
+  adminSendPasswordReset,
   me,
   changePassword,
   getApplication,

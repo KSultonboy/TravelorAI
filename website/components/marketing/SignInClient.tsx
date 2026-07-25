@@ -8,7 +8,7 @@ import GoogleContinueButton from "../GoogleContinueButton";
 
 const HERO = "https://images.unsplash.com/photo-1539635278303-d4002c07eae3?auto=format&fit=crop&w=1400&q=70";
 type Role = "traveler" | "partner";
-type Step = "role" | "form" | "verify" | "forgot" | "reset";
+type Step = "role" | "form" | "verify" | "forgot";
 
 const BENEFITS = [
   { icon: Sparkles, title: "AI sayohat rejasi", sub: "Byudjet va qiziqishingizga mos marshrut" },
@@ -92,37 +92,14 @@ export default function SignInClient() {
     }
   }
 
-  async function forgotSubmit(e: React.FormEvent) {
+  async function sendForgot(e: React.FormEvent) {
     e.preventDefault();
     setErr(""); setInfo("");
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) { setErr("Email noto‘g‘ri."); return; }
     setBusy(true);
     try {
-      const { ok, json } = await post("/forgot-password", { email: email.trim().toLowerCase() });
-      if (ok && json?.success !== false) {
-        setInfo("Agar bu email ro‘yxatdan o‘tgan bo‘lsa, tiklash kodi yuborildi.");
-        setCode(""); setPassword("");
-        setStep("reset");
-        return;
-      }
-      setErr(json?.message || "Xatolik yuz berdi. Qayta urinib ko‘ring.");
-    } catch {
-      setErr("Server bilan aloqa bo‘lmadi.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function resetSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setErr("");
-    if (code.trim().length < 4) { setErr("Kodni to‘liq kiriting."); return; }
-    if (password.length < 8) { setErr("Yangi parol kamida 8 ta belgidan iborat bo‘lsin."); return; }
-    setBusy(true);
-    try {
-      const { ok, json } = await post("/reset-password", { email: email.trim().toLowerCase(), code: code.trim(), newPassword: password });
-      if (ok && json?.success !== false) { go(); return; }
-      setErr(json?.message || "Kod noto‘g‘ri yoki muddati tugagan.");
+      await post("/forgot-password", { email: email.trim().toLowerCase() });
+      setInfo("Agar bu email ro‘yxatda bo‘lsa, parol yangilash havolasi yuborildi. Emailingizni (Spam papkasini ham) tekshiring.");
     } catch {
       setErr("Server bilan aloqa bo‘lmadi.");
     } finally {
@@ -194,27 +171,14 @@ export default function SignInClient() {
             </>
           ) : step === "forgot" ? (
             <>
-              <button className="mkt-auth__back" type="button" onClick={() => { setStep("form"); setErr(""); setInfo(""); }}><ArrowLeft size={16} /> Kirishga qaytish</button>
+              <button className="mkt-auth__back" type="button" onClick={() => { setStep("form"); setErr(""); setInfo(""); }}><ArrowLeft size={16} /> Orqaga</button>
               <h1>Parolni tiklash</h1>
-              <p className="sub">Email manzilingizni kiriting — tiklash kodini yuboramiz.</p>
+              <p className="sub">Email manzilingizni kiriting — parol yangilash havolasini yuboramiz.</p>
               {err ? <div className="mkt-alert mkt-alert--error" style={{ marginBottom: 12 }}>{err}</div> : null}
               {info ? <div className="mkt-alert mkt-alert--ok" style={{ marginBottom: 12 }}>{info}</div> : null}
-              <form className="mkt-auth__fields" onSubmit={forgotSubmit}>
-                <div className="mkt-field"><label>Email</label><div className="mkt-input"><Mail size={16} /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="siz@email.com" /></div></div>
-                <button className="btn btn--gold btn--lg btn--block" type="submit" disabled={busy}>{busy ? "Yuborilmoqda..." : "Tiklash kodini yuborish"}</button>
-              </form>
-            </>
-          ) : step === "reset" ? (
-            <>
-              <button className="mkt-auth__back" type="button" onClick={() => { setStep("forgot"); setErr(""); }}><ArrowLeft size={16} /> Orqaga</button>
-              <h1>Yangi parol</h1>
-              <p className="sub">{email} manziliga yuborilgan kod va yangi parolni kiriting.</p>
-              {err ? <div className="mkt-alert mkt-alert--error" style={{ marginBottom: 12 }}>{err}</div> : null}
-              {info ? <div className="mkt-alert mkt-alert--ok" style={{ marginBottom: 12 }}>{info}</div> : null}
-              <form className="mkt-auth__fields" onSubmit={resetSubmit}>
-                <div className="mkt-field"><label>Tasdiqlash kodi</label><div className="mkt-input"><ShieldCheck size={16} /><input inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="000000" /></div></div>
-                <div className="mkt-field"><label>Yangi parol</label><div className="mkt-input"><Lock size={16} /><input type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Kamida 8 belgi" /><button type="button" className="mkt-input__eye" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? "Parolni yashirish" : "Parolni ko‘rsatish"} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "none", border: 0, padding: 4, margin: 0, cursor: "pointer", color: "var(--muted, #6b8576)" }}>{showPw ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></div>
-                <button className="btn btn--gold btn--lg btn--block" type="submit" disabled={busy}>{busy ? "Saqlanmoqda..." : "Parolni yangilash"}</button>
+              <form className="mkt-auth__fields" onSubmit={sendForgot}>
+                <div className="mkt-field"><label>Email</label><div className="mkt-input"><Mail size={16} /><input type="email" name="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="siz@email.com" /></div></div>
+                <button className="btn btn--gold btn--lg btn--block" type="submit" disabled={busy}>{busy ? "Yuborilmoqda..." : "Havola yuborish"}</button>
               </form>
             </>
           ) : (
@@ -227,15 +191,18 @@ export default function SignInClient() {
 
               <form className="mkt-auth__fields" onSubmit={submit}>
                 {mode === "register" && role === "traveler" ? (
-                  <div className="mkt-field"><label>Ism</label><div className="mkt-input"><User size={16} /><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ismingiz" /></div></div>
+                  <div className="mkt-field"><label>Ism</label><div className="mkt-input"><User size={16} /><input name="name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ismingiz" /></div></div>
                 ) : null}
-                <div className="mkt-field"><label>Email</label><div className="mkt-input"><Mail size={16} /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="siz@email.com" /></div></div>
-                <div className="mkt-field"><label>Parol</label><div className="mkt-input"><Lock size={16} /><input type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Kamida 8 belgi" /><button type="button" className="mkt-input__eye" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? "Parolni yashirish" : "Parolni ko‘rsatish"} title={showPw ? "Yashirish" : "Ko‘rsatish"} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "none", border: 0, padding: 4, margin: 0, cursor: "pointer", color: "var(--muted, #6b8576)" }}>{showPw ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></div>
-                {mode === "login" && role === "traveler" ? (
-                  <button type="button" className="mkt-auth__forgot" onClick={() => { setStep("forgot"); setErr(""); setInfo(""); }}>Parolni unutdingizmi?</button>
-                ) : null}
+                <div className="mkt-field"><label>Email</label><div className="mkt-input"><Mail size={16} /><input type="email" name="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="siz@email.com" /></div></div>
+                <div className="mkt-field"><label>Parol</label><div className="mkt-input"><Lock size={16} /><input type="password" name="password" autoComplete={mode === "login" ? "current-password" : "new-password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Kamida 8 belgi" /></div></div>
                 <button className="btn btn--gold btn--lg btn--block" type="submit" disabled={busy}>{busy ? "Yuborilmoqda..." : mode === "login" ? "Kirish" : "Ro‘yxatdan o‘tish"}</button>
               </form>
+
+              {role === "traveler" && mode === "login" ? (
+                <div style={{ textAlign: "center", marginTop: 10 }}>
+                  <button type="button" onClick={() => { setStep("forgot"); setErr(""); setInfo(""); }} style={{ background: "none", border: "none", color: "var(--primary)", fontWeight: 600, fontSize: "0.86rem", cursor: "pointer" }}>Parolni unutdingizmi?</button>
+                </div>
+              ) : null}
 
               {role === "traveler" ? (
                 <>
@@ -250,9 +217,14 @@ export default function SignInClient() {
                   <button type="button" onClick={() => { setMode(mode === "login" ? "register" : "login"); setErr(""); }}>{mode === "login" ? "Ro‘yxatdan o‘tish" : "Kirish"}</button>
                 </div>
               ) : (
-                <div className="mkt-auth__toggle" style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
-                  <BadgeCheck size={15} style={{ color: "var(--primary)" }} /> Yangi agentlikmi? <a href="/partners" style={{ color: "var(--primary)", fontWeight: 800 }}>Ariza qoldiring</a>
-                </div>
+                <>
+                  <div className="mkt-auth__toggle" style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
+                    <BadgeCheck size={15} style={{ color: "var(--primary)" }} /> Yangi agentlikmi? <a href="/partners" style={{ color: "var(--primary)", fontWeight: 800 }}>Ariza qoldiring</a>
+                  </div>
+                  <div className="mkt-auth__toggle" style={{ marginTop: 8, fontSize: "0.85rem", textAlign: "center", lineHeight: 1.6 }}>
+                    Parolni unutdingizmi? <a href="mailto:support@travelorai.com?subject=Agentlik%20parolni%20tiklash" style={{ color: "var(--primary)", fontWeight: 700 }}>Administratorga murojaat qiling</a> — tiklash havolasi emailingizga yuboriladi.
+                  </div>
+                </>
               )}
             </>
           )}

@@ -37,7 +37,7 @@ export default function SiteHeader({ transparentOverHero = false }: { transparen
 
         <nav className="mkt-nav" aria-label="Asosiy navigatsiya">
           {NAV.map((item) => (
-            <Link key={item.href} href={item.href}>{item.label}</Link>
+            <Link key={item.href} href={item.href} prefetch={false}>{item.label}</Link>
           ))}
         </nav>
 
@@ -70,7 +70,7 @@ export default function SiteHeader({ transparentOverHero = false }: { transparen
         <div className="mkt-mobile">
           <div className="mkt-wrap mkt-mobile__inner">
             {NAV.map((item) => (
-              <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>{item.label}</Link>
+              <Link key={item.href} href={item.href} prefetch={false} onClick={() => setOpen(false)}>{item.label}</Link>
             ))}
             {!loading && user ? (
               <>

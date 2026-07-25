@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import Reveal from "./Reveal";
 
-/* eslint-disable @next/next/no-img-element */
 export default function PageHero({
   eyebrow,
   title,
@@ -17,9 +16,8 @@ export default function PageHero({
 }) {
   return (
     <section className="mkt-phero">
-      <div className="mkt-phero__bg">
-        <img src={image} alt="" aria-hidden="true" />
-      </div>
+      {/* CSS background (not <img>) so Next.js prefetch never link-preloads it. */}
+      <div className="mkt-phero__bg" aria-hidden="true" style={image ? { backgroundImage: `url("${image}")` } : undefined} />
       <div className="mkt-phero__scrim" aria-hidden="true" />
       <div className="mkt-wrap">
         <Reveal>

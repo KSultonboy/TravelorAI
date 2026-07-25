@@ -9,6 +9,7 @@ const {
   googleAuth,
   updateProfile,
   getMe,
+  getSession,
   getPreferences,
   updatePreferences,
   requestEmailChange,
@@ -16,8 +17,9 @@ const {
   requestAccountDeletion,
   deleteAccount,
 } = require('../controllers/auth.controller');
-const { authMiddleware } = require('../middleware/auth.middleware');
+const { authMiddleware, optionalAuth } = require('../middleware/auth.middleware');
 const { validate } = require('../middleware/validate.middleware');
+const { forgotPasswordLimiter } = require('../middleware/rateLimit.middleware');
 const {
   registerSchema,
   loginSchema,
@@ -36,12 +38,13 @@ const {
 
 router.post('/register', validate(registerSchema), register);
 router.post('/verify-email', validate(verifyEmailSchema), verifyEmail);
-router.post('/resend-verification', validate(resendVerificationSchema), resendVerification);
+router.post('/resend-verification', forgotPasswordLimiter, validate(resendVerificationSchema), resendVerification);
 router.post('/login', validate(loginSchema), login);
-router.post('/forgot-password', validate(forgotPasswordSchema), forgotPassword);
+router.post('/forgot-password', forgotPasswordLimiter, validate(forgotPasswordSchema), forgotPassword);
 router.post('/reset-password', validate(resetPasswordSchema), resetPassword);
 router.post('/google', validate(googleAuthSchema), googleAuth);
 router.get('/me', authMiddleware, getMe);
+router.get('/session', optionalAuth, getSession);
 router.put('/profile', authMiddleware, validate(profileSchema), updateProfile);
 router.get('/preferences', authMiddleware, getPreferences);
 router.put('/preferences', authMiddleware, validate(preferencesSchema), updatePreferences);

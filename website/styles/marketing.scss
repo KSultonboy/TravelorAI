@@ -185,7 +185,7 @@
 /* ---------- Destination tiles ---------- */
 .mkt-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
 @media (max-width: 900px) { .mkt-tiles { grid-template-columns: repeat(2, 1fr); } }
-.mkt-tile { position: relative; aspect-ratio: 3/4; border-radius: var(--radius-lg); overflow: hidden; text-decoration: none; box-shadow: var(--shadow-sm); }
+.mkt-tile { display: block; position: relative; width: 100%; aspect-ratio: 3/4; border-radius: var(--radius-lg); overflow: hidden; text-decoration: none; box-shadow: var(--shadow-sm); background: linear-gradient(135deg, var(--primary-2, #0f5a3a), #06231a); }
 .mkt-tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; }
 .mkt-tile:hover img { transform: scale(1.07); }
 .mkt-tile__cap { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 18px; background: linear-gradient(0deg, rgba(7,38,26,0.85), transparent 60%); color: #fff; }
@@ -217,8 +217,7 @@
 
 /* ---------- Page hero (ichki sahifalar) ---------- */
 .mkt-phero { position: relative; isolation: isolate; color: #fff; padding: clamp(96px, 14vw, 150px) 0 clamp(48px, 7vw, 80px); overflow: hidden; margin-top: -72px; background: linear-gradient(120deg, var(--primary), #06231a); }
-.mkt-phero__bg { position: absolute; inset: 0; z-index: -2; }
-.mkt-phero__bg img { width: 100%; height: 100%; object-fit: cover; }
+.mkt-phero__bg { position: absolute; inset: 0; z-index: -2; background-size: cover; background-position: center; background-repeat: no-repeat; }
 .mkt-phero__scrim { position: absolute; inset: 0; z-index: -1; background: linear-gradient(120deg, rgba(7,38,26,0.94), rgba(7,38,26,0.66)); }
 .mkt-phero h1 { font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 800; line-height: 1.08; letter-spacing: -0.02em; margin: 14px 0 0; text-shadow: 0 2px 24px rgba(0,0,0,0.3); }
 .mkt-phero p { color: rgba(255,255,255,0.85); font-size: clamp(1rem, 1.5vw, 1.15rem); line-height: 1.7; margin: 16px 0 0; max-width: 60ch; }

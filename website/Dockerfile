@@ -4,7 +4,9 @@ WORKDIR /app
 
 ARG NEXT_PUBLIC_SITE_URL=https://travelorai.com
 ARG NEXT_PUBLIC_API_URL=https://travelorai.com/api/v1
-ARG NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID=
+# Public web OAuth client id (NEXT_PUBLIC = shipped in the client bundle, not a secret).
+# Kept as the default so the Google button works even if the deploy build-arg is empty.
+ARG NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID=65326209075-c61csepghm25c26v3j9e1m31egt6t82f.apps.googleusercontent.com
 ARG ADMIN_API_URL=
 ARG AGENCY_API_URL=
 ARG ADMIN_SECRET_KEY=
