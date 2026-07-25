@@ -5,7 +5,6 @@
  * ----------------------------------------------------------------------------
  * Lid ma'lumotidan chop etishga tayyor rasmiy hujjatlar yasaydi:
  *   - Shartnoma (turistik xizmatlar shartnomasi)
- *   - Vaucher (turistik vaucher)
  *   - Hisob-faktura (to'lov hisobi)
  *
  * PDF — brauzerning o'z "Chop etish → PDF saqlash" imkoniyati orqali. Hech
@@ -19,17 +18,15 @@
 
 import type { MeData } from "./types";
 
-export type DocType = "shartnoma" | "vaucher" | "invoice";
+export type DocType = "shartnoma" | "invoice";
 
 export const DOC_LABEL: Record<DocType, string> = {
   shartnoma: "Shartnoma",
-  vaucher: "Vaucher",
   invoice: "Hisob-faktura",
 };
 
 export const DOC_LIST: { type: DocType; label: string; hint: string }[] = [
   { type: "shartnoma", label: "Shartnoma", hint: "Turistik xizmat ko'rsatish shartnomasi" },
-  { type: "vaucher", label: "Vaucher", hint: "Turistik vaucher — tasdiqnoma" },
   { type: "invoice", label: "Hisob-faktura", hint: "To'lov uchun hisob" },
 ];
 
@@ -181,7 +178,6 @@ export type DocLead = {
 
 export type DocTemplates = {
   shartnoma: { title: string; body: string };
-  vaucher: { title: string; services: string; note: string };
   invoice: { title: string; note: string };
 };
 
@@ -198,20 +194,13 @@ export const DEFAULT_DOC_TEMPLATES: DocTemplates = {
       "2.1. Xizmatning umumiy qiymati: {narx} ({narx_sozda}).\n" +
       "2.2. To'lov tartibi: Buyurtmachi shartnoma imzolanganda oldindan 50% miqdorida to'lovni amalga oshiradi, qolgani sayohat boshlanishidan oldin to'lanadi.\n\n" +
       "## 3. Tomonlarning majburiyatlari\n" +
-      "3.1. Ijrochi xizmatni sifatli va o'z vaqtida ko'rsatish, kerakli hujjatlar (vaucher, bilet, bron) bilan ta'minlash majburiyatini oladi.\n" +
+      "3.1. Ijrochi xizmatni sifatli va o'z vaqtida ko'rsatish, kerakli hujjatlar (bilet, bron va tasdiqnomalar) bilan ta'minlash majburiyatini oladi.\n" +
       "3.2. Buyurtmachi to'lovni o'z vaqtida amalga oshirish va sayohat uchun zarur hujjatlarni (pasport va h.k.) taqdim etish majburiyatini oladi.\n\n" +
       "## 4. Javobgarlik va nizolar\n" +
       "4.1. Shartnoma shartlari buzilganda tomonlar O'zbekiston Respublikasi qonunchiligiga muvofiq javobgar bo'ladilar.\n" +
       "4.2. Nizolar muzokaralar yo'li bilan, kelishilmaganda esa sud tartibida hal etiladi.\n\n" +
       "## 5. Amal qilish muddati\n" +
       "5.1. Ushbu shartnoma imzolangan kundan boshlab xizmat to'liq ko'rsatilgunga qadar amal qiladi va ikki nusxada, har ikkala tomon uchun bir xil kuchga ega tuzildi.",
-  },
-  vaucher: {
-    title: "TURISTIK VAUCHER",
-    services: "{yonalish} bo'yicha to'liq paket",
-    note:
-      "Ushbu vaucher {agentlik} tomonidan berilgan bo'lib, yuqorida ko'rsatilgan turistik " +
-      "xizmatlarning to'langanligini va tasdiqlanganligini bildiradi.",
   },
   invoice: {
     title: "HISOB-FAKTURA (TO'LOV UCHUN)",
@@ -246,7 +235,6 @@ export function getTemplates(agencyId: string): DocTemplates {
     const s = JSON.parse(raw);
     return {
       shartnoma: { ...d.shartnoma, ...(s.shartnoma || {}) },
-      vaucher: { ...d.vaucher, ...(s.vaucher || {}) },
       invoice: { ...d.invoice, ...(s.invoice || {}) },
     };
   } catch {
@@ -411,34 +399,6 @@ function contractBody(c: Ctx): string {
     ${signBlock("Ijrochi", c.req.director || c.brand, "Buyurtmachi", c.lead.customerName)}`;
 }
 
-/* --------------------------------- vaucher -------------------------------- */
-
-function voucherBody(c: Ctx): string {
-  const ctx = tplCtx(c);
-  const t = c.tpl.vaucher;
-  return `
-    ${titleBlock(fillTpl(t.title, ctx), c)}
-    <table class="kv">
-      <tbody>
-        <tr><td class="k">Turist(lar)</td><td><b>${esc(c.lead.customerName)}</b></td></tr>
-        <tr><td class="k">Turistlar soni</td><td>${esc(c.travelers)} kishi</td></tr>
-        <tr><td class="k">Yo'nalish</td><td><b>${esc(c.lead.tourTitle || "—")}</b>${c.lead.tourCity ? ` — ${esc(c.lead.tourCity)}` : ""}</td></tr>
-        <tr><td class="k">Sayohat sanasi</td><td>${esc(shortDate(c.lead.travelDate))}</td></tr>
-        <tr><td class="k">Muddati</td><td>${fill("", "__ kun / __ kecha")}</td></tr>
-        <tr><td class="k">Mehmonxona</td><td>${fill("", "________________")}</td></tr>
-        <tr><td class="k">Ovqatlanish</td><td>${fill("", "____________ (BB / HB / FB)")}</td></tr>
-        <tr><td class="k">Transfer</td><td>${fill("", "________________")}</td></tr>
-      </tbody>
-    </table>
-
-    <h3>Kiritilgan xizmatlar</h3>
-    <div class="services" contenteditable="true" data-ph="Har bir xizmatni yangi qatorda yozing — aviabilet, mehmonxona, transfer, ekskursiya, sug'urta...">${esc(fillTpl(t.services, ctx))}</div>
-
-    <p class="voucher-note">${esc(fillTpl(t.note, ctx))}</p>
-
-    ${signBlock("Xizmat ko'rsatuvchi", c.req.director || c.brand, "Qabul qildim", c.lead.customerName)}`;
-}
-
 /* ------------------------------ hisob-faktura ----------------------------- */
 
 function invoiceBody(c: Ctx): string {
@@ -502,7 +462,6 @@ function invoiceBody(c: Ctx): string {
 
 function bodyFor(c: Ctx): string {
   if (c.type === "shartnoma") return contractBody(c);
-  if (c.type === "vaucher") return voucherBody(c);
   return invoiceBody(c);
 }
 
@@ -572,7 +531,7 @@ function styles(): string {
     background:#fbfdfc; white-space:pre-wrap; outline:none;
   }
   .services:empty::before{content:attr(data-ph); color:#a9b7ae}
-  .voucher-note,.pay-note{margin-top:14px; color:#33413a; text-align:justify}
+  .pay-note{margin-top:14px; color:#33413a; text-align:justify}
   .items th,.items td{border:1px solid var(--line); padding:8px 10px}
   .items thead th{background:var(--green); color:#fff; font-weight:650; font-size:12.5px}
   .items .c{text-align:center} .items .r{text-align:right}
@@ -623,7 +582,7 @@ export function buildDocumentHtml(input: BuildInput): string {
     agencyWeb: agency?.website || app?.website || null,
     req,
     lead,
-    number: `${type === "invoice" ? "HF" : type === "vaucher" ? "V" : "SH"}-${nextSeq(agencyId)}`,
+    number: `${type === "invoice" ? "HF" : "SH"}-${nextSeq(agencyId)}`,
     today: new Date(),
     travelers: Math.max(1, lead.travelers || 1),
     total: lead.totalEstimate ?? null,

@@ -700,7 +700,7 @@ function ContactActions({ lead }: { lead: { customerName: string; customerPhone?
     </div>
   );
 }
-/* Hujjat generatsiyasi — lid ma'lumotidan shartnoma/vaucher/hisob-faktura (print → PDF) */
+/* Hujjat generatsiyasi — lid ma'lumotidan shartnoma/hisob-faktura (print → PDF) */
 function DocMenu({ lead }: { lead: CrmLead }) {
   const { me } = useAgencySession();
   const [open, setOpen] = useState(false);
@@ -2271,7 +2271,7 @@ function DocumentsSection({ show, agencyId, readOnly }: { show: boolean; agencyI
   }
   return (
     <section className={`view${show ? " active" : ""}`}>
-      <div className="section-head"><div><h2>Hujjatlar</h2><div className="sub">Shartnoma, vaucher va hisob-faktura matnini o&apos;zingizga moslang — belgilar lid ma&apos;lumotidan avtomatik to&apos;ladi</div></div></div>
+      <div className="section-head"><div><h2>Hujjatlar</h2><div className="sub">Shartnoma va hisob-faktura matnini o&apos;zingizga moslang — belgilar lid ma&apos;lumotidan avtomatik to&apos;ladi</div></div></div>
 
       <div className="section-head"><div><h2>Rekvizitlar</h2><div className="sub">STIR, bank, direktor, manzil — barcha hujjatga qo&apos;yiladi</div></div></div>
       <DocRequisitesCard agencyId={agencyId} readOnly={readOnly} />
@@ -2286,12 +2286,6 @@ function DocumentsSection({ show, agencyId, readOnly }: { show: boolean; agencyI
       <TplEditor title="Shartnoma" onPreview={() => preview("shartnoma")} onReset={() => resetType("shartnoma")} readOnly={readOnly}>
         <DocFld label="Sarlavha"><input value={tpl.shartnoma.title} onChange={(e) => setField("shartnoma", "title", e.target.value)} disabled={readOnly} /></DocFld>
         <DocFld label="Matn — «## » bilan sarlavha, bo&apos;sh qator yangi xatboshi"><textarea rows={12} value={tpl.shartnoma.body} onChange={(e) => setField("shartnoma", "body", e.target.value)} disabled={readOnly} /></DocFld>
-      </TplEditor>
-
-      <TplEditor title="Vaucher" onPreview={() => preview("vaucher")} onReset={() => resetType("vaucher")} readOnly={readOnly}>
-        <DocFld label="Sarlavha"><input value={tpl.vaucher.title} onChange={(e) => setField("vaucher", "title", e.target.value)} disabled={readOnly} /></DocFld>
-        <DocFld label="Standart «kiritilgan xizmatlar» matni"><input value={tpl.vaucher.services} onChange={(e) => setField("vaucher", "services", e.target.value)} disabled={readOnly} /></DocFld>
-        <DocFld label="Izoh matni"><textarea rows={3} value={tpl.vaucher.note} onChange={(e) => setField("vaucher", "note", e.target.value)} disabled={readOnly} /></DocFld>
       </TplEditor>
 
       <TplEditor title="Hisob-faktura" onPreview={() => preview("invoice")} onReset={() => resetType("invoice")} readOnly={readOnly}>
