@@ -22,8 +22,8 @@ const FOOTER_COLUMNS = [
   {
     title: "Yordam",
     links: [
-      ["Yordam markazi", "mailto:support@travelorai.com"],
-      ["Biz bilan bog‘lanish", "mailto:support@travelorai.com"],
+      ["Yordam markazi", "mailto:traveloraai@gmail.com"],
+      ["Biz bilan bog‘lanish", "mailto:traveloraai@gmail.com"],
       ["Maxfiylik siyosati", "__PRIVACY__"],
       ["Hisobni o‘chirish", "__DELETE_ACCOUNT__"],
     ],

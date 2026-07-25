@@ -31,7 +31,7 @@ CREATE INDEX IF NOT EXISTS "ClickTransaction_state_idx"        ON "ClickTransact
 CREATE INDEX IF NOT EXISTS "ClickTransaction_clickTransId_idx" ON "ClickTransaction"("clickTransId");
 
 -- Boshlang'ich so'm narxlari (faqat hali belgilanmagan bo'lsa — 0).
--- Kurs ~1$ ≈ 12 900 so'm asosida yumaloqlangan; admin panelda o'zgartirish mumkin.
-UPDATE "Tariff" SET "priceMonthlyUzs" = 119000 WHERE "slug" = 'starter'  AND "priceMonthlyUzs" = 0;
-UPDATE "Tariff" SET "priceMonthlyUzs" = 379000 WHERE "slug" = 'pro'      AND "priceMonthlyUzs" = 0;
-UPDATE "Tariff" SET "priceMonthlyUzs" = 769000 WHERE "slug" = 'business' AND "priceMonthlyUzs" = 0;
+-- Egasi tasdiqlagan narxlar; admin panelda o'zgartirish mumkin.
+UPDATE "Tariff" SET "priceMonthlyUzs" =  99000 WHERE "slug" = 'starter'  AND "priceMonthlyUzs" = 0;
+UPDATE "Tariff" SET "priceMonthlyUzs" = 299000 WHERE "slug" = 'pro'      AND "priceMonthlyUzs" = 0;
+UPDATE "Tariff" SET "priceMonthlyUzs" = 599000 WHERE "slug" = 'business' AND "priceMonthlyUzs" = 0;

@@ -27,11 +27,11 @@ const META: Record<string, { desc: string; best?: boolean }> = {
 
 /** Backend javob bermasa ham sahifa TO'LIQ ko'rinishi kerak (CLICK tekshiradi). */
 const FALLBACK: PublicTariff[] = [
-  { slug: "starter", name: "Boshlang'ich", priceMonthly: 9, priceMonthlyUzs: 119000, sortOrder: 1,
+  { slug: "starter", name: "Boshlang'ich", priceMonthly: 9, priceMonthlyUzs: 99000, sortOrder: 1,
     features: ["Marketplace lidlari", "Sotuv voronkasi", "Mijozlar bazasi", "Turlar katalogi", "To'lovlar hisobi"] },
-  { slug: "pro", name: "Pro", priceMonthly: 29, priceMonthlyUzs: 379000, sortOrder: 2,
+  { slug: "pro", name: "Pro", priceMonthly: 29, priceMonthlyUzs: 299000, sortOrder: 2,
     features: ["Boshlang'ichdagi hammasi", "Telegram bot va avtomatik xabarlar", "Dinamik takliflar", "Hisobotlar va analitika", "Qo'lda lid qo'shish"] },
-  { slug: "business", name: "Premium", priceMonthly: 59, priceMonthlyUzs: 769000, sortOrder: 3,
+  { slug: "business", name: "Premium", priceMonthly: 59, priceMonthlyUzs: 599000, sortOrder: 3,
     features: ["Pro'dagi hammasi", "Jamoa va rollar", "Integratsiyalar", "AI yordamchi", "Ustuvor qo'llab-quvvatlash"] },
 ];
 
@@ -70,7 +70,7 @@ export default async function PricingPage() {
                       <b>{som(t.priceMonthlyUzs)}</b>
                       <span>so&apos;m / oy</span>
                     </div>
-                    {t.priceMonthly ? <p className="mkt-plan__usd">≈ ${t.priceMonthly} / oy</p> : null}
+                    <p className="mkt-plan__usd">QQS bilan · istalgan vaqtda bekor qilasiz</p>
 
                     <ul className="mkt-plan__list">
                       {feats.map((f) => (

@@ -40,10 +40,10 @@ export default function PrivacyPage() {
         ]},
         { heading: "6. Sizning huquqlaringiz", body: [
           "Siz istalgan vaqtda ma'lumotlaringizni ko'rish, tahrirlash yoki hisobingizni butunlay o'chirish huquqiga egasiz.",
-          "Buning uchun " + CONTACT.email + " yoki " + CONTACT.emailAlt + " manziliga murojaat qiling.",
+          "Buning uchun " + CONTACT.email + " manziliga murojaat qiling.",
         ]},
         { heading: "7. Aloqa", body: [
-          "Maxfiylik bo'yicha savollaringiz bo'lsa: " + CONTACT.phone + " · " + CONTACT.email + " · " + CONTACT.emailAlt,
+          "Maxfiylik bo'yicha savollaringiz bo'lsa: " + CONTACT.phone + " · " + CONTACT.email,
         ]},
       ]}
     />

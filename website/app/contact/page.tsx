@@ -15,7 +15,7 @@ const HERO = "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=
 
 const CHANNELS = [
   { icon: Phone, title: "Telefon", value: "+998 90 000 00 00", href: "tel:+998900000000" },
-  { icon: Mail, title: "Email", value: "support@travelorai.com", href: "mailto:support@travelorai.com" },
+  { icon: Mail, title: "Email", value: "traveloraai@gmail.com", href: "mailto:traveloraai@gmail.com" },
   { icon: Send, title: "Telegram", value: "@travelorai", href: "https://t.me/travelorai" },
   { icon: MapPin, title: "Manzil", value: "Toshkent, O'zbekiston", href: "https://maps.google.com/?q=Tashkent" },
 ];

@@ -25,9 +25,10 @@ export const LEGAL_ENTITY = {
 
 /** Aloqa ma'lumotlari — oferta, footer va hujjatlar shu yerdan oladi. */
 export const CONTACT = {
-  email: "support@travelorai.com",
-  /** Ishonchli zaxira manzil — oferta bo'yicha murojaatlar shu yerga ham keladi. */
-  emailAlt: "traveloraai@gmail.com",
+  /** Ishlaydigan asosiy manzil. DIQQAT: travelorai.com domenida MX yo'q —
+   *  support@travelorai.com pochtasi KELMAYDI. Cloudflare Email Routing
+   *  sozlangach shu yerni domen manziliga qaytarish mumkin. */
+  email: "traveloraai@gmail.com",
   phone: "+998 97 790 77 62",
   /** tel: havolasi uchun (bo'shliqlarsiz) */
   phoneHref: "+998977907762",
