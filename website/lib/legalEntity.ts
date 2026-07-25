@@ -23,9 +23,14 @@ export const LEGAL_ENTITY = {
   mfo: "00560",
 } as const;
 
-/** Har doim mavjud bo'lgan aloqa ma'lumotlari (yuridik shaxsga bog'liq emas). */
+/** Aloqa ma'lumotlari — oferta, footer va hujjatlar shu yerdan oladi. */
 export const CONTACT = {
   email: "support@travelorai.com",
+  /** Ishonchli zaxira manzil — oferta bo'yicha murojaatlar shu yerga ham keladi. */
+  emailAlt: "traveloraai@gmail.com",
+  phone: "+998 97 790 77 62",
+  /** tel: havolasi uchun (bo'shliqlarsiz) */
+  phoneHref: "+998977907762",
   site: "travelorai.com",
   telegram: "https://t.me/travelorai",
 } as const;

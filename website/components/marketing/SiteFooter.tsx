@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Instagram, Mail, MapPin, Phone, Send, Youtube } from "lucide-react";
 import Logo from "./Logo";
+import { CONTACT } from "@/lib/legalEntity";
 
 const COLS = [
   {
@@ -66,8 +67,9 @@ export default function SiteFooter() {
           <span>© {year} TravelorAI. Barcha huquqlar himoyalangan.</span>
           <span style={{ display: "flex", gap: "18px", flexWrap: "wrap" }}>
             <span className="mkt-footer__contact" style={{ margin: 0 }}><MapPin size={15} /> O‘zbekiston</span>
-            <span className="mkt-footer__contact" style={{ margin: 0 }}><Mail size={15} /> support@travelorai.com</span>
-            <a className="mkt-footer__contact" style={{ margin: 0 }} href="https://t.me/travelorai" target="_blank" rel="noopener noreferrer"><Send size={15} /> @travelorai</a>
+            <a className="mkt-footer__contact" style={{ margin: 0 }} href={`tel:${CONTACT.phoneHref}`}><Phone size={15} /> {CONTACT.phone}</a>
+            <a className="mkt-footer__contact" style={{ margin: 0 }} href={`mailto:${CONTACT.email}`}><Mail size={15} /> {CONTACT.email}</a>
+            <a className="mkt-footer__contact" style={{ margin: 0 }} href={CONTACT.telegram} target="_blank" rel="noopener noreferrer"><Send size={15} /> @travelorai</a>
           </span>
         </div>
       </div>

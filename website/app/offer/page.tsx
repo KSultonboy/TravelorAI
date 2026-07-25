@@ -72,7 +72,7 @@ export default function OfferPage() {
             "Xato yoki takroriy to'lov — Buyurtmachi murojaatidan so'ng to'liq miqdorda qaytariladi.",
             "Ijrochi aybi bilan Platforma uzluksiz 24 (yigirma to'rt) soatdan ortiq ishlamay qolsa — Buyurtmachi talabiga ko'ra ishlamagan kunlar uchun mutanosib summa qaytariladi yoki obuna muddati shu kunlarga uzaytiriladi.",
             "Obunaning allaqachon foydalanilgan davri uchun to'lov qaytarilmaydi. Buyurtmachi obunani muddatidan oldin bekor qilsa, joriy to'langan davr oxirigacha foydalanish huquqi saqlanadi.",
-            "Pul qaytarish uchun ariza " + CONTACT.email + " manziliga yuboriladi. Arizada to'lov sanasi, summasi va usuli ko'rsatiladi.",
+            "Pul qaytarish uchun ariza " + CONTACT.email + " yoki " + CONTACT.emailAlt + " manziliga yuboriladi. Arizada to'lov sanasi, summasi va usuli ko'rsatiladi.",
             "Ariza 3 (uch) ish kuni ichida ko'rib chiqiladi. Ijobiy qaror qabul qilinsa, summa 10 (o'n) ish kuni ichida to'lov amalga oshirilgan usulda qaytariladi.",
             "Buyurtmachi ushbu oferta shartlarini buzgani sababli obuna to'xtatilgan taqdimda to'lov qaytarilmaydi.",
           ],
@@ -112,7 +112,7 @@ export default function OfferPage() {
             "Oferta saytda e'lon qilingan kundan kuchga kiradi va muddatsiz amal qiladi.",
             "Ijrochi oferta shartlarini bir tomonlama o'zgartirish huquqiga ega. O'zgarishlar saytda e'lon qilingan kundan kuchga kiradi. Buyurtmachi o'zgarishlardan keyin Platformadan foydalanishni davom ettirsa, yangi shartlarni qabul qilgan hisoblanadi.",
             "Nizolar avvalo muzokaralar yo'li bilan hal qilinadi. Kelishuvga erishilmasa, nizo O'zbekiston Respublikasi qonunchiligiga muvofiq tegishli sudda ko'rib chiqiladi.",
-            "Har qanday savol yoki murojaat uchun: " + CONTACT.email + " yoki " + CONTACT.telegram,
+            "Har qanday savol yoki murojaat uchun: " + CONTACT.phone + " · " + CONTACT.email + " · " + CONTACT.emailAlt + " · " + CONTACT.telegram,
           ],
         },
         {
