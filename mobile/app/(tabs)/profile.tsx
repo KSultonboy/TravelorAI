@@ -20,10 +20,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FONTS } from '../../src/constants/fonts';
 import { RADIUS, SPACING } from '../../src/constants/spacing';
 import { type AppColors, type ThemePreference, useAppTheme } from '../../src/theme/app-theme';
-import { useAchievements } from '../../src/hooks/useAchievements';
-import { useTrips } from '../../src/hooks/useTrips';
 import { useWishlist } from '../../src/hooks/useWishlist';
-import { authAPI } from '../../src/utils/api';
+import { ApiError, authAPI, type SecurityCodePayload } from '../../src/utils/api';
 import { type AuthUser, getUserDisplayName, getUserInitials } from '../../src/utils/auth';
 import { extractApiData } from '../../src/utils/auth';
 import { KEYS, clearAll, clearAuthSession, getItem, getJSON, getUserKey, saveItem, saveUserProfile } from '../../src/utils/storage';
@@ -47,15 +45,16 @@ export default function ProfileScreen() {
   const [token, setToken] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
   const userId = user?.id ?? null;
-  const { trips, loadTrips } = useTrips(userId);
-  const { achievements, loadAchievements } = useAchievements(trips, userId);
-  const { wishlist, remove: removeWishlist } = useWishlist(userId);
+  const { wishlist } = useWishlist(userId);
   const [offline, setOffline] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [language, setLanguage] = useState<Language>('uz');
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
+  const [deleteCode, setDeleteCode] = useState('');
+  const [deleteStage, setDeleteStage] = useState<'request' | 'verify'>('request');
+  const [deleteAttemptsRemaining, setDeleteAttemptsRemaining] = useState(3);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const syncUserFromServer = useCallback(
@@ -88,11 +87,10 @@ export default function ProfileScreen() {
     setRefreshing(true);
     try {
       await syncUserFromServer(user);
-      await Promise.all([loadTrips(), loadAchievements()]);
     } finally {
       setRefreshing(false);
     }
-  }, [loadAchievements, loadTrips, syncUserFromServer, token, user, userId]);
+  }, [syncUserFromServer, token, user, userId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -127,16 +125,6 @@ export default function ProfileScreen() {
 
       return () => { active = false; };
     }, [i18n, syncUserFromServer])
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      if (!userId) return;
-
-      (async () => {
-        await Promise.all([loadTrips(), loadAchievements()]);
-      })();
-    }, [loadAchievements, loadTrips, userId])
   );
 
   const isLoggedIn = Boolean(token);
@@ -174,44 +162,9 @@ export default function ProfileScreen() {
       </View>
     );
   }
-  const localTripCount = trips.length;
-  const localTotalSpent = trips.reduce((sum, trip) => sum + (trip.totalCost || 0), 0);
-  const totalDays = trips.reduce((sum, trip) => sum + (trip.duration || 0), 0);
-  const allDestinations = trips.flatMap((trip) => trip.destinations || []);
-  const localCities = [...new Set(allDestinations)].length;
-  const remoteStats = achievements?.stats;
-  const tripCount = typeof remoteStats?.tripCount === 'number' ? remoteStats.tripCount : localTripCount;
-  const cityCount = typeof remoteStats?.uniqueCities === 'number' ? remoteStats.uniqueCities : localCities;
-  const totalSpent = typeof remoteStats?.totalSpent === 'number' ? remoteStats.totalSpent : localTotalSpent;
-  const avgCost = tripCount > 0 ? Math.round(totalSpent / tripCount) : 0;
-  const frequencyMap: Record<string, number> = {};
-  allDestinations.forEach((destination) => {
-    frequencyMap[destination] = (frequencyMap[destination] || 0) + 1;
-  });
-  const mostVisited = Object.keys(frequencyMap).sort((a, b) => frequencyMap[b] - frequencyMap[a])[0] ?? null;
-  const achievementPreview =
-    achievements.unlocked.length > 0 ? achievements.unlocked.slice(0, 3) : achievements.locked.slice(0, 3);
-  const lastTrip =
-    trips.length > 0
-      ? trips.slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
-      : null;
   const wishlistCount = wishlist.length;
-  const achievementProgress = Math.round(achievements.completionRate * 100);
-
   const name = user ? getUserDisplayName(user) : t('profile.guestName');
   const initials = getUserInitials(user);
-
-  const formatMoney = (value: number) => {
-    if (value >= 1_000_000) {
-      return `${(value / 1_000_000).toFixed(1)}M`;
-    }
-
-    if (value >= 1_000) {
-      return `${Math.round(value / 1_000)}K`;
-    }
-
-    return String(value);
-  };
 
   // ── Notification toggle ───────────────────────────────────────────────────
   // ── Offline mode toggle ───────────────────────────────────────────────────
@@ -277,6 +230,9 @@ export default function ProfileScreen() {
 
   const openDeleteAccountModal = () => {
     setDeletePassword('');
+    setDeleteCode('');
+    setDeleteStage('request');
+    setDeleteAttemptsRemaining(3);
     setDeleteModalVisible(true);
   };
 
@@ -284,9 +240,11 @@ export default function ProfileScreen() {
     if (isDeletingAccount) return;
     setDeleteModalVisible(false);
     setDeletePassword('');
+    setDeleteCode('');
+    setDeleteStage('request');
   };
 
-  const submitDeleteAccount = async () => {
+  const requestDeleteCode = async () => {
     if (!user) return;
 
     if (user.authProvider === 'local' && deletePassword.trim().length === 0) {
@@ -296,10 +254,35 @@ export default function ProfileScreen() {
 
     setIsDeletingAccount(true);
     try {
-      await authAPI.deleteAccount({
-        confirm: true,
+      const data = extractApiData<SecurityCodePayload>(await authAPI.requestAccountDeletion({
         ...(user.authProvider === 'local' ? { password: deletePassword.trim() } : {}),
-      });
+      }));
+      setDeleteStage('verify');
+      setDeleteAttemptsRemaining(data.attemptsRemaining);
+      if (data.devCode) setDeleteCode(data.devCode);
+      Alert.alert(t('common.ok'), data.devCode ? `${data.message}\nKod: ${data.devCode}` : data.message);
+    } catch (e: any) {
+      const apiError = e instanceof ApiError ? e : null;
+      if (apiError?.data?.contactAdmin) {
+        setDeleteModalVisible(false);
+        Alert.alert(t('profile.errorTitle'), apiError.message);
+      } else {
+        Alert.alert(t('profile.errorTitle'), apiError?.message || t('profile.deleteErrorMsg'));
+      }
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
+  const submitDeleteAccount = async () => {
+    if (deleteCode.trim().length !== 6) {
+      Alert.alert(t('profile.errorTitle'), 'Emailga kelgan 6 xonali kodni kiriting.');
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    try {
+      await authAPI.deleteAccount({ confirm: true, code: deleteCode.trim() });
       await clearAll();
       setDeleteModalVisible(false);
       Alert.alert(t('profile.deleteSuccessTitle'), t('profile.deleteSuccessMsg'));
@@ -315,55 +298,14 @@ export default function ProfileScreen() {
     }
   };
 
-  const menu = [
-    {
-      icon: 'chatbubble-ellipses-outline' as const,
-      label: t('profile.feedback', { defaultValue: 'Fikr va shikoyatlar' }),
-      onPress: () => router.push('/feedback'),
-    },
-    {
-      icon: 'language-outline' as const,
-      label: 'Tilni tanlash',
-      onPress: () => router.push('/language' as any),
-    },
-    {
-      icon: 'card-outline' as const,
-      label: 'To‘lov usullari',
-      onPress: () => router.push('/payment-methods' as any),
-    },
-    {
-      icon: 'gift-outline' as const,
-      label: 'Aksiyalar',
-      onPress: () => router.push('/promotions' as any),
-    },
-    {
-      icon: 'help-circle-outline' as const,
-      label: 'Yordam markazi',
-      onPress: () => router.push('/help-center' as any),
-    },
-    {
-      icon: 'settings-outline' as const,
-      label: t('profile.settings'),
-      onPress: () => router.push('/settings'),
-    },
-  ];
-
   const quickActions = [
     {
-      key: 'stats',
-      icon: 'stats-chart-outline' as const,
-      title: t('profile.stats'),
-      subtitle: `${tripCount} ${t('profile.trips')} · ${cityCount} ${t('profile.cities')}`,
-      onPress: () => router.push('/profile-stats'),
+      key: 'bookings',
+      icon: 'briefcase-outline' as const,
+      title: 'Mening bronlarim',
+      subtitle: 'Sotib olingan turlar',
+      onPress: () => router.push('/bookings' as any),
       badge: null as number | null,
-    },
-    {
-      key: 'achievements',
-      icon: 'trophy-outline' as const,
-      title: t('profile.achievements'),
-      subtitle: `${achievements.unlockedCount}/${achievements.totalCount} ${t('achievements.unlocked')} · ${achievementProgress}%`,
-      onPress: () => router.push('/achievements'),
-      badge: achievements.unlockedCount,
     },
     {
       key: 'wishlist',
@@ -416,22 +358,6 @@ export default function ProfileScreen() {
         <Text style={styles.userName}>{name}</Text>
         {user?.email ? <Text style={styles.userEmail}>{user.email}</Text> : null}
         {user?.bio ? <Text style={styles.userBio}>{user.bio}</Text> : null}
-        <View style={styles.heroMetricRow}>
-          <View style={styles.heroMetric}>
-            <Text style={styles.heroMetricValue}>{tripCount}</Text>
-            <Text style={styles.heroMetricLabel}>{t('profile.trips')}</Text>
-          </View>
-          <View style={styles.heroMetricDivider} />
-          <View style={styles.heroMetric}>
-            <Text style={styles.heroMetricValue}>{cityCount}</Text>
-            <Text style={styles.heroMetricLabel}>{t('profile.cities')}</Text>
-          </View>
-          <View style={styles.heroMetricDivider} />
-          <View style={styles.heroMetric}>
-            <Text style={styles.heroMetricValue}>{achievementProgress}%</Text>
-            <Text style={styles.heroMetricLabel}>{t('achievements.progressLabel')}</Text>
-          </View>
-        </View>
       </View>
 
       <View style={styles.section}>
@@ -457,192 +383,6 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           ))}
         </View>
-      </View>
-
-      <View style={styles.hiddenSection}>
-        <Text style={styles.statsSectionTitle}>{t('profile.stats')}</Text>
-
-        <View style={styles.statsRow}>
-          {([
-            { icon: 'map-outline', value: String(tripCount), label: t('profile.trips'), accent: false },
-            { icon: 'location-outline', value: String(cityCount), label: t('profile.cities'), accent: false },
-            { icon: 'wallet-outline', value: formatMoney(totalSpent), label: t('profile.totalSpent'), accent: true },
-          ] as const).map((item) => (
-            <View key={item.label} style={[styles.stat, item.accent && styles.statAccent]}>
-              <View style={[styles.statIconWrap, item.accent && styles.statIconWrapAccent]}>
-                <Ionicons name={item.icon} size={18} color={item.accent ? colors.textInverse : colors.primary} />
-              </View>
-              <Text style={[styles.statVal, item.accent && styles.statValAccent]}>{item.value}</Text>
-              <Text style={[styles.statLabel, item.accent && styles.statLabelAccent]}>{item.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.statsRow2}>
-          <View style={styles.stat2}>
-            <Ionicons name="calendar-outline" size={16} color={colors.primary} />
-            <Text style={styles.stat2Val}>{totalDays}</Text>
-            <Text style={styles.stat2Label}>{t('profile.days')}</Text>
-          </View>
-          <View style={styles.stat2Divider} />
-          <View style={styles.stat2}>
-            <Ionicons name="trending-up-outline" size={16} color={colors.primary} />
-            <Text style={styles.stat2Val}>{formatMoney(avgCost)}</Text>
-            <Text style={styles.stat2Label}>{t('profile.avgTrip')}</Text>
-          </View>
-          <View style={styles.stat2Divider} />
-          <View style={styles.stat2}>
-            <Ionicons name="star-outline" size={16} color={colors.gold} />
-            <Text style={[styles.stat2Val, { color: colors.gold }]}>{mostVisited ?? '-'}</Text>
-            <Text style={styles.stat2Label}>{t('profile.mostVisited')}</Text>
-          </View>
-        </View>
-
-        {lastTrip ? (
-          <View style={styles.lastTripCard}>
-            <View style={styles.lastTripLeft}>
-              <View style={styles.lastTripIconWrap}>
-                <Ionicons name="airplane-outline" size={20} color={colors.textInverse} />
-              </View>
-              <View style={styles.lastTripBody}>
-                <Text style={styles.lastTripBadge}>{t('profile.lastTrip')}</Text>
-                <Text style={styles.lastTripTitle} numberOfLines={1}>
-                  {lastTrip.title}
-                </Text>
-                <Text style={styles.lastTripMeta}>
-                  {lastTrip.duration} {t('common.days')} | {lastTrip.destinations?.join(', ') || '-'}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.lastTripRight}>
-              <Text style={styles.lastTripCost}>{formatMoney(lastTrip.totalCost)}</Text>
-              <Text style={styles.lastTripCostLabel}>{t('common.som')}</Text>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.emptyStats}>
-            <Ionicons name="map-outline" size={32} color={colors.textMuted} />
-            <Text style={styles.emptyStatsTxt}>{t('profile.noTrips')}</Text>
-          </View>
-        )}
-      </View>
-
-      <View style={styles.hiddenSection}>
-        <View style={styles.achievementCard}>
-          <View style={styles.achievementHeader}>
-            <View style={styles.achievementHeaderCopy}>
-              <Text style={styles.secTitle}>{t('profile.achievements')}</Text>
-              <Text style={styles.achievementSub}>{t('achievements.subtitle')}</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.achievementLinkBtn}
-              onPress={() => router.push('/achievements')}
-              activeOpacity={0.82}
-            >
-              <Text style={styles.achievementLinkTxt}>{t('profile.achievementsView')}</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.achievementSummaryRow}>
-            <View style={styles.achievementSummaryBox}>
-              <Text style={styles.achievementSummaryValue}>{achievements.unlockedCount}</Text>
-              <Text style={styles.achievementSummaryLabel}>{t('achievements.unlocked')}</Text>
-            </View>
-            <View style={styles.achievementSummaryDivider} />
-            <View style={styles.achievementSummaryBox}>
-              <Text style={styles.achievementSummaryValue}>{achievements.totalCount}</Text>
-              <Text style={styles.achievementSummaryLabel}>{t('achievements.total')}</Text>
-            </View>
-            <View style={styles.achievementSummaryDivider} />
-            <View style={styles.achievementSummaryBox}>
-              <Text style={styles.achievementSummaryValue}>{Math.round(achievements.completionRate * 100)}%</Text>
-              <Text style={styles.achievementSummaryLabel}>{t('achievements.progressLabel')}</Text>
-            </View>
-          </View>
-
-          <View style={styles.achievementPreviewRow}>
-            {achievementPreview.map((item) => (
-              <View key={item.id} style={styles.achievementMiniCard}>
-                <View
-                  style={[
-                    styles.achievementMiniIconWrap,
-                    { backgroundColor: item.unlocked ? `${item.accent}18` : colors.cardMuted },
-                  ]}
-                >
-                  <Ionicons
-                    name={(item.unlocked ? item.icon : 'lock-closed-outline') as any}
-                    size={18}
-                    color={item.unlocked ? item.accent : colors.textMuted}
-                  />
-                </View>
-                <Text style={styles.achievementMiniTitle} numberOfLines={2}>
-                  {t(item.title)}
-                </Text>
-                <Text style={styles.achievementMiniMeta} numberOfLines={1}>
-                  {item.unlocked ? t('achievements.unlocked') : item.progressText}
-                </Text>
-              </View>
-            ))}
-          </View>
-
-          {achievements.nextAchievement ? (
-            <View style={styles.achievementNextCard}>
-              <Text style={styles.achievementNextLabel}>{t('achievements.nextBadge')}</Text>
-              <Text style={styles.achievementNextTitle}>{t(achievements.nextAchievement.title)}</Text>
-              <Text style={styles.achievementNextMeta}>{t(achievements.nextAchievement.hint)}</Text>
-              <View style={styles.achievementProgressTrack}>
-                <View
-                  style={[
-                    styles.achievementProgressFill,
-                    {
-                      width: `${Math.max(achievements.nextAchievement.progress * 100, 8)}%`,
-                      backgroundColor: achievements.nextAchievement.accent,
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-          ) : null}
-        </View>
-      </View>
-
-      {/* ── Wishlist (Bormoqchi joylar) ── */}
-      <View style={styles.hiddenSection}>
-        <View style={styles.wishlistHeader}>
-          <Text style={styles.secTitle}>{t('profile.wishlist')}</Text>
-          {wishlist.length > 0 && (
-            <View style={styles.wishlistBadge}>
-              <Text style={styles.wishlistBadgeTxt}>{wishlist.length}</Text>
-            </View>
-          )}
-        </View>
-
-        {wishlist.length === 0 ? (
-          <View style={styles.wishlistEmpty}>
-            <Text style={styles.wishlistEmptyIcon}>♡</Text>
-            <Text style={styles.wishlistEmptyTxt}>{t('profile.wishlistEmpty')}</Text>
-            <Text style={styles.wishlistEmptyHint}>{t('profile.wishlistHint')}</Text>
-          </View>
-        ) : (
-          wishlist.map((item) => (
-            <View key={item.id} style={styles.wishRow}>
-              <View style={styles.wishIconWrap}>
-                <Text style={styles.wishIcon}>{item.icon}</Text>
-              </View>
-              <View style={styles.wishInfo}>
-                <Text style={styles.wishName} numberOfLines={1}>{item.name}</Text>
-                <Text style={styles.wishCity}>{item.city}</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.wishRemoveBtn}
-                onPress={() => removeWishlist(item.id)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons name="heart-dislike-outline" size={18} color={colors.error} />
-              </TouchableOpacity>
-            </View>
-          ))
-        )}
       </View>
 
       <View style={styles.section}>
@@ -736,19 +476,17 @@ export default function ProfileScreen() {
             thumbColor={colors.surface}
           />
         </View>
-      </View>
 
-      <View style={styles.section}>
-        <Text style={styles.secTitle}>{t('profile.other')}</Text>
-        {menu.map((item) => (
-          <TouchableOpacity key={item.label} style={styles.menuRow} onPress={item.onPress} activeOpacity={0.75}>
-            <View style={styles.rowWithIcon}>
-              <Ionicons name={item.icon} size={18} color={colors.primary} />
-              <Text style={styles.menuLabel}>{item.label}</Text>
+        <TouchableOpacity style={styles.toggleRow} onPress={() => router.push('/settings' as any)} activeOpacity={0.8}>
+          <View style={styles.rowWithIcon}>
+            <Ionicons name="settings-outline" size={18} color={colors.primary} />
+            <View>
+              <Text style={styles.toggleLabel}>{t('profile.settings')}</Text>
+              <Text style={styles.toggleSub}>Bildirishnomalar va ilova sozlamalari</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          </TouchableOpacity>
-        ))}
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
       </View>
 
       <TouchableOpacity style={styles.logoutBtn} onPress={logout} activeOpacity={0.85}>
@@ -765,9 +503,13 @@ export default function ProfileScreen() {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{t('profile.deleteModalTitle')}</Text>
-            <Text style={styles.modalSub}>{t('profile.deleteModalSub')}</Text>
+            <Text style={styles.modalSub}>
+              {deleteStage === 'request'
+                ? 'Avval emailingizga tasdiqlash kodi yuboramiz. Kodni jami 3 marta so‘rashingiz mumkin.'
+                : `${user?.email} manziliga yuborilgan 6 xonali kodni kiriting. Qolgan so‘rov: ${deleteAttemptsRemaining}.`}
+            </Text>
 
-            {user?.authProvider === 'local' ? (
+            {deleteStage === 'request' && user?.authProvider === 'local' ? (
               <>
                 <Text style={styles.modalLabel}>{t('profile.deletePasswordLabel')}</Text>
                 <TextInput
@@ -782,11 +524,34 @@ export default function ProfileScreen() {
                   autoCorrect={false}
                 />
               </>
-            ) : (
+            ) : deleteStage === 'request' ? (
               <View style={styles.modalHintBox}>
                 <Ionicons name="information-circle-outline" size={18} color={colors.primary} />
                 <Text style={styles.modalHintText}>{t('profile.deleteGoogleHint')}</Text>
               </View>
+            ) : (
+              <>
+                <Text style={styles.modalLabel}>Tasdiqlash kodi</Text>
+                <TextInput
+                  value={deleteCode}
+                  onChangeText={(value) => setDeleteCode(value.replace(/\D/g, '').slice(0, 6))}
+                  editable={!isDeletingAccount}
+                  placeholder="000000"
+                  placeholderTextColor={colors.textMuted}
+                  style={styles.modalInput}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                />
+                <TouchableOpacity
+                  onPress={requestDeleteCode}
+                  disabled={isDeletingAccount || deleteAttemptsRemaining <= 0}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.modalHintText}>
+                    {deleteAttemptsRemaining > 0 ? `Kodni qayta yuborish (${deleteAttemptsRemaining})` : 'Limit tugadi, adminga murojaat qiling'}
+                  </Text>
+                </TouchableOpacity>
+              </>
             )}
 
             <View style={styles.modalActions}>
@@ -800,14 +565,16 @@ export default function ProfileScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalBtn, styles.modalBtnDanger, isDeletingAccount && styles.modalBtnDisabled]}
-                onPress={submitDeleteAccount}
+                onPress={deleteStage === 'request' ? requestDeleteCode : submitDeleteAccount}
                 disabled={isDeletingAccount}
                 activeOpacity={0.8}
               >
                 {isDeletingAccount ? (
                   <ActivityIndicator size="small" color={colors.textInverse} />
                 ) : (
-                  <Text style={styles.modalBtnDangerText}>{t('profile.deleteNow')}</Text>
+                  <Text style={styles.modalBtnDangerText}>
+                    {deleteStage === 'request' ? 'Kodni yuborish' : t('profile.deleteNow')}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -922,19 +689,6 @@ function createStyles(colors: AppColors, bottomInset: number) {
       marginTop: SPACING.sm,
       paddingHorizontal: SPACING.md,
     },
-    heroMetricRow: {
-      width: '100%',
-      flexDirection: 'row',
-      alignItems: 'center',
-      borderRadius: RADIUS.xl,
-      backgroundColor: colors.glassStrong,
-      paddingVertical: SPACING.md,
-      marginTop: SPACING.lg,
-    },
-    heroMetric: { flex: 1, alignItems: 'center' },
-    heroMetricValue: { fontFamily: FONTS.display, fontSize: 19, color: colors.text },
-    heroMetricLabel: { marginTop: 2, fontFamily: FONTS.regular, fontSize: 11, color: colors.textMuted },
-    heroMetricDivider: { width: 1, height: 36, backgroundColor: colors.borderLight },
     guestLabel: { fontFamily: FONTS.regular, fontSize: 13, color: colors.textMuted, fontStyle: 'italic' },
     authRow: { flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.lg, width: '100%' },
     loginBtn: {
@@ -955,128 +709,7 @@ function createStyles(colors: AppColors, bottomInset: number) {
       borderColor: colors.primary,
     },
     registerTxt: { fontFamily: FONTS.semibold, fontSize: 14, color: colors.primary },
-    statsSection: {
-      marginHorizontal: SPACING.lg,
-      marginBottom: SPACING.lg,
-      backgroundColor: colors.surface,
-      borderRadius: RADIUS.xl,
-      borderWidth: 1,
-      borderColor: colors.borderLight,
-      padding: SPACING.lg,
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.08,
-      shadowRadius: 14,
-      elevation: 5,
-    },
-    statsSectionTitle: {
-      fontFamily: FONTS.semibold,
-      fontSize: 14,
-      color: colors.textMuted,
-      marginBottom: SPACING.md,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
-    },
-    statsRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.md },
-    stat: {
-      flex: 1,
-      alignItems: 'center',
-      backgroundColor: colors.cardMuted,
-      borderRadius: RADIUS.lg,
-      paddingVertical: SPACING.md,
-      borderWidth: 1,
-      borderColor: colors.borderLight,
-    },
-    statAccent: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-      shadowColor: colors.primary,
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.25,
-      shadowRadius: 12,
-      elevation: 6,
-    },
-    statIconWrap: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: colors.primaryPale,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 8,
-    },
-    statIconWrapAccent: { backgroundColor: 'rgba(255,255,255,0.2)' },
-    statVal: { fontFamily: FONTS.semibold, fontSize: 17, color: colors.text },
-    statValAccent: { color: colors.textInverse },
-    statLabel: { fontFamily: FONTS.regular, fontSize: 11, color: colors.textMuted, marginTop: 2 },
-    statLabelAccent: { color: 'rgba(255,255,255,0.75)' },
-    statsRow2: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.cardMuted,
-      borderRadius: RADIUS.lg,
-      borderWidth: 1,
-      borderColor: colors.borderLight,
-      paddingVertical: SPACING.md,
-      marginBottom: SPACING.md,
-    },
-    stat2: { flex: 1, alignItems: 'center', gap: 4 },
-    stat2Divider: { width: 1, height: 36, backgroundColor: colors.borderLight },
-    stat2Val: { fontFamily: FONTS.semibold, fontSize: 15, color: colors.text },
-    stat2Label: { fontFamily: FONTS.regular, fontSize: 10, color: colors.textMuted },
-    lastTripCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.primaryPale,
-      borderRadius: RADIUS.lg,
-      borderWidth: 1,
-      borderColor: `${colors.primary}33`,
-      padding: SPACING.md,
-      gap: SPACING.md,
-    },
-    lastTripLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-    lastTripBody: { flex: 1 },
-    lastTripIconWrap: {
-      width: 42,
-      height: 42,
-      borderRadius: 21,
-      backgroundColor: colors.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
-      shadowColor: colors.primary,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 4,
-    },
-    lastTripBadge: {
-      fontFamily: FONTS.medium,
-      fontSize: 10,
-      color: colors.primary,
-      textTransform: 'uppercase',
-      letterSpacing: 0.4,
-      marginBottom: 2,
-    },
-    lastTripTitle: { fontFamily: FONTS.semibold, fontSize: 14, color: colors.text },
-    lastTripMeta: { fontFamily: FONTS.regular, fontSize: 11, color: colors.textMuted, marginTop: 2 },
-    lastTripRight: { alignItems: 'flex-end' },
-    lastTripCost: { fontFamily: FONTS.semibold, fontSize: 16, color: colors.primary },
-    lastTripCostLabel: { fontFamily: FONTS.regular, fontSize: 10, color: colors.textMuted },
-    emptyStats: { alignItems: 'center', paddingVertical: SPACING.lg, gap: SPACING.sm },
-    emptyStatsTxt: { fontFamily: FONTS.regular, fontSize: 13, color: colors.textMuted, textAlign: 'center' },
     section: { marginHorizontal: SPACING.lg, marginBottom: SPACING.lg },
-    hiddenSection: {
-      marginHorizontal: SPACING.lg,
-      marginBottom: SPACING.lg,
-      borderRadius: 28,
-      backgroundColor: colors.surface,
-      padding: SPACING.lg,
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.1,
-      shadowRadius: 20,
-      elevation: 5,
-    },
     secTitle: { fontFamily: FONTS.semibold, fontSize: 15, color: colors.text, marginBottom: SPACING.md },
     quickActionList: {
       flexDirection: 'row',
@@ -1207,56 +840,6 @@ function createStyles(colors: AppColors, bottomInset: number) {
     },
     achievementProgressFill: { height: '100%', borderRadius: RADIUS.full },
     // ── Wishlist ────────────────────────────────────────────────────────────
-    wishlistHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.md, gap: SPACING.sm },
-    wishlistBadge: {
-      backgroundColor: colors.primary,
-      borderRadius: RADIUS.full,
-      minWidth: 22,
-      height: 22,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 6,
-    },
-    wishlistBadgeTxt: { fontFamily: FONTS.semibold, fontSize: 11, color: colors.textInverse },
-    wishlistEmpty: {
-      backgroundColor: colors.cardMuted,
-      borderRadius: RADIUS.lg,
-      paddingVertical: SPACING.xl,
-      alignItems: 'center',
-      gap: SPACING.sm,
-    },
-    wishlistEmptyIcon: { fontSize: 32 },
-    wishlistEmptyTxt: { fontFamily: FONTS.medium, fontSize: 14, color: colors.textSecondary },
-    wishlistEmptyHint: { fontFamily: FONTS.regular, fontSize: 12, color: colors.textMuted },
-    wishRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.cardMuted,
-      borderRadius: RADIUS.lg,
-      padding: SPACING.md,
-      marginBottom: SPACING.sm,
-      gap: SPACING.md,
-    },
-    wishIconWrap: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: colors.primaryPale,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    wishIcon: { fontSize: 20 },
-    wishInfo: { flex: 1 },
-    wishName: { fontFamily: FONTS.semibold, fontSize: 14, color: colors.text },
-    wishCity: { fontFamily: FONTS.regular, fontSize: 12, color: colors.textMuted, marginTop: 2 },
-    wishRemoveBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: colors.errorPale,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
     themeCard: {
       backgroundColor: colors.surface,
       borderRadius: RADIUS.xl,
@@ -1346,18 +929,6 @@ function createStyles(colors: AppColors, bottomInset: number) {
     langFlag: { fontSize: 22 },
     langLabel: { fontFamily: FONTS.medium, fontSize: 14, color: colors.text },
     langLabelActive: { color: colors.primary },
-    menuRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.surface,
-      borderRadius: RADIUS.md,
-      padding: SPACING.md,
-      marginBottom: SPACING.sm,
-      borderWidth: 1,
-      borderColor: colors.borderLight,
-      justifyContent: 'space-between',
-    },
-    menuLabel: { fontFamily: FONTS.medium, fontSize: 14, color: colors.text },
     logoutBtn: {
       marginHorizontal: SPACING.lg,
       backgroundColor: colors.errorPale,

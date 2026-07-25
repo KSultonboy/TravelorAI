@@ -16,6 +16,8 @@ enum AuthProvider {
 enum AuthCodeType {
   EMAIL_VERIFICATION
   PASSWORD_RESET
+  EMAIL_CHANGE
+  ACCOUNT_DELETE
 }
 
 enum FeedbackCategory {
@@ -27,21 +29,32 @@ enum FeedbackCategory {
 }
 
 model User {
-  id              String       @id @default(cuid())
+  id              String          @id @default(cuid())
   name            String
   lastName        String?
   bio             String?
   avatarUrl       String?
-  email           String       @unique
+  email           String          @unique
+  pendingEmail    String?         @unique
   password        String?
-  googleId        String?      @unique
-  authProvider    AuthProvider @default(LOCAL)
-  emailVerified   Boolean      @default(false)
+  googleId        String?         @unique
+  authProvider    AuthProvider    @default(LOCAL)
+  emailVerified   Boolean         @default(false)
   emailVerifiedAt DateTime?
   lastLoginAt     DateTime?
-  blocked         Boolean      @default(false)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  blocked         Boolean         @default(false)
+  failedLoginAttempts Int         @default(0)
+  lastFailedLoginAt   DateTime?
+  lockoutUntil        DateTime?
+  lockoutLevel        Int         @default(0)
+  role            String          @default("traveler")
+  expoPushToken   String?
+  emailChangeResendCount   Int      @default(0)
+  emailChangeRequestedAt   DateTime?
+  accountDeleteResendCount Int      @default(0)
+  accountDeleteRequestedAt DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
   trips           Trip[]
   authCodes       AuthCode[]
   preference      UserPreference?
@@ -66,21 +79,48 @@ model AuthCode {
 }
 
 model AgencyAccount {
-  id              String              @id @default(cuid())
-  email           String              @unique
-  passwordHash    String
-  emailVerified   Boolean             @default(false)
-  emailVerifiedAt DateTime?
-  status          String              @default("pending")
-  lastLoginAt     DateTime?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-  authCodes       AgencyAuthCode[]
-  applications    AgencyApplication[]
-  agencies        TourAgency[]
+  id                     String              @id @default(cuid())
+  email                  String              @unique
+  pendingEmail           String?             @unique
+  passwordHash           String
+  googleId               String?             @unique
+  emailVerified          Boolean             @default(false)
+  emailVerifiedAt        DateTime?
+  emailChangeResendCount Int                 @default(0)
+  emailChangeRequestedAt DateTime?
+  status                 String              @default("pending")
+  mustChangePassword     Boolean             @default(false)
+  lastLoginAt            DateTime?
+  failedLoginAttempts    Int                 @default(0)
+  lastFailedLoginAt      DateTime?
+  lockoutUntil           DateTime?
+  lockoutLevel           Int                 @default(0)
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  authCodes              AgencyAuthCode[]
+  applications           AgencyApplication[]
+  agencies               TourAgency[]
+  memberships            AgencyMember[]
 
   @@index([status])
   @@index([emailVerified])
+}
+
+model AgencyMember {
+  id        String        @id @default(cuid())
+  agencyId  String
+  agency    TourAgency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  accountId String
+  account   AgencyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  name      String
+  role      String        @default("agent") // manager | agent | accountant (owner emas — u ownerAccountId)
+  status    String        @default("active")
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@unique([agencyId, accountId])
+  @@index([agencyId])
+  @@index([accountId])
 }
 
 model AgencyAuthCode {
@@ -98,30 +138,31 @@ model AgencyAuthCode {
 }
 
 model AgencyApplication {
-  id            String         @id @default(cuid())
+  id            String        @id @default(cuid())
   accountId     String
-  account       AgencyAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account       AgencyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
   agencyId      String?
-  agency        TourAgency?    @relation(fields: [agencyId], references: [id], onDelete: SetNull)
+  agency        TourAgency?   @relation(fields: [agencyId], references: [id], onDelete: SetNull)
   companyName   String
   legalName     String?
   contactPerson String
   phone         String
   email         String
   city          String
-  country       String         @default("Global")
+  country       String        @default("Global")
   website       String?
   telegram      String?
   instagram     String?
-  serviceTypes  String[]       @default([])
+  serviceTypes  String[]      @default([])
   description   String
+  imageUrl      String?
   documents     Json?
-  status        String         @default("draft")
+  status        String        @default("draft")
   adminNote     String?
   submittedAt   DateTime?
   reviewedAt    DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   @@index([accountId])
   @@index([agencyId])
@@ -129,49 +170,49 @@ model AgencyApplication {
 }
 
 model Destination {
-  id               String   @id @default(cuid())
-  slug             String   @unique
-  name             String
-  region           String
-  description      String
-  imageUrl         String
-  rating           Float
-  reviewCount      Int
-  categories       String[]
-  tags             String[]
-  budgetDaily      Int
-  midDaily         Int
-  luxuryDaily      Int
-  trainPrice       Int      @default(0)
-  trainDuration    String   @default("")
-  busPrice         Int      @default(0)
-  busDuration      String   @default("")
-  flightPrice      Int      @default(0)
-  flightDuration   String   @default("")
-  landmarks        Json
-  hotels           Json
-  foodBudget       Int      @default(0)
-  foodMid          Int      @default(0)
-  foodLuxury       Int      @default(0)
-  bestSeasons      String[]
-  minDays          Int
-  maxDays          Int
-  source           String   @default("manual")
-  sourceUrl        String?
-  lastVerifiedAt   DateTime?
-  confidenceScore  Float    @default(0.65)
-  verifiedBy       String?
-  seasonality      Json?
-  openingHours     Json?
-  priceUpdatedAt   DateTime?
-  coverageTier     String   @default("starter")
-  createdAt        DateTime @default(now())
+  id              String    @id @default(cuid())
+  slug            String    @unique
+  name            String
+  region          String
+  description     String
+  imageUrl        String
+  rating          Float
+  reviewCount     Int
+  categories      String[]
+  tags            String[]
+  budgetDaily     Int
+  midDaily        Int
+  luxuryDaily     Int
+  trainPrice      Int       @default(0)
+  trainDuration   String    @default("")
+  busPrice        Int       @default(0)
+  busDuration     String    @default("")
+  flightPrice     Int       @default(0)
+  flightDuration  String    @default("")
+  landmarks       Json
+  hotels          Json
+  foodBudget      Int       @default(0)
+  foodMid         Int       @default(0)
+  foodLuxury      Int       @default(0)
+  bestSeasons     String[]
+  minDays         Int
+  maxDays         Int
+  source          String    @default("manual")
+  sourceUrl       String?
+  lastVerifiedAt  DateTime?
+  confidenceScore Float     @default(0.65)
+  verifiedBy      String?
+  seasonality     Json?
+  openingHours    Json?
+  priceUpdatedAt  DateTime?
+  coverageTier    String    @default("starter")
+  createdAt       DateTime  @default(now())
 }
 
 model Trip {
-  id              String   @id @default(cuid())
+  id              String       @id @default(cuid())
   userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   title           String
   totalCost       Int
   perPersonCost   Int
@@ -181,8 +222,8 @@ model Trip {
   travelers       Int
   duration        Int
   planData        Json
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
   tripReviews     TripReview[]
 }
 
@@ -197,37 +238,37 @@ model UserPreference {
 }
 
 model Poi {
-  id          String   @id @default(cuid())
-  name        String
-  city        String
-  slug        String
-  type        String
-  subtype     String?
-  lat         Float
-  lng         Float
-  info        String
-  description String?
-  imageUrl    String?
-  rating      Float?
-  ratingCount Int?
-  priceLevel  Int?
-  price       Int?
-  icon        String
-  openingHours Json?
-  source      String   @default("manual")
-  sourceUrl   String?
-  lastVerifiedAt DateTime?
-  confidenceScore Float @default(0.55)
-  verifiedBy  String?
+  id               String    @id @default(cuid())
+  name             String
+  city             String
+  slug             String
+  type             String
+  subtype          String?
+  lat              Float
+  lng              Float
+  info             String
+  description      String?
+  imageUrl         String?
+  rating           Float?
+  ratingCount      Int?
+  priceLevel       Int?
+  price            Int?
+  icon             String
+  openingHours     Json?
+  source           String    @default("manual")
+  sourceUrl        String?
+  lastVerifiedAt   DateTime?
+  confidenceScore  Float     @default(0.55)
+  verifiedBy       String?
   duplicateGroupId String?
-  priceUpdatedAt DateTime?
-  featured   Boolean  @default(false)
-  manualBoost Float   @default(0)
-  qualityScore Float  @default(0.7)
-  landingSortOrder Int @default(0)
-  landingActive Boolean @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  priceUpdatedAt   DateTime?
+  featured         Boolean   @default(false)
+  manualBoost      Float     @default(0)
+  qualityScore     Float     @default(0.7)
+  landingSortOrder Int       @default(0)
+  landingActive    Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   wishlistItems WishlistItem[]
 
@@ -242,42 +283,42 @@ model Poi {
 }
 
 model TransportProvider {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  name        String
-  type        String
-  website     String?
-  supportPhone String?
-  source      String   @default("manual")
-  sourceUrl   String?
-  lastVerifiedAt DateTime?
-  confidenceScore Float @default(0.65)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  routes      TransportRoute[]
+  id              String           @id @default(cuid())
+  slug            String           @unique
+  name            String
+  type            String
+  website         String?
+  supportPhone    String?
+  source          String           @default("manual")
+  sourceUrl       String?
+  lastVerifiedAt  DateTime?
+  confidenceScore Float            @default(0.65)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  routes          TransportRoute[]
 }
 
 model TransportRoute {
-  id          String   @id @default(cuid())
-  fromCity    String
-  toCity      String
-  mode        String
-  providerId  String?
-  provider    TransportProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
-  priceMin    Int
-  priceMax    Int
+  id              String             @id @default(cuid())
+  fromCity        String
+  toCity          String
+  mode            String
+  providerId      String?
+  provider        TransportProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  priceMin        Int
+  priceMax        Int
   durationMinutes Int
-  distanceKm  Float?
-  scheduleNote String
-  bookingUrl  String?
-  source      String   @default("manual")
-  sourceUrl   String?
-  lastVerifiedAt DateTime?
-  confidenceScore Float @default(0.6)
-  whyRecommended String?
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  distanceKm      Float?
+  scheduleNote    String
+  bookingUrl      String?
+  source          String             @default("manual")
+  sourceUrl       String?
+  lastVerifiedAt  DateTime?
+  confidenceScore Float              @default(0.6)
+  whyRecommended  String?
+  active          Boolean            @default(true)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 
   @@index([fromCity, toCity])
   @@index([mode])
@@ -285,106 +326,193 @@ model TransportRoute {
 }
 
 model CityPack {
-  id          String   @id @default(cuid())
-  city        String   @unique
-  version     Int      @default(1)
-  offlineReady Boolean @default(false)
-  poiCount    Int      @default(0)
-  destinationCount Int  @default(0)
-  transportRouteCount Int @default(0)
-  emergencyContacts Json?
-  transportNotes Json?
-  sourceSummary Json?
-  updatedAt   DateTime @updatedAt
-  createdAt   DateTime @default(now())
+  id                  String   @id @default(cuid())
+  city                String   @unique
+  version             Int      @default(1)
+  offlineReady        Boolean  @default(false)
+  poiCount            Int      @default(0)
+  destinationCount    Int      @default(0)
+  transportRouteCount Int      @default(0)
+  emergencyContacts   Json?
+  transportNotes      Json?
+  sourceSummary       Json?
+  updatedAt           DateTime @updatedAt
+  createdAt           DateTime @default(now())
 }
 
 model HomeHeroSlide {
-  id              String   @id @default(cuid())
-  slug            String   @unique
+  id              String    @id @default(cuid())
+  slug            String    @unique
   title           String
   subtitle        String?
   imageUrl        String
   actionUrl       String?
   placeSlug       String?
-  sortOrder       Int      @default(0)
-  active          Boolean  @default(true)
-  source          String   @default("admin")
+  sortOrder       Int       @default(0)
+  active          Boolean   @default(true)
+  source          String    @default("admin")
   sourceUrl       String?
   lastVerifiedAt  DateTime?
-  confidenceScore Float    @default(0.8)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  confidenceScore Float     @default(0.8)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([active, sortOrder])
 }
 
 model TravelerStory {
-  id              String   @id @default(cuid())
-  slug            String   @unique
+  id              String    @id @default(cuid())
+  slug            String    @unique
   quote           String
   authorName      String
   authorRole      String
   avatar          String?
   avatarColor     String?
-  rating          Int      @default(5)
-  sortOrder       Int      @default(0)
-  active          Boolean  @default(true)
-  source          String   @default("admin")
+  rating          Int       @default(5)
+  sortOrder       Int       @default(0)
+  active          Boolean   @default(true)
+  source          String    @default("admin")
   sourceUrl       String?
   lastVerifiedAt  DateTime?
-  confidenceScore Float    @default(0.8)
-  featured        Boolean  @default(false)
-  manualBoost     Float    @default(0)
-  qualityScore    Float    @default(0.8)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  confidenceScore Float     @default(0.8)
+  featured        Boolean   @default(false)
+  manualBoost     Float     @default(0)
+  qualityScore    Float     @default(0.8)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([active, sortOrder])
   @@index([featured])
 }
 
 model TourAgency {
-  id              String   @id @default(cuid())
-  slug            String   @unique
-  ownerAccountId  String?
-  ownerAccount    AgencyAccount? @relation(fields: [ownerAccountId], references: [id], onDelete: SetNull)
-  name            String
-  city            String
-  description     String?
-  specialty       String
-  rating          Float    @default(0)
-  reviews         Int      @default(0)
-  toursCount      Int      @default(0)
-  phone           String?
-  website         String?
-  imageUrl        String?
-  active          Boolean  @default(true)
-  source          String   @default("admin")
-  sourceUrl       String?
-  lastVerifiedAt  DateTime?
-  confidenceScore Float    @default(0.7)
-  featured        Boolean  @default(false)
-  manualBoost     Float    @default(0)
-  qualityScore    Float    @default(0.7)
-  landingSortOrder Int     @default(0)
-  approvalStatus  String   @default("approved")
-  approvedAt      DateTime?
-  rejectedAt      DateTime?
-  adminNote       String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  tours           Tour[]
-  applications    AgencyApplication[]
-  bookings        TourBooking[]
+  id               String              @id @default(cuid())
+  slug             String              @unique
+  ownerAccountId   String?
+  ownerAccount     AgencyAccount?      @relation(fields: [ownerAccountId], references: [id], onDelete: SetNull)
+  name             String
+  city             String
+  description      String?
+  specialty        String
+  rating           Float               @default(0)
+  reviews          Int                 @default(0)
+  toursCount       Int                 @default(0)
+  phone            String?
+  telegram         String?
+  telegramBotToken    String?
+  telegramBotUsername String?
+  telegramBotActive   Boolean  @default(false)
+  telegramWelcome     String?
+  telegramConfig      String?
+  birthdayTemplate    String? // tug'ilgan kun tabrigi matni ({name}, {agency})
+  notifyChatId        String? // agent xabarnoma oladigan Telegram chat (mijoz lidi EMAS)
+  tariffId            String?
+  subscriptionStatus  String              @default("none")
+  subscriptionUntil   DateTime?
+  website          String?
+  imageUrl         String?
+  active           Boolean             @default(true)
+  source           String              @default("admin")
+  sourceUrl        String?
+  lastVerifiedAt   DateTime?
+  confidenceScore  Float               @default(0.7)
+  featured         Boolean             @default(false)
+  manualBoost      Float               @default(0)
+  qualityScore     Float               @default(0.7)
+  landingSortOrder Int                 @default(0)
+  approvalStatus   String              @default("approved")
+  approvedAt       DateTime?
+  rejectedAt       DateTime?
+  adminNote        String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  tours            Tour[]
+  applications     AgencyApplication[]
+  bookings         TourBooking[]
+  tariff           Tariff?             @relation(fields: [tariffId], references: [id], onDelete: SetNull)
+  payments         AgencyPayment[]
+  members          AgencyMember[]
+  presentations    TourPresentation[]
 
   @@index([active])
+  @@index([tariffId])
+  @@index([subscriptionStatus])
   @@index([city])
   @@index([rating])
   @@index([featured])
   @@index([landingSortOrder])
   @@index([ownerAccountId])
   @@index([approvalStatus])
+}
+
+model Tariff {
+  id            String          @id @default(cuid())
+  name          String
+  slug          String          @unique
+  priceMonthly  Int             @default(0)
+  /// Oylik narx O'zbekiston so'mida — CLICK/Payme to'lovlari faqat so'mda.
+  priceMonthlyUzs Int           @default(0)
+  commissionPct Float           @default(15)
+  features      String?
+  sortOrder     Int             @default(0)
+  active        Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  agencies      TourAgency[]
+  payments      AgencyPayment[]
+
+  @@index([active])
+  @@index([sortOrder])
+}
+
+model AgencyPayment {
+  id           String     @id @default(cuid())
+  agencyId     String
+  agency       TourAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  tariffId     String?
+  tariff       Tariff?    @relation(fields: [tariffId], references: [id], onDelete: SetNull)
+  amount       Int
+  currency     String     @default("USD")
+  periodMonths Int        @default(1)
+  method       String?
+  note         String?
+  paidAt       DateTime   @default(now())
+  createdAt    DateTime   @default(now())
+
+  @@index([agencyId])
+  @@index([tariffId])
+  @@index([paidAt])
+}
+
+/// CLICK (SHOP API) to'lov tranzaksiyalari — Prepare/Complete oqimi.
+/// Relation YO'Q (prod DB divergent) — agencyId/tariffId oddiy String.
+model ClickTransaction {
+  id               String    @id @default(cuid())
+  provider         String    @default("click")
+  /// Bizning buyurtma raqami — CLICK'ga transaction_param sifatida ketadi
+  merchantTransId  String    @unique
+  agencyId         String
+  tariffId         String?
+  tariffSlug       String?
+  /// Summa so'mda (butun son)
+  amount           Int
+  months           Int       @default(1)
+  /// created | prepared | paid | cancelled
+  state            String    @default("created")
+  clickTransId     String?
+  clickPaydocId    String?
+  /// Prepare bosqichida biz qaytargan merchant_prepare_id (int)
+  prepareId        Int?
+  confirmId        Int?
+  errorNote        String?
+  createdAt        DateTime  @default(now())
+  preparedAt       DateTime?
+  paidAt           DateTime?
+  cancelledAt      DateTime?
+
+  @@index([agencyId])
+  @@index([state])
+  @@index([clickTransId])
 }
 
 model LandingInteraction {
@@ -405,35 +533,61 @@ model LandingInteraction {
 }
 
 model Tour {
-  id              String      @id @default(cuid())
-  slug            String      @unique
-  title           String
-  city            String
-  subtitle        String
-  description     String?
-  duration        String
-  price           String?
-  priceMin        Int?
-  rating          Float       @default(0)
-  badge           String      @default("Latest")
-  imageUrl        String?
-  itinerary       Json?
-  highlights      String[]    @default([])
-  active          Boolean     @default(true)
-  agencyId        String?
-  agency          TourAgency? @relation(fields: [agencyId], references: [id], onDelete: SetNull)
-  approvalStatus  String      @default("approved")
-  submittedAt     DateTime?
-  approvedAt      DateTime?
-  rejectedAt      DateTime?
-  adminNote       String?
-  source          String      @default("admin")
-  sourceUrl       String?
-  lastVerifiedAt  DateTime?
-  confidenceScore Float       @default(0.7)
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-  bookings        TourBooking[]
+  id                  String        @id @default(cuid())
+  slug                String        @unique
+  title               String
+  city                String
+  subtitle            String
+  description         String?
+  duration            String
+  responseTimeMinutes Int           @default(45)
+  price               String?
+  priceMin            Int?
+  priceCurrency       String?
+  priceBasis          String?
+  rating              Float         @default(0)
+  badge               String        @default("Latest")
+  imageUrl            String?
+  itinerary           Json?
+  highlights          String[]      @default([])
+  departureCity       String?
+  destinationCountry  String?
+  tourGroup           String?
+  nights              Int?
+  hotelIncluded       Boolean       @default(false)
+  hotelName           String?
+  hotelCategory       String?
+  hotelLocation       String?
+  roomType            String?
+  mealPlan            String?
+  mealPlanLabel       String?
+  childPolicy         String?
+  flightSeatStatus    String?
+  availabilityStatus  String?
+  instantConfirmation Boolean       @default(false)
+  stopSale            Boolean       @default(false)
+  promo               Boolean       @default(false)
+  priceIncludes       String[]      @default([])
+  priceExcludes       String[]      @default([])
+  images              String[]      @default([]) // galereya (asosiy rasmdan tashqari)
+  mapAddress          String?                    // xarita uchun matn manzil (geokodlash shart emas)
+  routeStops          Json?                      // marshrut nuqtalari: [{name, lat, lng}] — chiziq bilan bog'lanadi
+  active              Boolean       @default(true)
+  agencyId            String?
+  agency              TourAgency?   @relation(fields: [agencyId], references: [id], onDelete: SetNull)
+  approvalStatus      String        @default("approved")
+  submittedAt         DateTime?
+  approvedAt          DateTime?
+  rejectedAt          DateTime?
+  adminNote           String?
+  source              String        @default("admin")
+  sourceUrl           String?
+  lastVerifiedAt      DateTime?
+  confidenceScore     Float         @default(0.7)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  bookings            TourBooking[]
+  presentations       TourPresentation[]
 
   @@index([active])
   @@index([badge])
@@ -445,31 +599,52 @@ model Tour {
 }
 
 model TourBooking {
-  id            String      @id @default(cuid())
-  tourId        String
-  tour          Tour        @relation(fields: [tourId], references: [id], onDelete: Cascade)
-  agencyId      String?
-  agency        TourAgency? @relation(fields: [agencyId], references: [id], onDelete: SetNull)
-  userId        String?
-  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
-  customerName  String
-  customerEmail String
-  customerPhone String?
-  travelers     Int         @default(1)
-  travelDate    DateTime?
-  message       String?
-  status        String      @default("pending")
-  totalEstimate Int?
-  currency      String      @default("USD")
-  source        String      @default("mobile")
-  agencyNote    String?
-  adminNote     String?
-  confirmedAt   DateTime?
-  rejectedAt    DateTime?
-  cancelledAt   DateTime?
-  completedAt   DateTime?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id                 String      @id @default(cuid())
+  tourId             String?
+  tour               Tour?       @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  agencyId           String?
+  agency             TourAgency? @relation(fields: [agencyId], references: [id], onDelete: SetNull)
+  userId             String?
+  user               User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  customerName       String
+  customerEmail      String?
+  customerPhone      String?
+  travelers          Int         @default(1)
+  travelDate         DateTime?
+  message            String?
+  status             String      @default("pending")
+  responseDeadlineAt DateTime?
+  totalEstimate      Int?
+  currency           String      @default("USD")
+  source             String      @default("mobile")
+  agencyNote         String?
+  adminNote          String?
+  confirmedAt        DateTime?
+  rejectedAt         DateTime?
+  cancelledAt        DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  pipelineStage      String      @default("new")
+  leadTour           String?
+  leadCity           String?     // qo'lda kiritilgan shahar (bog'langan tur bo'lmasa)
+  leadTelegram       String?     // mijoz Telegram: @username yoki link
+  leadWhatsapp       String?     // mijoz WhatsApp raqami (telefondan farqli bo'lishi mumkin)
+  paidAmount         Int?        // haqiqatda olingan to'lov (to'lovni tasdiqlashda kiritiladi)
+  archived           Boolean     @default(false) // arxivlangan — kanbandan chiqadi
+  archivedAt         DateTime?
+  telegramChatId     String?
+  utmSource          String?     // qayerdan keldi: instagram, telegram, google...
+  utmMedium          String?     // cpc, post, story, bio...
+  utmCampaign        String?     // kampaniya nomi
+  referrer           String?     // qaysi saytdan o'tdi
+  customerBirthday   DateTime?   // mijoz tug'ilgan kuni (tabrik uchun)
+  birthdayGreetedOn  String?     // oxirgi tabrik sanasi (YYYY-MM-DD) — takror bo'lmasin
+  tripReminderSentAt DateTime?   // sayohat eslatmasi yuborilgan vaqt
+  reviewRequestedAt  DateTime?   // baho so'rovi yuborilgan vaqt (takror bo'lmasin)
+  reviewAwaitingText Boolean     @default(false) // baho berildi, keyingi xabar sharh matni
+  presentations      TourPresentation[]
 
   @@index([tourId])
   @@index([agencyId, status])
@@ -478,21 +653,85 @@ model TourBooking {
   @@index([customerEmail])
 }
 
-model WishlistItem {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  poiId     String?
-  poi       Poi?     @relation(fields: [poiId], references: [id], onDelete: SetNull)
-  name      String
-  city      String
-  slug      String
-  type      String
-  icon      String
-  savedAt   DateTime @default(now())
+// Mijoz sharhi + reyting — sayohat "yakunlandi"ga o'tgach Telegram orqali yig'iladi.
+// Bog'lanishlarsiz (skalyar agencyId/bookingId) — divergent prod DB uchun xavfsiz.
+// Publish bo'lgan sharhlar agentlik reytingini (TourAgency.rating/reviews) oshiradi.
+model TourReview {
+  id             String   @id @default(cuid())
+  agencyId       String
+  bookingId      String?  @unique
+  rating         Int
+  text           String?
+  customerName   String?
+  telegramChatId String?
+  status         String   @default("published") // published | hidden
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  @@index([userId, savedAt])
+  @@index([agencyId, status])
+}
+
+// Lidga biriktirilgan hujjat/fayl (pasport, viza, shartnoma skani).
+// Fayl DB'da (bytea) saqlanadi — PII, shuning uchun ochiq /uploads statik yo'lida
+// EMAS; faqat autentifikatsiyalangan endpoint orqali beriladi. Bog'lanishsiz —
+// divergent prod DB uchun xavfsiz.
+model LeadFile {
+  id        String   @id @default(cuid())
+  agencyId  String
+  bookingId String
+  name      String
+  mimeType  String
+  size      Int
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  @@index([bookingId])
+  @@index([agencyId])
+}
+
+// Dinamik taklif (prezentatsiya) — agent mijozga shaxsiy link yuboradi, ochilishi kuzatiladi.
+// Public sahifada mijoz telefoni/emaili KO'RSATILMAYDI — faqat ism (agent o'zi kiritadi).
+model TourPresentation {
+  id            String       @id @default(cuid())
+  token         String       @unique
+  agencyId      String
+  agency        TourAgency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  bookingId     String?
+  booking       TourBooking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  tourId        String?
+  tour          Tour?        @relation(fields: [tourId], references: [id], onDelete: SetNull)
+  title         String
+  customerName  String?
+  priceText     String?
+  note          String?
+  status        String       @default("sent") // sent | viewed | interested
+  openCount     Int          @default(0)
+  firstOpenedAt DateTime?
+  lastOpenedAt  DateTime?
+  interestedAt  DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([agencyId, createdAt])
+  @@index([bookingId])
+  @@index([tourId])
+}
+
+model WishlistItem {
+  id      String   @id @default(cuid())
+  userId  String
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  poiId   String?
+  poi     Poi?     @relation(fields: [poiId], references: [id], onDelete: SetNull)
+  name    String
+  city    String
+  slug    String
+  type    String
+  icon    String
+  savedAt DateTime @default(now())
+
   @@unique([userId, slug])
+  @@index([userId, savedAt])
 }
 
 model Feedback {
@@ -526,4 +765,17 @@ model TripReview {
   @@unique([userId, tripId])
   @@index([tripId, createdAt])
   @@index([userId, createdAt])
+}
+
+model TelegramMessage {
+  id        String   @id @default(cuid())
+  agencyId  String
+  bookingId String?
+  direction String
+  text      String
+  fromName  String?
+  createdAt DateTime @default(now())
+
+  @@index([agencyId])
+  @@index([bookingId])
 }

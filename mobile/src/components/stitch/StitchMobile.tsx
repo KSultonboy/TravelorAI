@@ -11,6 +11,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -172,25 +173,39 @@ export function StitchButton({
 }) {
   const { colors, styles } = useStitchMobileStyles();
   const isPrimary = variant === 'primary';
-  const iconColor = isPrimary || variant === 'dark' || variant === 'danger' ? colors.textInverse : colors.text;
+  const iconColor = isPrimary
+    ? colors.onGradient
+    : variant === 'dark' || variant === 'danger'
+      ? colors.textInverse
+      : colors.text;
 
   return (
     <TouchableOpacity
       style={[
         styles.button,
+        isPrimary && styles.buttonPrimary,
         variant === 'ghost' && styles.buttonGhost,
         variant === 'dark' && styles.buttonDark,
         variant === 'danger' && styles.buttonDanger,
         disabled && styles.buttonDisabled,
       ]}
       onPress={onPress}
-      activeOpacity={0.84}
+      activeOpacity={0.9}
       disabled={disabled}
     >
+      {isPrimary ? (
+        <LinearGradient
+          colors={colors.gradientPrimary as unknown as [string, string]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={StyleSheet.absoluteFill}
+        />
+      ) : null}
       {icon ? <Ionicons name={icon} size={17} color={iconColor} /> : null}
       <Text
         style={[
           styles.buttonText,
+          isPrimary && styles.buttonPrimaryText,
           variant === 'ghost' && styles.buttonGhostText,
           variant === 'dark' && styles.buttonDarkText,
           variant === 'danger' && styles.buttonDarkText,
@@ -230,7 +245,7 @@ export function StitchListRow({
         <Text style={[styles.listTitle, danger && { color: colors.error }]}>{title}</Text>
         {subtitle ? <Text style={styles.listSub} numberOfLines={2}>{subtitle}</Text> : null}
       </View>
-      {right || <Ionicons name="chevron-forward" size={17} color={colors.textMuted} />}
+      {right || (onPress ? <Ionicons name="chevron-forward" size={17} color={colors.textMuted} /> : null)}
     </Wrapper>
   );
 }
@@ -360,7 +375,7 @@ function createStyles(colors: AppColors) {
     sectionAction: {
       fontFamily: FONTS.semibold,
       fontSize: 12,
-      color: colors.success,
+      color: colors.primary,
     },
     inputGroup: {
       gap: 7,
@@ -397,6 +412,13 @@ function createStyles(colors: AppColors) {
       flexDirection: 'row',
       gap: 8,
       paddingHorizontal: SPACING.lg,
+      overflow: 'hidden',
+    },
+    buttonPrimary: {
+      backgroundColor: 'transparent',
+    },
+    buttonPrimaryText: {
+      color: colors.onGradient,
     },
     buttonGhost: {
       backgroundColor: colors.cardMuted,
@@ -404,7 +426,7 @@ function createStyles(colors: AppColors) {
       borderColor: colors.borderLight,
     },
     buttonDark: {
-      backgroundColor: '#050814',
+      backgroundColor: colors.primaryDark,
     },
     buttonDanger: {
       backgroundColor: colors.error,

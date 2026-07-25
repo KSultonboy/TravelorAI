@@ -1,6 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, View, StyleSheet, ViewStyle } from 'react-native';
 import { RADIUS, SPACING } from '../constants/spacing';
+import { cardShadow } from '../constants/effects';
 import { type AppColors, useAppTheme } from '../theme/app-theme';
 
 interface Props {
@@ -27,13 +28,11 @@ export default function Card({ children, onPress, style, padding = SPACING.lg }:
 function createStyles(colors: AppColors) {
   return StyleSheet.create({
     card: {
-      backgroundColor: colors.surface,
-      borderRadius: RADIUS.lg,
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: 0.11,
-      shadowRadius: 24,
-      elevation: 4,
+      backgroundColor: colors.card,
+      borderRadius: RADIUS.card,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderLight,
+      ...cardShadow(colors),
     },
   });
 }

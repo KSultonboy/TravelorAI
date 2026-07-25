@@ -13,6 +13,7 @@
 
 .landing-site {
   min-height: 100vh;
+  overflow: clip;
   color: var(--lp-ink);
   background: var(--lp-bg);
   font-family: "Poppins", "Segoe UI", sans-serif;
@@ -26,17 +27,8 @@
 .lp-reveal,
 .lp-reveal-left,
 .lp-reveal-right {
-  opacity: 0;
-  transform: translateY(22px);
-  transition: opacity 0.65s ease, transform 0.65s ease;
-}
-
-.lp-reveal-left {
-  transform: translateX(-22px);
-}
-
-.lp-reveal-right {
-  transform: translateX(22px);
+  opacity: 1;
+  transform: none;
 }
 
 .lp-visible,
@@ -113,6 +105,17 @@
   color: var(--lp-green);
 }
 
+.site-nav a:focus-visible,
+.site-nav button:focus-visible,
+.hero-search__button:focus-visible,
+.view-link:focus-visible,
+.destination-card:focus-visible,
+.lp-footer a:focus-visible,
+.story-actions button:focus-visible {
+  outline: 3px solid rgba(12, 139, 99, 0.42);
+  outline-offset: 3px;
+}
+
 .site-nav__toggle {
   display: grid;
   place-items: center;
@@ -163,7 +166,7 @@
 
 .hero-card {
   position: relative;
-  min-height: 520px;
+  min-height: clamp(500px, 62vw, 560px);
   overflow: hidden;
   border-radius: 28px;
   background: #101217;
@@ -245,10 +248,12 @@
 .hero-title {
   max-width: 620px;
   margin: 0 auto;
+  color: #ffffff;
   font-size: clamp(2.4rem, 6vw, 5.2rem);
   font-weight: 900;
   line-height: 0.96;
   letter-spacing: -0.055em;
+  text-shadow: 0 4px 28px rgba(0, 0, 0, 0.34);
 }
 
 .hero-lead {
@@ -315,6 +320,7 @@
   font-size: 0.82rem;
   font-weight: 900;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .section {
@@ -372,6 +378,32 @@
   text-align: center;
 }
 
+.landing-empty strong,
+.landing-empty span {
+  display: block;
+}
+
+.landing-empty strong {
+  color: var(--lp-ink);
+  font-size: 1.05rem;
+}
+
+.landing-empty span {
+  max-width: 560px;
+  margin-top: 7px;
+  font-weight: 600;
+  line-height: 1.65;
+}
+
+.landing-empty a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  margin-top: 12px;
+  color: var(--lp-green);
+}
+
 .destination-cards {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -393,6 +425,7 @@
     var(--image) center/cover;
   box-shadow: 0 16px 32px rgba(31, 31, 38, 0.12);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
+  touch-action: manipulation;
 }
 
 .destination-card:hover {
@@ -474,6 +507,69 @@
   line-height: 1.65;
 }
 
+.section-head--center {
+  justify-content: center;
+  text-align: center;
+}
+
+.section-head--center p {
+  margin-inline: auto;
+}
+
+.section-kicker {
+  margin-bottom: 8px !important;
+  color: var(--lp-green) !important;
+  font-size: 0.72rem !important;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.product-showcase {
+  background:
+    radial-gradient(circle at 15% 15%, rgba(12, 139, 99, 0.08), transparent 24rem),
+    var(--lp-bg);
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.product-card {
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid var(--lp-line);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 14px 34px rgba(31, 31, 38, 0.06);
+}
+
+.product-card > span {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 18px;
+  border-radius: 15px;
+  color: var(--lp-green);
+  background: rgba(12, 139, 99, 0.1);
+}
+
+.product-card h3 {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: -0.025em;
+}
+
+.product-card p {
+  margin: 9px 0 0;
+  color: var(--lp-muted);
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+
 .trusted {
   padding: 54px 0;
   text-align: center;
@@ -498,7 +594,7 @@
   flex-wrap: wrap;
 }
 
-.agency-row button {
+.agency-row span {
   border: 0;
   padding: 0;
   color: #8a8d94;
@@ -506,12 +602,6 @@
   font-size: 0.88rem;
   font-weight: 900;
   letter-spacing: -0.02em;
-  cursor: pointer;
-  transition: color 0.2s ease;
-}
-
-.agency-row button:hover {
-  color: var(--lp-green);
 }
 
 .stories-panel {
@@ -562,6 +652,12 @@
   background: #101217;
 }
 
+.story-actions button:disabled {
+  color: #a9acb2;
+  background: #e8e6eb;
+  cursor: not-allowed;
+}
+
 .story-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -572,7 +668,6 @@
   padding: 20px;
   border-radius: 16px;
   background: white;
-  cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -702,6 +797,23 @@
   flex-wrap: wrap;
 }
 
+@media (hover: none) {
+  .destination-card:hover,
+  .story-card:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .lp-wrap {
+    width: min(100% - 48px, 1040px);
+  }
+
+  .site-nav {
+    padding-inline: 24px;
+  }
+}
+
 @media (max-width: 860px) {
   .site-nav__links {
     display: none;
@@ -716,11 +828,12 @@
   }
 
   .hero-card {
-    min-height: 590px;
+    min-height: 680px;
   }
 
   .hero-search {
     grid-template-columns: 1fr;
+    width: min(520px, calc(100% - 48px));
     border-radius: 24px;
   }
 
@@ -734,10 +847,21 @@
   }
 
   .destination-cards,
-  .steps-grid,
-  .story-grid,
-  .lp-footer__grid {
+  .story-grid {
     grid-template-columns: 1fr;
+  }
+
+  .lp-footer__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .steps-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+
+  .product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .section-head,
@@ -745,6 +869,14 @@
   .lp-footer__bottom {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .section {
+    padding-block: 48px;
+  }
+
+  .destination-card {
+    min-height: 320px;
   }
 }
 
@@ -757,28 +889,1410 @@
     padding: 0 14px;
   }
 
+  .site-nav__bar {
+    min-height: 52px;
+    padding-inline: 12px;
+    border-radius: 16px;
+  }
+
+  .site-nav__mobile {
+    border-radius: 16px;
+  }
+
   .hero-stage {
     padding-top: 78px;
   }
 
   .hero-card {
+    min-height: 650px;
     border-radius: 22px;
   }
 
   .hero-card__content {
-    padding: 80px 22px 210px;
+    align-items: start;
+    padding: 92px 20px 292px;
   }
 
   .hero-title {
-    font-size: clamp(2.2rem, 13vw, 3.35rem);
+    max-width: 100%;
+    font-size: clamp(2rem, 13vw, 3.35rem);
+    overflow-wrap: anywhere;
+  }
+
+  .hero-lead {
+    margin-top: 14px;
+    font-size: 0.9rem;
+    line-height: 1.55;
   }
 
   .hero-search {
     bottom: 24px;
     width: calc(100% - 28px);
+    padding: 6px;
+    border-radius: 20px;
+  }
+
+  .hero-search__item {
+    min-height: 43px;
+    padding-inline: 13px;
+    font-size: 0.76rem;
+  }
+
+  .hero-search__button {
+    min-height: 46px;
+    width: 100%;
   }
 
   .stories-panel {
-    padding: 22px;
+    padding: 20px;
+    border-radius: 22px;
+  }
+
+  .steps-grid {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+
+  .product-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lp-footer__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .product-card {
+    padding: 20px;
+  }
+
+  .section-head {
+    margin-bottom: 18px;
+  }
+
+  .view-link {
+    min-height: 44px;
+  }
+
+  .destination-card {
+    min-height: 300px;
+  }
+
+  .story-actions button,
+  .lp-footer__socials a {
+    width: 44px;
+    height: 44px;
+  }
+
+  .lp-footer {
+    padding-top: 48px;
+  }
+
+  .lp-footer__grid {
+    gap: 26px;
+  }
+
+  .lp-footer__bottom {
+    margin-top: 34px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-reveal,
+  .lp-reveal-left,
+  .lp-reveal-right,
+  .hero-copy,
+  .hero-card__bg img,
+  .destination-card,
+  .story-card {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+    transition: none !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+.site-nav__account,
+.landing-tours__account {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  color: #fff;
+  background: #087a56;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.landing-tours {
+  background: #f7f5ef;
+}
+
+.landing-tour-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 32px;
+}
+
+.landing-tour-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(17, 21, 28, 0.08);
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 18px 44px rgba(20, 26, 35, 0.08);
+}
+
+.landing-tour-card__image {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 190px;
+  color: #fff;
+  background: linear-gradient(135deg, #087a56, #11151c);
+}
+
+.landing-tour-card__image img {
+  width: 100%;
+  height: 190px;
+  object-fit: cover;
+}
+
+.landing-tour-card__image b {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  color: #17120b;
+  background: #fff3d7;
+  font-size: 0.72rem;
+}
+
+.landing-tour-card__body {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+}
+
+.landing-tour-card__body small,
+.landing-tour-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #717681;
+  font-size: 0.75rem;
+}
+
+.landing-tour-card__body h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.landing-tour-card__body p {
+  min-height: 42px;
+  color: #68707c;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.landing-tour-card__meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.landing-tour-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.landing-tour-card__footer a {
+  padding: 9px 12px;
+  border-radius: 999px;
+  color: #fff;
+  background: #087a56;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.account-page {
+  min-height: 100vh;
+  padding: 24px;
+  color: #151820;
+  background:
+    radial-gradient(circle at 10% 0, rgba(8, 122, 86, 0.15), transparent 32rem),
+    #f7f5ef;
+}
+
+.account-page--auth {
+  padding: 24px;
+  background: #fff;
+}
+
+.account-page--auth .account-topbar,
+.account-page--auth .account-wrap {
+  width: min(440px, 100%);
+}
+
+.account-page--auth .account-topbar {
+  padding-top: 12px;
+}
+
+.account-page--auth .account-auth {
+  margin-top: clamp(34px, 8vh, 88px);
+  padding: 30px;
+  border-color: #e6e8eb;
+  border-radius: 20px;
+  box-shadow: none;
+}
+
+.account-page--auth .account-card input {
+  background: #fff;
+}
+
+.account-page--auth .account-alert {
+  width: 100%;
+  margin: 0;
+}
+
+.account-auth__icon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border: 1px solid #dfe4e1;
+  border-radius: 50%;
+  color: #087a56;
+  background: #fff;
+}
+
+.account-auth__note {
+  color: #69716d;
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.account-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #808680;
+  font-size: 0.76rem;
+}
+
+.account-divider::before,
+.account-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #e2e5e3;
+}
+
+.account-google-host {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  overflow: hidden;
+  color: #69716d;
+  font-size: 0.78rem;
+}
+
+.account-google-host > div,
+.account-google-host iframe {
+  max-width: 100% !important;
+}
+
+.account-google-host.is-disabled {
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.account-google {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid #d8dce0 !important;
+  color: #202124 !important;
+  background: #fff !important;
+}
+
+.account-google span {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: #4285f4;
+  font-weight: 950;
+}
+
+.account-topbar,
+.account-wrap {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+}
+
+.account-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0 24px;
+}
+
+.account-topbar a {
+  color: #087a56;
+  font-size: 1.35rem;
+  font-weight: 950;
+}
+
+.account-topbar button,
+.account-card button,
+.account-hero button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 46px;
+  padding: 0 17px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: #087a56;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.account-card,
+.account-hero {
+  padding: clamp(20px, 4vw, 34px);
+  border: 1px solid rgba(17, 21, 28, 0.08);
+  border-radius: 28px;
+  background: #fff;
+  box-shadow: 0 20px 55px rgba(20, 26, 35, 0.08);
+}
+
+.account-auth {
+  display: grid;
+  gap: 14px;
+  width: min(520px, 100%);
+  margin: 7vh auto 0;
+}
+
+.account-auth h1,
+.account-hero h1,
+.account-section-title h2 {
+  margin: 0;
+  letter-spacing: -0.045em;
+}
+
+.account-card label {
+  display: grid;
+  gap: 7px;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.account-card input,
+.account-card textarea {
+  width: 100%;
+  min-height: 50px;
+  padding: 0 14px;
+  border: 1px solid #dedfe4;
+  border-radius: 15px;
+  background: #f8f7f4;
+  color: #151820;
+  font: inherit;
+}
+
+.account-card textarea {
+  min-height: 105px;
+  padding: 13px 14px;
+  resize: vertical;
+}
+
+.account-secondary {
+  color: #303640 !important;
+  background: #efeeeb !important;
+}
+
+.account-alert {
+  width: min(1120px, 100%);
+  margin: 0 auto 16px;
+  padding: 13px 15px;
+  border: 1px solid #bce8d2;
+  border-radius: 15px;
+  color: #096947;
+  background: #effbf5;
+  font-weight: 800;
+}
+
+.account-alert--error {
+  border-color: #ffc7c7;
+  color: #9f1d1d;
+  background: #fff0f0;
+}
+
+.account-hero,
+.account-section-title,
+.account-selected-tour,
+.account-booking {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.account-hero {
+  margin-bottom: 20px;
+  color: #fff;
+  background: linear-gradient(135deg, #11151c, #087a56);
+}
+
+.account-hero p,
+.account-section-title p,
+.account-selected-tour p {
+  margin: 0 0 5px;
+  color: #65d3aa;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.account-booking-form {
+  display: grid;
+  gap: 22px;
+  margin-bottom: 28px;
+}
+
+.account-selected-tour {
+  justify-content: flex-start;
+}
+
+.account-selected-tour img {
+  width: 150px;
+  height: 105px;
+  border-radius: 18px;
+  object-fit: cover;
+}
+
+.account-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.account-wide {
+  grid-column: 1 / -1;
+}
+
+.account-section-title {
+  margin: 34px 0 16px;
+}
+
+.account-bookings {
+  display: grid;
+  gap: 15px;
+}
+
+.account-booking {
+  justify-content: flex-start;
+}
+
+.account-booking > img {
+  width: 230px;
+  height: 180px;
+  border-radius: 20px;
+  object-fit: cover;
+}
+
+.account-booking__body {
+  display: grid;
+  gap: 7px;
+}
+
+.account-booking__body small {
+  color: #68707c;
+}
+
+.account-status,
+.account-countdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: #8a4b08;
+  background: #fff3d7;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.account-status--confirmed,
+.account-status--completed {
+  color: #096947;
+  background: #e6f8ef;
+}
+
+.account-status--rejected,
+.account-status--cancelled {
+  color: #9f1d1d;
+  background: #fff0f0;
+}
+
+.account-countdown {
+  margin-top: 7px;
+}
+
+.account-empty {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.account-empty a {
+  color: #087a56;
+  font-weight: 900;
+}
+
+.account-profile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.account-profile,
+.account-preferences {
+  min-width: 0;
+}
+
+.account-profile {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.account-profile__avatar {
+  display: grid;
+  flex: 0 0 96px;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  overflow: hidden;
+  border-radius: 28px;
+  color: #087a56;
+  background: #e9f7f1;
+}
+
+.account-profile__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.account-profile h2,
+.account-preferences h2,
+.account-trip-card h3,
+.account-wishlist-card h3,
+.account-achievement h3,
+.account-review h3 {
+  margin: 0;
+}
+
+.account-profile__bio {
+  max-width: 55ch;
+  margin: 8px 0 0;
+  color: #68707c;
+  line-height: 1.55;
+}
+
+.account-eyebrow {
+  margin: 0 0 7px;
+  color: #087a56;
+  font-size: 0.7rem;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.account-preferences {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+}
+
+.account-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.account-chip-list b {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: #176149;
+  background: #e9f7f1;
+  font-size: 0.72rem;
+}
+
+.account-chip-list span {
+  color: #68707c;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.account-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.account-kpi {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+  padding: 18px;
+  border: 1px solid rgba(17, 21, 28, 0.08);
+  border-radius: 20px;
+  color: #087a56;
+  background: #fff;
+}
+
+.account-kpi span {
+  overflow: hidden;
+  color: #68707c;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-kpi strong {
+  overflow-wrap: anywhere;
+  color: #151820;
+  font-size: clamp(1.05rem, 2vw, 1.45rem);
+}
+
+.account-security-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.account-security-card {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  gap: 12px;
+}
+
+.account-security-card h2 {
+  margin: 0;
+}
+
+.account-security-card > small {
+  min-height: 38px;
+  color: #68707c;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.account-hero > div,
+.account-profile > div,
+.account-profile-grid > *,
+.account-security-grid > * {
+  min-width: 0;
+}
+
+.account-hero h1,
+.account-hero span,
+.account-profile span {
+  overflow-wrap: anywhere;
+}
+
+.account-security-card button {
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  padding-block: 12px;
+  white-space: normal;
+}
+
+.account-security-card--danger {
+  border-color: rgba(159, 29, 29, 0.2);
+}
+
+.account-danger-button {
+  background: #a52525 !important;
+}
+
+.account-data-section {
+  margin-top: 26px;
+}
+
+.account-trip-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+}
+
+.account-trip-card {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 18px;
+  padding: 16px;
+}
+
+.account-trip-card > img,
+.account-trip-card__placeholder {
+  width: 180px;
+  height: 100%;
+  min-height: 190px;
+  border-radius: 19px;
+  object-fit: cover;
+}
+
+.account-trip-card__placeholder {
+  display: grid;
+  place-items: center;
+  color: #087a56;
+  background: linear-gradient(145deg, #e9f7f1, #f1eee5);
+}
+
+.account-trip-card__body {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  gap: 8px;
+}
+
+.account-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.account-card-heading small {
+  color: #818791;
+}
+
+.account-trip-card__body > p,
+.account-wishlist-card p {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  color: #68707c;
+}
+
+.account-trip-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.account-trip-meta span,
+.account-sync-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  color: #555e69;
+  background: #f4f4f1;
+  font-size: 0.7rem;
+}
+
+.account-sync-note {
+  color: #087a56;
+  background: #e9f7f1;
+}
+
+.account-wishlist-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.account-wishlist-card {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 13px;
+  padding: 18px;
+}
+
+.account-wishlist-card__icon,
+.account-achievement__icon {
+  display: grid;
+  flex: 0 0 48px;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: #f1eee5;
+  font-size: 1.45rem;
+}
+
+.account-wishlist-card > div,
+.account-achievement > div {
+  min-width: 0;
+}
+
+.account-wishlist-card h3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-wishlist-card small,
+.account-achievement small,
+.account-review small {
+  color: #818791;
+}
+
+.account-achievement-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.account-achievement {
+  display: flex;
+  gap: 14px;
+  padding: 18px;
+  opacity: 0.68;
+}
+
+.account-achievement.is-unlocked {
+  border-color: rgba(8, 122, 86, 0.28);
+  opacity: 1;
+}
+
+.account-achievement p {
+  min-height: 38px;
+  margin: 5px 0 10px;
+  color: #68707c;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.account-progress {
+  height: 7px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e9e9e5;
+}
+
+.account-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #087a56;
+}
+
+.account-review-list {
+  display: grid;
+  gap: 12px;
+}
+
+.account-review {
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+}
+
+.account-review > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.account-review span {
+  color: #e5a400;
+  letter-spacing: 0.08em;
+}
+
+.account-review p {
+  margin: 0;
+  color: #4e5661;
+  line-height: 1.55;
+}
+
+.account-section-title > b {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.account-hero button:disabled {
+  cursor: wait;
+  opacity: 0.75;
+}
+
+.is-spinning {
+  animation: account-spin 0.8s linear infinite;
+}
+
+@keyframes account-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 1100px) {
+  .landing-tour-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .account-kpi-grid,
+  .account-achievement-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .account-trip-card {
+    grid-template-columns: 140px minmax(0, 1fr);
+  }
+
+  .account-trip-card > img,
+  .account-trip-card__placeholder {
+    width: 140px;
+  }
+}
+
+@media (max-width: 760px) {
+  .site-nav__account {
+    display: none;
+  }
+
+  .landing-tour-grid,
+  .account-form-grid,
+  .account-profile-grid,
+  .account-security-grid,
+  .account-trip-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .account-kpi-grid,
+  .account-wishlist-grid,
+  .account-achievement-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .account-wide {
+    grid-column: auto;
+  }
+
+  .account-page {
+    padding: 14px;
+  }
+
+  .account-hero,
+  .account-section-title,
+  .account-selected-tour,
+  .account-booking {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .account-selected-tour img,
+  .account-booking > img {
+    width: 100%;
+    height: 210px;
+  }
+
+  .account-trip-card {
+    grid-template-columns: 120px minmax(0, 1fr);
+  }
+
+  .account-trip-card > img,
+  .account-trip-card__placeholder {
+    width: 120px;
+  }
+}
+
+@media (max-width: 380px) {
+  .account-kpi-grid,
+  .account-wishlist-grid,
+  .account-achievement-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .account-profile,
+  .account-trip-card {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .account-trip-card > img,
+  .account-trip-card__placeholder {
+    width: 100%;
+    height: 170px;
+    min-height: 170px;
+  }
+
+  .account-profile__avatar {
+    flex-basis: 78px;
+    width: 78px;
+    height: 78px;
+  }
+
+  .lp-wrap {
+    width: calc(100% - 20px);
+  }
+
+  .site-nav {
+    inset-block-start: 10px;
+    padding-inline: 10px;
+  }
+
+  .site-brand {
+    font-size: 0.84rem;
+  }
+
+  .hero-stage {
+    padding-top: 70px;
+  }
+
+  .hero-card {
+    min-height: 630px;
+    border-radius: 18px;
+  }
+
+  .hero-card__content {
+    padding-inline: 14px;
+  }
+
+  .hero-title {
+    font-size: clamp(1.85rem, 13vw, 2.8rem);
+  }
+
+  .hero-search {
+    bottom: 14px;
+    width: calc(100% - 20px);
+  }
+
+  .section {
+    padding-block: 40px;
+  }
+
+  .stories-panel,
+  .story-card {
+    padding: 16px;
+  }
+}
+
+/* ===== /tours filtrlar ===== */
+.tours-filter {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tours-filter__search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 640px;
+  padding: 6px 6px 6px 16px;
+  border: 1px solid rgba(17, 21, 28, 0.12);
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(20, 26, 35, 0.06);
+  color: #5a6b62;
+}
+
+.tours-filter__search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 0.9rem;
+  color: #11151c;
+}
+
+.tours-filter__search button {
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: #087a56;
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.tours-filter__label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5a6b62;
+}
+
+.tours-filter__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tours-filter__chips button {
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid rgba(8, 122, 86, 0.25);
+  border-radius: 999px;
+  background: #fff;
+  color: #0d5e45;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tours-filter__chips button:hover {
+  background: rgba(8, 122, 86, 0.08);
+}
+
+.tours-filter__chips button.is-active {
+  background: #087a56;
+  border-color: #087a56;
+  color: #fff;
+}
+
+.tours-filter__reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  border: 0;
+  background: transparent;
+  color: #087a56;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .tours-filter__search {
+    max-width: none;
+  }
+}
+
+/* ===== Account: tahrirlash + chip toggle + wishlist remove ===== */
+.account-edit-trigger {
+  margin-top: 12px;
+  border: 1px solid rgba(8, 122, 86, 0.3);
+  background: #fff;
+  color: #087a56;
+  font-weight: 800;
+  font-size: 0.82rem;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.account-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.account-edit-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5a6b62;
+}
+
+.account-edit-form input,
+.account-edit-form textarea {
+  border: 1px solid rgba(17, 21, 28, 0.14);
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-size: 0.9rem;
+  color: #11151c;
+  background: #fff;
+  outline: none;
+}
+
+.account-edit-form input:focus,
+.account-edit-form textarea:focus {
+  border-color: #087a56;
+}
+
+.account-chip-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.account-chip-toggle button {
+  border: 1px solid rgba(8, 122, 86, 0.25);
+  background: #fff;
+  color: #0d5e45;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 7px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.account-chip-toggle button.is-active {
+  background: #087a56;
+  border-color: #087a56;
+  color: #fff;
+}
+
+.account-edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.account-edit-actions button {
+  min-height: 38px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 0;
+  background: #087a56;
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.account-edit-actions button.account-secondary {
+  background: transparent;
+  color: #5a6b62;
+  border: 1px solid rgba(17, 21, 28, 0.14);
+}
+
+.account-wishlist-card {
+  position: relative;
+}
+
+.account-wishlist-card__remove {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(220, 53, 69, 0.25);
+  background: #fff;
+  color: #dc3545;
+  cursor: pointer;
+}
+
+/* ===== Account: AI planner ===== */
+.account-planner-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.account-planner-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5a6b62;
+}
+
+.account-planner-form input,
+.account-planner-form select {
+  border: 1px solid rgba(17, 21, 28, 0.14);
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-size: 0.9rem;
+  background: #fff;
+  outline: none;
+}
+
+.account-planner-form .account-planner-form__full {
+  grid-column: 1 / -1;
+}
+
+.account-planner-generate {
+  margin-top: 14px;
+  min-height: 48px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #087a56, #0c8b63);
+  color: #fff;
+  font-weight: 900;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+
+.account-planner-result {
+  margin-top: 18px;
+  border: 1px solid rgba(8, 122, 86, 0.2);
+  border-radius: 18px;
+  padding: 18px;
+  background: #f7faf8;
+}
+
+.account-planner-day {
+  padding: 12px 0;
+  border-top: 1px dashed rgba(17, 21, 28, 0.12);
+}
+
+.account-planner-day:first-child {
+  border-top: 0;
+}
+
+.account-planner-day h4 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  color: #0d5e45;
+}
+
+.account-planner-day ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #2f4136;
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+
+@media (max-width: 720px) {
+  .account-planner-form {
+    grid-template-columns: 1fr;
   }
 }

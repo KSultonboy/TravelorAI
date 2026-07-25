@@ -15,11 +15,10 @@ export type AdminSession = {
 };
 
 function getSessionSecret() {
-  return (
-    process.env.ADMIN_SESSION_SECRET ||
-    process.env.ADMIN_SECRET_KEY ||
-    "dev-admin-session-secret"
-  );
+  const secret = process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_SECRET_KEY;
+  if (secret) return secret;
+  if (process.env.NODE_ENV !== "production") return "dev-admin-session-secret";
+  throw new Error("ADMIN_SESSION_SECRET is required in production");
 }
 
 function shouldUseSecureCookie() {

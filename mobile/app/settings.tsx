@@ -62,7 +62,7 @@ export default function SettingsScreen() {
       <StitchHeader title="Sozlamalar" subtitle="Ilova tajribasini boshqarish" back />
       <StitchHero
         title="TravelorAI nazorati"
-        subtitle="Til, bildirishnoma, payment va yordam ekranlari bitta joyda."
+        subtitle="Til, bildirishnoma va yordam ekranlari bitta joyda."
       />
 
       <StitchCard>
@@ -96,9 +96,6 @@ export default function SettingsScreen() {
 
       <StitchCard>
         <StitchListRow icon="language-outline" title="Tilni tanlash" subtitle="Uzbek, English, Russian" onPress={() => router.push('/language' as any)} />
-        <StitchListRow icon="card-outline" title="To‘lov usullari" subtitle="To‘lov moduli keyingi bosqichda ulanadi" onPress={() => router.push('/payment-methods' as any)} />
-        <StitchListRow icon="gift-outline" title="Aksiyalar" subtitle="Kupon va maxsus takliflar" onPress={() => router.push('/promotions' as any)} />
-        <StitchListRow icon="help-circle-outline" title="Yordam markazi" subtitle="Savollar, feedback va qo‘llab-quvvatlash" onPress={() => router.push('/help-center' as any)} />
       </StitchCard>
 
       <StitchCard>

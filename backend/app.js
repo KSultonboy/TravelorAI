@@ -291,7 +291,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   fallthrough: false,
   maxAge: process.env.NODE_ENV === 'production' ? '30d' : 0,
 }));
-app.use(express.json({ limit: '12mb' }));
+app.use(express.json({ limit: '16mb' }));
 app.use(loggerMiddleware);
 
 app.get(['/account-deletion', '/delete-account'], (req, res) => {
@@ -306,6 +306,15 @@ app.get(['/privacy-policy', '/privacy'], (req, res) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.status(200).send(renderPrivacyPolicyPage(baseUrl));
 });
+
+// CLICK to'lov callback'lari — rateLimiter'DAN OLDIN va o'z body-parser'i bilan.
+// CLICK `application/x-www-form-urlencoded` yuboradi (global parser faqat JSON),
+// hamda to'lov tasdig'i so'rov limitiga urilib qolmasligi kerak.
+app.use(
+  '/api/v1/payments/click',
+  express.urlencoded({ extended: false }),
+  require('./src/routes/clickPublic.routes')
+);
 
 app.use('/api/v1', rateLimiter, routes);
 

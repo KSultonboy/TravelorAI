@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { ArrowRight, Star } from "lucide-react";
 import { trackLandingEvent } from "@/lib/landingEvents";
@@ -25,8 +25,13 @@ function imageValue(item: LandingPlace) {
   return "linear-gradient(135deg, #0c8b63, #101217)";
 }
 
+function destinationHref(item: LandingPlace) {
+  const query = [item.name, item.city].filter(Boolean).join(", ");
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
 export default function Destinations({ places = [] }: { places?: LandingPlace[] }) {
-  const items = places.slice(0, 3);
+  const items = useMemo(() => places.slice(0, 3), [places]);
 
   useEffect(() => {
     items.forEach((item) => {
@@ -44,11 +49,11 @@ export default function Destinations({ places = [] }: { places?: LandingPlace[] 
       <div className="lp-wrap">
         <div className="section-head lp-reveal">
           <div>
-            <h2>Trending Destinations</h2>
-            <p>Backenddan kelayotgan real joylar va user signallari asosida global mashhur nuqtalar.</p>
+            <h2>Ommabop yo‘nalishlar</h2>
+            <p>Tasdiqlangan sayohat ma’lumotlari va jamoa baholari asosida tanlangan eng yuqori reytingli joylar.</p>
           </div>
-          <Link className="view-link" href="#about">
-            Learn more
+          <Link className="view-link" href="#how-it-works">
+            Qanday ishlaydi
             <ArrowRight size={15} />
           </Link>
         </div>
@@ -57,7 +62,9 @@ export default function Destinations({ places = [] }: { places?: LandingPlace[] 
           {items.length > 0 ? (
             items.map((item) => (
               <Link
-                href="#about"
+                href={destinationHref(item)}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="destination-card lp-reveal"
                 key={item.id || item.slug || item.name}
                 style={{ "--image": imageValue(item) } as CSSProperties}
@@ -73,16 +80,20 @@ export default function Destinations({ places = [] }: { places?: LandingPlace[] 
                 <div className="destination-card__content">
                   <span className="destination-card__city">{item.city}</span>
                   <h3>{item.name}</h3>
-                  <p>{item.description || item.info || "Personalized routes, verified places and local context."}</p>
+                  <p>{item.description || item.info || "Shaxsiy marshrutlar, tasdiqlangan joylar va mahalliy kontekst."}</p>
                   <div className="destination-card__meta">
                     <Star size={14} fill="currentColor" />
-                    {item.rating ? `${item.rating.toFixed(1)} rating` : "Backend verified"}
+                    {item.rating ? `${item.rating.toFixed(1)} reyting` : "Tasdiqlangan"}
                   </div>
                 </div>
               </Link>
             ))
           ) : (
-            <div className="landing-empty lp-reveal">Featured destinations are being prepared.</div>
+            <div className="landing-empty lp-reveal">
+              <strong>Yangi yo‘nalishlar tez orada.</strong>
+              <span>To‘plamimiz to‘ldirilayotgan bir paytda, istalgan shahar uchun AI sayohat rejasini mobil ilovada yarating.</span>
+              <Link href="#how-it-works">TravelorAI qanday ishlashini ko‘ring <ArrowRight size={15} /></Link>
+            </div>
           )}
         </div>
       </div>

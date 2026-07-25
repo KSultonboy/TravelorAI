@@ -4,9 +4,9 @@ import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider } from '@react-navigation/native';
 import {
   useFonts,
-  PlusJakartaSans_600SemiBold,
-  PlusJakartaSans_700Bold,
-} from '@expo-google-fonts/plus-jakarta-sans';
+  SpaceGrotesk_600SemiBold,
+  SpaceGrotesk_700Bold,
+} from '@expo-google-fonts/space-grotesk';
 import { Inter_400Regular, Inter_600SemiBold } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
 import 'react-native-reanimated';
@@ -24,8 +24,8 @@ export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_600SemiBold,
-    PlusJakartaSans_600SemiBold,
-    PlusJakartaSans_700Bold,
+    SpaceGrotesk_600SemiBold,
+    SpaceGrotesk_700Bold,
   });
 
   useEffect(() => {
@@ -80,8 +80,8 @@ function RootNavigator() {
         fonts: {
           regular: { fontFamily: 'Inter_400Regular', fontWeight: '400' },
           medium: { fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
-          bold: { fontFamily: 'PlusJakartaSans_700Bold', fontWeight: '700' },
-          heavy: { fontFamily: 'PlusJakartaSans_700Bold', fontWeight: '700' },
+          bold: { fontFamily: 'SpaceGrotesk_700Bold', fontWeight: '700' },
+          heavy: { fontFamily: 'SpaceGrotesk_700Bold', fontWeight: '700' },
         },
       }}
     >
@@ -96,40 +96,22 @@ function RootNavigator() {
         <Stack.Screen name="index" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="planner-result" />
-        <Stack.Screen name="my-plans" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="add-plan" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="ai-trip-setup" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="manual-trip" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="add-activity" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="multi-day-planner" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="itinerary-day" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="home-tours" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="tour-details" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="destination/[slug]" />
-        <Stack.Screen name="place/[slug]" />
+        <Stack.Screen name="search-filters" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="checkout" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="payment-methods" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="bookings" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="wishlist" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="login" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="register" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="verify-email" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="forgot-password" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="reset-password" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="profile-edit" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="feedback" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="achievements" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="profile-stats" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="wishlist" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="settings" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="travel-preferences" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="trip-map-loading" options={{ animation: 'fade' }} />
         <Stack.Screen name="side-menu" options={{ animation: 'slide_from_left' }} />
         <Stack.Screen name="language" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="help-center" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="promotions" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="payment-methods" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="checkout" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="search-filters" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="home-places" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="home-tours" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="home-agencies" options={{ animation: 'slide_from_right' }} />
       </Stack>
       <TestModeBanner />
     </ThemeProvider>

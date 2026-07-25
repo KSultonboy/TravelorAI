@@ -2,10 +2,12 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FONTS } from '../../src/constants/fonts';
+import { aiGlowShadow } from '../../src/constants/effects';
 import { type AppColors, useAppTheme } from '../../src/theme/app-theme';
 
 export default function TabLayout() {
@@ -19,15 +21,21 @@ export default function TabLayout() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: colors.aiAccent,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: styles.label,
         tabBarItemStyle: styles.tabItem,
+        tabBarBackground: () => (
+          <View style={styles.tabBarBg}>
+            <BlurView intensity={50} tint={colors.blurTint} style={StyleSheet.absoluteFill} />
+            <View style={styles.tabBarTint} />
+          </View>
+        ),
         tabBarIcon: ({ focused, color }) => {
           const icons: Record<string, [string, string]> = {
             index: ['home', 'home-outline'],
-            planner: ['map', 'map-outline'],
-            explore: ['compass', 'compass-outline'],
+            tours: ['compass', 'compass-outline'],
+            trips: ['briefcase', 'briefcase-outline'],
             profile: ['person', 'person-outline'],
           };
 
@@ -44,9 +52,8 @@ export default function TabLayout() {
       })}
     >
       <Tabs.Screen name="index" options={{ title: t('tabs.home') }} />
-      <Tabs.Screen name="planner" options={{ title: t('tabs.planner') }} />
-      <Tabs.Screen name="explore" options={{ title: t('tabs.explore') }} />
-      <Tabs.Screen name="trips" options={{ href: null }} />
+      <Tabs.Screen name="tours" options={{ title: 'Turlar' }} />
+      <Tabs.Screen name="trips" options={{ title: 'Bronlarim' }} />
       <Tabs.Screen name="profile" options={{ title: t('tabs.profile') }} />
     </Tabs>
   );
@@ -57,7 +64,7 @@ function createStyles(colors: AppColors, bottomInset: number) {
 
   return StyleSheet.create({
     tabBar: {
-      backgroundColor: colors.tabBar,
+      backgroundColor: 'transparent',
       borderTopWidth: 0,
       height: 66 + safeBottom,
       marginHorizontal: 18,
@@ -68,9 +75,20 @@ function createStyles(colors: AppColors, bottomInset: number) {
       position: 'absolute',
       shadowColor: colors.shadow,
       shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: 0.16,
+      shadowOpacity: 0.18,
       shadowRadius: 24,
       elevation: 14,
+    },
+    tabBarBg: {
+      ...StyleSheet.absoluteFillObject,
+      borderRadius: 26,
+      overflow: 'hidden',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.glassStrong,
+    },
+    tabBarTint: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: colors.tabBar,
     },
     tabItem: {
       alignItems: 'center',
@@ -92,7 +110,8 @@ function createStyles(colors: AppColors, bottomInset: number) {
       justifyContent: 'center',
     },
     iconSurfaceActive: {
-      backgroundColor: colors.primaryPale,
+      backgroundColor: colors.aiAccentPale,
+      ...aiGlowShadow(colors),
     },
     label: {
       fontFamily: FONTS.medium,

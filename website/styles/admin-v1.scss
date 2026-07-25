@@ -783,6 +783,10 @@
     align-items: stretch;
   }
 
+  .admin-sidebar-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .admin-grid {
     grid-template-columns: 1fr;
   }
@@ -809,7 +813,7 @@
   .admin-login-card,
   .admin-main,
   .admin-panel {
-    padding: 18px;
+    padding: 16px;
   }
 
   .admin-topbar,
@@ -821,4 +825,863 @@
   .admin-slide-list article {
     grid-template-columns: 1fr;
   }
+
+  .admin-sidebar-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-accordion {
+    border-radius: 20px;
+  }
+
+  .admin-accordion__trigger {
+    min-height: 68px;
+    padding: 14px;
+  }
+
+  .admin-accordion__icon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .admin-accordion__body {
+    padding: 0 10px 10px;
+  }
+
+  .admin-panel__head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-preview {
+    min-height: 210px;
+    border-radius: 18px;
+  }
+
+  .admin-form input,
+  .admin-form textarea,
+  .admin-form button {
+    min-height: 48px;
+  }
+
+  .admin-review-card {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-review-card > div:first-child {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 380px) {
+  .admin-login-screen,
+  .admin-main,
+  .admin-aside {
+    padding: 10px;
+  }
+
+  .admin-login-card {
+    padding: 16px;
+    border-radius: 22px;
+  }
+
+  .admin-topbar h1 {
+    font-size: 2rem;
+  }
+}
+
+/* ============================================================
+   ADMIN V2 — sahifa-routing, navbatlar, lead nazorati (yangi)
+   ============================================================ */
+
+.admin-shell--v2 {
+  display: grid;
+  grid-template-columns: 268px minmax(0, 1fr);
+  gap: 24px;
+  padding: 0 24px 24px 0;
+  transition: grid-template-columns 0.22s ease;
+}
+
+.admin-shell--v2 .admin-aside {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 100vh;
+  border-radius: 0 30px 30px 0;
+  box-shadow: 22px 0 60px rgba(13, 21, 37, 0.22);
+}
+
+.admin-shell--v2 .admin-main {
+  padding-top: 24px;
+}
+
+.admin-aside-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.admin-collapse-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  color: rgba(233, 238, 247, 0.85);
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.admin-collapse-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* --- Yig'ilgan (collapsed) holat --- */
+
+.admin-shell--v2.is-collapsed {
+  grid-template-columns: 86px minmax(0, 1fr);
+}
+
+.admin-shell--v2.is-collapsed .admin-nav-label {
+  display: none;
+}
+
+.admin-shell--v2.is-collapsed .admin-aside {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.admin-shell--v2.is-collapsed .admin-aside-top {
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-shell--v2.is-collapsed .admin-brand {
+  justify-content: center;
+}
+
+.admin-shell--v2.is-collapsed .admin-nav-v2 a {
+  justify-content: center;
+  padding: 0;
+}
+
+.admin-shell--v2.is-collapsed .admin-aside-footer {
+  justify-items: center;
+}
+
+.admin-shell--v2.is-collapsed .admin-logout {
+  width: 48px;
+  padding: 0;
+  justify-content: center;
+}
+
+.admin-nav-v2 {
+  display: grid;
+  gap: 7px;
+  margin-top: 26px;
+}
+
+.admin-nav-v2 a {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 48px;
+  padding: 0 15px;
+  border: 1px solid transparent;
+  border-radius: 15px;
+  color: rgba(233, 238, 247, 0.72);
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.admin-nav-v2 a svg {
+  opacity: 0.85;
+}
+
+.admin-nav-v2 a:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.admin-nav-v2 a.is-active {
+  color: #0c1320;
+  background: #4fd1a5;
+  border-color: rgba(255, 255, 255, 0.14);
+  font-weight: 900;
+  box-shadow: 0 10px 26px rgba(79, 209, 165, 0.28);
+}
+
+.admin-nav-v2 a.is-active svg {
+  opacity: 1;
+}
+
+.admin-aside-footer {
+  display: grid;
+  gap: 12px;
+  margin-top: 26px;
+}
+
+.admin-aside-footer small {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 7px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  color: rgba(233, 238, 247, 0.82);
+  background: rgba(255, 255, 255, 0.06);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.admin-aside-footer small::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4fd1a5;
+}
+
+.admin-head-v2 {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.admin-head-v2 h1 {
+  margin: 0;
+  color: #151820;
+  font-size: clamp(1.6rem, 2.6vw, 2.4rem);
+  letter-spacing: -0.05em;
+}
+
+.admin-muted {
+  margin: 6px 0 0;
+  color: #737985;
+  line-height: 1.55;
+}
+
+.admin-ghost-v2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid #dfe1e6;
+  border-radius: 999px;
+  color: #323844;
+  background: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-ghost-v2:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.admin-spin {
+  animation: admin-spin-v2 0.8s linear infinite;
+}
+
+@keyframes admin-spin-v2 {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* --- Dashboard navbat kartalari --- */
+
+.admin-queue-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.admin-queue-card {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 20px;
+  border: 1px solid #ececf0;
+  border-radius: 24px;
+  background: #fff;
+  color: inherit;
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-queue-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 34px rgba(18, 24, 30, 0.1);
+}
+
+.admin-queue-card__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  color: #087a56;
+  background: rgba(8, 122, 86, 0.1);
+}
+
+.admin-queue-card b {
+  color: #121821;
+  font-size: 1.9rem;
+  letter-spacing: -0.04em;
+}
+
+.admin-queue-card strong {
+  color: #2d333d;
+}
+
+.admin-queue-card small {
+  color: #737985;
+}
+
+.admin-queue-card em {
+  position: absolute;
+  top: 20px;
+  right: 18px;
+  color: #9aa0ab;
+}
+
+.admin-queue-card--alert {
+  border-color: rgba(226, 162, 60, 0.55);
+  box-shadow: 0 8px 26px rgba(226, 162, 60, 0.14);
+}
+
+.admin-queue-card--alert .admin-queue-card__icon {
+  color: #b97f17;
+  background: rgba(226, 162, 60, 0.16);
+}
+
+.admin-stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.admin-stat-v2 {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid #ececf0;
+  border-radius: 18px;
+  color: #087a56;
+  background: #fff;
+}
+
+.admin-stat-v2 b {
+  color: #121821;
+  font-size: 1.4rem;
+}
+
+.admin-stat-v2 small {
+  color: #737985;
+  font-weight: 600;
+}
+
+.admin-quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-quick-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid #dfe1e6;
+  border-radius: 999px;
+  color: #2d333d;
+  background: #fff;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.admin-quick-links a:hover {
+  border-color: #087a56;
+  color: #087a56;
+}
+
+/* --- Tabs --- */
+
+.admin-tabs-v2 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.admin-tabs-v2 button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid #e2e3e8;
+  border-radius: 999px;
+  color: #323844;
+  background: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-tabs-v2 button.is-active {
+  border-color: #087a56;
+  color: #fff;
+  background: #087a56;
+}
+
+.admin-tabs-v2 button em {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.12);
+  font-size: 0.72rem;
+  font-style: normal;
+}
+
+/* --- Review kartalari --- */
+
+.admin-review-list {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-review-card-v2 {
+  display: grid;
+  gap: 12px;
+  padding: 18px 20px;
+  border: 1px solid #ececf0;
+  border-left: 5px solid #e2a23c;
+  border-radius: 22px;
+  background: #fff;
+}
+
+.admin-review-card-v2 header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-review-card-v2 h4 {
+  margin: 0;
+  color: #121821;
+  font-size: 1.15rem;
+  letter-spacing: -0.03em;
+}
+
+.admin-review-card-v2 header small {
+  color: #737985;
+}
+
+.admin-review-card-v2 p {
+  margin: 0;
+  color: #2d333d;
+  line-height: 1.55;
+}
+
+.admin-review-card-v2__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.admin-review-card-v2__meta span {
+  color: #5a6170;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.admin-review-card-v2__image {
+  width: min(420px, 100%);
+  height: auto;
+  border-radius: 16px;
+  object-fit: cover;
+}
+
+.admin-review-actions-v2 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-review-actions-v2 input {
+  flex: 1;
+  min-width: 220px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid #e2e3e8;
+  border-radius: 999px;
+  background: #f8f7f4;
+  font: inherit;
+}
+
+.admin-review-actions-v2 button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: #087a56;
+  font: inherit;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.admin-review-actions-v2 button.danger {
+  background: #c0392b;
+}
+
+.admin-review-actions-v2 button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* --- Lead jadval-ro'yxati --- */
+
+.admin-lead-table {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-lead-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  padding: 16px 18px;
+  border: 1px solid #ececf0;
+  border-radius: 20px;
+  background: #fff;
+}
+
+.admin-lead-row__main {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.admin-lead-row__main b {
+  color: #121821;
+  font-size: 1.05rem;
+}
+
+.admin-lead-row__main small {
+  color: #737985;
+}
+
+.admin-lead-row__main p {
+  margin: 4px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: #2d333d;
+  background: #f6f5f1;
+  line-height: 1.5;
+}
+
+.admin-lead-row__contacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.admin-lead-row__contacts span {
+  color: #5a6170;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.admin-lead-row__note {
+  color: #8a6116;
+}
+
+.admin-lead-row__side {
+  display: grid;
+  justify-items: end;
+  align-content: start;
+  gap: 8px;
+}
+
+.admin-lead-row__actions {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-lead-row__actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #dfe1e6;
+  border-radius: 999px;
+  color: #2d333d;
+  background: #fff;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-lead-row__actions button:hover {
+  border-color: #087a56;
+  color: #087a56;
+}
+
+.admin-lead-row__actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* --- Chips --- */
+
+.admin-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 2px 12px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 900;
+  white-space: nowrap;
+  color: #5a6170;
+  background: #eef0f3;
+}
+
+.admin-chip--pending,
+.admin-chip--pending_review {
+  color: #8a6116;
+  background: #fdf2dc;
+}
+
+.admin-chip--approved,
+.admin-chip--confirmed {
+  color: #087a56;
+  background: #e3f3ec;
+}
+
+.admin-chip--completed {
+  color: #2c5fb3;
+  background: #e4edfb;
+}
+
+.admin-chip--rejected,
+.admin-chip--cancelled {
+  color: #b03326;
+  background: #fbe7e4;
+}
+
+@media (max-width: 900px) {
+  .admin-shell--v2 {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-shell--v2 .admin-aside {
+    position: static;
+    min-height: 0;
+  }
+
+  .admin-lead-row {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-lead-row__side {
+    justify-items: start;
+  }
+}
+
+/* --- Login sahifa: ixcham karta, scrollsiz --- */
+
+.admin-login-screen {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.admin-login-card {
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  padding: 30px;
+}
+
+.admin-login-card h1 {
+  font-size: clamp(1.5rem, 2.2vw, 2rem);
+  line-height: 1.1;
+}
+
+.admin-login-card__lead {
+  margin-top: 10px;
+  font-size: 0.92rem;
+}
+
+.admin-login-card .admin-login-card__mark {
+  width: 46px;
+  height: 46px;
+  margin-bottom: 14px;
+}
+
+/* --- V2: forma, CTA, hisobot kartalari --- */
+
+.admin-cta-v2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: #087a56;
+  font: inherit;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.admin-cta-v2:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.admin-danger-v2 {
+  color: #b03326 !important;
+  border-color: rgba(176, 51, 38, 0.4) !important;
+}
+
+.admin-danger-v2:hover {
+  background: #fbe7e4 !important;
+}
+
+.admin-form-v2 {
+  margin-bottom: 18px;
+}
+
+.admin-form-grid-v2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin: 14px 0 16px;
+}
+
+.admin-form-grid-v2 label {
+  display: grid;
+  gap: 7px;
+  color: #2f333c;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.admin-form-grid-v2 input,
+.admin-form-grid-v2 select,
+.admin-form-grid-v2 textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid #e2e2e7;
+  border-radius: 14px;
+  background: #f8f7f5;
+  color: #16191f;
+  font: inherit;
+  font-size: 0.92rem;
+  outline: none;
+}
+
+.admin-form-grid-v2 textarea {
+  min-height: 96px;
+  padding: 12px 14px;
+  resize: vertical;
+}
+
+.admin-form-grid-v2 input:focus,
+.admin-form-grid-v2 select:focus,
+.admin-form-grid-v2 textarea:focus {
+  border-color: rgba(8, 122, 86, 0.58);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(8, 122, 86, 0.1);
+}
+
+.admin-wide-v2 {
+  grid-column: 1 / -1;
+}
+
+.admin-lead-row__main--withimg {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.admin-row-thumb {
+  width: 92px;
+  height: 68px;
+  flex: 0 0 auto;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.admin-row-thumb--empty {
+  display: grid;
+  place-items: center;
+  color: #087a56;
+  background: #edf3ef;
+}
+
+.admin-report-group {
+  margin: 22px 0 10px;
+  color: #2d333d;
+  font-size: 1.02rem;
+  letter-spacing: -0.02em;
+}
+
+.admin-stat-v2--bad {
+  border-color: rgba(176, 51, 38, 0.5);
+}
+
+.admin-stat-v2--bad svg,
+.admin-stat-v2--bad b {
+  color: #b03326;
+}
+
+.admin-stat-v2--warn {
+  border-color: rgba(226, 162, 60, 0.55);
+}
+
+.admin-stat-v2--warn svg {
+  color: #b97f17;
+}
+
+/* Hero sahifa AdminShell ichida (eski topbar o'lchamlarini moslashtirish) */
+.admin-hero-embedded .admin-topbar h1 {
+  font-size: clamp(1.6rem, 2.6vw, 2.4rem);
+}
+
+.admin-hero-embedded .admin-topbar {
+  margin-bottom: 20px;
 }

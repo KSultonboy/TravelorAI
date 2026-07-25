@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { CalendarDays, MapPin, Search, Users } from "lucide-react";
+import { ArrowRight, MapPin, ShieldCheck, Sparkles } from "lucide-react";
 import { publicImageSrc } from "@/lib/imageUrls";
 
 export type LandingHeroSlide = {
@@ -30,6 +30,7 @@ export default function Hero({ slides = [] }: { slides?: LandingHeroSlide[] }) {
 
   useEffect(() => {
     if (heroSlides.length < 2) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const timer = window.setInterval(() => {
       setActiveIndex((current) => (current + 1) % heroSlides.length);
     }, 5200);
@@ -68,30 +69,30 @@ export default function Hero({ slides = [] }: { slides?: LandingHeroSlide[] }) {
 
           <div className="hero-card__content">
             <div className="hero-copy" key={activeSlide?.id || "empty"}>
-              <div className="hero-kicker">AI powered travel</div>
-              <h1 className="hero-title">{activeSlide?.title || "TravelorAI"}</h1>
+              <div className="hero-kicker">AI bilan sayohat</div>
+              <h1 className="hero-title">{activeSlide?.title || "Aqlli rejalashtiring. Yaxshiroq sayohat qiling."}</h1>
               <p className="hero-lead">
-                {activeSlide?.subtitle || "Hero slaydlar admin paneldan boshqariladi."}
+                {activeSlide?.subtitle || "Shaxsiy sayohat rejasini yarating, tasdiqlangan joylarni kashf eting va sayohatingizning har bir kunini bitta ilovada tartibga soling."}
               </p>
             </div>
           </div>
 
-          <div className="hero-search" role="search">
+          <div className="hero-search" aria-label="TravelorAI afzalliklari">
             <div className="hero-search__item">
-              <Search size={17} />
-              Where do you want to go?
+              <Sparkles size={17} />
+              AI reja
             </div>
             <div className="hero-search__item">
-              <CalendarDays size={16} />
-              Add dates
+              <ShieldCheck size={16} />
+              Tasdiqlangan joylar
             </div>
             <div className="hero-search__item">
-              <Users size={16} />
-              Guests
+              <MapPin size={16} />
+              Aqlli marshrutlar
             </div>
             <Link className="hero-search__button" href={actionHref}>
-              <MapPin size={16} />
-              Explore
+              Platformani ko‘rish
+              <ArrowRight size={16} />
             </Link>
           </div>
         </div>

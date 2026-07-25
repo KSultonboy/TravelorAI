@@ -1,6 +1,8 @@
 const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { createBookingSchema } = require('../schemas/booking.schema');
+const { sendBookingLeadEmail } = require('../services/email.service');
+const { resolveTourImageUrl } = require('../utils/tourImage');
 
 function formatBooking(booking) {
   if (!booking) return null;
@@ -15,11 +17,29 @@ function formatBooking(booking) {
     travelDate: booking.travelDate,
     message: booking.message,
     status: booking.status,
+    responseDeadlineAt: booking.responseDeadlineAt,
     totalEstimate: booking.totalEstimate,
     currency: booking.currency,
     source: booking.source,
+    utmSource: booking.utmSource || null,
+    utmMedium: booking.utmMedium || null,
+    utmCampaign: booking.utmCampaign || null,
+    referrer: booking.referrer || null,
+    pipelineStage: booking.pipelineStage || 'new',
+    leadTour: booking.leadTour || null,
+    leadCity: booking.leadCity || null,
+    leadTelegram: booking.leadTelegram || null,
+    leadWhatsapp: booking.leadWhatsapp || null,
+    paidAmount: booking.paidAmount ?? null,
+    archived: booking.archived || false,
+    archivedAt: booking.archivedAt || null,
+    customerBirthday: booking.customerBirthday || null,
     agencyNote: booking.agencyNote,
     adminNote: booking.adminNote,
+    confirmedAt: booking.confirmedAt,
+    rejectedAt: booking.rejectedAt,
+    cancelledAt: booking.cancelledAt,
+    completedAt: booking.completedAt,
     createdAt: booking.createdAt,
     updatedAt: booking.updatedAt,
     tour: booking.tour
@@ -31,7 +51,16 @@ function formatBooking(booking) {
           duration: booking.tour.duration,
           price: booking.tour.price,
           priceMin: booking.tour.priceMin,
-          imageUrl: booking.tour.imageUrl,
+          priceCurrency: booking.tour.priceCurrency,
+          priceBasis: booking.tour.priceBasis,
+          imageUrl: resolveTourImageUrl(booking.tour),
+          responseTimeMinutes: booking.tour.responseTimeMinutes ?? 45,
+          hotelName: booking.tour.hotelName,
+          hotelCategory: booking.tour.hotelCategory,
+          roomType: booking.tour.roomType,
+          mealPlan: booking.tour.mealPlan,
+          mealPlanLabel: booking.tour.mealPlanLabel,
+          availabilityStatus: booking.tour.availabilityStatus,
         }
       : null,
     agency: booking.agency
@@ -41,7 +70,9 @@ function formatBooking(booking) {
           name: booking.agency.name,
           city: booking.agency.city,
           phone: booking.agency.phone,
+          telegram: booking.agency.telegram,
           website: booking.agency.website,
+          imageUrl: booking.agency.imageUrl,
         }
       : null,
   };
@@ -64,14 +95,23 @@ async function create(req, res) {
     if (!tour) return error(res, 'Tour topilmadi yoki hali public emas', 404);
 
     const userId = req.user?.id || null;
+    if (userId) {
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+      if (user && input.customerEmail && user.email.toLowerCase() !== input.customerEmail.toLowerCase()) {
+        return error(res, 'Booking emaili akkauntingiz emailiga mos bo‘lishi kerak', 400);
+      }
+    }
     const totalEstimate = tour.priceMin ? tour.priceMin * input.travelers : null;
+    const responseDeadlineAt = new Date(
+      Date.now() + Math.max(5, Number(tour.responseTimeMinutes || 45)) * 60 * 1000
+    );
     const booking = await prisma.tourBooking.create({
       data: {
         tourId: tour.id,
         agencyId: tour.agencyId,
         userId,
         customerName: input.customerName,
-        customerEmail: input.customerEmail.toLowerCase(),
+        customerEmail: input.customerEmail ? input.customerEmail.toLowerCase() : null,
         customerPhone: input.customerPhone || null,
         travelers: input.travelers,
         travelDate: input.travelDate ? new Date(input.travelDate) : null,
@@ -79,10 +119,31 @@ async function create(req, res) {
         totalEstimate,
         currency: 'USD',
         source: input.source || 'mobile',
+        utmSource: input.utmSource || null,
+        utmMedium: input.utmMedium || null,
+        utmCampaign: input.utmCampaign || null,
+        referrer: input.referrer || null,
         status: 'pending',
+        responseDeadlineAt,
       },
-      include: { tour: true, agency: true },
+      include: { tour: true, agency: { include: { ownerAccount: true } } },
     });
+
+    // Notify the agency about the new lead (free) — fire-and-forget
+    const agencyEmail = booking.agency?.ownerAccount?.email || null;
+    if (agencyEmail) {
+      sendBookingLeadEmail({
+        to: agencyEmail,
+        agencyName: booking.agency.name,
+        tourTitle: booking.tour?.title,
+        customerName: booking.customerName,
+        customerPhone: booking.customerPhone,
+        customerEmail: booking.customerEmail,
+        travelers: booking.travelers,
+        travelDate: booking.travelDate,
+        message: booking.message,
+      }).catch(() => {});
+    }
 
     return success(res, { booking: formatBooking(booking) }, 201);
   } catch (err) {
@@ -93,7 +154,23 @@ async function create(req, res) {
 async function listMine(req, res) {
   try {
     const email = String(req.query.email || '').trim().toLowerCase();
-    const where = req.user?.id ? { userId: req.user.id } : email ? { customerEmail: email } : null;
+    let where = email ? { customerEmail: email } : null;
+    if (req.user?.id) {
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { email: true },
+      });
+      if (!user) return error(res, 'Foydalanuvchi topilmadi', 404);
+
+      await prisma.tourBooking.updateMany({
+        where: {
+          userId: null,
+          customerEmail: user.email.toLowerCase(),
+        },
+        data: { userId: req.user.id },
+      });
+      where = { userId: req.user.id };
+    }
     if (!where) return error(res, 'Token yoki email talab qilinadi', 401);
 
     const items = await prisma.tourBooking.findMany({

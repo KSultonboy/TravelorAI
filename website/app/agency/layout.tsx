@@ -1,9 +1,11 @@
-import "../../styles/agency-v1.scss";
+import "../../styles/agency-karvon.scss";
+import { AgencySessionProvider } from "@/lib/agency/session";
 
-export default function AgencyLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  return children;
+export const metadata = {
+  title: "Agentlik CRM | TravelorAI",
+  robots: { index: false, follow: false },
+};
+
+export default function AgencyLayout({ children }: { children: React.ReactNode }) {
+  return <AgencySessionProvider>{children}</AgencySessionProvider>;
 }

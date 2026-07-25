@@ -54,7 +54,7 @@ export default function WishlistScreen() {
             <Text style={{ fontFamily: FONTS.regular, fontSize: 13, lineHeight: 20, color: colors.textMuted, textAlign: 'center' }}>
               {t('profile.wishlistHint')}
             </Text>
-            <StitchButton title="Explorega o‘tish" icon="compass-outline" onPress={() => router.push('/(tabs)/explore' as any)} />
+            <StitchButton title="Turlarni ko‘rish" icon="briefcase-outline" onPress={() => router.push('/(tabs)' as any)} />
           </View>
         </StitchCard>
       ) : (

@@ -21,9 +21,9 @@ import Button from '../src/components/Button';
 import { FONTS } from '../src/constants/fonts';
 import { RADIUS, SPACING } from '../src/constants/spacing';
 import { type AppColors, useAppTheme } from '../src/theme/app-theme';
-import { ApiError, authAPI } from '../src/utils/api';
+import { ApiError, authAPI, type SecurityCodePayload } from '../src/utils/api';
 import { type AuthUser, extractApiData, getUserInitials } from '../src/utils/auth';
-import { KEYS, getJSON, saveUserProfile } from '../src/utils/storage';
+import { KEYS, getJSON, saveAuthSession, saveUserProfile } from '../src/utils/storage';
 
 const MAX_AVATAR_DATA_URI_LENGTH = 750_000;
 
@@ -47,6 +47,12 @@ export default function ProfileEditScreen() {
   const [bio, setBio] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [emailPassword, setEmailPassword] = useState('');
+  const [emailCode, setEmailCode] = useState('');
+  const [emailStage, setEmailStage] = useState<'request' | 'verify'>('request');
+  const [emailAttemptsRemaining, setEmailAttemptsRemaining] = useState(3);
+  const [emailLoading, setEmailLoading] = useState(false);
 
   useEffect(() => {
     getJSON<AuthUser>(KEYS.USER).then((value) => {
@@ -164,6 +170,68 @@ export default function ProfileEditScreen() {
     fullName: [name, lastName].filter(Boolean).join(' ').trim(),
   });
 
+  const requestEmailCode = async () => {
+    const normalizedEmail = newEmail.trim().toLowerCase();
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      Alert.alert(t('auth.errorTitle'), 'Yangi email manzilini to‘g‘ri kiriting.');
+      return;
+    }
+    if (normalizedEmail === user?.email.toLowerCase()) {
+      Alert.alert(t('auth.errorTitle'), 'Yangi email joriy emaildan farq qilishi kerak.');
+      return;
+    }
+    if (user?.authProvider === 'local' && !emailPassword.trim()) {
+      Alert.alert(t('auth.errorTitle'), 'Joriy parolni kiriting.');
+      return;
+    }
+
+    setEmailLoading(true);
+    try {
+      const data = extractApiData<SecurityCodePayload>(await authAPI.requestEmailChange({
+        newEmail: normalizedEmail,
+        ...(user?.authProvider === 'local' ? { password: emailPassword.trim() } : {}),
+      }));
+      setEmailStage('verify');
+      setEmailAttemptsRemaining(data.attemptsRemaining);
+      if (data.devCode) setEmailCode(data.devCode);
+      Alert.alert(t('common.ok'), data.devCode ? `${data.message}\nKod: ${data.devCode}` : data.message);
+    } catch (error) {
+      const apiError = error instanceof ApiError ? error : null;
+      if (apiError?.data?.contactAdmin) {
+        Alert.alert(t('auth.errorTitle'), apiError.message);
+      } else {
+        Alert.alert(t('auth.errorTitle'), apiError?.message || 'Kod yuborilmadi.');
+      }
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  const verifyEmailCode = async () => {
+    if (emailCode.trim().length !== 6) {
+      Alert.alert(t('auth.errorTitle'), '6 xonali kodni kiriting.');
+      return;
+    }
+    setEmailLoading(true);
+    try {
+      const data = extractApiData<{ message?: string; token: string; user: AuthUser }>(
+        await authAPI.verifyEmailChange({ code: emailCode.trim() })
+      );
+      await saveAuthSession(data.token, data.user);
+      setUser(data.user);
+      setNewEmail('');
+      setEmailPassword('');
+      setEmailCode('');
+      setEmailStage('request');
+      setEmailAttemptsRemaining(3);
+      Alert.alert(t('common.ok'), data.message || 'Email almashtirildi.');
+    } catch (error) {
+      Alert.alert(t('auth.errorTitle'), error instanceof ApiError ? error.message : 'Email tasdiqlanmadi.');
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
@@ -244,6 +312,61 @@ export default function ProfileEditScreen() {
           </View>
 
           <Button title={t('profileEdit.saveBtn')} onPress={handleSave} loading={loading} style={styles.submitBtn} />
+        </View>
+
+        <View style={styles.formCard}>
+          <Text style={styles.securityTitle}>Emailni almashtirish</Text>
+          <Text style={styles.securitySub}>
+            Tasdiqlash kodi eski emailingizga yuboriladi: {user?.email || '—'}
+          </Text>
+          <Text style={styles.label}>Yangi email</Text>
+          <TextInput
+            style={styles.input}
+            value={newEmail}
+            onChangeText={setNewEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            editable={emailStage === 'request' && !emailLoading}
+            placeholder="new@gmail.com"
+            placeholderTextColor={colors.textMuted}
+          />
+          {emailStage === 'request' && user?.authProvider === 'local' ? (
+            <>
+              <Text style={styles.label}>Joriy parol</Text>
+              <TextInput
+                style={styles.input}
+                value={emailPassword}
+                onChangeText={setEmailPassword}
+                secureTextEntry
+                editable={!emailLoading}
+                placeholder="Parolingiz"
+                placeholderTextColor={colors.textMuted}
+              />
+            </>
+          ) : null}
+          {emailStage === 'verify' ? (
+            <>
+              <Text style={styles.label}>Eski emailga kelgan kod</Text>
+              <TextInput
+                style={styles.input}
+                value={emailCode}
+                onChangeText={(value) => setEmailCode(value.replace(/\D/g, '').slice(0, 6))}
+                keyboardType="number-pad"
+                maxLength={6}
+                placeholder="000000"
+                placeholderTextColor={colors.textMuted}
+              />
+              <TouchableOpacity onPress={requestEmailCode} disabled={emailLoading || emailAttemptsRemaining <= 0}>
+                <Text style={styles.resendText}>Kodni qayta yuborish ({emailAttemptsRemaining})</Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
+          <Button
+            title={emailStage === 'request' ? 'Kodni eski emailga yuborish' : 'Emailni tasdiqlash'}
+            onPress={emailStage === 'request' ? requestEmailCode : verifyEmailCode}
+            loading={emailLoading}
+            style={styles.submitBtn}
+          />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -334,7 +457,11 @@ function createStyles(colors: AppColors) {
       borderWidth: 1,
       borderColor: colors.borderLight,
       padding: SPACING.lg,
+      marginBottom: SPACING.lg,
     },
+    securityTitle: { fontFamily: FONTS.display, fontSize: 22, color: colors.text },
+    securitySub: { fontFamily: FONTS.regular, fontSize: 13, lineHeight: 20, color: colors.textMuted, marginTop: 6 },
+    resendText: { fontFamily: FONTS.medium, fontSize: 13, color: colors.primary, marginTop: SPACING.md },
     label: { fontFamily: FONTS.medium, fontSize: 14, color: colors.text, marginBottom: 6, marginTop: SPACING.sm },
     input: {
       backgroundColor: colors.background,

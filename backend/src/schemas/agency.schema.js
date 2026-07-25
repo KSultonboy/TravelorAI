@@ -8,6 +8,69 @@ const nullableUrl = z
   .or(z.literal(''))
   .transform((value) => value || undefined);
 
+const imageValue = z
+  .string()
+  .trim()
+  .max(12_000_000)
+  .refine(
+    (value) =>
+      !value ||
+      /^https?:\/\//i.test(value) ||
+      /^\/uploads\//i.test(value) ||
+      /^data:image\/(?:jpeg|png|webp|gif);base64,/i.test(value),
+    'Rasm URL yoki JPG/PNG/WEBP/GIF fayl bo‘lishi kerak'
+  )
+  .optional()
+  .or(z.literal(''))
+  .transform((value) => value || undefined);
+
+const tourBadge = z
+  .string()
+  .trim()
+  .optional()
+  .or(z.literal(''))
+  .transform((value) => (String(value || '').toLowerCase() === 'popular' ? 'Popular' : 'Latest'));
+
+const optionalText = z
+  .string()
+  .trim()
+  .max(240)
+  .optional()
+  .or(z.literal(''))
+  .transform((value) => value || undefined);
+
+const optionalLongText = z
+  .string()
+  .trim()
+  .max(1000)
+  .optional()
+  .or(z.literal(''))
+  .transform((value) => value || undefined);
+
+const stringList = z
+  .array(z.string().trim().min(1).max(160))
+  .max(30)
+  .optional()
+  .default([]);
+
+const mealPlan = z
+  .enum(['RO', 'BB', 'HB', 'FB', 'AI', 'UAI', 'UALL', 'FBT'])
+  .optional()
+  .or(z.literal(''))
+  .transform((value) => value || undefined);
+
+const availabilityStatus = z
+  .enum(['available', 'few_seats', 'on_request', 'sold_out'])
+  .optional()
+  .or(z.literal(''))
+  .transform((value) => value || undefined);
+
+const flightSeatStatus = z
+  .enum(['available', 'few_seats', 'on_request', 'no_seats', 'not_included'])
+  .optional()
+  .or(z.literal(''))
+  .transform((value) => value || undefined);
+
 const registerSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(8),
@@ -18,9 +81,23 @@ const verifyEmailSchema = z.object({
   code: z.string().trim().min(4).max(10),
 });
 
+const emailChangeRequestSchema = z.object({
+  newEmail: z.string().trim().email(),
+});
+
+const emailChangeConfirmSchema = z.object({
+  code: z.string().trim().length(6),
+});
+
 const loginSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(1),
+});
+
+const resetPasswordSchema = z.object({
+  email: z.string().trim().email(),
+  code: z.string().trim().regex(/^\d{6}$/, "Kod 6 xonali bo'lishi kerak"),
+  newPassword: z.string().min(8, 'Parol kamida 8 ta belgi'),
 });
 
 const applicationSchema = z.object({
@@ -36,6 +113,7 @@ const applicationSchema = z.object({
   instagram: z.string().trim().optional().or(z.literal('')),
   serviceTypes: z.array(z.string().trim().min(2)).min(1).max(12),
   description: z.string().trim().min(20),
+  imageUrl: imageValue,
   documents: z.any().optional(),
 });
 
@@ -45,12 +123,50 @@ const tourSchema = z.object({
   subtitle: z.string().trim().min(3),
   description: z.string().trim().optional().or(z.literal('')),
   duration: z.string().trim().min(2),
+  responseTimeMinutes: z.coerce.number().int().min(5).max(1440).default(45),
   price: z.string().trim().optional().or(z.literal('')),
   priceMin: z.coerce.number().int().nonnegative().optional().nullable(),
-  badge: z.string().trim().optional().default('Latest'),
-  imageUrl: nullableUrl,
+  priceCurrency: optionalText,
+  priceBasis: optionalText,
+  badge: tourBadge,
+  imageUrl: imageValue,
   itinerary: z.any().optional(),
   highlights: z.array(z.string().trim().min(2)).max(20).optional().default([]),
+  departureCity: optionalText,
+  destinationCountry: optionalText,
+  tourGroup: optionalText,
+  nights: z.coerce.number().int().nonnegative().optional().nullable(),
+  hotelIncluded: z.coerce.boolean().optional().default(false),
+  hotelName: optionalText,
+  hotelCategory: optionalText,
+  hotelLocation: optionalText,
+  roomType: optionalText,
+  mealPlan,
+  mealPlanLabel: optionalText,
+  childPolicy: optionalLongText,
+  flightSeatStatus,
+  availabilityStatus,
+  instantConfirmation: z.coerce.boolean().optional().default(false),
+  stopSale: z.coerce.boolean().optional().default(false),
+  promo: z.coerce.boolean().optional().default(false),
+  priceIncludes: stringList,
+  priceExcludes: stringList,
+  images: z.array(z.string().min(1)).max(6).optional(),
+  mapAddress: optionalText,
+  routeStops: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(120),
+        lat: z.coerce.number().min(-90).max(90),
+        lng: z.coerce.number().min(-180).max(180),
+      })
+    )
+    .max(12)
+    .optional(),
+});
+
+const googleAuthSchema = z.object({
+  idToken: z.string().trim().min(10, 'Google idToken talab qilinadi'),
 });
 
 const adminReviewSchema = z.object({
@@ -58,9 +174,13 @@ const adminReviewSchema = z.object({
 });
 
 module.exports = {
+  googleAuthSchema,
   registerSchema,
   verifyEmailSchema,
+  emailChangeRequestSchema,
+  emailChangeConfirmSchema,
   loginSchema,
+  resetPasswordSchema,
   applicationSchema,
   tourSchema,
   adminReviewSchema,

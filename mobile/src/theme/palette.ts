@@ -1,5 +1,6 @@
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type ResolvedTheme = 'light' | 'dark';
+export type BlurTint = 'light' | 'dark';
 
 export interface AppColors {
   primary: string;
@@ -32,72 +33,107 @@ export interface AppColors {
   overlay: string;
   glass: string;
   glassStrong: string;
+  // --- AI / brand tokens ---
+  aiAccent: string;
+  aiAccentPale: string;
+  aiGlow: string;
+  sand: string;
+  sandPale: string;
+  onGradient: string;
+  gradientPrimary: readonly [string, string];
+  gradientHero: readonly [string, string, string];
+  blurTint: BlurTint;
 }
 
-export const lightColors: AppColors = {
-  primary: '#0F172A',
-  primaryLight: '#334155',
-  primaryPale: '#E8ECF6',
-  primaryDark: '#020617',
-  gold: '#C97718',
-  goldPale: '#FCE8C8',
-  surface: '#FFFFFF',
-  background: '#FCF8FA',
-  backgroundAccent: '#F0EDEF',
-  card: '#FFFFFF',
-  cardMuted: '#F6F3F5',
-  tabBar: 'rgba(255,255,255,0.92)',
-  border: '#C6C6CD',
-  borderLight: '#E4E2E4',
-  text: '#1B1B1D',
-  textSecondary: '#45464D',
-  textMuted: '#76777D',
+/**
+ * DARK — default brand palette (matches travelorai.com website).
+ * Deep green canvas + warm gold accent + white text.
+ */
+export const darkColors: AppColors = {
+  primary: '#E8B43E',
+  primaryLight: '#F2CB6E',
+  primaryPale: '#16472F',
+  primaryDark: '#CC9A1E',
+  gold: '#E8B43E',
+  goldPale: '#2A2412',
+  surface: '#0D3527',
+  background: '#06231A',
+  backgroundAccent: '#0A2E22',
+  card: '#0D3527',
+  cardMuted: '#103C2C',
+  tabBar: 'rgba(6,35,26,0.82)',
+  border: '#1E4B39',
+  borderLight: '#123A2B',
+  text: '#F2FAF6',
+  textSecondary: '#B4CEC0',
+  textMuted: '#7B9A8A',
   textInverse: '#FFFFFF',
-  success: '#006C4A',
-  successPale: '#DDF8EC',
-  warning: '#C97718',
-  warningPale: '#FCE8C8',
-  error: '#BA1A1A',
-  errorPale: '#FFDAD6',
-  info: '#565E74',
-  infoPale: '#E8ECF6',
-  shadow: '#131B2E',
-  overlay: 'rgba(15,23,42,0.58)',
-  glass: 'rgba(255,255,255,0.72)',
-  glassStrong: 'rgba(255,255,255,0.94)',
+  success: '#37C46E',
+  successPale: '#0E3526',
+  warning: '#F2C14E',
+  warningPale: '#2A2410',
+  error: '#FF6B6B',
+  errorPale: '#3A1414',
+  info: '#E8B43E',
+  infoPale: '#2A2412',
+  shadow: '#000000',
+  overlay: 'rgba(3,14,9,0.72)',
+  glass: 'rgba(13,53,39,0.60)',
+  glassStrong: 'rgba(13,53,39,0.85)',
+  aiAccent: '#E8B43E',
+  aiAccentPale: '#16472F',
+  aiGlow: 'rgba(232,180,62,0.42)',
+  sand: '#E8B43E',
+  sandPale: '#2A2412',
+  onGradient: '#0A2417',
+  gradientPrimary: ['#F0C75E', '#D49A18'],
+  gradientHero: ['#052017', '#0B3A26', '#0F5132'],
+  blurTint: 'dark',
 };
 
-export const darkColors: AppColors = {
-  primary: '#BEC6E0',
-  primaryLight: '#DAE2FD',
-  primaryPale: '#1F293B',
-  primaryDark: '#F8FAFC',
-  gold: '#DEC29A',
-  goldPale: '#271901',
-  surface: '#171A20',
-  background: '#0B1018',
-  backgroundAccent: '#131B2E',
-  card: '#171A20',
-  cardMuted: '#20242C',
-  tabBar: 'rgba(18,22,30,0.92)',
-  border: '#45464D',
-  borderLight: '#303032',
-  text: '#F3F0F2',
-  textSecondary: '#C6C6CD',
-  textMuted: '#8D8F98',
+/**
+ * LIGHT — Soft white base, green primary + gold accent (>=4.5:1 contrast).
+ */
+export const lightColors: AppColors = {
+  primary: '#15803D',
+  primaryLight: '#1FA85C',
+  primaryPale: '#DCF3E6',
+  primaryDark: '#0F6A31',
+  gold: '#B5841C',
+  goldPale: '#FBEBCF',
+  surface: '#FFFFFF',
+  background: '#F4FAF6',
+  backgroundAccent: '#E8F3EC',
+  card: '#FFFFFF',
+  cardMuted: '#EEF6F0',
+  tabBar: 'rgba(255,255,255,0.85)',
+  border: '#D2E5D9',
+  borderLight: '#E4F0E8',
+  text: '#0A2417',
+  textSecondary: '#3A5347',
+  textMuted: '#6B8576',
   textInverse: '#FFFFFF',
-  success: '#68DBA9',
-  successPale: '#002114',
-  warning: '#DEC29A',
-  warningPale: '#271901',
-  error: '#FFB4AB',
-  errorPale: '#93000A',
-  info: '#BEC6E0',
-  infoPale: '#1F293B',
-  shadow: '#000000',
-  overlay: 'rgba(0,0,0,0.72)',
-  glass: 'rgba(23,26,32,0.76)',
-  glassStrong: 'rgba(23,26,32,0.94)',
+  success: '#0E8F5B',
+  successPale: '#DCF5E8',
+  warning: '#B5791A',
+  warningPale: '#FBEBCF',
+  error: '#C73B3B',
+  errorPale: '#FBE0E0',
+  info: '#B5841C',
+  infoPale: '#FBEFD2',
+  shadow: '#0A2417',
+  overlay: 'rgba(7,34,24,0.50)',
+  glass: 'rgba(255,255,255,0.70)',
+  glassStrong: 'rgba(255,255,255,0.90)',
+  aiAccent: '#C9921C',
+  aiAccentPale: '#FBEFD2',
+  aiGlow: 'rgba(201,146,28,0.30)',
+  sand: '#D6A24A',
+  sandPale: '#FBEBCF',
+  onGradient: '#0A2417',
+  gradientPrimary: ['#EFC75E', '#D49A18'],
+  gradientHero: ['#0F5132', '#1A6B3C', '#CBA12C'],
+  blurTint: 'light',
 };
 
 export function getThemeColors(theme: ResolvedTheme): AppColors {

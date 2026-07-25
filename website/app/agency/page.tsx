@@ -1,10 +1,7 @@
-import AgencyPortal from "@/components/agency/AgencyPortal";
+import KvCabinet from "@/components/agency/KvCabinet";
 
-export const metadata = {
-  title: "Agency Portal | TravelorAI",
-  description: "TravelorAI tour agency onboarding and tour dashboard.",
-};
+export const dynamic = "force-dynamic";
 
 export default function AgencyPage() {
-  return <AgencyPortal />;
+  return <KvCabinet />;
 }

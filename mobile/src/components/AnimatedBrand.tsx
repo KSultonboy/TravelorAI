@@ -90,7 +90,7 @@ function createStyles(colors: AppColors, size: number, align: BrandAlign) {
       width: size * 4.2,
       height: size * 1.9,
       borderRadius: size,
-      backgroundColor: colors.primaryPale,
+      backgroundColor: colors.aiGlow,
       top: -(size * 0.22),
     },
     brandText: {
@@ -101,7 +101,7 @@ function createStyles(colors: AppColors, size: number, align: BrandAlign) {
       letterSpacing: 0.4,
     },
     brandAccent: {
-      color: colors.primary,
+      color: colors.aiAccent,
       fontFamily: FONTS.display,
     },
     subtitle: {

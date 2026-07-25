@@ -1,8 +1,10 @@
 const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
+const { issueAuthCode, AuthCodeType } = require('../services/auth.service');
 const { adminReviewSchema } = require('../schemas/agency.schema');
 const { bookingStatusSchema } = require('../schemas/booking.schema');
 const { formatBooking } = require('./bookings.controller');
+const { resolveTourImageUrl } = require('../utils/tourImage');
 const crypto = require('crypto');
 const fs = require('fs/promises');
 const path = require('path');
@@ -18,6 +20,10 @@ function slugify(text) {
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
     .substring(0, 80);
+}
+
+function normalizeTourBadge(value) {
+  return String(value || '').trim().toLowerCase() === 'popular' ? 'Popular' : 'Latest';
 }
 
 async function uniqueSlug(base) {
@@ -267,6 +273,38 @@ async function deleteUser(req, res) {
     return success(res, { id: req.params.id });
   } catch (err) {
     if (err.code === 'P2025') return error(res, 'Foydalanuvchi topilmadi', 404);
+    return error(res, err.message, 500);
+  }
+}
+
+// Admin-triggered password reset: sends a reset CODE to the user's own email.
+// The admin never sees or sets the password — the user completes the reset
+// themselves via the standard /auth/reset-password flow. Also lifts any active
+// login lockout so a locked-out user helped by support can get straight back in.
+async function sendUserPasswordReset(req, res) {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!user) return error(res, 'Foydalanuvchi topilmadi', 404);
+    if (!user.password) {
+      return error(res, 'Bu akkaunt Google orqali yaratilgan — parol tiklash mavjud emas.', 400, {
+        authProvider: 'google',
+      });
+    }
+
+    const result = await issueAuthCode({ user, type: AuthCodeType.PASSWORD_RESET });
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { failedLoginAttempts: 0, lockoutLevel: 0, lockoutUntil: null, lastFailedLoginAt: null },
+    });
+
+    return success(res, {
+      message: `Parol tiklash kodi ${user.email} manziliga yuborildi.`,
+      email: user.email,
+      delivery: result.delivery,
+      ...(result.devCode ? { devCode: result.devCode } : {}),
+    });
+  } catch (err) {
     return error(res, err.message, 500);
   }
 }
@@ -908,7 +946,9 @@ async function approveAgencyApplication(req, res) {
       description: application.description,
       specialty,
       phone: application.phone,
+      telegram: application.telegram || null,
       website: application.website,
+      imageUrl: application.imageUrl,
       active: true,
       source: 'agency_portal',
       confidenceScore: 0.85,
@@ -1018,6 +1058,7 @@ async function getAdminTours(req, res) {
 async function approveTour(req, res) {
   try {
     const { adminNote } = adminReviewSchema.parse(req.body || {});
+    const now = new Date();
     const existing = await prisma.tour.findUnique({
       where: { id: req.params.id },
       include: { agency: true },
@@ -1029,7 +1070,9 @@ async function approveTour(req, res) {
       data: {
         approvalStatus: 'approved',
         active: true,
-        approvedAt: new Date(),
+        badge: normalizeTourBadge(existing.badge),
+        imageUrl: resolveTourImageUrl(existing),
+        approvedAt: now,
         rejectedAt: null,
         adminNote: adminNote || null,
       },
@@ -1040,6 +1083,10 @@ async function approveTour(req, res) {
       await prisma.tourAgency.update({
         where: { id: tour.agencyId },
         data: {
+          active: true,
+          approvalStatus: 'approved',
+          approvedAt: tour.agency?.approvedAt || now,
+          rejectedAt: null,
           toursCount: await prisma.tour.count({
             where: { agencyId: tour.agencyId, active: true, approvalStatus: 'approved' },
           }),
@@ -1440,7 +1487,7 @@ async function deleteFeedback(req, res) {
 
 module.exports = {
   getStats,
-  getUsers, getUser, blockUser, deleteUser,
+  getUsers, getUser, blockUser, deleteUser, sendUserPasswordReset,
   getTrips, getTrip, deleteTrip,
   getPlaces, getPlace, createPlace, updatePlace, deletePlace,
   getHeroSlides, createHeroSlide, updateHeroSlide, deleteHeroSlide,

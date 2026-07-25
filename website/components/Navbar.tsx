@@ -2,11 +2,14 @@
 
 import { useState } from "react";
 import { Compass, Menu, X } from "lucide-react";
+import Link from "next/link";
 
 const NAV_LINKS = [
-  { href: "#home", label: "Home" },
-  { href: "#features", label: "Features" },
-  { href: "#about", label: "About Us" },
+  { href: "#home", label: "Asosiy" },
+  { href: "#features", label: "Yo‘nalishlar" },
+  { href: "/tours", label: "Turlar", page: true },
+  { href: "#how-it-works", label: "Qanday ishlaydi" },
+  { href: "#contact", label: "Aloqa" },
 ];
 
 export default function Navbar() {
@@ -41,35 +44,12 @@ export default function Navbar() {
         </a>
 
         <div className="site-nav__links">
-          {NAV_LINKS.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              onClick={(event) => {
-                event.preventDefault();
-                scrollToTarget(item.href);
-              }}
-            >
-              {item.label}
-            </a>
-          ))}
-        </div>
-
-        <button
-          className="site-nav__toggle"
-          type="button"
-          aria-label="Menyuni ochish"
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((open) => !open)}
-        >
-          {menuOpen ? <X size={17} /> : <Menu size={17} />}
-        </button>
-      </nav>
-
-      {menuOpen && (
-        <div className="site-nav__mobile">
-          <div className="site-nav__mobile-links">
-            {NAV_LINKS.map((item) => (
+          {NAV_LINKS.map((item) =>
+            item.page ? (
+              <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)}>
+                {item.label}
+              </Link>
+            ) : (
               <a
                 key={item.href}
                 href={item.href}
@@ -80,7 +60,45 @@ export default function Navbar() {
               >
                 {item.label}
               </a>
-            ))}
+            )
+          )}
+        </div>
+
+        <button
+          className="site-nav__toggle"
+          type="button"
+          aria-label={menuOpen ? "Menyuni yopish" : "Menyuni ochish"}
+          aria-controls="mobile-navigation"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          {menuOpen ? <X size={17} /> : <Menu size={17} />}
+        </button>
+        <Link className="site-nav__account" href="/login">Kirish</Link>
+      </nav>
+
+      {menuOpen && (
+        <div className="site-nav__mobile" id="mobile-navigation">
+          <div className="site-nav__mobile-links">
+            {NAV_LINKS.map((item) =>
+              item.page ? (
+                <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)}>
+                  {item.label}
+                </Link>
+              ) : (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    scrollToTarget(item.href);
+                  }}
+                >
+                  {item.label}
+                </a>
+              )
+            )}
+            <Link href="/login">Kirish / Ro‘yxatdan o‘tish</Link>
           </div>
         </div>
       )}
