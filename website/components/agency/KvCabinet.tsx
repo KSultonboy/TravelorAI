@@ -21,6 +21,7 @@ import {
   normalizeSource,
   LEAD_SOURCE_LABEL,
   LEAD_SOURCE_OPTIONS,
+  LEAD_SOURCES,
   type CrmLead,
   type CrmStage,
 } from "@/lib/agency/crm";
@@ -1032,7 +1033,8 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
     const query = q.trim().toLowerCase();
     if (query) a = a.filter((l: CrmLead) => (l.customerName || "").toLowerCase().includes(query) || (l.customerPhone || "").replace(/\s/g, "").includes(query.replace(/\s/g, "")) || (l.customerEmail || "").toLowerCase().includes(query));
     if (fStage !== "all") a = a.filter((l: CrmLead) => l.stage === fStage);
-    if (fSource !== "all") a = a.filter((l: CrmLead) => l.source === fSource);
+    // normalizeSource — eski/notanish qiymatlar ham to'g'ri guruhga tushsin
+    if (fSource !== "all") a = a.filter((l: CrmLead) => normalizeSource(l.source) === fSource);
     return a;
   }, [archivedLeads, q, fStage, fSource]);
   const dl = leads.find((x: CrmLead) => x.id === detailId) || arch.find((x: CrmLead) => x.id === detailId);
@@ -1095,9 +1097,11 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
             </select>
             <select className="arch-sel" value={fSource} onChange={(e) => setFSource(e.target.value)}>
               <option value="all">Barcha manba</option>
-              <option value="manual">Qo&apos;lda</option>
-              <option value="telegram">Telegram</option>
-              <option value="marketplace">Marketplace</option>
+              {/* YAGONA manba: lib/agency/crm LEAD_SOURCES — lid qo'shish formasi,
+                  hisobot diagrammasi va bu filtr bir xil ro'yxatdan foydalanadi.
+                  Ilgari bu yerda faqat 3 tasi qo'lda yozilgan edi, shuning uchun
+                  Instagram/WhatsApp/Offline lidlarini filtrlab bo'lmasdi. */}
+              {LEAD_SOURCES.map((s) => <option key={s} value={s}>{LEAD_SOURCE_LABEL[s]}</option>)}
             </select>
           </div>
           <div className="card tbl-wrap">
@@ -1383,7 +1387,10 @@ function Tasks({ show, agencyId, tasks, leads, readOnly }: any) {
   const openTaskLeadIds = useMemo(() => new Set(tasks.filter((t: any) => !t.done && t.leadId).map((t: any) => t.leadId)), [tasks]);
   const untracked = useMemo(() => openLeadOpts.filter((l) => !openTaskLeadIds.has(l.id)), [openLeadOpts, openTaskLeadIds]);
   const activeCount = g.overdue.length + g.today.length + g.upcoming.length + g.noDue.length;
-  const inp: any = { padding: "10px 12px", border: "1px solid rgba(255,255,255,.15)", background: "rgba(255,255,255,.04)", color: "inherit", borderRadius: 10, fontSize: 14, minWidth: 0 };
+  // DIQQAT: qattiq rang YOZILMAYDI. Ilgari chegara rgba(255,255,255,.15) edi —
+  // och rejimda oq kartada ko'rinmasdi, maydonlar chegarasiz turardi. Ranglar
+  // mavzu tokenlaridan olinadi, shuning uchun ikki rejimda ham to'g'ri.
+  const inp: any = { padding: "10px 12px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--t1)", borderRadius: 10, fontSize: 14, minWidth: 0, fontFamily: "inherit", outline: "none" };
 
   function submit(e?: any) {
     e?.preventDefault?.();
@@ -1538,11 +1545,24 @@ function TelegramAlertSetup() {
   );
 }
 
+/* Taklif narxi kim uchun — erkin matn emas, tanlov. Mijoz sahifasida aynan
+   shu matn chiqadi, shuning uchun imlo/format har taklifda bir xil bo'ladi. */
+const OFFER_BASIS: { v: string; label: string }[] = [
+  { v: "1 kishi uchun", label: "1 kishi uchun" },
+  { v: "2 kishi uchun", label: "2 kishi uchun" },
+  { v: "2 kishilik nomer uchun", label: "2 kishilik nomer uchun" },
+  { v: "butun guruh uchun", label: "Butun guruh uchun" },
+  { v: "", label: "Ko'rsatilmasin" },
+];
+
 function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
   const [leadId, setLeadId] = useState("");
   const [tourId, setTourId] = useState("");
   const [title, setTitle] = useState("");
-  const [price, setPrice] = useState("");
+  // Narx: raqam + valyuta + kim uchun — uchtasi tanlov, matn o'zi yasaladi.
+  const [amount, setAmount] = useState("");
+  const [currency, setCurrency] = useState("USD");
+  const [basis, setBasis] = useState(OFFER_BASIS[0].v);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -1558,8 +1578,20 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
     const t = tours.find((x: any) => x.id === id);
     if (!t) return;
     setTitle(t.title || "");
-    setPrice(t.price || (t.priceMin ? formatMoney(t.priceMin) : ""));
+    // Narxni turdan olamiz: aniq son bo'lmasa matndagi raqamlardan yig'amiz.
+    const num = Number(t.priceMin) || Number(String(t.price || "").replace(/[^\d]/g, "")) || 0;
+    setAmount(num ? String(num) : "");
+    if (t.priceCurrency === "UZS" || t.priceCurrency === "USD") setCurrency(t.priceCurrency);
   }
+  // Mijoz sahifasida ko'rinadigan narx matni — tanlovlardan yasaladi.
+  const priceText = (() => {
+    const num = Number(String(amount).replace(/[^\d]/g, ""));
+    if (!num) return "";
+    const money = currency === "UZS"
+      ? `${new Intl.NumberFormat("ru-RU").format(num)} so'm`
+      : formatMoney(num);
+    return basis ? `${money} / ${basis}` : money;
+  })();
   function pickTour(id: string) {
     setTourId(id);
     if (id) fillFromTour(id);
@@ -1595,7 +1627,10 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
     interested: items.filter((p: any) => p.status === "interested").length,
   }), [items]);
 
-  const inp: any = { padding: "10px 12px", border: "1px solid rgba(255,255,255,.15)", background: "rgba(255,255,255,.04)", color: "inherit", borderRadius: 10, fontSize: 14, minWidth: 0 };
+  // DIQQAT: qattiq rang YOZILMAYDI. Ilgari chegara rgba(255,255,255,.15) edi —
+  // och rejimda oq kartada ko'rinmasdi, maydonlar chegarasiz turardi. Ranglar
+  // mavzu tokenlaridan olinadi, shuning uchun ikki rejimda ham to'g'ri.
+  const inp: any = { padding: "10px 12px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--t1)", borderRadius: 10, fontSize: 14, minWidth: 0, fontFamily: "inherit", outline: "none" };
   const stepLabel: any = { display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 700 };
   const stepNum: any = { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: 999, background: "rgba(234,179,8,.15)", color: "#EAB308", fontSize: 12.5, fontWeight: 800, flex: "0 0 auto" };
   const hint: any = { color: "#8aa398", fontSize: 12.5 };
@@ -1623,14 +1658,14 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
         tourId: tourId || undefined,
         title: title.trim() || undefined,
         customerName: lead?.customerName || undefined,
-        priceText: price.trim() || undefined,
+        priceText: priceText || undefined,
         note: note.trim() || undefined,
       }),
     });
     setBusy(false);
     if (!res.success) { setErr(res.message || "Taklif yaratilmadi"); return; }
     setCreated(res.data);
-    setTitle(""); setPrice(""); setNote(""); setTourId(""); setLeadId("");
+    setTitle(""); setAmount(""); setBasis(OFFER_BASIS[0].v); setNote(""); setTourId(""); setLeadId("");
     await reload();
   }
 
@@ -1718,11 +1753,30 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
           {/* 3 — Nomi, narx, izoh */}
           <div style={{ display: "grid", gap: 6 }}>
             <label style={stepLabel}><span style={stepNum}>3</span> Nomi, narxi va izoh</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Taklif nomi" style={inp} />
+            {/* Narx — erkin matn EMAS: son + valyuta + kim uchun. Mijoz sahifasidagi
+                matn shundan yasaladi, har taklifda bir xil ko'rinishda bo'ladi. */}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Taklif nomi" style={{ ...inp, flex: "2 1 240px" }} />
-              <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Narx, masalan: 850$ / kishi" style={{ ...inp, flex: "1 1 180px" }} />
+              <input
+                value={amount}
+                onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))}
+                inputMode="numeric"
+                placeholder="Narx (faqat son)"
+                style={{ ...inp, flex: "1 1 150px" }}
+              />
+              <select value={currency} onChange={(e) => setCurrency(e.target.value)} style={{ ...inp, flex: "0 1 110px" }}>
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c === "UZS" ? "so'm" : "USD ($)"}</option>)}
+              </select>
+              <select value={basis} onChange={(e) => setBasis(e.target.value)} style={{ ...inp, flex: "1 1 190px" }}>
+                {OFFER_BASIS.map((b) => <option key={b.v || "none"} value={b.v}>{b.label}</option>)}
+              </select>
             </div>
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Shaxsiy izoh — nega aynan shu tur mos kelishini yozing (ixtiyoriy)…" style={{ ...inp, resize: "vertical", width: "100%" }} />
+            <small style={hint}>
+              {priceText
+                ? <>Mijoz shunday ko&apos;radi: <b style={{ color: "#EAB308" }}>{priceText}</b></>
+                : "Narxni yozsangiz — mijoz sahifasida qanday ko'rinishini shu yerda ko'rsatamiz."}
+            </small>
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Shaxsiy izoh — nega aynan shu tur mos kelishini yozing (ixtiyoriy)…" style={{ ...inp, resize: "vertical", width: "100%", lineHeight: 1.5 }} />
           </div>
 
           {err ? <div style={{ color: "#F43F5E", fontSize: 13 }}>{err}</div> : null}
@@ -3317,7 +3371,7 @@ function TelegramBroadcast({ tgLeads, readOnly }: { tgLeads: CrmLead[]; readOnly
   const [result, setResult] = useState<{ total: number; sent: number; failed: number } | null>(null);
   const [err, setErr] = useState("");
   const count = useMemo(() => (stage ? tgLeads.filter((l) => l.stage === stage).length : tgLeads.length), [tgLeads, stage]);
-  const fld: any = { padding: "10px 12px", border: "1px solid rgba(255,255,255,.15)", background: "rgba(255,255,255,.04)", color: "inherit", borderRadius: 10, fontSize: 14 };
+  const fld: any = { padding: "10px 12px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--t1)", borderRadius: 10, fontSize: 14, fontFamily: "inherit", outline: "none" };
 
   async function send() {
     setBusy(true); setErr(""); setResult(null);
