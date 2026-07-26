@@ -669,3 +669,5 @@
 /* Tur formasidagi belgilash (checkbox) — «kiritilgan» maydonlari uchun */
 .kv .kv-check{ display:inline-flex; align-items:center; gap:8px; font-size:13.5px; color:var(--t1); cursor:pointer; user-select:none; }
 .kv .kv-check input{ width:17px; height:17px; accent-color:var(--primary); cursor:pointer; }
+/* «Narxga nimalar kiritilgan» — 4 ta belgi, torroq ekranda o'ziga o'tadi */
+.kv .kv-checkrow{ display:flex; flex-wrap:wrap; gap:10px 18px; padding:9px 12px; border:1px solid var(--border); border-radius:10px; background:var(--surface); }

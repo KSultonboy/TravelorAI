@@ -559,6 +559,10 @@ model Tour {
   hotelIncluded       Boolean       @default(false)
   /// Aviabilet kiritilganmi — tur sahifasidagi «Nimalar kiritilgan» shundan.
   flightIncluded      Boolean       @default(false)
+  /// Transfer (aeroport ⇄ mehmonxona) kiritilganmi.
+  transferIncluded    Boolean       @default(false)
+  /// Sayohat sug'urtasi kiritilganmi.
+  insuranceIncluded   Boolean       @default(false)
   hotelName           String?
   hotelCategory       String?
   hotelLocation       String?

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BedDouble, Clock3, MapPin, Plane, ShieldCheck, Star } from "lucide-react";
+import { BedDouble, Car, Clock3, HeartPulse, MapPin, Plane, ShieldCheck, Star } from "lucide-react";
 import MarketingShell from "@/components/marketing/MarketingShell";
 import Reveal from "@/components/marketing/Reveal";
 import BookingPanel from "@/components/marketing/BookingPanel";
@@ -36,6 +36,8 @@ function inclusions(tour: Tour): { icon: typeof BedDouble; label: string }[] {
   const list: { icon: typeof BedDouble; label: string }[] = [];
   if (tour.hotelIncluded) list.push({ icon: BedDouble, label: "Mehmonxona" });
   if (tour.flightIncluded) list.push({ icon: Plane, label: "Aviabilet" });
+  if (tour.transferIncluded) list.push({ icon: Car, label: "Transfer" });
+  if (tour.insuranceIncluded) list.push({ icon: HeartPulse, label: "Sug‘urta" });
   return list;
 }
 

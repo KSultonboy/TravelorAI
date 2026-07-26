@@ -200,6 +200,8 @@ function formatTour(item) {
     hotelIncluded: Boolean(item.hotelIncluded),
     // flightIncluded — tur sahifasidagi «Nimalar kiritilgan» ro'yxati uchun
     flightIncluded: Boolean(item.flightIncluded),
+    transferIncluded: Boolean(item.transferIncluded),
+    insuranceIncluded: Boolean(item.insuranceIncluded),
     hotelName: item.hotelName || null,
     hotelCategory: item.hotelCategory || null,
     hotelLocation: item.hotelLocation || null,

@@ -141,6 +141,8 @@ const tourSchema = z.object({
   hotelIncluded: z.coerce.boolean().optional().default(false),
   // Aviabilet kiritilganmi — tur sahifasidagi «Nimalar kiritilgan» shundan.
   flightIncluded: z.coerce.boolean().optional().default(false),
+  transferIncluded: z.coerce.boolean().optional().default(false),
+  insuranceIncluded: z.coerce.boolean().optional().default(false),
   hotelName: optionalText,
   hotelCategory: optionalText,
   hotelLocation: optionalText,

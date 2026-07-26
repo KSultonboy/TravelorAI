@@ -2769,6 +2769,8 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
   });
   const [hotelIncluded, setHotelIncluded] = useState<boolean>(!!tour?.hotelIncluded);
   const [flightIncluded, setFlightIncluded] = useState<boolean>(!!tour?.flightIncluded);
+  const [transferIncluded, setTransferIncluded] = useState<boolean>(!!tour?.transferIncluded);
+  const [insuranceIncluded, setInsuranceIncluded] = useState<boolean>(!!tour?.insuranceIncluded);
   // Yangi tur — forma yig'iq (tezkor: 4-5 maydon + rasm). Tahrir/nusxa — batafsil ochiq.
   const [advanced, setAdvanced] = useState(!!tour);
   const [img, setImg] = useState(tour?.imageUrl || "");
@@ -2777,10 +2779,11 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
   const [confirming, setConfirming] = useState(false);
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
   // Xizmatlar uchun tez tanlov chiplari — bosib qo'shiladi, yozib o'tirilmaydi.
-  // DIQQAT: «Aviabilet» va «Mehmonxona» bu yerda YO'Q — ular yuqoridagi
-  // checkbox'lar bilan belgilanadi (takror kiritishga hojat yo'q), doSave
-  // ularni xizmatlar ro'yxatiga o'zi qo'shadi.
-  const HL_CHIPS = ["Transfer", "Gid", "Ovqat", "Viza", "Sug'urta", "Ekskursiya"];
+  // DIQQAT: mehmonxona / aviabilet / transfer / sug'urta bu yerda YO'Q — ular
+  // yuqoridagi checkbox'lar bilan belgilanadi (takror kiritishga hojat yo'q) va
+  // sayt tur sahifasidagi «Nimalar kiritilgan» ro'yxatiga tushadi. doSave
+  // ularni xizmatlar ro'yxatiga ham o'zi qo'shib qo'yadi.
+  const HL_CHIPS = ["Gid", "Ovqat", "Viza", "Ekskursiya", "SIM-karta", "Muzey chiptalari"];
   const hlHas = (c: string) => String(f.highlights).split(",").map((s: string) => s.trim().toLowerCase()).includes(c.toLowerCase());
   const toggleHl = (c: string) => setF((p) => {
     const arr = String(p.highlights).split(",").map((s: string) => s.trim()).filter(Boolean);
@@ -2882,6 +2885,8 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
     };
     syncFlag(hotelIncluded, "Mehmonxona");
     syncFlag(flightIncluded, "Aviabilet");
+    syncFlag(transferIncluded, "Transfer");
+    syncFlag(insuranceIncluded, "Sug'urta");
     const highlights = hlSet.slice(0, 20);
     const body: Record<string, unknown> = {
       title: f.title.trim(), city: f.city.trim(), subtitle: f.subtitle.trim(), duration,
@@ -2895,6 +2900,8 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
       hotelCategory: f.hotelCategory || undefined,
       hotelIncluded,
       flightIncluded,
+      transferIncluded,
+      insuranceIncluded,
     };
     if (!editing || img !== (tour?.imageUrl || "")) body.imageUrl = img || null;
     body.images = gallery;
@@ -3026,15 +3033,21 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
           </div>
 
           {/* Kiritilganmi — tur sahifasidagi «Nimalar kiritilgan» shundan yasaladi */}
-          <div style={{ display: "flex", gap: 18, flexWrap: "wrap", margin: "2px 0 12px" }}>
-            <label className="kv-check"><input type="checkbox" checked={hotelIncluded} onChange={(e) => setHotelIncluded(e.target.checked)} /> Mehmonxona kiritilgan</label>
-            <label className="kv-check"><input type="checkbox" checked={flightIncluded} onChange={(e) => setFlightIncluded(e.target.checked)} /> Aviabilet kiritilgan</label>
+          <div className="fld" style={{ marginBottom: 12 }}>
+            <label>Narxga nimalar kiritilgan</label>
+            <div className="kv-checkrow">
+              <label className="kv-check"><input type="checkbox" checked={hotelIncluded} onChange={(e) => setHotelIncluded(e.target.checked)} /> Mehmonxona</label>
+              <label className="kv-check"><input type="checkbox" checked={flightIncluded} onChange={(e) => setFlightIncluded(e.target.checked)} /> Aviabilet</label>
+              <label className="kv-check"><input type="checkbox" checked={transferIncluded} onChange={(e) => setTransferIncluded(e.target.checked)} /> Transfer</label>
+              <label className="kv-check"><input type="checkbox" checked={insuranceIncluded} onChange={(e) => setInsuranceIncluded(e.target.checked)} /> Sug&apos;urta</label>
+            </div>
+            <small className="fld-hint">Belgilanganlari tur sahifasida «Nimalar kiritilgan» bo&apos;limida belgichalar bilan chiqadi.</small>
           </div>
 
           <div className="fld">
             <label>Qo&apos;shimcha xizmatlar</label>
-            <input value={f.highlights} onChange={set("highlights")} placeholder="Transfer, Gid, Ovqat" />
-            <small className="fld-hint">Mehmonxona va aviabiletni yuqoridagi belgi bilan tanlaysiz — bu yerga qayta yozish shart emas.</small>
+            <input value={f.highlights} onChange={set("highlights")} placeholder="Gid, Ovqat, Viza" />
+            <small className="fld-hint">Mehmonxona, aviabilet, transfer va sug&apos;urtani yuqoridagi belgilar bilan tanlaysiz — bu yerga qayta yozish shart emas.</small>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "-4px 0 2px" }}>
             {HL_CHIPS.map((c) => {
