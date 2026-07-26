@@ -1609,7 +1609,7 @@ function TelegramAlertSetup() {
         botingiz sizga darhol xabar beradi — CRM ochiq bo&apos;lmasa ham.
       </p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <code style={{ padding: "9px 12px", background: "rgba(255,255,255,.06)", borderRadius: 9, fontSize: 13.5 }}>{cmd}</code>
+        <code style={{ padding: "9px 12px", background: "var(--canvas)", border: "1px solid var(--border)", borderRadius: 9, fontSize: 13.5 }}>{cmd}</code>
         <button
           className="btn btn-ghost btn-sm"
           onClick={() => { void navigator.clipboard.writeText(cmd).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); }).catch(() => {}); }}
@@ -1793,7 +1793,7 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
         <div className="card" style={{ padding: 16, marginBottom: 12, borderColor: "rgba(234,179,8,.45)" }}>
           <b style={{ color: "#EAB308" }}>Taklif tayyor — havolani mijozga yuboring</b>
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <code style={{ flex: "1 1 260px", padding: "10px 12px", background: "rgba(255,255,255,.05)", borderRadius: 10, fontSize: 13, wordBreak: "break-all" }}>{created.url}</code>
+            <code style={{ flex: "1 1 260px", padding: "10px 12px", background: "var(--canvas)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 13, wordBreak: "break-all" }}>{created.url}</code>
             <button className="btn btn-primary btn-sm" onClick={() => void copy(created.url, "new")}>
               <Ic d={I.copy} s={14} /> {copied === "new" ? "Nusxalandi" : "Nusxalash"}
             </button>
@@ -2247,7 +2247,7 @@ function Reports({ show, leads }: any) {
                   </td>
                   <td className="r">
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
-                      <div style={{ width: 54, height: 5, borderRadius: 3, background: "rgba(255,255,255,.08)", overflow: "hidden" }}>
+                      <div style={{ width: 54, height: 5, borderRadius: 3, background: "var(--border)", overflow: "hidden" }}>
                         <div style={{ width: `${(c.revenue / r.maxChanRev) * 100}%`, height: "100%", background: "#0F5132" }} />
                       </div>
                       <b>{formatMoney(c.revenue)}</b>
@@ -3366,7 +3366,7 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
             {gallery.length ? (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
                 {gallery.map((src, i) => (
-                  <div key={`${src.slice(0, 24)}-${i}`} style={{ position: "relative", width: 84, height: 64, borderRadius: 10, overflow: "hidden", background: "rgba(255,255,255,.06)" }}>
+                  <div key={`${src.slice(0, 24)}-${i}`} style={{ position: "relative", width: 84, height: 64, borderRadius: 10, overflow: "hidden", background: "var(--canvas)" }}>
                     <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                     <button
                       type="button"
@@ -3395,14 +3395,14 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
             {stops.length ? (
               <div style={{ display: "grid", gap: 6, marginTop: 10 }}>
                 {stops.map((s, i) => (
-                  <div key={`${s.lat}-${s.lng}-${i}`} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", borderRadius: 10, background: "rgba(255,255,255,.05)" }}>
+                  <div key={`${s.lat}-${s.lng}-${i}`} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", borderRadius: 10, background: "var(--canvas)", border: "1px solid var(--border)" }}>
                     <span style={{ flex: "0 0 auto", width: 22, height: 22, borderRadius: "50%", background: "#0F5132", color: "#fff", fontSize: 12, fontWeight: 700, display: "grid", placeItems: "center" }}>{i + 1}</span>
                     <input
                       value={s.name}
                       onChange={(e) => setStops((p) => p.map((x, xi) => (xi === i ? { ...x, name: e.target.value } : x)))}
                       aria-label={`${i + 1}-nuqta nomi`}
                       title="Nomni o'zgartirishingiz mumkin — mijoz aynan shuni ko'radi"
-                      style={{ flex: 1, minWidth: 0, padding: "5px 9px", fontSize: 14, background: "transparent", border: "1px solid rgba(255,255,255,.13)", borderRadius: 7, color: "inherit" }}
+                      style={{ flex: 1, minWidth: 0, padding: "5px 9px", fontSize: 14, fontFamily: "inherit", background: "var(--field-bg)", border: "1px solid var(--field-border)", borderRadius: 7, color: "var(--t1)", outline: "none" }}
                     />
                     <button type="button" onClick={() => moveStop(i, -1)} disabled={i === 0} aria-label="Yuqoriga" style={{ background: "transparent", border: 0, color: "inherit", cursor: i === 0 ? "default" : "pointer", opacity: i === 0 ? 0.25 : 0.6, padding: 3 }}>↑</button>
                     <button type="button" onClick={() => moveStop(i, 1)} disabled={i === stops.length - 1} aria-label="Pastga" style={{ background: "transparent", border: 0, color: "inherit", cursor: i === stops.length - 1 ? "default" : "pointer", opacity: i === stops.length - 1 ? 0.25 : 0.6, padding: 3 }}>↓</button>
@@ -3423,7 +3423,7 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
             {days.length ? (
               <div style={{ display: "grid", gap: 10 }}>
                 {days.map((d, i) => (
-                  <div key={i} style={{ padding: 12, borderRadius: 12, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.09)" }}>
+                  <div key={i} style={{ padding: 12, borderRadius: 12, background: "var(--canvas)", border: "1px solid var(--border)" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 9 }}>
                       <span style={{ flex: "0 0 auto", padding: "5px 11px", borderRadius: 999, background: "#0F5132", color: "#fff", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{i + 1}-kun</span>
                       <input
@@ -3440,7 +3440,7 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
                     {d.places.length ? (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 9 }}>
                         {d.places.map((pl, pi) => (
-                          <span key={`${pl.lat}-${pl.lng}-${pi}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 6px 5px 11px", borderRadius: 999, background: "rgba(255,255,255,.07)", fontSize: 13 }}>
+                          <span key={`${pl.lat}-${pl.lng}-${pi}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 6px 5px 11px", borderRadius: 999, background: "var(--surface)", border: "1px solid var(--border)", fontSize: 13 }}>
                             {pl.name}
                             <button type="button" onClick={() => patchDay(i, { places: d.places.filter((_, y) => y !== pi) })} aria-label={`${pl.name} — o'chirish`} style={{ width: 17, height: 17, borderRadius: "50%", border: 0, cursor: "pointer", background: "rgba(0,0,0,.28)", color: "inherit", fontSize: 12, lineHeight: 1, display: "grid", placeItems: "center" }}>×</button>
                           </span>
