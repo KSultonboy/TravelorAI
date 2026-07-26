@@ -1264,7 +1264,9 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat,
     ["Kishilar soni", lead.travelers || "—"],
     ["Sayohat sanasi", lead.travelDate ? formatDate(lead.travelDate) : "—"],
     ["Taxminiy summa", lead.totalEstimate ? formatMoney(lead.totalEstimate) : "—"],
-    ["Tug'ilgan kun", lead.customerBirthday ? formatDate(lead.customerBirthday) : "—"],
+    ...(BIRTHDAY_LIVE
+      ? ([["Tug'ilgan kun", lead.customerBirthday ? formatDate(lead.customerBirthday) : "—"]] as [string, React.ReactNode][])
+      : []),
     // Qayerdan keldi — o'qish ko'rinishida ham ko'rinsin (o'zgartirish ✏️ ostida)
     ["Qayerdan keldi", <span className={`badge2 ${SRC_BADGE[normalizeSource(lead.source)] || "b-grey"}`}>{srcLabel(lead.source)}</span>],
   ];
@@ -1309,7 +1311,7 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat,
               {inp("travelers", "Kishilar soni", { type: "number" })}
               {inp("travelDate", "Sayohat sanasi", { type: "date" })}
               {inp("totalEstimate", "Taxminiy summa ($)", { ph: "800" })}
-              {inp("customerBirthday", "Tug'ilgan kun", { type: "date" })}
+              {BIRTHDAY_LIVE ? inp("customerBirthday", "Tug'ilgan kun", { type: "date" }) : null}
               {/* Manba — mijoz qayerdan kelgani. Hisobotdagi doiraviy diagramma shundan yasaladi. */}
               <div className="fld">
                 <label>Qayerdan keldi (manba)</label>
@@ -1367,6 +1369,19 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat,
   );
 }
 
+/**
+ * Tug'ilgan kun / avto-tabrik — VAQTINCHA YASHIRILGAN.
+ *
+ * Sabab: bot faqat o'zi bilan suhbat boshlagan mijozga yozadi (Telegram
+ * cheklovi), shuning uchun Telegramда bo'lmagan mijozlarda tabrik yetib
+ * bormaydi va jadval ⚠ belgilariga to'lib ketardi.
+ *
+ * Kod, backend, baza va migratsiyalar JOYIDA — faqat interfeysda ko'rinmaydi.
+ * Qayta yoqish uchun shu bayroqni `true` qilish kifoya (boshqa hech narsa
+ * o'zgartirilmaydi). Xuddi TEAM_LIVE bayrog'i kabi.
+ */
+const BIRTHDAY_LIVE: boolean = false;
+
 /* Mijoz tug'ilgan kuni — o'zgartirilganda serverга yoziladi (avto-tabrik uchun) */
 function BirthdayCell({ customer, readOnly, onSaved }: any) {
   const [val, setVal] = useState(customer.birthday ? String(customer.birthday).slice(0, 10) : "");
@@ -1404,13 +1419,13 @@ function Customers({ show, customers, canExport, readOnly, refresh }: any) {
       <div className="card tbl-wrap">
         {customers.length ? (
           <table>
-            <thead><tr><th>Mijoz</th><th>Telefon</th><th>Tug&apos;ilgan kun</th><th>So&apos;rovlar</th><th className="r">Jami qiymat</th><th>Holat</th><th>Aloqa</th></tr></thead>
+            <thead><tr><th>Mijoz</th><th>Telefon</th>{BIRTHDAY_LIVE ? <th>Tug&apos;ilgan kun</th> : null}<th>So&apos;rovlar</th><th className="r">Jami qiymat</th><th>Holat</th><th>Aloqa</th></tr></thead>
             <tbody>
               {customers.map((c: any) => (
                 <tr key={c.keyId}>
                   <td><div className="cell"><span className="av-sm">{initials(c.name)}</span><b>{c.name}</b></div></td>
                   <td>{c.phone || "—"}</td>
-                  <td><BirthdayCell customer={c} readOnly={readOnly} onSaved={refresh} /></td>
+                  {BIRTHDAY_LIVE ? <td><BirthdayCell customer={c} readOnly={readOnly} onSaved={refresh} /></td> : null}
                   <td>{c.leads.length}</td>
                   <td className="r money">{formatMoney(c.totalValue)}</td>
                   <td><span className={`badge2 ${c.totalValue >= 1500 ? "b-amber" : c.wonCount > 1 ? "b-green" : c.wonCount ? "b-grey" : "b-sky"}`}>{c.totalValue >= 1500 ? "VIP" : c.wonCount > 1 ? "Doimiy" : c.wonCount ? "Faol" : "Yangi"}</span></td>
@@ -3700,7 +3715,9 @@ function TelegramSettings() {
           </div>
         </div>
 
-        <div className="tg-welcome" style={{ marginTop: 14 }}>
+        {/* Tug'ilgan kun tabrigi — BIRTHDAY_LIVE bayrog'i bilan yashirilgan.
+            Matn serverda saqlanib turadi, qayta yoqilganda o'z joyida bo'ladi. */}
+        <div className="tg-welcome" style={{ marginTop: 14, display: BIRTHDAY_LIVE ? undefined : "none" }}>
           <label>🎂 Tug&apos;ilgan kun tabrigi matni (mijoz tug&apos;ilgan kuni bot avtomatik yuboradi)</label>
           <textarea value={birthday} onChange={(e) => setBirthday(e.target.value)} rows={5} placeholder={birthdayDefault || "Standart matn ishlatiladi"} />
           <div style={{ fontSize: 12.5, color: "#8aa398", marginTop: 6 }}>
