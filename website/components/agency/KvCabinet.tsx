@@ -1202,6 +1202,8 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat,
     ["Sayohat sanasi", lead.travelDate ? formatDate(lead.travelDate) : "—"],
     ["Taxminiy summa", lead.totalEstimate ? formatMoney(lead.totalEstimate) : "—"],
     ["Tug'ilgan kun", lead.customerBirthday ? formatDate(lead.customerBirthday) : "—"],
+    // Qayerdan keldi — o'qish ko'rinishida ham ko'rinsin (o'zgartirish ✏️ ostida)
+    ["Qayerdan keldi", <span className={`badge2 ${SRC_BADGE[normalizeSource(lead.source)] || "b-grey"}`}>{srcLabel(lead.source)}</span>],
   ];
   if (lead.utmSource) fields.push(["Manba (UTM)", lead.utmSource]);
   const inp = (k: string, label: string, o?: { type?: string; ph?: string; full?: boolean }) => (
