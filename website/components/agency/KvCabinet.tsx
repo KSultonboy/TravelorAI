@@ -1381,9 +1381,12 @@ function BirthdayCell({ customer, readOnly, onSaved }: any) {
   if (readOnly) return <span style={{ color: "#8aa398", fontSize: 13 }}>{val ? formatDate(val) : "—"}</span>;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      {/* DIQQAT: bu yerda ilgari qattiq rang va colorScheme:"dark" yozilgan edi —
+          och rejimda chegara ko'rinmasdi va sana tanlash oynasi qora chiqardi.
+          Ranglar mavzu tokenlaridan; color-scheme'ni CSS o'zi hal qiladi. */}
       <input type="date" value={val} max={new Date().toISOString().slice(0, 10)} disabled={busy}
         onChange={(e) => void save(e.target.value)}
-        style={{ padding: "5px 8px", border: "1px solid rgba(255,255,255,.14)", background: "rgba(255,255,255,.04)", color: "inherit", borderRadius: 8, fontSize: 13, colorScheme: "dark" }} />
+        style={{ padding: "5px 8px", border: "1px solid var(--field-border)", background: "var(--field-bg)", color: "var(--t1)", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none" }} />
       {saved ? <span style={{ color: "#1E9E63", fontSize: 13 }}>✓</span> : null}
       {!customer.hasTelegram && val ? (
         <span title="Bu mijoz Telegramда bog'lanmagan — avto-tabrik hozircha faqat Telegram orqali yuboriladi" style={{ color: "#CA8A04", fontSize: 13, cursor: "help" }}>⚠</span>
