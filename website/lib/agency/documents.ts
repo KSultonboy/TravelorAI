@@ -314,7 +314,10 @@ function tplCtx(c: Ctx): Record<string, string> {
   };
 }
 
-/* Ekranда tahrirlanadigan, chop etishда oddiy matnга aylanadigan maydon. */
+/* Ekranда tahrirlanadigan, chop etishда oddiy matnга aylanadigan maydon.
+   `placeholder` — maydonga NIMA yozilishini ko'rsatuvchi namuna. U faqat
+   ekranda ko'rinadi: chop etishда `.fill:empty::before{color:transparent}`
+   uni yashiradi, ya'ni to'ldirilmagan maydon bo'sh chiziq bo'lib chiqadi. */
 function fill(value: string, placeholder = "________________"): string {
   const v = String(value || "").trim();
   return `<span class="fill" contenteditable="true" data-ph="${esc(placeholder)}">${esc(v)}</span>`;
@@ -380,7 +383,7 @@ function contractBody(c: Ctx): string {
       <div class="req-col">
         <div class="req-h">IJROCHI</div>
         <div>${esc(c.legal)}</div>
-        ${c.req.address ? `<div>Manzil: ${esc(c.req.address)}</div>` : `<div>Manzil: ${fill("", "____________")}</div>`}
+        ${c.req.address ? `<div>Manzil: ${esc(c.req.address)}</div>` : `<div>Manzil: ${fill("", "yuridik manzil — Rekvizitlarda to'ldiring")}</div>`}
         ${c.req.stir ? `<div>STIR: ${esc(c.req.stir)}</div>` : ""}
         ${c.req.bankName ? `<div>Bank: ${esc(c.req.bankName)}</div>` : ""}
         ${c.req.account ? `<div>h/r: ${esc(c.req.account)}</div>` : ""}
@@ -391,8 +394,8 @@ function contractBody(c: Ctx): string {
         <div class="req-h">BUYURTMACHI</div>
         <div>${esc(c.lead.customerName)}</div>
         <div>Tel: ${esc(c.lead.customerPhone || "—")}</div>
-        <div>Pasport: ${fill("", "________________")}</div>
-        <div>Manzil: ${fill("", "________________")}</div>
+        <div>Pasport: ${fill("", "AB 1234567")}</div>
+        <div>Manzil: ${fill("", "yashash manzili")}</div>
       </div>
     </div>
 
@@ -602,11 +605,11 @@ export function buildDocumentHtml(input: BuildInput & { inline?: boolean }): str
 <title>${esc(docName)} — ${esc(lead.customerName)}</title>
 <style>${styles()}</style></head>
 <body>
-  <div class="toolbar">
+  ${input.inline ? "" : `<div class="toolbar">
     <b>Travelor<span>AI</span> · ${esc(docName)}</b>
     <button class="btn btn-print" onclick="window.print()">🖨 Chop etish / PDF saqlash</button>
-    ${input.inline ? "" : `<button class="btn btn-close" onclick="window.close()">Yopish</button>`}
-  </div>
+    <button class="btn btn-close" onclick="window.close()">Yopish</button>
+  </div>`}
   <div class="hint">Sariq chiziqli maydonlarni bosib to'ldiring (pasport, mehmonxona va h.k.), so'ng
     <b>Chop etish</b> tugmasini bosing. Printer ro'yxatidan <b>«PDF saqlash»</b>ni tanlasangiz — hujjat PDF bo'lib saqlanadi.</div>
   <div class="page">
