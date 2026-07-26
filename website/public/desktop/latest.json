@@ -1,11 +1,11 @@
 {
-  "version": "1.0.1",
-  "notes": "Ilova ichida yangilanish qo'shildi — endi yangi versiyalar shu tugma orqali o'rnatiladi.",
-  "pub_date": "2026-07-26T09:17:32Z",
+  "version": "1.0.2",
+  "notes": "Lid manbasi (Offline/Telegram/Instagram/WhatsApp/Marketplace) va hisobotда doiraviy diagramma qo'shildi. Yangilanish tugmasi tuzatildi.",
+  "pub_date": "2026-07-26T09:51:47Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSEZjVWMrQ2FuVW1UOCtEY3dMN3FpNDF3bzdSczFiMXp0WmNiSnhFMUJaLzBic1NHZkoyZ2JiZmhvZUlpU09FeUJJQjllVlR0UXJ6V3ZZenBIS2EvaUN1azVWQkc1RWdnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg1MDU3NDI3CWZpbGU6VHJhdmVsb3JBSSBDUk1fMS4wLjFfeDY0LXNldHVwLmV4ZQp5czdOalhmWXdIQjlnZG5nc0lGYm5ZbGpNblMzdTJUd0V2MEhJYmVvS3Zoc2FyaUdFM1FUNDVreXVTa2poM3pVNi9TOXFOdHUvbTNPYXU4c2cyU2RBZz09Cg==",
-      "url": "https://travelorai.com/desktop/TravelorAI-CRM_1.0.1_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSEZjVWMrQ2FuVW1BaFVEQndWUEFpaVpNMkhnVEJoL1FPeCtaczRRSE1tSkZTbmRteEhaMmloS0FLc1Frd3dRS0dRVnE4elhPTmpzcUl4ZHpUeHdVTElZZit4ckY4YVFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg1MDU5NDg1CWZpbGU6VHJhdmVsb3JBSSBDUk1fMS4wLjJfeDY0LXNldHVwLmV4ZQpQQW5pVmxYdlUwWVFMWEc0R3IwNHdMVzVOTFc4TXFnMXcxUmkvalgwUlZxYlJGZmdCOUs2aDZOU016Q1RGRm5WKzJmU29YYzkrZmgwMmFwNzlxSU1EUT09Cg==",
+      "url": "https://travelorai.com/desktop/TravelorAI-CRM_1.0.2_x64-setup.exe"
     }
   }
 }
