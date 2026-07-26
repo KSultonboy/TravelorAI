@@ -1082,7 +1082,13 @@ async function createManualLead(req, res) {
         message: b.message ? String(b.message).trim() : null,
         totalEstimate: est,
         currency: 'USD',
-        source: 'manual',
+        // Manba — agent formada tanlaydi (offline/telegram/instagram/whatsapp/
+        // marketplace). Notogri qiymat kelsa 'offline'ga tushadi.
+        source: (() => {
+          const ALLOWED = ['marketplace', 'telegram', 'instagram', 'whatsapp', 'offline', 'manual'];
+          const v = String(b.source || '').trim().toLowerCase();
+          return ALLOWED.includes(v) ? v : 'offline';
+        })(),
         status: 'pending',
         pipelineStage: 'new',
       },
@@ -1209,6 +1215,14 @@ async function updateLead(req, res) {
     if (b.leadCity !== undefined) data.leadCity = b.leadCity ? String(b.leadCity).trim().slice(0, 120) : null;
     if (b.leadTelegram !== undefined) data.leadTelegram = b.leadTelegram ? String(b.leadTelegram).trim().slice(0, 120) : null;
     if (b.leadWhatsapp !== undefined) data.leadWhatsapp = b.leadWhatsapp ? String(b.leadWhatsapp).trim().slice(0, 40) : null;
+    // Manba — mijoz qayerdan kelgani. Faqat ruxsat etilgan qiymatlar (hisobot
+    // diagrammasi shu maydondan yasaladi, shuning uchun erkin matn qabul qilinmaydi).
+    if (b.source !== undefined) {
+      const ALLOWED_SOURCES = ['marketplace', 'telegram', 'instagram', 'whatsapp', 'offline', 'manual'];
+      const v = String(b.source || '').trim().toLowerCase();
+      if (!ALLOWED_SOURCES.includes(v)) return error(res, 'Manba qiymati notogri', 400);
+      data.source = v;
+    }
     if (b.travelers !== undefined) {
       const n = parseInt(b.travelers, 10);
       if (!Number.isNaN(n) && n >= 1 && n <= 99) data.travelers = n;

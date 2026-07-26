@@ -5,7 +5,8 @@
     "main"
   ],
   "permissions": [
-    "core:default"
+    "core:default",
+    "allow-update-commands"
   ],
   "remote": {
     "urls": [

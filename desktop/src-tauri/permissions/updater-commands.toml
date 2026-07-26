@@ -1,0 +1,13 @@
+# TravelorAI CRM — ilovaning O'Z buyruqlariga ruxsat.
+#
+# Tauri v2'da remote sahifa (travelorai.com) ilova buyruqlarini chaqirishi
+# uchun ACL'da ochiq bo'lishi SHART — aks holda:
+#   "Command check_update not allowed by ACL"
+#
+# Bu yerda FAQAT ikkita yangilanish buyrug'i ochiladi. Fayl tizimi, shell va
+# boshqa hech narsa berilmaydi.
+
+[[permission]]
+identifier = "allow-update-commands"
+description = "Dastur yangilanishini tekshirish va o'rnatish buyruqlari (check_update, install_update)."
+commands.allow = ["check_update", "install_update"]

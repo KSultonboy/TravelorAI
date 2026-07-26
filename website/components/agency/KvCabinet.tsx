@@ -17,6 +17,9 @@ import {
   telegramLinkSmart,
   greetingTemplate,
   normalizePhone,
+  normalizeSource,
+  LEAD_SOURCE_LABEL,
+  LEAD_SOURCE_OPTIONS,
   type CrmLead,
   type CrmStage,
 } from "@/lib/agency/crm";
@@ -794,8 +797,14 @@ const PAY_COLS: CsvCol[] = [
 ];
 
 /* ================= LEADS / KANBAN ================= */
-const SRC_BADGE: Record<string, string> = { manual: "b-amber", marketplace: "b-green", telegram: "b-sky" };
-const srcLabel = (s: string) => (s === "manual" ? "Qo'lda" : s === "telegram" ? "Telegram" : "Marketplace");
+const SRC_BADGE: Record<string, string> = {
+  marketplace: "b-green", telegram: "b-sky", instagram: "b-rose", whatsapp: "b-green", offline: "b-amber", manual: "b-amber",
+};
+const srcLabel = (s: string) => LEAD_SOURCE_LABEL[normalizeSource(s)];
+/** Donut/legend uchun manba rangi (hisobotда) */
+const SRC_COLOR: Record<string, string> = {
+  marketplace: "#0F5132", telegram: "#3E86B0", instagram: "#C0392B", whatsapp: "#25A768", offline: "#CA8A04", manual: "#CA8A04",
+};
 
 /* Tez aloqa: WhatsApp / Telegram / qo'ng'iroq — mijoz telefoni bo'lsa (chiquvchi havolalar) */
 function ContactActions({ lead }: { lead: { customerName: string; customerPhone?: string | null; tourTitle?: string | null; whatsappNumber?: string | null; telegramHandle?: string | null } }) {
@@ -1153,6 +1162,7 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat,
       travelDate: lead.travelDate ? String(lead.travelDate).slice(0, 10) : "",
       totalEstimate: lead.totalEstimate ? String(lead.totalEstimate) : "",
       customerBirthday: lead.customerBirthday ? String(lead.customerBirthday).slice(0, 10) : "",
+      source: normalizeSource(lead.source),
     });
     setErr(""); setEditing(true);
   }
@@ -1174,6 +1184,7 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat,
         travelDate: form.travelDate || null,
         totalEstimate: form.totalEstimate === "" ? null : form.totalEstimate,
         customerBirthday: form.customerBirthday || null,
+        source: form.source || undefined,
       }),
     });
     setBusy(false);
@@ -1234,6 +1245,17 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat,
               {inp("travelDate", "Sayohat sanasi", { type: "date" })}
               {inp("totalEstimate", "Taxminiy summa ($)", { ph: "800" })}
               {inp("customerBirthday", "Tug'ilgan kun", { type: "date" })}
+              {/* Manba — mijoz qayerdan kelgani. Hisobotdagi doiraviy diagramma shundan yasaladi. */}
+              <div className="fld">
+                <label>Qayerdan keldi (manba)</label>
+                <select value={form.source || "offline"} onChange={(e) => set("source", e.target.value)}>
+                  {LEAD_SOURCE_OPTIONS.map((sv) => (
+                    <option key={sv} value={sv}>{LEAD_SOURCE_LABEL[sv]}</option>
+                  ))}
+                  {/* Eski lidlar "Qo'lda" bo'lsa — ro'yxatdan tushib qolmasin */}
+                  {form.source === "manual" ? <option value="manual">{LEAD_SOURCE_LABEL.manual}</option> : null}
+                </select>
+              </div>
             </div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
               <button className="btn btn-ghost" onClick={() => setEditing(false)} disabled={busy}>Bekor</button>
@@ -1985,7 +2007,7 @@ function Reports({ show, leads }: any) {
     const maxRev = Math.max(1, ...months.map((x) => x.v));
     // sources
     const src: Record<string, number> = {};
-    leads.forEach((l: CrmLead) => { const k = l.source === "manual" ? "Qo'lda" : "Marketplace"; src[k] = (src[k] || 0) + 1; });
+    leads.forEach((l: CrmLead) => { const k = normalizeSource(l.source); src[k] = (src[k] || 0) + 1; });
     const total = Math.max(1, leads.length);
     // destinations
     const dest: Record<string, number> = {};
@@ -1999,7 +2021,7 @@ function Reports({ show, leads }: any) {
     leads.forEach((l: CrmLead) => {
       const key =
         String(l.utmSource || "").trim().toLowerCase() ||
-        (l.source === "telegram" ? "telegram bot" : l.source === "manual" ? "qo'lda kiritilgan" : "marketplace");
+        srcLabel(l.source).toLowerCase();
       const row = chanMap[key] || (chanMap[key] = { leads: 0, won: 0, revenue: 0 });
       row.leads += 1;
       if (l.stage === "won" || l.stage === "completed") {
@@ -2015,10 +2037,17 @@ function Reports({ show, leads }: any) {
     return { months, maxRev, src, total, topDest, maxDest, channels, maxChanRev };
   }, [leads]);
 
-  const srcColors: Record<string, string> = { Marketplace: "var(--primary)", "Qo'lda": "var(--gold)" };
-  const srcEntries = Object.entries(r.src);
+  // Doiraviy diagramma: ko'pdan kamga, har manbaga o'z rangi
+  const srcEntries = Object.entries(r.src).sort((a, b) => b[1] - a[1]);
   let acc = 0;
-  const stops = srcEntries.map(([k, v]) => { const start = (acc / r.total) * 100; acc += v; const end = (acc / r.total) * 100; return `${srcColors[k] || "var(--sky)"} ${start}% ${end}%`; }).join(", ");
+  const stops = srcEntries
+    .map(([k, v]) => {
+      const start = (acc / r.total) * 100;
+      acc += v;
+      const end = (acc / r.total) * 100;
+      return `${SRC_COLOR[k] || "#8899A6"} ${start}% ${end}%`;
+    })
+    .join(", ");
 
   return (
     <section className={`view reports${show ? " active" : ""}`}>
@@ -2038,7 +2067,11 @@ function Reports({ show, leads }: any) {
             <div className="donut" style={{ background: stops ? `conic-gradient(${stops})` : "#E7F1EB" }} />
             <div className="legend">
               {srcEntries.length ? srcEntries.map(([k, v]) => (
-                <div className="l" key={k}><span className="sw" style={{ background: srcColors[k] || "var(--sky)" }} />{k}<span className="pc">{Math.round((v / r.total) * 100)}%</span></div>
+                <div className="l" key={k}>
+                  <span className="sw" style={{ background: SRC_COLOR[k] || "#8899A6" }} />
+                  {srcLabel(k)}
+                  <span className="pc">{v} · {Math.round((v / r.total) * 100)}%</span>
+                </div>
               )) : <p style={{ color: "var(--t3)", fontSize: 13 }}>Ma&apos;lumot yo&apos;q</p>}
             </div>
           </div>
@@ -2574,6 +2607,7 @@ function Settings({ show, agency, go, refresh, logout, access, readOnly }: any) 
 /* ================= ADD LEAD MODAL ================= */
 function AddLead({ onClose, onCreated }: any) {
   const [name, setName] = useState(""); const [phone, setPhone] = useState(""); const [tour, setTour] = useState(""); const [sum, setSum] = useState(""); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  const [src, setSrc] = useState("offline"); // mijoz qayerdan keldi
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (name.trim().length < 2) { setErr("Mijoz ismini kiriting."); return; }
@@ -2585,6 +2619,7 @@ function AddLead({ onClose, onCreated }: any) {
         customerPhone: phone.trim() || undefined,
         leadTour: tour.trim() || undefined,
         totalEstimate: sum ? sum.replace(/[^\d]/g, "") : undefined,
+        source: src,
       }),
     });
     setBusy(false);
@@ -2603,6 +2638,12 @@ function AddLead({ onClose, onCreated }: any) {
             <div className="fld"><label>Summa ($)</label><input value={sum} onChange={(e) => setSum(e.target.value)} placeholder="masalan 800" /></div>
           </div>
           <div className="fld"><label>Tur / yo&apos;nalish</label><input value={tour} onChange={(e) => setTour(e.target.value)} placeholder="Masalan: Dubay 5 kun" /></div>
+          <div className="fld">
+            <label>Qayerdan keldi (manba)</label>
+            <select value={src} onChange={(e) => setSrc(e.target.value)}>
+              {LEAD_SOURCE_OPTIONS.map((sv) => <option key={sv} value={sv}>{LEAD_SOURCE_LABEL[sv]}</option>)}
+            </select>
+          </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 6 }}>
             <button type="button" className="btn btn-ghost" onClick={onClose}>Bekor</button>
             <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Qo'shilmoqda..." : "Qo'shish"}</button>
