@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { ArrowLeft, BadgeCheck, Building2, ChevronRight, Eye, EyeOff, Lock, Mail, MapPinned, ShieldCheck, Sparkles, User } from "lucide-react";
 import Logo from "./Logo";
 import GoogleContinueButton from "../GoogleContinueButton";
+import { CONTACT } from "@/lib/legalEntity";
 
 const HERO = "https://images.unsplash.com/photo-1539635278303-d4002c07eae3?auto=format&fit=crop&w=1400&q=70";
 type Role = "traveler" | "partner";
@@ -221,8 +222,13 @@ export default function SignInClient() {
                   <div className="mkt-auth__toggle" style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
                     <BadgeCheck size={15} style={{ color: "var(--primary)" }} /> Yangi agentlikmi? <a href="/partners" style={{ color: "var(--primary)", fontWeight: 800 }}>Ariza qoldiring</a>
                   </div>
+                  {/* DIQQAT: bu yerda ilgari support@travelorai.com yozilgan edi —
+                      domenda MX yo'q, ya'ni o'sha pochta KELMAYDI va parolini
+                      unutgan agentlik hech kimga murojaat qila olmasdi. Ishlaydigan
+                      manzillar yagona manbadan (lib/legalEntity CONTACT) olinadi. */}
                   <div className="mkt-auth__toggle" style={{ marginTop: 8, fontSize: "0.85rem", textAlign: "center", lineHeight: 1.6 }}>
-                    Parolni unutdingizmi? <a href="mailto:support@travelorai.com?subject=Agentlik%20parolni%20tiklash" style={{ color: "var(--primary)", fontWeight: 700 }}>Administratorga murojaat qiling</a> — tiklash havolasi emailingizga yuboriladi.
+                    Parolni unutdingizmi? <a href={`mailto:${CONTACT.email}?subject=Agentlik%20parolni%20tiklash`} style={{ color: "var(--primary)", fontWeight: 700 }}>{CONTACT.email}</a> ga yozing
+                    yoki <a href={CONTACT.telegram} target="_blank" rel="noopener noreferrer" style={{ color: "var(--primary)", fontWeight: 700 }}>Telegram</a> orqali murojaat qiling — tiklash havolasi emailingizga yuboriladi.
                   </div>
                 </>
               )}

@@ -1390,7 +1390,7 @@ function Tasks({ show, agencyId, tasks, leads, readOnly }: any) {
   // DIQQAT: qattiq rang YOZILMAYDI. Ilgari chegara rgba(255,255,255,.15) edi —
   // och rejimda oq kartada ko'rinmasdi, maydonlar chegarasiz turardi. Ranglar
   // mavzu tokenlaridan olinadi, shuning uchun ikki rejimda ham to'g'ri.
-  const inp: any = { padding: "10px 12px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--t1)", borderRadius: 10, fontSize: 14, minWidth: 0, fontFamily: "inherit", outline: "none" };
+  const inp: any = { padding: "10px 12px", border: "1px solid var(--field-border)", background: "var(--field-bg)", color: "var(--t1)", borderRadius: 10, fontSize: 14, minWidth: 0, fontFamily: "inherit", outline: "none" };
 
   function submit(e?: any) {
     e?.preventDefault?.();
@@ -1630,7 +1630,7 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
   // DIQQAT: qattiq rang YOZILMAYDI. Ilgari chegara rgba(255,255,255,.15) edi —
   // och rejimda oq kartada ko'rinmasdi, maydonlar chegarasiz turardi. Ranglar
   // mavzu tokenlaridan olinadi, shuning uchun ikki rejimda ham to'g'ri.
-  const inp: any = { padding: "10px 12px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--t1)", borderRadius: 10, fontSize: 14, minWidth: 0, fontFamily: "inherit", outline: "none" };
+  const inp: any = { padding: "10px 12px", border: "1px solid var(--field-border)", background: "var(--field-bg)", color: "var(--t1)", borderRadius: 10, fontSize: 14, minWidth: 0, fontFamily: "inherit", outline: "none" };
   const stepLabel: any = { display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 700 };
   const stepNum: any = { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: 999, background: "rgba(234,179,8,.15)", color: "#EAB308", fontSize: 12.5, fontWeight: 800, flex: "0 0 auto" };
   const hint: any = { color: "#8aa398", fontSize: 12.5 };
@@ -2387,7 +2387,7 @@ function TeamSection({ access }: any) {
   if (!TEAM_LIVE) {
     return (
       <>
-        <div className="section-head"><div><h2>Jamoa va rollar</h2><div className="sub">Bir nechta xodim va rollar</div></div></div>
+        {/* Sarlavha Sozlamalar bo'limi tepasida chiqadi — bu yerda takrorlanmaydi */}
         <div className="card team-lock">
           <span className="team-lock__ic"><Ic d={I.clock} s={20} /></span>
           <div><b>Tez orada ishga tushadi</b><span>Bir nechta xodim qo&apos;shish, rollar berish va lidlarni taqsimlash tez kunda ochiladi.</span></div>
@@ -2399,10 +2399,12 @@ function TeamSection({ access }: any) {
 
   return (
     <>
-      <div className="section-head">
-        <div><h2>Jamoa va rollar</h2><div className="sub">Xodimlarni qo&apos;shing va rollarni belgilang</div></div>
-        {canManage && hasTeamCap && !readOnly ? <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Ic d={I.plus} s={16} /> Xodim qo&apos;shish</button> : null}
-      </div>
+      {/* Sarlavha Sozlamalar bo'limi tepasida — bu yerda faqat amal tugmasi */}
+      {canManage && hasTeamCap && !readOnly ? (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+          <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Ic d={I.plus} s={16} /> Xodim qo&apos;shish</button>
+        </div>
+      ) : null}
       {!hasTeamCap ? (
         <div className="card team-lock">
           <span className="team-lock__ic"><Ic d={I.lock} s={20} /></span>
@@ -2640,23 +2642,75 @@ function DocRequisitesCard({ agencyId, readOnly }: { agencyId: string; readOnly?
     </div>
   );
 }
+/* Sozlamalar bo'limlari. Ilgari hammasi bitta uzun sahifada ustma-ust
+   turardi — nima qayerda ekanini topish qiyin edi. Endi menyu: bo'limni
+   bosasiz → faqat o'sha bo'lim ochiladi, orqaga qaytish tugmasi bilan. */
+const SETTINGS_MENU: { key: string; icon: string; label: string; desc: string }[] = [
+  { key: "plan", icon: I.card, label: "Obuna va tarif", desc: "Joriy reja, amal muddati va to'lov" },
+  { key: "profile", icon: I.box, label: "Agentlik ma'lumotlari", desc: "Nomi, logotipi, telefoni va tavsifi" },
+  { key: "links", icon: I.send, label: "Ulanishlar", desc: "Telegram bot va boshqa kanallar" },
+  { key: "team", icon: I.users, label: "Jamoa va rollar", desc: "Xodimlarni qo'shish, huquqlarni belgilash" },
+  { key: "account", icon: I.lock, label: "Hisob", desc: "Tizimdan chiqish" },
+];
+
 function Settings({ show, agency, go, refresh, logout, access, readOnly }: any) {
+  const [tab, setTab] = useState("");
+  const active = SETTINGS_MENU.find((m) => m.key === tab);
+
+  // Bo'limdan chiqilganda menyuga qaytamiz (masalan boshqa bo'limga o'tib kelsa)
+  useEffect(() => { if (!show) setTab(""); }, [show]);
+
   return (
     <section className={`view${show ? " active" : ""}`}>
-      <div className="section-head"><div><h2>Sozlamalar</h2></div></div>
+      {!active ? (
+        <>
+          <div className="section-head"><div><h2>Sozlamalar</h2><div className="sub">Kerakli bo&apos;limni tanlang</div></div></div>
+          <div className="set-menu">
+            {SETTINGS_MENU.map((m) => (
+              <button type="button" key={m.key} className="set-item" aria-label={`${m.label} — ${m.desc}`} onClick={() => setTab(m.key)}>
+                <span className="set-item__ic"><Ic d={m.icon} s={18} /></span>
+                <span className="set-item__tx">
+                  <b>{m.label}</b>
+                  <small>{m.desc}</small>
+                </span>
+                <span className="set-item__go" aria-hidden><Ic d="M9 6l6 6-6 6" s={16} /></span>
+              </button>
+            ))}
+          </div>
+          <div style={{ height: 16 }} />
+        </>
+      ) : (
+        <>
+          <div className="section-head">
+            <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+              <button type="button" className="set-back" onClick={() => setTab("")} aria-label="Sozlamalarga qaytish">
+                <Ic d="M15 6l-6 6 6 6" s={17} />
+              </button>
+              <div style={{ minWidth: 0 }}>
+                <h2>{active.label}</h2>
+                <div className="sub">{active.desc}</div>
+              </div>
+            </div>
+          </div>
 
-      <div className="section-head"><div><h2>Obuna va tarif</h2><div className="sub">Joriy rejangiz, amal muddati va imkoniyatlar</div></div></div>
-      <SubscriptionCard access={access} />
-
-      <div className="section-head"><div><h2>Agentlik ma&apos;lumoti</h2><div className="sub">Nomi, logotipi va telefoni — sidebar va CRM&apos;da shu ma&apos;lumot ko&apos;rinadi</div></div></div>
-      <ProfileForm agency={agency} refresh={refresh} readOnly={readOnly} />
-
-      <div className="section-head"><div><h2>Integratsiyalar</h2><div className="sub">Tashqi kanallarni ulang va boshqaring</div></div></div>
-      <TelegramCard go={go} />
-
-      <TeamSection access={access} />
-      <div style={{ marginTop: 18 }}><button className="btn btn-ghost" onClick={() => void logout()}><Ic d={I.out} s={16} /> Chiqish</button></div>
-      <div style={{ height: 16 }} />
+          {tab === "plan" ? <SubscriptionCard access={access} /> : null}
+          {tab === "profile" ? <ProfileForm agency={agency} refresh={refresh} readOnly={readOnly} /> : null}
+          {tab === "links" ? <TelegramCard go={go} /> : null}
+          {tab === "team" ? <TeamSection access={access} /> : null}
+          {tab === "account" ? (
+            <div className="card" style={{ padding: 18, display: "grid", gap: 12 }}>
+              <div style={{ color: "var(--t2)", fontSize: 13.5, lineHeight: 1.6 }}>
+                Hisobdan chiqsangiz, keyingi kirishda emailingiz va parolingiz qayta so&apos;raladi.
+                Ma&apos;lumotlaringiz saqlanib qoladi.
+              </div>
+              <div>
+                <button className="btn btn-ghost" onClick={() => void logout()}><Ic d={I.out} s={16} /> Chiqish</button>
+              </div>
+            </div>
+          ) : null}
+          <div style={{ height: 16 }} />
+        </>
+      )}
     </section>
   );
 }
@@ -3371,7 +3425,7 @@ function TelegramBroadcast({ tgLeads, readOnly }: { tgLeads: CrmLead[]; readOnly
   const [result, setResult] = useState<{ total: number; sent: number; failed: number } | null>(null);
   const [err, setErr] = useState("");
   const count = useMemo(() => (stage ? tgLeads.filter((l) => l.stage === stage).length : tgLeads.length), [tgLeads, stage]);
-  const fld: any = { padding: "10px 12px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--t1)", borderRadius: 10, fontSize: 14, fontFamily: "inherit", outline: "none" };
+  const fld: any = { padding: "10px 12px", border: "1px solid var(--field-border)", background: "var(--field-bg)", color: "var(--t1)", borderRadius: 10, fontSize: 14, fontFamily: "inherit", outline: "none" };
 
   async function send() {
     setBusy(true); setErr(""); setResult(null);
