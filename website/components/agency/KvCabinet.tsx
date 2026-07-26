@@ -66,6 +66,7 @@ const I = {
   compress: "M8 3v3a2 2 0 0 1-2 2H3 M21 8h-3a2 2 0 0 1-2-2V3 M3 16h3a2 2 0 0 1 2 2v3 M16 21v-3a2 2 0 0 1 2-2h3",
   edit: "M12 20h9 M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z",
   info: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 16v-4 M12 8h.01",
+  download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3",
 };
 function Ic({ d, s = 18 }: { d: string; s?: number }) {
   return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
@@ -229,6 +230,119 @@ function NotificationBell({ agencyId, leads, go }: { agencyId: string; leads: Cr
           )}
         </div>
         <button className="notif-foot" onClick={() => { setOpen(false); go("leads"); }}>Barcha lidlar &rarr;</button>
+      </div>
+    </div>
+  );
+}
+
+/* ============ DESKTOP YANGILANISH ============
+   Faqat desktop ilova (Tauri qobiq) ichida ko'rinadi — brauzerда yashirin.
+   Tauri tomonда ochilgan ikki buyruqni chaqiradi: check_update / install_update. */
+type TauriBridge = { core?: { invoke?: (cmd: string, args?: unknown) => Promise<unknown> } };
+type UpdateInfo = { current: string; latest: string | null; available: boolean; notes?: string | null };
+
+function tauriInvoke(): ((cmd: string) => Promise<unknown>) | null {
+  if (typeof window === "undefined") return null;
+  const t = (window as unknown as { __TAURI__?: TauriBridge }).__TAURI__;
+  const fn = t?.core?.invoke;
+  return typeof fn === "function" ? (cmd: string) => fn(cmd) : null;
+}
+
+function DesktopUpdate() {
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [info, setInfo] = useState<UpdateInfo | null>(null);
+  const [state, setState] = useState<"idle" | "checking" | "installing" | "error">("idle");
+  const [err, setErr] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setIsDesktop(!!tauriInvoke()); }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("pointerdown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+
+  async function check() {
+    const invoke = tauriInvoke();
+    if (!invoke) return;
+    setState("checking"); setErr("");
+    try {
+      setInfo((await invoke("check_update")) as UpdateInfo);
+      setState("idle");
+    } catch (e) {
+      setErr(String((e as Error)?.message || e || "Tekshirib bo'lmadi"));
+      setState("error");
+    }
+  }
+
+  async function install() {
+    const invoke = tauriInvoke();
+    if (!invoke) return;
+    setState("installing"); setErr("");
+    try {
+      await invoke("install_update"); // muvaffaqiyatli bo'lsa ilova qayta ishga tushadi
+      setState("idle");
+    } catch (e) {
+      setErr(String((e as Error)?.message || e || "O'rnatib bo'lmadi"));
+      setState("error");
+    }
+  }
+
+  function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next) void check();
+  }
+
+  if (!isDesktop) return null;
+
+  return (
+    <div className={`dsk-upd${open ? " open" : ""}`} ref={ref} onPointerDown={(e) => e.stopPropagation()}>
+      <button className="icon-btn" onClick={toggle} title="Dastur yangilanishi" aria-label="Dastur yangilanishi">
+        {info?.available ? <span className="dsk-upd__dot" /> : null}
+        <Ic d={I.download} s={18} />
+      </button>
+
+      <div className="dsk-upd__menu" role="dialog">
+        <div className="dsk-upd__head">Dastur yangilanishi</div>
+
+        <div className="dsk-upd__status">
+          {state === "checking" ? "Tekshirilmoqda…"
+            : state === "installing" ? "Yuklab olinmoqda va o'rnatilmoqda…"
+            : state === "error" ? "Tekshirishda xatolik"
+            : info?.available ? "Yangi versiya mavjud!"
+            : "Yangilanish topilmadi"}
+        </div>
+
+        <div className="dsk-upd__rows">
+          <div><span>Joriy versiya</span><b>{info?.current || "—"}</b></div>
+          <div><span>Oxirgi versiya</span><b>{info?.latest || "—"}</b></div>
+        </div>
+
+        {info?.notes ? <p className="dsk-upd__notes">{info.notes}</p> : null}
+        {err ? <p className="dsk-upd__err">{err}</p> : null}
+
+        <div className="dsk-upd__foot">
+          {info?.available ? (
+            <button className="btn btn-primary btn-sm" disabled={state === "installing"} onClick={() => void install()}>
+              {state === "installing" ? "O'rnatilmoqda…" : "O'rnatish"}
+            </button>
+          ) : (
+            <button className="btn btn-ghost btn-sm" disabled={state === "checking"} onClick={() => void check()}>
+              {state === "checking" ? "Tekshirilmoqda…" : "Qayta tekshirish"}
+            </button>
+          )}
+          <button className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>Yopish</button>
+        </div>
+
+        {info?.available ? (
+          <p className="dsk-upd__hint">O&apos;rnatilgach dastur o&apos;zi qayta ishga tushadi.</p>
+        ) : null}
       </div>
     </div>
   );
@@ -504,6 +618,7 @@ export default function KvCabinet() {
               <button className="icon-btn" onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))} title={theme === "dark" ? "Yorug' rejim" : "Tungi rejim"} aria-label="Rejimni almashtirish">
                 <Ic d={theme === "dark" ? I.sun : I.moon} s={18} />
               </button>
+              <DesktopUpdate />
               <NotificationBell agencyId={agencyId} leads={leads} go={setView} />
               <button className="btn btn-primary" onClick={() => setShowAdd(true)} disabled={readOnly} title={readOnly ? "Obuna tugagan — faqat o'qish rejimi" : undefined}><Ic d={I.plus} s={16} /> Yangi lid</button>
             </div>
