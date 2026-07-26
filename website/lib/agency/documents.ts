@@ -565,7 +565,12 @@ function styles(): string {
   }`;
 }
 
-export function buildDocumentHtml(input: BuildInput): string {
+/**
+ * `inline: true` — hujjat CRM ichidagi oynada (iframe) ko'rsatilganda.
+ * Bunda o'zining «Yopish» tugmasi chiqmaydi (iframe ichida window.close()
+ * ishlamaydi) — yopish/yuklab olish tugmalari tashqi oynada bo'ladi.
+ */
+export function buildDocumentHtml(input: BuildInput & { inline?: boolean }): string {
   const { me, lead, agencyId, type } = input;
   const req = getRequisites(agencyId);
   const agency = me.agency;
@@ -600,7 +605,7 @@ export function buildDocumentHtml(input: BuildInput): string {
   <div class="toolbar">
     <b>Travelor<span>AI</span> · ${esc(docName)}</b>
     <button class="btn btn-print" onclick="window.print()">🖨 Chop etish / PDF saqlash</button>
-    <button class="btn btn-close" onclick="window.close()">Yopish</button>
+    ${input.inline ? "" : `<button class="btn btn-close" onclick="window.close()">Yopish</button>`}
   </div>
   <div class="hint">Sariq chiziqli maydonlarni bosib to'ldiring (pasport, mehmonxona va h.k.), so'ng
     <b>Chop etish</b> tugmasini bosing. Printer ro'yxatidan <b>«PDF saqlash»</b>ni tanlasangiz — hujjat PDF bo'lib saqlanadi.</div>
@@ -611,13 +616,32 @@ export function buildDocumentHtml(input: BuildInput): string {
 </body></html>`;
 }
 
-/** Yangi oynada hujjatни ochadi (chop etish/PDF uchun tayyor). */
+/**
+ * Hujjatni CRM ichida ko'rsatish uchun tayyorlaydi.
+ *
+ * NEGA yangi oyna EMAS: ilgari `window.open()` ishlatilgandi va u
+ *   – desktop ilovada (Tauri) umuman ishlamaydi (yangi oyna yopiq),
+ *   – brauzerda pop-up blokirovkasiga tushardi (o'lcham berilgani uchun),
+ * natijada agent shartnomani ocha olmasdi. Endi hujjat CRM ichidagi
+ * oynada (iframe) chiziladi — chop etish va yuklab olish shu yerda.
+ */
+export function buildDocumentFile(input: BuildInput): { html: string; filename: string } {
+  const html = buildDocumentHtml({ ...input, inline: true });
+  const who = (input.lead.customerName || "mijoz").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
+  const prefix = input.type === "invoice" ? "Hisob-faktura" : "Shartnoma";
+  return { html, filename: `${prefix}_${who || "mijoz"}.html` };
+}
+
+/**
+ * Zaxira yo'l: hujjatni yangi oynada ochish. Faqat foydalanuvchi o'zi
+ * so'raganda ishlatiladi — asosiy yo'l CRM ichidagi oyna.
+ */
 export function openDocument(input: BuildInput): boolean {
   if (typeof window === "undefined") return false;
   const html = buildDocumentHtml(input);
   // MUHIM: "noopener" BERILMAYDI — aks holda window.open() null qaytaradi va
   // hujjatni yoza olmaymiz. Oyna bir xil origin, o'zimiz HTML yozamiz.
-  const w = window.open("", "_blank", "width=920,height=1040");
+  const w = window.open("", "_blank");
   if (!w) return false;
   w.document.open();
   w.document.write(html);

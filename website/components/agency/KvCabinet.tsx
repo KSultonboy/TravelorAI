@@ -27,7 +27,8 @@ import {
 } from "@/lib/agency/crm";
 import {
   DOC_LIST,
-  openDocument,
+  DOC_LABEL,
+  buildDocumentFile,
   getRequisites,
   saveRequisites,
   EMPTY_REQUISITES,
@@ -826,10 +827,62 @@ function ContactActions({ lead }: { lead: { customerName: string; customerPhone?
     </div>
   );
 }
+/**
+ * Hujjat oynasi — CRM ichida (iframe).
+ *
+ * NEGA: ilgari hujjat `window.open()` bilan yangi oynada ochilardi. Desktop
+ * ilovada yangi oyna umuman ochilmaydi, brauzerda esa pop-up blokirovkasiga
+ * tushardi — «Brauzer yangi oynani bloklamoqda» xatosi shundan edi. Endi
+ * hujjat shu yerda chiziladi: chop etish, yuklab olish va yopish — hammasi
+ * ilova ichida, hech qanday pop-up talab qilinmaydi.
+ */
+function DocViewer({ html, filename, title, onClose }: { html: string; filename: string; title: string; onClose: () => void }) {
+  const frame = useRef<HTMLIFrameElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  function print() {
+    const w = frame.current?.contentWindow;
+    if (!w) return;
+    w.focus();
+    w.print();
+  }
+  function download() {
+    // Iframe ichida qo'lda to'ldirilgan maydonlar ham saqlanadi
+    const doc = frame.current?.contentDocument;
+    const out = doc ? `<!doctype html>${doc.documentElement.outerHTML}` : html;
+    const url = URL.createObjectURL(new Blob([out], { type: "text/html;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="card doc-view" onClick={(e) => e.stopPropagation()}>
+        <div className="doc-view__head">
+          <b>{title}</b>
+          <div className="doc-view__acts">
+            <button type="button" className="btn btn-primary btn-sm" onClick={print}><Ic d={I.doc} s={14} /> Chop etish / PDF</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={download}><Ic d={I.download} s={14} /> Yuklab olish</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Yopish</button>
+          </div>
+        </div>
+        <iframe ref={frame} className="doc-view__frame" srcDoc={html} title={title} />
+      </div>
+    </div>
+  );
+}
+
 /* Hujjat generatsiyasi — lid ma'lumotidan shartnoma/hisob-faktura (print → PDF) */
 function DocMenu({ lead }: { lead: CrmLead }) {
   const { me } = useAgencySession();
   const [open, setOpen] = useState(false);
+  const [doc, setDoc] = useState<{ html: string; filename: string; title: string } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -844,7 +897,7 @@ function DocMenu({ lead }: { lead: CrmLead }) {
   const stop = (e: any) => e.stopPropagation();
   function gen(type: DocType) {
     setOpen(false);
-    const ok = openDocument({
+    const { html, filename } = buildDocumentFile({
       type, agencyId, me: me!,
       lead: {
         customerName: lead.customerName,
@@ -858,7 +911,7 @@ function DocMenu({ lead }: { lead: CrmLead }) {
         currency: lead.currency,
       },
     });
-    if (!ok) alert("Brauzer yangi oynani bloklади. Pop-up'ga ruxsat bering va qayta urining.");
+    setDoc({ html, filename, title: `${DOC_LABEL[type]} — ${lead.customerName}` });
   }
   return (
     <div className={`docmenu${open ? " open" : ""}`} ref={ref} onPointerDown={stop}>
@@ -873,6 +926,7 @@ function DocMenu({ lead }: { lead: CrmLead }) {
           </button>
         ))}
       </div>
+      {doc ? <DocViewer {...doc} onClose={() => setDoc(null)} /> : null}
     </div>
   );
 }
@@ -2553,6 +2607,7 @@ function DocumentsSection({ show, agencyId, readOnly }: { show: boolean; agencyI
   const { me } = useAgencySession();
   const [tpl, setTpl] = useState<DocTemplates>(DEFAULT_DOC_TEMPLATES);
   const [msg, setMsg] = useState("");
+  const [doc, setDoc] = useState<{ html: string; filename: string; title: string } | null>(null);
   useEffect(() => { setTpl(getTemplates(agencyId)); }, [agencyId]);
   function setField(type: DocType, key: string, val: string) {
     setTpl((p) => ({ ...p, [type]: { ...(p as Record<string, Record<string, string>>)[type], [key]: val } }) as DocTemplates);
@@ -2566,11 +2621,12 @@ function DocumentsSection({ show, agencyId, readOnly }: { show: boolean; agencyI
   function preview(type: DocType) {
     saveTemplates(agencyId, tpl);
     if (!me) return;
-    const ok = openDocument({
+    // Ko'rib chiqish ham CRM ichida — pop-up talab qilmaydi (desktopda ham ishlaydi)
+    const { html, filename } = buildDocumentFile({
       type, agencyId, me,
       lead: { customerName: "Aziz Karimov (namuna)", customerPhone: "+998 90 123 45 67", customerEmail: "aziz@example.com", travelers: 2, travelDate: "2026-08-15", tourTitle: "Dubay dam olish", tourCity: "Dubay", totalEstimate: 1500, currency: "USD" },
     });
-    if (!ok) alert("Brauzer yangi oynani bloklади. Pop-up'ga ruxsat bering.");
+    setDoc({ html, filename, title: `${DOC_LABEL[type]} — namuna` });
   }
   return (
     <section className={`view${show ? " active" : ""}`}>
@@ -2603,6 +2659,7 @@ function DocumentsSection({ show, agencyId, readOnly }: { show: boolean; agencyI
           <span style={{ color: "var(--t3)", fontSize: 12, marginLeft: "auto" }}>«Namuna ochish» — o&apos;zgarishlarni saqlab, chop etish oynasini ko&apos;rsatadi</span>
         </div>
       ) : null}
+      {doc ? <DocViewer {...doc} onClose={() => setDoc(null)} /> : null}
     </section>
   );
 }
