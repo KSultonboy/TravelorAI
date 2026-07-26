@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarDays, MapPin, Search, Users } from "lucide-react";
-import { REGIONS } from "@/lib/travelData";
+import { REGION_GROUPS } from "@/lib/travelData";
 
 export default function HeroSearch() {
   const router = useRouter();
@@ -28,7 +28,11 @@ export default function HeroSearch() {
           <label htmlFor="hs-region">Qayerga</label>
           <select id="hs-region" value={region} onChange={(e) => setRegion(e.target.value)}>
             <option value="">Yo‘nalish tanlang</option>
-            {REGIONS.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+            {REGION_GROUPS.filter((g) => g.regions.length > 0).map((g) => (
+              <optgroup key={g.group} label={g.label}>
+                {g.regions.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+              </optgroup>
+            ))}
           </select>
         </div>
       </div>

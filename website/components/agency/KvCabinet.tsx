@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAgencySession } from "@/lib/agency/session";
 import { useCrm } from "@/lib/agency/useCrm";
 import { agencyApi, formatMoney, formatDate, statusLabel, readImage } from "@/lib/agency/api";
-import { REGIONS, regionByKey } from "@/lib/travelData";
+import { REGIONS, REGION_GROUPS, regionByKey } from "@/lib/travelData";
 import { getNotifs, markRead, markAllRead, clearNotifs, pushNotif, seedNotifs, type KvNotif } from "@/lib/agency/notify";
 import {
   CRM_STAGES,
@@ -2732,19 +2732,23 @@ const CURRENCIES: string[] = ["USD", "UZS"];
 const DAY_OPTS = Array.from({ length: 30 }, (_, i) => i + 1);
 const NIGHT_OPTS = Array.from({ length: 31 }, (_, i) => i);
 const OTHER_CITY = "__other__";
+/** Ro'yxatda yo'q davlat — erkin yozish uchun. Hech qanday yo'nalish bloklanmaydi. */
+const OTHER_REGION = "__other_region__";
 
 /** Tur shahri qaysi yo'nalishga tegishli — tahrirlashda tanlovni tiklash uchun. */
 function regionKeyForCity(city?: string | null, country?: string | null): string {
   const hay = `${city || ""} ${country || ""}`.toLowerCase();
   const hit = REGIONS.find((r) => r.cities.some((c) => c.toLowerCase() === String(city || "").toLowerCase()))
     || REGIONS.find((r) => r.match.some((m) => hay.includes(m)));
-  return hit?.key || "";
+  if (hit) return hit.key;
+  // Ro'yxatda yo'q, lekin davlat yozilgan bo'lsa — «Boshqa davlat» rejimida ochamiz.
+  return String(country || "").trim() ? OTHER_REGION : "";
 }
 
 function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
   const editing = !!tour && !duplicate;
   const initRegion = regionKeyForCity(tour?.city, tour?.destinationCountry);
-  const initCityKnown = initRegion
+  const initCityKnown = initRegion && initRegion !== OTHER_REGION
     ? (regionByKey(initRegion)?.cities || []).some((c) => c.toLowerCase() === String(tour?.city || "").toLowerCase())
     : false;
   const [f, setF] = useState({
@@ -2754,6 +2758,7 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
     mapAddress: tour?.mapAddress || "",
     // ── Dropdown bilan boshqariladigan maydonlar
     region: initRegion,
+    countryText: initRegion === OTHER_REGION ? String(tour?.destinationCountry || "") : "",
     citySelect: initCityKnown ? String(tour?.city || "") : (tour?.city ? OTHER_CITY : ""),
     days: tour?.days ? String(tour.days) : "",
     nights: tour?.nights !== undefined && tour?.nights !== null ? String(tour.nights) : "",
@@ -2846,6 +2851,7 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
   function validate() {
     if (f.title.trim().length < 3) { setErr("Tur nomi kamida 3 harf bo'lsin."); return false; }
     if (!f.region) { setErr("Yo'nalishni tanlang."); return false; }
+    if (f.region === OTHER_REGION && f.countryText.trim().length < 3) { setErr("Davlat nomini yozing."); return false; }
     if (f.city.trim().length < 2) { setErr("Shaharni tanlang (yoki 'Boshqa' tanlab yozing)."); return false; }
     if (!f.days) { setErr("Necha kunlik turligini tanlang."); return false; }
     if (f.subtitle.trim().length < 3) { setErr("Qisqa tavsif kiriting."); return false; }
@@ -2861,13 +2867,14 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
     const nightCount = f.nights !== "" ? Number(f.nights) : undefined;
     // Davomiylik matni kun/kechadan yasaladi — qo'lda yozilmaydi (filtr toza bo'lsin)
     const duration = dayCount ? `${dayCount} kun${nightCount ? ` ${nightCount} kecha` : ""}` : String(f.duration || "").trim();
-    const region = regionByKey(f.region);
+    // Yo'nalish: ro'yxatdan yoki «Boshqa davlat» — erkin yozilgan nom.
+    const countryLabel = f.region === OTHER_REGION ? f.countryText.trim() : regionByKey(f.region)?.label;
     const highlights = String(f.highlights).split(",").map((s: string) => s.trim()).filter((s: string) => s.length >= 2).slice(0, 20);
     const body: Record<string, unknown> = {
       title: f.title.trim(), city: f.city.trim(), subtitle: f.subtitle.trim(), duration,
       priceMin, highlights,
       // Filtrlar uchun aniq qiymatlar
-      destinationCountry: region?.label || undefined,
+      destinationCountry: countryLabel || undefined,
       days: dayCount, nights: nightCount,
       priceCurrency: f.currency || undefined,
       price: priceMin ? `${f.currency === "UZS" ? "" : "$"}${priceMin}${f.currency === "UZS" ? " so'm" : ""}` : undefined,
@@ -2921,29 +2928,40 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
               <label>Yo&apos;nalish *</label>
               <select
                 value={f.region}
-                onChange={(e) => setF((p) => ({ ...p, region: e.target.value, citySelect: "", city: "" }))}
+                onChange={(e) => setF((p) => ({ ...p, region: e.target.value, countryText: "", citySelect: "", city: "" }))}
               >
                 <option value="">Tanlang…</option>
-                {REGIONS.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+                {REGION_GROUPS.filter((g) => g.regions.length > 0).map((g) => (
+                  <optgroup key={g.group} label={g.label}>
+                    {g.regions.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+                  </optgroup>
+                ))}
+                <optgroup label="Ro'yxatda yo'q">
+                  <option value={OTHER_REGION}>Boshqa davlat…</option>
+                </optgroup>
               </select>
             </div>
-            <div className="fld">
-              <label>Shahar *</label>
-              <select
-                value={f.citySelect}
-                disabled={!f.region}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setF((p) => ({ ...p, citySelect: v, city: v === OTHER_CITY ? "" : v }));
-                }}
-              >
-                <option value="">{f.region ? "Tanlang…" : "Avval yo'nalishni tanlang"}</option>
-                {(regionByKey(f.region)?.cities || []).map((c) => <option key={c} value={c}>{c}</option>)}
-                {f.region ? <option value={OTHER_CITY}>Boshqa shahar…</option> : null}
-              </select>
-            </div>
+            {f.region === OTHER_REGION ? (
+              <div className="fld"><label>Davlat nomi *</label><input value={f.countryText} onChange={set("countryText")} placeholder="Masalan: Islandiya" /></div>
+            ) : (
+              <div className="fld">
+                <label>Shahar *</label>
+                <select
+                  value={f.citySelect}
+                  disabled={!f.region}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setF((p) => ({ ...p, citySelect: v, city: v === OTHER_CITY ? "" : v }));
+                  }}
+                >
+                  <option value="">{f.region ? "Tanlang…" : "Avval yo'nalishni tanlang"}</option>
+                  {(regionByKey(f.region)?.cities || []).map((c) => <option key={c} value={c}>{c}</option>)}
+                  {f.region ? <option value={OTHER_CITY}>Boshqa shahar…</option> : null}
+                </select>
+              </div>
+            )}
           </div>
-          {f.citySelect === OTHER_CITY ? (
+          {f.citySelect === OTHER_CITY || f.region === OTHER_REGION ? (
             <div className="fld"><label>Shahar nomi *</label><input value={f.city} onChange={set("city")} placeholder="Masalan: Sharm-ash-Shayx" /></div>
           ) : null}
 

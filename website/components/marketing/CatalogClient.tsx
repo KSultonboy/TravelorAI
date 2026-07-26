@@ -41,8 +41,25 @@ export default function CatalogClient({ tours, initialRegion = "" }: { tours: To
   const [maxPrice, setMaxPrice] = useState<number | null>(null);
   const [durs, setDurs] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
+  const [allRegions, setAllRegions] = useState(false);
 
   const cities = useMemo(() => (region ? regionByKey(region)?.cities ?? [] : []), [region]);
+
+  /* Yo'nalish ro'yxati uzun (60+). Filtrda faqat KERAKLISI ko'rinadi:
+     turi bor yo'nalishlar + mashhurlar. Qolganini «Barchasini ko'rsatish» ochadi. */
+  const regionCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of tours) {
+      const hay = `${t.title} ${t.city} ${t.destinationCountry || ""} ${t.subtitle || ""} ${t.agency?.name || ""}`;
+      for (const r of REGIONS) if (matchRegion(hay, r.key)) map.set(r.key, (map.get(r.key) || 0) + 1);
+    }
+    return map;
+  }, [tours]);
+
+  const shownRegions = useMemo(() => {
+    if (allRegions) return REGIONS;
+    return REGIONS.filter((r) => r.popular || (regionCounts.get(r.key) || 0) > 0 || r.key === region);
+  }, [allRegions, regionCounts, region]);
 
   const bounds = useMemo(() => {
     const vals = tours.map(priceValue).filter((v) => v > 0 && v < Number.MAX_SAFE_INTEGER);
@@ -107,13 +124,22 @@ export default function CatalogClient({ tours, initialRegion = "" }: { tours: To
                   <input type="radio" name="region" checked={region === ""} onChange={() => { setRegion(""); setCity(""); }} />
                   <span>Barcha yo‘nalishlar</span>
                 </label>
-                {REGIONS.map((r) => (
-                  <label key={r.key} className={`mkt-radio${region === r.key ? " is-active" : ""}`}>
-                    <input type="radio" name="region" checked={region === r.key} onChange={() => { setRegion(r.key); setCity(""); }} />
-                    <span>{r.label}</span>
-                  </label>
-                ))}
+                {shownRegions.map((r) => {
+                  const n = regionCounts.get(r.key) || 0;
+                  return (
+                    <label key={r.key} className={`mkt-radio${region === r.key ? " is-active" : ""}`}>
+                      <input type="radio" name="region" checked={region === r.key} onChange={() => { setRegion(r.key); setCity(""); }} />
+                      <span>{r.label}</span>
+                      {n > 0 ? <em className="mkt-radio__n">{n}</em> : null}
+                    </label>
+                  );
+                })}
               </div>
+              {REGIONS.length > shownRegions.length || allRegions ? (
+                <button type="button" className="mkt-more-btn" onClick={() => setAllRegions((v) => !v)}>
+                  {allRegions ? "Kamroq ko‘rsatish" : `Barcha yo‘nalishlar (${REGIONS.length})`}
+                </button>
+              ) : null}
             </div>
 
             <div className="mkt-filters__group">
