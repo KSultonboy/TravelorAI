@@ -1,11 +1,11 @@
 {
-  "version": "1.0.3",
-  "notes": "Voronkada kartani sudrab o'tkazish tuzatildi (desktop). Lid manbasi va hisobot diagrammasi qo'shildi.",
-  "pub_date": "2026-07-26T10:12:16Z",
+  "version": "1.0.4",
+  "notes": "WhatsApp, Telegram va qo'ng'iroq tugmalari endi ishlaydi — havola tizim brauzeri/ilovasida ochiladi. Shartnoma va hisob-faktura ilova ichida ochiladi.",
+  "pub_date": "2026-07-26T16:49:06Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSEZjVWMrQ2FuVWlUOFNSVzZxV3h5K2RReU0xbkp6SjNHaDJJeCtpZXVoeFBMSEtOa0pFZEhaV2c5Ky9PRjVOa3BwYXNiNi9zQUJuRUtKbkY2SVFGNFZlWTF1OW5kUEFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg1MDYwNzAyCWZpbGU6VHJhdmVsb3JBSSBDUk1fMS4wLjNfeDY0LXNldHVwLmV4ZQpVVmFTMkE5TGpLNko5UXg4dTYxbER6YktOVjZzYjRnbzgwVVNOeVEyakQvaDVib1J5dEFVazRLVEZ2K1VzVHYzSktWRFlxb25wS2NuemRva01BdDFEdz09Cg==",
-      "url": "https://travelorai.com/desktop/TravelorAI-CRM_1.0.3_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSEZjVWMrQ2FuVWlnM1RYb2l1dmpvZlJTRHJNTTFsUm11TVpFczdmeEZYaGFteFRDSlgrU3FaZE5GZlFIYmRvbDJabjhvS04wRWdma2hZQm1QV1VBMTlSMDZweHhVOEFVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg1MDg0NTI0CWZpbGU6VHJhdmVsb3JBSSBDUk1fMS4wLjRfeDY0LXNldHVwLmV4ZQpIblNUMnk4a2ppQlloSVFGeG9SalA0VHhKR1lXbTUzV2hFTkQycjg3b3BEd3NsUkZOSnd6SVA3N1JlZGhDSjVXNkVGNWU3MGs4Sk9DWEtQL2F4QzhCUT09Cg==",
+      "url": "https://travelorai.com/desktop/TravelorAI-CRM_1.0.4_x64-setup.exe"
     }
   }
 }
