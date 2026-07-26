@@ -309,6 +309,7 @@
     background-image:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='14'%20height='14'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%230A3D25'%20stroke-width='2.2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M6%209l6%206%206-6'/%3E%3C/svg%3E");
     background-repeat:no-repeat; background-position:right 12px center; }
   .fld input:focus, .fld textarea:focus, .fld select:focus{ border-color:var(--primary); }
+  .fld-hint{ font-size:12px; color:var(--t2); line-height:1.45; }
   /* custom file picker */
   .filepick{ display:flex; align-items:center; gap:12px; padding:12px 14px; border:1.5px dashed #cdd8d2; border-radius:11px; cursor:pointer; background:var(--canvas); transition:border-color .15s, background-color .15s; }
   .filepick:hover{ border-color:var(--primary); background:var(--primary-soft); }

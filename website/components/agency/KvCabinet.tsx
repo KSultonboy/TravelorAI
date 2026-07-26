@@ -2777,7 +2777,10 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
   const [confirming, setConfirming] = useState(false);
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
   // Xizmatlar uchun tez tanlov chiplari — bosib qo'shiladi, yozib o'tirilmaydi.
-  const HL_CHIPS = ["Aviabilet", "Transfer", "Gid", "Mehmonxona", "Ovqat", "Viza", "Sug'urta", "Ekskursiya"];
+  // DIQQAT: «Aviabilet» va «Mehmonxona» bu yerda YO'Q — ular yuqoridagi
+  // checkbox'lar bilan belgilanadi (takror kiritishga hojat yo'q), doSave
+  // ularni xizmatlar ro'yxatiga o'zi qo'shadi.
+  const HL_CHIPS = ["Transfer", "Gid", "Ovqat", "Viza", "Sug'urta", "Ekskursiya"];
   const hlHas = (c: string) => String(f.highlights).split(",").map((s: string) => s.trim().toLowerCase()).includes(c.toLowerCase());
   const toggleHl = (c: string) => setF((p) => {
     const arr = String(p.highlights).split(",").map((s: string) => s.trim()).filter(Boolean);
@@ -2869,7 +2872,17 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
     const duration = dayCount ? `${dayCount} kun${nightCount ? ` ${nightCount} kecha` : ""}` : String(f.duration || "").trim();
     // Yo'nalish: ro'yxatdan yoki «Boshqa davlat» — erkin yozilgan nom.
     const countryLabel = f.region === OTHER_REGION ? f.countryText.trim() : regionByKey(f.region)?.label;
-    const highlights = String(f.highlights).split(",").map((s: string) => s.trim()).filter((s: string) => s.length >= 2).slice(0, 20);
+    // Xizmatlar ro'yxati. Mehmonxona/Aviabilet checkbox'dan keladi — agent
+    // ularni ikkinchi marta yozmaydi. Belgi olib tashlansa — ro'yxatdan ham chiqadi.
+    const hlSet = String(f.highlights).split(",").map((s: string) => s.trim()).filter((s: string) => s.length >= 2);
+    const syncFlag = (on: boolean, word: string) => {
+      const i = hlSet.findIndex((x) => x.toLowerCase() === word.toLowerCase());
+      if (on && i < 0) hlSet.unshift(word);
+      if (!on && i >= 0) hlSet.splice(i, 1);
+    };
+    syncFlag(hotelIncluded, "Mehmonxona");
+    syncFlag(flightIncluded, "Aviabilet");
+    const highlights = hlSet.slice(0, 20);
     const body: Record<string, unknown> = {
       title: f.title.trim(), city: f.city.trim(), subtitle: f.subtitle.trim(), duration,
       priceMin, highlights,
@@ -3018,7 +3031,11 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
             <label className="kv-check"><input type="checkbox" checked={flightIncluded} onChange={(e) => setFlightIncluded(e.target.checked)} /> Aviabilet kiritilgan</label>
           </div>
 
-          <div className="fld"><label>Xizmatlar</label><input value={f.highlights} onChange={set("highlights")} placeholder="Aviabilet, Transfer, Gid" /></div>
+          <div className="fld">
+            <label>Qo&apos;shimcha xizmatlar</label>
+            <input value={f.highlights} onChange={set("highlights")} placeholder="Transfer, Gid, Ovqat" />
+            <small className="fld-hint">Mehmonxona va aviabiletni yuqoridagi belgi bilan tanlaysiz — bu yerga qayta yozish shart emas.</small>
+          </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "-4px 0 2px" }}>
             {HL_CHIPS.map((c) => {
               const on = hlHas(c);
@@ -3163,7 +3180,7 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
 
           <div className="modal-foot">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Bekor</button>
-            <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => { if (validate()) void doSave(false); }}>Qoralama saqlash</button>
+            <button type="button" className="btn btn-ghost" disabled={busy} title="Saqlanadi, lekin saytda ko'rinmaydi — keyin tugatib e'lon qilasiz" onClick={() => { if (validate()) void doSave(false); }}>Qoralama saqlash</button>
             <button type="submit" className="btn btn-primary" disabled={busy}>{editing ? "Saqlash va e'lon qilish" : "E'lon qilish"}</button>
           </div>
         </form>
