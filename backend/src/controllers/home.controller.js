@@ -195,7 +195,11 @@ function formatTour(item) {
     destinationCountry: item.destinationCountry || null,
     tourGroup: item.tourGroup || null,
     nights: item.nights ?? null,
+    // days — katalogdagi «1-3 / 4-7 / 7+ kun» filtri aynan shunga qaraydi
+    days: item.days ?? null,
     hotelIncluded: Boolean(item.hotelIncluded),
+    // flightIncluded — tur sahifasidagi «Nimalar kiritilgan» ro'yxati uchun
+    flightIncluded: Boolean(item.flightIncluded),
     hotelName: item.hotelName || null,
     hotelCategory: item.hotelCategory || null,
     hotelLocation: item.hotelLocation || null,

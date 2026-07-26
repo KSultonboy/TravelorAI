@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAgencySession } from "@/lib/agency/session";
 import { useCrm } from "@/lib/agency/useCrm";
 import { agencyApi, formatMoney, formatDate, statusLabel, readImage } from "@/lib/agency/api";
+import { REGIONS, regionByKey } from "@/lib/travelData";
 import { getNotifs, markRead, markAllRead, clearNotifs, pushNotif, seedNotifs, type KvNotif } from "@/lib/agency/notify";
 import {
   CRM_STAGES,
@@ -2714,21 +2715,62 @@ function PlacePicker({ onPick, onError, placeholder, small }: {
   );
 }
 
+/* Tanlov ro'yxatlari — filtrlar aniq ishlashi uchun erkin matn EMAS.
+   Yo'nalish/shahar YAGONA manbadan (lib/travelData REGIONS) olinadi — katalog
+   filtri ham shu manbaga qaraydi, shuning uchun 100% mos keladi. */
+const MEAL_PLANS: { v: string; label: string }[] = [
+  { v: "", label: "Ko'rsatilmagan" },
+  { v: "RO", label: "RO — ovqatsiz" },
+  { v: "BB", label: "BB — nonushta" },
+  { v: "HB", label: "HB — nonushta + kechki" },
+  { v: "FB", label: "FB — 3 mahal" },
+  { v: "AI", label: "AI — All inclusive" },
+  { v: "UAI", label: "UAI — Ultra all inclusive" },
+];
+const HOTEL_CATS: string[] = ["", "2*", "3*", "4*", "5*", "Apartament", "Villa", "Hostel"];
+const CURRENCIES: string[] = ["USD", "UZS"];
+const DAY_OPTS = Array.from({ length: 30 }, (_, i) => i + 1);
+const NIGHT_OPTS = Array.from({ length: 31 }, (_, i) => i);
+const OTHER_CITY = "__other__";
+
+/** Tur shahri qaysi yo'nalishga tegishli — tahrirlashda tanlovni tiklash uchun. */
+function regionKeyForCity(city?: string | null, country?: string | null): string {
+  const hay = `${city || ""} ${country || ""}`.toLowerCase();
+  const hit = REGIONS.find((r) => r.cities.some((c) => c.toLowerCase() === String(city || "").toLowerCase()))
+    || REGIONS.find((r) => r.match.some((m) => hay.includes(m)));
+  return hit?.key || "";
+}
+
 function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
   const editing = !!tour && !duplicate;
+  const initRegion = regionKeyForCity(tour?.city, tour?.destinationCountry);
+  const initCityKnown = initRegion
+    ? (regionByKey(initRegion)?.cities || []).some((c) => c.toLowerCase() === String(tour?.city || "").toLowerCase())
+    : false;
   const [f, setF] = useState({
     title: duplicate && tour?.title ? `${tour.title} (nusxa)` : (tour?.title || ""), city: tour?.city || "", subtitle: tour?.subtitle || "",
     duration: tour?.duration || "", price: tour?.price || (tour?.priceMin ? `$${tour.priceMin}` : ""),
     highlights: Array.isArray(tour?.highlights) ? tour.highlights.join(", ") : "",
     mapAddress: tour?.mapAddress || "",
+    // ── Dropdown bilan boshqariladigan maydonlar
+    region: initRegion,
+    citySelect: initCityKnown ? String(tour?.city || "") : (tour?.city ? OTHER_CITY : ""),
+    days: tour?.days ? String(tour.days) : "",
+    nights: tour?.nights !== undefined && tour?.nights !== null ? String(tour.nights) : "",
+    priceAmount: tour?.priceMin ? String(tour.priceMin) : "",
+    currency: tour?.priceCurrency || "USD",
+    mealPlan: tour?.mealPlan || "",
+    hotelCategory: tour?.hotelCategory || "",
   });
+  const [hotelIncluded, setHotelIncluded] = useState<boolean>(!!tour?.hotelIncluded);
+  const [flightIncluded, setFlightIncluded] = useState<boolean>(!!tour?.flightIncluded);
   // Yangi tur — forma yig'iq (tezkor: 4-5 maydon + rasm). Tahrir/nusxa — batafsil ochiq.
   const [advanced, setAdvanced] = useState(!!tour);
   const [img, setImg] = useState(tour?.imageUrl || "");
   const [gallery, setGallery] = useState<string[]>(Array.isArray(tour?.images) ? tour.images : []);
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
+  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
   // Xizmatlar uchun tez tanlov chiplari — bosib qo'shiladi, yozib o'tirilmaydi.
   const HL_CHIPS = ["Aviabilet", "Transfer", "Gid", "Mehmonxona", "Ovqat", "Viza", "Sug'urta", "Ekskursiya"];
   const hlHas = (c: string) => String(f.highlights).split(",").map((s: string) => s.trim().toLowerCase()).includes(c.toLowerCase());
@@ -2803,18 +2845,36 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
   }
   function validate() {
     if (f.title.trim().length < 3) { setErr("Tur nomi kamida 3 harf bo'lsin."); return false; }
-    if (f.city.trim().length < 2) { setErr("Shahar / yo'nalishni kiriting."); return false; }
+    if (!f.region) { setErr("Yo'nalishni tanlang."); return false; }
+    if (f.city.trim().length < 2) { setErr("Shaharni tanlang (yoki 'Boshqa' tanlab yozing)."); return false; }
+    if (!f.days) { setErr("Necha kunlik turligini tanlang."); return false; }
     if (f.subtitle.trim().length < 3) { setErr("Qisqa tavsif kiriting."); return false; }
-    if (f.duration.trim().length < 2) { setErr("Davomiylikni kiriting (masalan: 5 kun)."); return false; }
     setErr(""); return true;
   }
   async function doSave(publish: boolean) {
     setBusy(true); setErr("");
-    const priceMin = f.price ? Number(f.price.replace(/[^\d]/g, "")) || undefined : undefined;
+    // Narx: raqam + valyuta (filtr priceMin'ga qaraydi)
+    const priceMin = f.priceAmount ? Number(String(f.priceAmount).replace(/[^\d]/g, "")) || undefined : undefined;
+    // DIQQAT: pastda `days` nomi kun bo'yicha REJA massivi uchun ishlatiladi —
+    // shuning uchun kun/kecha SONI boshqa nom bilan.
+    const dayCount = f.days ? Number(f.days) : undefined;
+    const nightCount = f.nights !== "" ? Number(f.nights) : undefined;
+    // Davomiylik matni kun/kechadan yasaladi — qo'lda yozilmaydi (filtr toza bo'lsin)
+    const duration = dayCount ? `${dayCount} kun${nightCount ? ` ${nightCount} kecha` : ""}` : String(f.duration || "").trim();
+    const region = regionByKey(f.region);
     const highlights = String(f.highlights).split(",").map((s: string) => s.trim()).filter((s: string) => s.length >= 2).slice(0, 20);
     const body: Record<string, unknown> = {
-      title: f.title.trim(), city: f.city.trim(), subtitle: f.subtitle.trim(), duration: f.duration.trim(),
-      price: f.price.trim() || undefined, priceMin, highlights,
+      title: f.title.trim(), city: f.city.trim(), subtitle: f.subtitle.trim(), duration,
+      priceMin, highlights,
+      // Filtrlar uchun aniq qiymatlar
+      destinationCountry: region?.label || undefined,
+      days: dayCount, nights: nightCount,
+      priceCurrency: f.currency || undefined,
+      price: priceMin ? `${f.currency === "UZS" ? "" : "$"}${priceMin}${f.currency === "UZS" ? " so'm" : ""}` : undefined,
+      mealPlan: f.mealPlan || undefined,
+      hotelCategory: f.hotelCategory || undefined,
+      hotelIncluded,
+      flightIncluded,
     };
     if (!editing || img !== (tour?.imageUrl || "")) body.imageUrl = img || null;
     body.images = gallery;
@@ -2854,15 +2914,93 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
         ) : (
         <form onSubmit={(e) => { e.preventDefault(); if (validate()) setConfirming(true); }}>
           <div className="fld"><label>Tur nomi *</label><input value={f.title} onChange={set("title")} placeholder="Masalan: Dubay 5 kun" /></div>
+          {/* Yo'nalish + shahar — YAGONA manbadan (travelData). Katalog filtri ham
+              shu manbaga qaraydi, shuning uchun tanlangan tur filtrga aniq tushadi. */}
           <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div className="fld"><label>Shahar / yo&apos;nalish *</label><input value={f.city} onChange={set("city")} placeholder="Dubay" /></div>
-            <div className="fld"><label>Davomiyligi *</label><input value={f.duration} onChange={set("duration")} placeholder="5 kun 4 kecha" /></div>
+            <div className="fld">
+              <label>Yo&apos;nalish *</label>
+              <select
+                value={f.region}
+                onChange={(e) => setF((p) => ({ ...p, region: e.target.value, citySelect: "", city: "" }))}
+              >
+                <option value="">Tanlang…</option>
+                {REGIONS.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+              </select>
+            </div>
+            <div className="fld">
+              <label>Shahar *</label>
+              <select
+                value={f.citySelect}
+                disabled={!f.region}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setF((p) => ({ ...p, citySelect: v, city: v === OTHER_CITY ? "" : v }));
+                }}
+              >
+                <option value="">{f.region ? "Tanlang…" : "Avval yo'nalishni tanlang"}</option>
+                {(regionByKey(f.region)?.cities || []).map((c) => <option key={c} value={c}>{c}</option>)}
+                {f.region ? <option value={OTHER_CITY}>Boshqa shahar…</option> : null}
+              </select>
+            </div>
           </div>
+          {f.citySelect === OTHER_CITY ? (
+            <div className="fld"><label>Shahar nomi *</label><input value={f.city} onChange={set("city")} placeholder="Masalan: Sharm-ash-Shayx" /></div>
+          ) : null}
+
+          {/* Davomiylik — raqamli tanlov. Filtr «1-3 / 4-7 / 7+ kun» aynan kun soniga qaraydi. */}
+          <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div className="fld">
+              <label>Necha kun *</label>
+              <select value={f.days} onChange={set("days")}>
+                <option value="">Tanlang…</option>
+                {DAY_OPTS.map((d) => <option key={d} value={d}>{d} kun</option>)}
+              </select>
+            </div>
+            <div className="fld">
+              <label>Necha kecha</label>
+              <select value={f.nights} onChange={set("nights")}>
+                <option value="">Ko&apos;rsatilmagan</option>
+                {NIGHT_OPTS.map((n) => <option key={n} value={n}>{n} kecha</option>)}
+              </select>
+            </div>
+          </div>
+
           <div className="fld"><label>Qisqa tavsif *</label><input value={f.subtitle} onChange={set("subtitle")} placeholder="All inclusive, aviabilet + mehmonxona" /></div>
-          <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div className="fld"><label>Narx</label><input value={f.price} onChange={set("price")} placeholder="$900" /></div>
-            <div className="fld"><label>Xizmatlar</label><input value={f.highlights} onChange={set("highlights")} placeholder="Aviabilet, Transfer, Gid" /></div>
+
+          {/* Narx — raqam + valyuta (filtr priceMin'ga qaraydi, matnni parse qilmaydi) */}
+          <div className="grid" style={{ gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+            <div className="fld"><label>Narx (kishi boshiga)</label><input type="number" min={0} value={f.priceAmount} onChange={set("priceAmount")} placeholder="900" /></div>
+            <div className="fld">
+              <label>Valyuta</label>
+              <select value={f.currency} onChange={set("currency")}>
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
           </div>
+
+          {/* Ovqatlanish va mehmonxona toifasi — standart kodlar (BB/HB/AI…) */}
+          <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div className="fld">
+              <label>Ovqatlanish</label>
+              <select value={f.mealPlan} onChange={set("mealPlan")}>
+                {MEAL_PLANS.map((m) => <option key={m.v || "none"} value={m.v}>{m.label}</option>)}
+              </select>
+            </div>
+            <div className="fld">
+              <label>Mehmonxona toifasi</label>
+              <select value={f.hotelCategory} onChange={set("hotelCategory")}>
+                {HOTEL_CATS.map((c) => <option key={c || "none"} value={c}>{c || "Ko'rsatilmagan"}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Kiritilganmi — tur sahifasidagi «Nimalar kiritilgan» shundan yasaladi */}
+          <div style={{ display: "flex", gap: 18, flexWrap: "wrap", margin: "2px 0 12px" }}>
+            <label className="kv-check"><input type="checkbox" checked={hotelIncluded} onChange={(e) => setHotelIncluded(e.target.checked)} /> Mehmonxona kiritilgan</label>
+            <label className="kv-check"><input type="checkbox" checked={flightIncluded} onChange={(e) => setFlightIncluded(e.target.checked)} /> Aviabilet kiritilgan</label>
+          </div>
+
+          <div className="fld"><label>Xizmatlar</label><input value={f.highlights} onChange={set("highlights")} placeholder="Aviabilet, Transfer, Gid" /></div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "-4px 0 2px" }}>
             {HL_CHIPS.map((c) => {
               const on = hlHas(c);

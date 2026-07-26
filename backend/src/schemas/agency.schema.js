@@ -136,7 +136,11 @@ const tourSchema = z.object({
   destinationCountry: optionalText,
   tourGroup: optionalText,
   nights: z.coerce.number().int().nonnegative().optional().nullable(),
+  // Kun soni — katalog filtri («1-3 / 4-7 / 7+ kun») aynan shu maydonga qaraydi.
+  days: z.coerce.number().int().nonnegative().optional().nullable(),
   hotelIncluded: z.coerce.boolean().optional().default(false),
+  // Aviabilet kiritilganmi — tur sahifasidagi «Nimalar kiritilgan» shundan.
+  flightIncluded: z.coerce.boolean().optional().default(false),
   hotelName: optionalText,
   hotelCategory: optionalText,
   hotelLocation: optionalText,

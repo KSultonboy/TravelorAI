@@ -664,3 +664,7 @@
 :root[data-theme="dark"] .kv .b-sky{ background:rgba(62,134,176,.22); color:#a6d3ea; }
 :root[data-theme="dark"] .kv .b-grey{ background:rgba(255,255,255,.08); color:#c3d3ca; }
 :root[data-theme="dark"] .kv .b-rose{ background:rgba(192,57,43,.22); color:#f0b3ab; }
+
+/* Tur formasidagi belgilash (checkbox) — «kiritilgan» maydonlari uchun */
+.kv .kv-check{ display:inline-flex; align-items:center; gap:8px; font-size:13.5px; color:var(--t1); cursor:pointer; user-select:none; }
+.kv .kv-check input{ width:17px; height:17px; accent-color:var(--primary); cursor:pointer; }
