@@ -1,11 +1,11 @@
 {
-  "version": "1.0.2",
-  "notes": "Lid manbasi (Offline/Telegram/Instagram/WhatsApp/Marketplace) va hisobotда doiraviy diagramma qo'shildi. Yangilanish tugmasi tuzatildi.",
-  "pub_date": "2026-07-26T09:51:47Z",
+  "version": "1.0.3",
+  "notes": "Voronkada kartani sudrab o'tkazish tuzatildi (desktop). Lid manbasi va hisobot diagrammasi qo'shildi.",
+  "pub_date": "2026-07-26T10:12:16Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSEZjVWMrQ2FuVW1BaFVEQndWUEFpaVpNMkhnVEJoL1FPeCtaczRRSE1tSkZTbmRteEhaMmloS0FLc1Frd3dRS0dRVnE4elhPTmpzcUl4ZHpUeHdVTElZZit4ckY4YVFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg1MDU5NDg1CWZpbGU6VHJhdmVsb3JBSSBDUk1fMS4wLjJfeDY0LXNldHVwLmV4ZQpQQW5pVmxYdlUwWVFMWEc0R3IwNHdMVzVOTFc4TXFnMXcxUmkvalgwUlZxYlJGZmdCOUs2aDZOU016Q1RGRm5WKzJmU29YYzkrZmgwMmFwNzlxSU1EUT09Cg==",
-      "url": "https://travelorai.com/desktop/TravelorAI-CRM_1.0.2_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSEZjVWMrQ2FuVWlUOFNSVzZxV3h5K2RReU0xbkp6SjNHaDJJeCtpZXVoeFBMSEtOa0pFZEhaV2c5Ky9PRjVOa3BwYXNiNi9zQUJuRUtKbkY2SVFGNFZlWTF1OW5kUEFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg1MDYwNzAyCWZpbGU6VHJhdmVsb3JBSSBDUk1fMS4wLjNfeDY0LXNldHVwLmV4ZQpVVmFTMkE5TGpLNko5UXg4dTYxbER6YktOVjZzYjRnbzgwVVNOeVEyakQvaDVib1J5dEFVazRLVEZ2K1VzVHYzSktWRFlxb25wS2NuemRva01BdDFEdz09Cg==",
+      "url": "https://travelorai.com/desktop/TravelorAI-CRM_1.0.3_x64-setup.exe"
     }
   }
 }
