@@ -683,6 +683,47 @@
 /* «Narxga nimalar kiritilgan» — 4 ta belgi, torroq ekranda o'ziga o'tadi */
 .kv .kv-checkrow{ display:flex; flex-wrap:wrap; gap:10px 18px; padding:9px 12px; border:1px solid var(--field-border); border-radius:10px; background:var(--field-bg); }
 
+/* ── Shartnoma matni: band-bandga tahrirlash ──
+   Ilgari butun shartnoma bitta katta oynada «## » belgilari bilan turardi. */
+.kv .doc-sec-wrap{ display:grid; gap:10px; }
+.kv .doc-sec-head{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-top:4px; }
+.kv .doc-sec-head b{ font-family:var(--disp); font-size:13.5px; }
+.kv .doc-sec-head small{ font-size:12px; color:var(--t2); }
+.kv .doc-sec{ border:1px solid var(--field-border); border-radius:11px; background:var(--field-bg); padding:10px; display:grid; gap:8px; }
+.kv .doc-sec__bar{ display:flex; align-items:center; gap:8px; }
+.kv .doc-sec__n{ flex-shrink:0; width:24px; height:24px; border-radius:7px; display:grid; place-items:center;
+  background:var(--primary-soft); color:var(--primary); font-family:var(--disp); font-size:12.5px; font-weight:700;
+  font-variant-numeric:tabular-nums; }
+.kv .doc-sec__title{ flex:1; min-width:0; border:1px solid var(--field-border); border-radius:8px; padding:7px 10px;
+  background:var(--surface); color:var(--t1); font-family:var(--disp); font-size:13.5px; font-weight:600; outline:none; }
+.kv .doc-sec__title:focus{ border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-soft); }
+.kv .doc-sec__acts{ display:flex; gap:4px; flex-shrink:0; }
+.kv .doc-sec__acts button{ width:28px; height:28px; border-radius:8px; border:1px solid var(--field-border);
+  background:var(--surface); color:var(--t2); cursor:pointer; display:grid; place-items:center; font-size:13px;
+  font-family:inherit; transition:color .12s, border-color .12s; }
+.kv .doc-sec__acts button:hover:not(:disabled){ color:var(--primary); border-color:var(--primary); }
+.kv .doc-sec__acts button:disabled{ opacity:.35; cursor:default; }
+.kv .doc-sec__acts .doc-sec__del:hover{ color:var(--rose); border-color:var(--rose); }
+.kv .doc-sec textarea{ width:100%; border:1px solid var(--field-border); border-radius:8px; padding:8px 10px;
+  background:var(--surface); color:var(--t1); font-family:inherit; font-size:13px; line-height:1.55; resize:vertical; outline:none; }
+.kv .doc-sec textarea:focus{ border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-soft); }
+.kv .doc-sec-add{ justify-self:start; display:inline-flex; align-items:center; gap:7px; padding:8px 14px;
+  border-radius:10px; border:1px dashed var(--field-border); background:transparent; color:var(--primary);
+  font-family:inherit; font-size:13px; font-weight:600; cursor:pointer; transition:background-color .12s, border-color .12s; }
+.kv .doc-sec-add:hover{ background:var(--primary-soft); border-color:var(--primary); }
+
+/* Belgilar kartasi — bosilsa nusxalanadi */
+.kv .doc-ph-card{ padding:14px; margin-top:16px; }
+.kv .doc-ph-card__head{ display:grid; gap:4px; margin-bottom:10px; }
+.kv .doc-ph-card__head b{ font-family:var(--disp); font-size:13.5px; }
+.kv .doc-ph-card__head small{ font-size:12.5px; color:var(--t2); line-height:1.55; }
+.kv .doc-ph-list{ display:flex; flex-wrap:wrap; gap:6px; }
+.kv button.doc-ph{ display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:20px;
+  border:1px solid var(--field-border); background:var(--field-bg); cursor:pointer; font-family:inherit;
+  font-size:11.5px; color:var(--t2); transition:border-color .12s, background-color .12s; }
+.kv button.doc-ph:hover{ border-color:var(--primary); background:var(--primary-soft); }
+.kv button.doc-ph code{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11px; color:var(--primary-ink); }
+
 /* ── Hujjat oynasi (shartnoma / hisob-faktura) ──
    Yangi oyna (pop-up) o'rniga CRM ichida ko'rsatiladi: desktop ilovada ham,
    pop-up bloklangan brauzerda ham ishlaydi. */

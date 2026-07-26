@@ -37,6 +37,9 @@ import {
   saveTemplates,
   DEFAULT_DOC_TEMPLATES,
   DOC_PLACEHOLDERS,
+  parseBody,
+  serializeBody,
+  type DocSection,
   type DocType,
   type DocRequisites,
   type DocTemplates,
@@ -1840,8 +1843,10 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
                 placeholder="Narx (faqat son)"
                 style={{ ...inp, flex: "1 1 150px" }}
               />
+              {/* Valyuta kodi — tur qo'shish formasi bilan BIR XIL yozilishi
+                  kerak (USD / UZS), aks holda ikki joyda boshqacha ko'rinadi. */}
               <select value={currency} onChange={(e) => setCurrency(e.target.value)} style={{ ...inp, flex: "0 1 110px" }}>
-                {CURRENCIES.map((c) => <option key={c} value={c}>{c === "UZS" ? "so'm" : "USD ($)"}</option>)}
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
               <select value={basis} onChange={(e) => setBasis(e.target.value)} style={{ ...inp, flex: "1 1 190px" }}>
                 {OFFER_BASIS.map((b) => <option key={b.v || "none"} value={b.v}>{b.label}</option>)}
@@ -2625,11 +2630,87 @@ function TplEditor({ title, onPreview, onReset, readOnly, children }: { title: s
     </div>
   );
 }
+/**
+ * Shartnoma matnini BAND-BANDGA tahrirlash.
+ *
+ * NEGA: ilgari butun shartnoma bitta katta oynada, «## » belgilari bilan
+ * yozilgan holda turardi. Agentlik egasi bu belgilarni bilishi, band
+ * raqamlarini (## 3., 3.1., 3.2.) qo'lda tuzatishi kerak edi — bir bandni
+ * o'chirsa, qolganlarini qayta raqamlash kerak bo'lardi.
+ *
+ * Endi: har band alohida — sarlavhasi va matni. Raqamlar avtomatik qo'yiladi,
+ * bandni yuqori/pastga ko'chirish yoki o'chirish mumkin. Saqlanish formati
+ * O'ZGARMAYDI (parseBody/serializeBody), ya'ni eski shablonlar ham ochiladi.
+ */
+function BodySections({ value, onChange, readOnly }: { value: string; onChange: (v: string) => void; readOnly?: boolean }) {
+  const parsed = useMemo(() => parseBody(value), [value]);
+  const set = (next: { intro?: string; sections?: DocSection[] }) =>
+    onChange(serializeBody({ intro: next.intro ?? parsed.intro, sections: next.sections ?? parsed.sections }));
+
+  const editSection = (i: number, patch: Partial<DocSection>) => {
+    const s = parsed.sections.map((x, j) => (j === i ? { ...x, ...patch } : x));
+    set({ sections: s });
+  };
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= parsed.sections.length) return;
+    const s = [...parsed.sections];
+    [s[i], s[j]] = [s[j], s[i]];
+    set({ sections: s });
+  };
+  const remove = (i: number) => set({ sections: parsed.sections.filter((_, j) => j !== i) });
+  const add = () => set({ sections: [...parsed.sections, { title: "Yangi band", text: "" }] });
+
+  return (
+    <div className="doc-sec-wrap">
+      <div className="fld">
+        <label>Kirish qismi — bandlardan oldingi matn</label>
+        <textarea rows={3} value={parsed.intro} disabled={readOnly}
+          onChange={(e) => set({ intro: e.target.value })} />
+      </div>
+
+      <div className="doc-sec-head">
+        <b>Bandlar</b>
+        <small>Raqamlar avtomatik qo&apos;yiladi — qo&apos;lda yozish shart emas</small>
+      </div>
+
+      {parsed.sections.map((s, i) => (
+        <div className="doc-sec" key={i}>
+          <div className="doc-sec__bar">
+            <span className="doc-sec__n">{i + 1}</span>
+            <input className="doc-sec__title" value={s.title} disabled={readOnly} placeholder="Band sarlavhasi"
+              onChange={(e) => editSection(i, { title: e.target.value })} />
+            {!readOnly ? (
+              <div className="doc-sec__acts">
+                <button type="button" title="Yuqoriga" disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
+                <button type="button" title="Pastga" disabled={i === parsed.sections.length - 1} onClick={() => move(i, 1)}>↓</button>
+                <button type="button" title="Bandni o'chirish" className="doc-sec__del" onClick={() => remove(i)}>
+                  <Ic d={I.trash} s={14} />
+                </button>
+              </div>
+            ) : null}
+          </div>
+          <textarea rows={Math.min(8, Math.max(2, s.text.split("\n").length + 1))} value={s.text} disabled={readOnly}
+            placeholder={`${i + 1}.1. Band matnini yozing…`}
+            onChange={(e) => editSection(i, { text: e.target.value })} />
+        </div>
+      ))}
+
+      {!readOnly ? (
+        <button type="button" className="doc-sec-add" onClick={add}>
+          <Ic d={I.plus} s={15} /> Band qo&apos;shish
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function DocumentsSection({ show, agencyId, readOnly }: { show: boolean; agencyId: string; readOnly?: boolean }) {
   const { me } = useAgencySession();
   const [tpl, setTpl] = useState<DocTemplates>(DEFAULT_DOC_TEMPLATES);
   const [msg, setMsg] = useState("");
   const [doc, setDoc] = useState<{ html: string; filename: string; title: string } | null>(null);
+  const [copiedPh, setCopiedPh] = useState("");
   useEffect(() => { setTpl(getTemplates(agencyId)); }, [agencyId]);
   function setField(type: DocType, key: string, val: string) {
     setTpl((p) => ({ ...p, [type]: { ...(p as Record<string, Record<string, string>>)[type], [key]: val } }) as DocTemplates);
@@ -2657,16 +2738,29 @@ function DocumentsSection({ show, agencyId, readOnly }: { show: boolean; agencyI
       <div className="section-head"><div><h2>Rekvizitlar</h2><div className="sub">STIR, bank, direktor, manzil — barcha hujjatga qo&apos;yiladi</div></div></div>
       <DocRequisitesCard agencyId={agencyId} readOnly={readOnly} />
 
-      <div className="card" style={{ padding: 14, marginTop: 16 }}>
-        <b style={{ fontSize: 13 }}>Belgilar (yozganingizда avtomatik to&apos;ladi):</b>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 9 }}>
-          {DOC_PLACEHOLDERS.map((p) => <span key={p.key} className="doc-ph" title={p.label}><code>{p.key}</code> {p.label}</span>)}
+      {/* Belgilar — bosilsa nusxalanadi, keyin matnga qo'yish mumkin.
+          Ilgari faqat ro'yxat edi: qanday ishlatilishi tushunarsiz edi. */}
+      <div className="card doc-ph-card">
+        <div className="doc-ph-card__head">
+          <b>Avtomatik to&apos;ladigan belgilar</b>
+          <small>Matnga shu belgini yozsangiz — hujjat tayyorlanganda o&apos;rniga haqiqiy ma&apos;lumot qo&apos;yiladi.
+            Masalan <code>{"{mijoz}"}</code> → mijozning ismi. Belgini bosib nusxalab oling.</small>
+        </div>
+        <div className="doc-ph-list">
+          {DOC_PLACEHOLDERS.map((p) => (
+            <button type="button" key={p.key} className="doc-ph" title="Nusxalash uchun bosing"
+              onClick={() => { void navigator.clipboard?.writeText(p.key).then(() => { setCopiedPh(p.key); setTimeout(() => setCopiedPh(""), 1400); }).catch(() => {}); }}>
+              <code>{p.key}</code>
+              <span>{copiedPh === p.key ? "nusxalandi ✓" : p.label}</span>
+            </button>
+          ))}
         </div>
       </div>
 
       <TplEditor title="Shartnoma" onPreview={() => preview("shartnoma")} onReset={() => resetType("shartnoma")} readOnly={readOnly}>
         <DocFld label="Sarlavha"><input value={tpl.shartnoma.title} onChange={(e) => setField("shartnoma", "title", e.target.value)} disabled={readOnly} /></DocFld>
-        <DocFld label="Matn — «## » bilan sarlavha, bo&apos;sh qator yangi xatboshi"><textarea rows={12} value={tpl.shartnoma.body} onChange={(e) => setField("shartnoma", "body", e.target.value)} disabled={readOnly} /></DocFld>
+        <BodySections value={tpl.shartnoma.body} readOnly={readOnly}
+          onChange={(v) => setField("shartnoma", "body", v)} />
       </TplEditor>
 
       <TplEditor title="Hisob-faktura" onPreview={() => preview("invoice")} onReset={() => resetType("invoice")} readOnly={readOnly}>

@@ -210,6 +210,58 @@ export const DEFAULT_DOC_TEMPLATES: DocTemplates = {
   },
 };
 
+/* ------------------------- shablonni bandlarga ajratish -------------------------
+   Saqlanish formati O'ZGARMAYDI: matn baribir «## 1. Sarlavha» ko'rinishida
+   saqlanadi. Bu funksiyalar shu matnni tahrirlash uchun bandlarga bo'ladi va
+   yana bir xil ko'rinishda yig'adi — shuning uchun agent «##» yozishni bilishi
+   shart emas, band raqamlari ham o'zi qo'yiladi.
+--------------------------------------------------------------------------------*/
+
+export type DocSection = { title: string; text: string };
+export type ParsedBody = { intro: string; sections: DocSection[] };
+
+/** «## » sarlavhalari bo'yicha matnni kirish qismi + bandlarga ajratadi. */
+export function parseBody(body: string): ParsedBody {
+  const lines = String(body || "").split("\n");
+  const intro: string[] = [];
+  const sections: DocSection[] = [];
+  let cur: { title: string; text: string[] } | null = null;
+  for (const line of lines) {
+    const h = /^##\s+(.*)$/.exec(line);
+    if (h) {
+      if (cur) sections.push({ title: cur.title, text: cur.text.join("\n").trim() });
+      // Sarlavha oldidagi raqamni olib tashlaymiz — u avtomatik qo'yiladi
+      cur = { title: h[1].replace(/^\s*\d+\s*\.\s*/, "").trim(), text: [] };
+    } else if (cur) {
+      cur.text.push(line);
+    } else {
+      intro.push(line);
+    }
+  }
+  if (cur) sections.push({ title: cur.title, text: cur.text.join("\n").trim() });
+  return { intro: intro.join("\n").trim(), sections };
+}
+
+/** Bandlarni yana bir butun matnga yig'adi: raqamlar tartib bilan qo'yiladi. */
+export function serializeBody(p: ParsedBody): string {
+  const parts: string[] = [];
+  const intro = String(p.intro || "").trim();
+  if (intro) parts.push(intro);
+  p.sections.forEach((s, i) => {
+    const n = i + 1;
+    const title = String(s.title || "").trim();
+    // Band ichidagi «1.1.» kabi raqamlar band tartibiga moslashadi — bandni
+    // ko'chirsangiz yoki yangisini qo'shsangiz qo'lda tuzatish kerak bo'lmaydi.
+    const text = String(s.text || "")
+      .split("\n")
+      .map((l) => l.replace(/^(\s*)\d+\.(\d+\.)/, `$1${n}.$2`))
+      .join("\n")
+      .trim();
+    parts.push(`## ${n}. ${title}${text ? `\n${text}` : ""}`);
+  });
+  return parts.join("\n\n");
+}
+
 /** Foydalanuvchiga ko'rsatiladigan belgilar ro'yxati. */
 export const DOC_PLACEHOLDERS: { key: string; label: string }[] = [
   { key: "{mijoz}", label: "mijoz ismi" },
