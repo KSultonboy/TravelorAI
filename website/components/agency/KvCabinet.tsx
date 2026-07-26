@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAgencySession } from "@/lib/agency/session";
 import { useCrm } from "@/lib/agency/useCrm";
+import { onExternalClick } from "@/lib/agency/external";
 import { agencyApi, formatMoney, formatDate, statusLabel, readImage } from "@/lib/agency/api";
 import { REGIONS, REGION_GROUPS, regionByKey } from "@/lib/travelData";
 import { getNotifs, markRead, markAllRead, clearNotifs, pushNotif, seedNotifs, type KvNotif } from "@/lib/agency/notify";
@@ -819,11 +820,14 @@ function ContactActions({ lead }: { lead: { customerName: string; customerPhone?
   if (!wa && !tg && !tel) return null;
   const stop = (e: any) => e.stopPropagation();
   const base: any = { width: 30, height: 30, borderRadius: 8, display: "inline-grid", placeItems: "center", color: "#fff", textDecoration: "none", flex: "none" };
+  // DIQQAT: onClick faqat stopPropagation qilib qo'yilsa, desktop ilovada (Tauri)
+  // havola OCHILMAYDI — webview target="_blank" ni bloklaydi. onExternalClick
+  // desktopda tizim brauzeri/ilovasiga topshiradi, brauzerda esa oddiy yo'l.
   return (
     <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }} onPointerDown={stop}>
-      {wa ? <a href={wa} target="_blank" rel="noreferrer" title="WhatsApp" onClick={stop} style={{ ...base, background: "#25D366" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.5 14.4c-.3-.15-1.7-.85-2-.95-.26-.1-.45-.15-.64.15-.19.28-.73.94-.9 1.13-.16.19-.33.21-.61.07-.3-.15-1.25-.46-2.38-1.47-.88-.78-1.47-1.75-1.64-2.04-.17-.29-.02-.44.13-.59.13-.13.3-.34.44-.51.15-.17.19-.29.29-.48.1-.19.05-.36-.02-.51-.08-.15-.64-1.55-.88-2.12-.23-.55-.47-.48-.64-.49h-.55c-.19 0-.5.07-.76.36-.26.29-1 .98-1 2.38s1.02 2.76 1.17 2.95c.14.19 2.01 3.08 4.88 4.32.68.29 1.21.47 1.63.6.68.22 1.3.19 1.79.11.55-.08 1.7-.69 1.94-1.36.24-.67.24-1.24.17-1.36-.07-.12-.26-.19-.55-.34zM12 2a10 10 0 0 0-8.6 15.06L2 22l5.06-1.33A10 10 0 1 0 12 2z" /></svg></a> : null}
-      {tg ? <a href={tg} target="_blank" rel="noreferrer" title="Telegram" onClick={stop} style={{ ...base, background: "#229ED9" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.3 18.7 19.4c-.24 1.06-.87 1.32-1.76.82l-4.87-3.59-2.35 2.26c-.26.26-.48.48-.98.48l.35-4.96 9.02-8.15c.39-.35-.09-.55-.6-.2L6.83 13.2l-4.8-1.5c-1.04-.33-1.06-1.04.22-1.54l18.77-7.23c.87-.32 1.63.2 1.35 1.37z" /></svg></a> : null}
-      {tel ? <a href={tel} title="Qo'ng'iroq" onClick={stop} style={{ ...base, background: "#64748B" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.5-1.1a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z" /></svg></a> : null}
+      {wa ? <a href={wa} target="_blank" rel="noreferrer" title="WhatsApp" onClick={onExternalClick(wa)} style={{ ...base, background: "#25D366" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.5 14.4c-.3-.15-1.7-.85-2-.95-.26-.1-.45-.15-.64.15-.19.28-.73.94-.9 1.13-.16.19-.33.21-.61.07-.3-.15-1.25-.46-2.38-1.47-.88-.78-1.47-1.75-1.64-2.04-.17-.29-.02-.44.13-.59.13-.13.3-.34.44-.51.15-.17.19-.29.29-.48.1-.19.05-.36-.02-.51-.08-.15-.64-1.55-.88-2.12-.23-.55-.47-.48-.64-.49h-.55c-.19 0-.5.07-.76.36-.26.29-1 .98-1 2.38s1.02 2.76 1.17 2.95c.14.19 2.01 3.08 4.88 4.32.68.29 1.21.47 1.63.6.68.22 1.3.19 1.79.11.55-.08 1.7-.69 1.94-1.36.24-.67.24-1.24.17-1.36-.07-.12-.26-.19-.55-.34zM12 2a10 10 0 0 0-8.6 15.06L2 22l5.06-1.33A10 10 0 1 0 12 2z" /></svg></a> : null}
+      {tg ? <a href={tg} target="_blank" rel="noreferrer" title="Telegram" onClick={onExternalClick(tg)} style={{ ...base, background: "#229ED9" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.3 18.7 19.4c-.24 1.06-.87 1.32-1.76.82l-4.87-3.59-2.35 2.26c-.26.26-.48.48-.98.48l.35-4.96 9.02-8.15c.39-.35-.09-.55-.6-.2L6.83 13.2l-4.8-1.5c-1.04-.33-1.06-1.04.22-1.54l18.77-7.23c.87-.32 1.63.2 1.35 1.37z" /></svg></a> : null}
+      {tel ? <a href={tel} title="Qo'ng'iroq" onClick={onExternalClick(tel)} style={{ ...base, background: "#64748B" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.5-1.1a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z" /></svg></a> : null}
     </div>
   );
 }
@@ -1591,7 +1595,7 @@ function TelegramAlertSetup() {
         >
           <Ic d={I.copy} s={13} /> {copied ? "Nusxalandi" : "Nusxalash"}
         </button>
-        <a className="btn btn-ghost btn-sm" href={`https://t.me/${d.username}`} target="_blank" rel="noopener noreferrer">
+        <a className="btn btn-ghost btn-sm" href={`https://t.me/${d.username}`} target="_blank" rel="noopener noreferrer" onClick={onExternalClick(`https://t.me/${d.username}`)}>
           Botni ochish
         </a>
       </div>

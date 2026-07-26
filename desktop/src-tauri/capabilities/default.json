@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "TravelorAI CRM asosiy oyna. Remote (travelorai.com) sahifaga faqat IPC va o'z buyruqlarimiz (check_update/install_update) ochiladi — fayl tizimi, shell va boshqa pluginlar BERILMAYDI.",
+  "description": "TravelorAI CRM asosiy oyna. Remote (travelorai.com) sahifaga faqat IPC va o'z buyruqlarimiz (check_update / install_update / open_external) ochiladi — fayl tizimi, shell va boshqa pluginlar BERILMAYDI.",
   "windows": [
     "main"
   ],

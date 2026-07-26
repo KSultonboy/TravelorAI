@@ -3,10 +3,11 @@
 // saytdan keladi — sayt yangilansa app ham yangilanadi.
 //
 // YANGILANISH (updater): native qobiqni yangilash uchun ikkita buyruq ochilgan.
-// Remote sahifaga BUTUN Tauri API berilmaydi — faqat shu ikkitasi:
+// Remote sahifaga BUTUN Tauri API berilmaydi — faqat quyidagilar:
 //   check_update()   -> joriy/oxirgi versiya, yangilanish bormi
 //   install_update() -> yuklab o'rnatadi va ilovani qayta ishga tushiradi
-// Fayl tizimi, shell va boshqa pluginlar OCHILMAGAN (xavfsizlik).
+//   open_external()  -> tashqi havolani TIZIM brauzeri/ilovasida ochadi
+// Fayl tizimi, shell (buyruq bajarish) va boshqa pluginlar OCHILMAGAN.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use tauri_plugin_updater::UpdaterExt;
@@ -63,10 +64,34 @@ async fn install_update(app: tauri::AppHandle) -> Result<bool, String> {
     }
 }
 
+/// Tashqi havolani tizim brauzeri/ilovasida ochadi (WhatsApp, Telegram, tel:).
+///
+/// NEGA KERAK: Tauri webview'da `target="_blank"` havolalar ochilmaydi —
+/// yangi oyna bloklangan. Shu sababli CRM'dagi WhatsApp/Telegram/qo'ng'iroq
+/// tugmalari desktop ilovada hech narsa qilmasdi.
+///
+/// XAVFSIZLIK: bu "istalgan narsani ochish" emas. Faqat quyidagi sxemalar
+/// ruxsat etiladi va boshqasi rad qilinadi — `file:`, `javascript:`, `data:`
+/// va o'rnatilgan ilovalarni ishga tushiruvchi maxsus sxemalar o'tmaydi.
+#[tauri::command]
+async fn open_external(url: String) -> Result<(), String> {
+    const ALLOWED: [&str; 4] = ["https://", "http://", "tel:", "mailto:"];
+    let u = url.trim();
+    let lower = u.to_ascii_lowercase();
+    if u.len() > 2000 || !ALLOWED.iter().any(|p| lower.starts_with(p)) {
+        return Err("Ruxsat etilmagan havola".into());
+    }
+    // Yangi qator/bo'sh joy orqali qo'shimcha argument uzatishga yo'l qo'ymaymiz.
+    if u.chars().any(|c| c.is_control()) {
+        return Err("Havolada ruxsat etilmagan belgi".into());
+    }
+    open::that_detached(u).map_err(|e| e.to_string())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![check_update, install_update])
+        .invoke_handler(tauri::generate_handler![check_update, install_update, open_external])
         .run(tauri::generate_context!())
         .expect("TravelorAI CRM ishga tushmadi");
 }

@@ -1,0 +1,71 @@
+/**
+ * Tashqi havolani ochish — brauzer va desktop ilova uchun BIR xil ishlaydi.
+ *
+ * MUAMMO: Tauri (desktop) webview'da `target="_blank"` havolalar ochilmaydi —
+ * yangi oyna bloklangan. Shu sababli CRM'dagi WhatsApp / Telegram / qo'ng'iroq
+ * tugmalari desktop ilovada hech narsa qilmasdi (brauzerda esa ishlardi).
+ *
+ * YECHIM: desktop ilovada `open_external` buyrug'i chaqiriladi — havolani
+ * TIZIM brauzeri yoki tegishli ilovada (WhatsApp, Telegram) ochadi.
+ * Brauzerda esa oddiy yo'l (window.open) qoladi.
+ *
+ * Buyruq faqat https/http/tel/mailto sxemalarini qabul qiladi (Rust tomonida
+ * ham tekshiriladi) — «istalgan narsani ishga tushirish» imkoniyati emas.
+ */
+
+type TauriWindow = Window & {
+  __TAURI__?: { core?: { invoke?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> } };
+};
+
+/** Desktop ilova (Tauri) ichida ishlayapmizmi? */
+export function isDesktopApp(): boolean {
+  if (typeof window === "undefined") return false;
+  return typeof (window as TauriWindow).__TAURI__?.core?.invoke === "function";
+}
+
+const ALLOWED = ["https://", "http://", "tel:", "mailto:"];
+
+/**
+ * Havolani ochadi. `true` — ochildi (yoki ochish topshirildi).
+ * Chaqiruvchi <a> elementining standart harakatini to'xtatishi kerak
+ * (desktop ilovada u ishlamaydi, brauzerda esa ikki marta ochilib ketadi).
+ */
+export function openExternal(url?: string | null): boolean {
+  if (typeof window === "undefined") return false;
+  const u = String(url || "").trim();
+  if (!u || !ALLOWED.some((p) => u.toLowerCase().startsWith(p))) return false;
+
+  const invoke = (window as TauriWindow).__TAURI__?.core?.invoke;
+  if (typeof invoke === "function") {
+    // Desktop: tizim brauzeri/ilovasiga topshiramiz
+    void invoke("open_external", { url: u }).catch(() => {
+      // Buyruq mavjud bo'lmasa (eski versiya) — oxirgi chora sifatida oddiy yo'l
+      window.open(u, "_blank", "noopener");
+    });
+    return true;
+  }
+  // Brauzer: tel:/mailto: uchun yangi oyna ochilmaydi (bo'sh varaq qolib
+  // ketadi) — tizim ilovasiga joyida topshiramiz. Qolgani yangi oynada.
+  const lower = u.toLowerCase();
+  if (lower.startsWith("tel:") || lower.startsWith("mailto:")) {
+    window.location.href = u;
+    return true;
+  }
+  const w = window.open(u, "_blank", "noopener");
+  return !!w;
+}
+
+/**
+ * <a> uchun onClick. Havolani `openExternal` bilan ochadi va standart
+ * harakatni to'xtatadi. Havola `href`da ham qoladi — o'ng tugma bilan
+ * «nusxalash» ishlashi va ekran o'quvchilar uchun.
+ */
+export function onExternalClick(url?: string | null) {
+  return (e: React.MouseEvent) => {
+    // Ctrl/Cmd/o'rta tugma — brauzerning o'z xatti-harakati qolsin
+    if (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1) return;
+    e.preventDefault();
+    e.stopPropagation();
+    openExternal(url);
+  };
+}

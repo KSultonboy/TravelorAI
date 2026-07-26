@@ -4,10 +4,14 @@
 # uchun ACL'da ochiq bo'lishi SHART — aks holda:
 #   "Command check_update not allowed by ACL"
 #
-# Bu yerda FAQAT ikkita yangilanish buyrug'i ochiladi. Fayl tizimi, shell va
-# boshqa hech narsa berilmaydi.
+# Bu yerda FAQAT o'zimiz yozgan buyruqlar ochiladi. Fayl tizimi, shell
+# (buyruq bajarish) va boshqa hech narsa berilmaydi.
+#
+# open_external — tashqi havolani tizim brauzeri/ilovasida ochadi. Rust
+# tomonida sxema qat'iy tekshiriladi (https/http/tel/mailto), shuning uchun
+# bu "istalgan narsani ishga tushirish" imkoniyati emas.
 
 [[permission]]
 identifier = "allow-update-commands"
-description = "Dastur yangilanishini tekshirish va o'rnatish buyruqlari (check_update, install_update)."
-commands.allow = ["check_update", "install_update"]
+description = "Ilovaning o'z buyruqlari: yangilanishni tekshirish/o'rnatish va tashqi havolani ochish."
+commands.allow = ["check_update", "install_update", "open_external"]
