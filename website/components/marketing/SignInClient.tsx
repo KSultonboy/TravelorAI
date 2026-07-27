@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, BadgeCheck, Building2, ChevronRight, Eye, EyeOff, Lock, Mail, MapPinned, ShieldCheck, Sparkles, User } from "lucide-react";
 import Logo from "./Logo";
 import GoogleContinueButton from "../GoogleContinueButton";
 import { CONTACT } from "@/lib/legalEntity";
+import { isDesktopApp, openExternal } from "@/lib/agency/external";
 
 const HERO = "https://images.unsplash.com/photo-1539635278303-d4002c07eae3?auto=format&fit=crop&w=1400&q=70";
 type Role = "traveler" | "partner";
@@ -35,6 +36,11 @@ export default function SignInClient() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [info, setInfo] = useState("");
+  // Admin paneli havolasi FAQAT desktop ilovada ko'rinadi (web mehmonlar ko'rmaydi).
+  // Desktop app URL paneliga ega emas, shuning uchun egaga admin panelга kirish
+  // yo'li kerak; web'da esa oddiy /admin manzili bor.
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => setIsDesktop(isDesktopApp()), []);
 
   const base = role === "partner" ? "/api/agency-proxy/agency/auth" : "/api/backend/auth";
   const dest = role === "partner" ? "/agency" : next || "/my-trips";
@@ -232,6 +238,22 @@ export default function SignInClient() {
                   </div>
                 </>
               )}
+
+              {/* Admin paneli — faqat desktop ilovada. Egasi uchun: agentlik
+                  login formasidan tashqari boshqaruv paneliga o'tish yo'li.
+                  Tizim brauzerida ochiladi (katta konsol + orqaga qaytish erkin,
+                  desktop oynasi CRM'da qoladi). */}
+              {isDesktop ? (
+                <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--line)", textAlign: "center" }}>
+                  <button
+                    type="button"
+                    onClick={() => openExternal("https://travelorai.com/admin")}
+                    style={{ background: "none", border: 0, color: "var(--muted)", fontWeight: 600, fontSize: "0.8rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
+                  >
+                    <ShieldCheck size={14} /> Administrator paneli
+                  </button>
+                </div>
+              ) : null}
             </>
           )}
         </div>
