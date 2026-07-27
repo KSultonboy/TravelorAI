@@ -633,6 +633,12 @@
 .kv .sub-pay__total b{ font-family:var(--disp); font-size:18px; color:var(--gold-ink); font-variant-numeric:tabular-nums; }
 .kv .sub-pay__note{ font-size:11.5px; color:var(--t3); }
 .kv .sub-pay__note a{ color:var(--primary); }
+/* CLICK hali ulanmaganда — oqim ko'rinadi, ogohlantirish beriladi */
+.kv .sub-pay__pending{ font-size:12.5px; color:var(--gold-ink); background:var(--gold-soft); border:1px solid var(--gold); border-radius:10px; padding:9px 12px; line-height:1.5; }
+.kv .sub-pay__pending b{ font-family:var(--disp); }
+/* «Obuna va to'lov» ekrani — pastdagi huquqiy havolalar */
+.kv .bill-legal{ margin-top:16px; font-size:12.5px; color:var(--t3); text-align:center; }
+.kv .bill-legal a{ color:var(--primary); font-weight:600; }
 
 .kv .kv-fieldset{ border:0; padding:0; margin:0; min-inline-size:auto; }
 .kv .kv-fieldset:disabled{ opacity:.6; }

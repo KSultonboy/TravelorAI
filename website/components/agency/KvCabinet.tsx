@@ -122,9 +122,12 @@ const NAV: { key: string; label: string; icon: string; group: string; badge?: "l
   { key: "packages", label: "Turlar / Paketlar", icon: I.box, group: "Sotuv" },
   { key: "presentations", label: "Takliflar", icon: I.send, group: "Sotuv" },
   { key: "reviews", label: "Sharhlar", icon: I.star, group: "Sotuv" },
-  { key: "payments", label: "To'lovlar", icon: I.card, group: "Sotuv" },
+  { key: "payments", label: "Mijoz to'lovlari", icon: I.card, group: "Sotuv" },
   { key: "reports", label: "Hisobotlar", icon: I.chart, group: "Boshqa" },
   { key: "documents", label: "Hujjatlar", icon: I.doc, group: "Boshqa" },
+  // Obuna to'lovi (CLICK) — mijoz to'lovlaridan ALOHIDA. Bu yerda agentlik
+  // TravelorAI xizmatiga (o'z obunasiga) to'laydi.
+  { key: "billing", label: "Obuna va to'lov", icon: I.money, group: "Boshqa" },
   { key: "settings", label: "Sozlamalar", icon: I.gear, group: "Boshqa" },
 ];
 const TITLES: Record<string, string> = { ...Object.fromEntries(NAV.map((n) => [n.key, n.label])), telegram: "Telegram bot" };
@@ -571,7 +574,9 @@ export default function KvCabinet() {
   const canExport = caps.csvExport !== false;
   const allowedSections = access?.sections || null; // null = cheklovsiz (grandfather / eski agentlik)
   const sectionAllowed = (key: string) => {
-    if (key === "dashboard" || key === "settings" || key === "reviews" || key === "documents") return true; // doim ochiq
+    // DIQQAT: «billing» DOIM ochiq bo'lishi SHART — muddat tugagan/read-only
+    // holatда ham agentlik to'lay olishi kerak (aks holda qamalib qoladi).
+    if (key === "dashboard" || key === "settings" || key === "reviews" || key === "documents" || key === "billing") return true; // doim ochiq
     if (key === "telegram") return caps.telegram !== false;
     if (key === "presentations") return caps.presentations !== false;
     if (!allowedSections) return true;
@@ -657,6 +662,7 @@ export default function KvCabinet() {
                 <Reviews show={view === "reviews"} readOnly={readOnly} />
                 <Payments show={view === "payments"} leads={leads} move={guardedMove} busyId={busyId} readOnly={readOnly} canExport={canExport} />
                 <Reports show={view === "reports"} leads={leads} />
+                <Billing show={view === "billing"} access={access} />
                 <DocumentsSection show={view === "documents"} agencyId={agencyId} readOnly={readOnly} />
                 <Settings show={view === "settings"} agency={agency} agencyId={agencyId} refresh={refresh} logout={logout} go={setView} access={access} readOnly={readOnly} caps={caps} />
                 <TelegramPage show={view === "telegram"} leads={leads} go={setView} readOnly={readOnly} />
@@ -2270,7 +2276,7 @@ function Reports({ show, leads }: any) {
 }
 
 /* ================= SETTINGS ================= */
-function SubscriptionCard({ access }: any) {
+function SubscriptionCard({ access, onManage }: any) {
   if (!access) return null;
   const { planName, status, readOnly, expired, until, daysLeft, caps } = access;
   const badge = expired
@@ -2303,7 +2309,79 @@ function SubscriptionCard({ access }: any) {
         <div className="sub-card__warn">Obuna muddati tugagan — hozir faqat o&apos;qish rejimi. Quyida tarifni tanlab to&apos;lov qilsangiz, kabinet darhol tiklanadi.</div>
       ) : null}
       {feats.length ? <div className="sub-card__feats">{feats.map((f) => <span key={f} className="chip">{f}</span>)}</div> : null}
-      <PayPlan />
+      {/* To'lash amaliyoti alohida «Obuna va to'lov» ekranida — bu yerda faqat
+          holat. onManage berilsa (Sozlamalarда), o'sha ekranga o'tkazadi. */}
+      {onManage ? (
+        <div style={{ marginTop: 14 }}>
+          <button className="btn btn-primary" onClick={onManage}><Ic d={I.money} s={16} /> Hisobni to&apos;ldirish</button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/* «Obuna va to'lov» ekrani — CLICK menejerlari uchun ham aniq oqim:
+   joriy tarif → hisobni to'ldirish (CLICK) → to'lov tarixi → ommaviy oferta. */
+function Billing({ show, access }: { show: boolean; access: any }) {
+  return (
+    <section className={`view${show ? " active" : ""}`}>
+      <div className="section-head">
+        <div>
+          <h2>Obuna va to&apos;lov</h2>
+          <div className="sub">Bu yerda siz TravelorAI xizmatiga (o&apos;z obunangizga) to&apos;laysiz. Mijozlardan olingan pul — «Mijoz to&apos;lovlari» bo&apos;limida.</div>
+        </div>
+      </div>
+      <SubscriptionCard access={access} />
+      <PayPlan heading="Hisobni to'ldirish" />
+      <PaymentHistory />
+      <div className="bill-legal">
+        To&apos;lov shartlari: <a href="/offer" target="_blank" rel="noreferrer" onClick={onExternalClick("https://travelorai.com/offer")}>ommaviy oferta</a>
+        {" · "}
+        <a href="/pricing" target="_blank" rel="noreferrer" onClick={onExternalClick("https://travelorai.com/pricing")}>tariflar</a>
+      </div>
+    </section>
+  );
+}
+
+type PayTx = { merchantTransId: string; tariffSlug?: string | null; months: number; amount: number; state: string; paidAt?: string | null; createdAt: string };
+const PAY_STATE: Record<string, { c: string; t: string }> = {
+  paid: { c: "b-green", t: "To'landi" },
+  prepared: { c: "b-amber", t: "Kutilmoqda" },
+  created: { c: "b-grey", t: "Boshlandi" },
+  cancelled: { c: "b-rose", t: "Bekor qilindi" },
+};
+
+/** To'lov tarixi — agentlikning CLICK tranzaksiyalari. */
+function PaymentHistory() {
+  const [rows, setRows] = useState<PayTx[] | null>(null);
+  useEffect(() => {
+    void agencyApi<{ items: PayTx[] }>("/payments/history").then((r) => setRows(r.success ? (r.data.items || []) : []));
+  }, []);
+  if (rows === null) return null;
+  return (
+    <div style={{ marginTop: 18 }}>
+      <div className="section-head" style={{ marginBottom: 10 }}><div><h2 style={{ fontSize: 16 }}>To&apos;lov tarixi</h2></div></div>
+      <div className="card tbl-wrap">
+        {rows.length ? (
+          <table>
+            <thead><tr><th>Sana</th><th>Tarif</th><th>Muddat</th><th className="r">Summa</th><th>Holat</th></tr></thead>
+            <tbody>
+              {rows.map((t) => {
+                const s = PAY_STATE[t.state] || PAY_STATE.created;
+                return (
+                  <tr key={t.merchantTransId}>
+                    <td>{formatDate(t.paidAt || t.createdAt)}</td>
+                    <td>{t.tariffSlug || "—"}</td>
+                    <td>{t.months} oy</td>
+                    <td className="r money">{somUz(t.amount)} so&apos;m</td>
+                    <td><span className={`badge2 ${s.c}`}>{s.t}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : <Empty icon={I.money} text="Hali to'lov qilinmagan. Yuqorida tarifni tanlab hisobni to'ldiring." />}
+      </div>
     </div>
   );
 }
@@ -2312,7 +2390,7 @@ const somUz = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))
 const MONTH_OPTS = [1, 3, 6, 12];
 
 /** Obunani CLICK orqali to'lash — tarif + muddat tanlanadi, havolaga o'tadi. */
-function PayPlan() {
+function PayPlan({ heading = "Obunani to'lash" }: { heading?: string }) {
   const [plans, setPlans] = useState<any[]>([]);
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [slug, setSlug] = useState("");
@@ -2345,19 +2423,20 @@ function PayPlan() {
   }
 
   if (enabled === null) return null;
-  if (!enabled) {
-    return (
-      <div className="sub-pay sub-pay--off">
-        <b>Onlayn to&apos;lov hozircha ulanmagan.</b>
-        <span>To&apos;lovni yangilash uchun administrator bilan bog&apos;laning — CLICK/Payme ulanishi jarayonida.</span>
-      </div>
-    );
-  }
   if (!plans.length) return null;
 
   return (
     <div className="sub-pay">
-      <div className="sub-pay__head">Obunani to&apos;lash</div>
+      <div className="sub-pay__head">{heading}</div>
+
+      {/* CLICK kaliti hali ulanmagan bo'lsa — oqim baribir KO'RINADI (tarif,
+          summa), faqat tugma o'rniga ogohlantirish. Shunda menejerlar to'liq
+          to'lov oqimini ko'radi, kalit ulangach tugma darhol ishlaydi. */}
+      {!enabled ? (
+        <div className="sub-pay__pending">
+          <b>CLICK ulanmoqda.</b> Tarif va summani tanlashingiz mumkin — «CLICK orqali to&apos;lash» tugmasi hisob ulangач faollashadi.
+        </div>
+      ) : null}
 
       <div className="sub-pay__plans">
         {plans.map((p) => (
@@ -2392,12 +2471,17 @@ function PayPlan() {
         <div className="sub-pay__total">
           Jami: <b>{somUz(total)} so&apos;m</b>
         </div>
-        <button className="btn btn-primary" disabled={busy || !slug} onClick={() => void pay()}>
+        <button
+          className="btn btn-primary"
+          disabled={busy || !slug || !enabled}
+          title={!enabled ? "CLICK hisobi ulangach faollashadi" : undefined}
+          onClick={() => void pay()}
+        >
           {busy ? "Havola ochilmoqda…" : "CLICK orqali to'lash"}
         </button>
       </div>
       <div className="sub-pay__note">
-        To&apos;lov o&apos;tgan zahoti obuna avtomatik faollashadi. Shartlar — <a href="/offer" target="_blank" rel="noreferrer">ommaviy oferta</a>.
+        To&apos;lov o&apos;tgan zahoti obuna avtomatik faollashadi. To&apos;lov CLICK&apos;ning xavfsiz sahifasida amalga oshiriladi — karta ma&apos;lumotlari bizga saqlanmaydi. Shartlar — <a href="/offer" target="_blank" rel="noreferrer" onClick={onExternalClick("https://travelorai.com/offer")}>ommaviy oferta</a>.
       </div>
     </div>
   );
@@ -2872,7 +2956,7 @@ function Settings({ show, agency, go, refresh, logout, access, readOnly }: any) 
             </div>
           </div>
 
-          {tab === "plan" ? <SubscriptionCard access={access} /> : null}
+          {tab === "plan" ? <SubscriptionCard access={access} onManage={() => go("billing")} /> : null}
           {tab === "profile" ? <ProfileForm agency={agency} refresh={refresh} readOnly={readOnly} /> : null}
           {tab === "links" ? <TelegramCard go={go} /> : null}
           {tab === "team" ? <TeamSection access={access} /> : null}

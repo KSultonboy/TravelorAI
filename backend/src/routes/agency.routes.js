@@ -36,6 +36,7 @@ router.put('/profile', blockWhenReadOnly, requireOwner, agency.updateAgencyProfi
 // obunasi tugagan agentlik aynan to'lov qilishi kerak.
 // Diqqat: `/payments/plans` `/payments/:merchantTransId`dan OLDIN turishi shart.
 router.get('/payments/plans', clickPay.listPlans);
+router.get('/payments/history', clickPay.paymentHistory);
 router.post('/payments/checkout', clickPay.checkout);
 router.get('/payments/:merchantTransId', clickPay.paymentStatus);
 

@@ -338,6 +338,27 @@ async function paymentStatus(req, res) {
   }
 }
 
+// GET /agency/payments/history — kabinetdagi «To'lov tarixi» ro'yxati.
+// CLICK menejerlari uchun ham muhim: to'lovlar qayd etilishini ko'rsatadi.
+async function paymentHistory(req, res) {
+  try {
+    const agency = req.agency;
+    if (!agency) return error(res, 'Agentlik topilmadi', 404);
+    const rows = await prisma.clickTransaction.findMany({
+      where: { agencyId: agency.id },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        merchantTransId: true, tariffSlug: true, months: true,
+        amount: true, state: true, paidAt: true, createdAt: true,
+      },
+    });
+    return success(res, { items: rows });
+  } catch (e) {
+    return error(res, 'Tarixni olib bo\'lmadi', 500);
+  }
+}
+
 // GET /agency/payments/plans — kabinet uchun: tariflar (so'mda) + to'lov yoqilganmi
 async function listPlans(req, res) {
   try {
@@ -363,4 +384,4 @@ function newTransId() {
   return `TA${ts}${rnd}`;
 }
 
-module.exports = { prepare, complete, checkout, paymentStatus, listPlans };
+module.exports = { prepare, complete, checkout, paymentStatus, listPlans, paymentHistory };
