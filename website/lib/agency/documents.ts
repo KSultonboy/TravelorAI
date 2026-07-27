@@ -614,8 +614,14 @@ function styles(): string {
     .toolbar,.hint{display:none !important}
     .page{width:auto; min-height:0; margin:0; padding:0; box-shadow:none}
     .fill{border-bottom:1px solid #333; color:#000}
-    .fill:empty::before{color:transparent}
-    .services:empty::before{color:transparent}
+    /* Namuna matni («AB 1234567» kabi) QOG'OZGA CHIQMAYDI.
+       Ilgari color:transparent edi — ko'zga ko'rinmasdi, LEKIN matn o'chmagan
+       edi: PDF'ning matn qatlamida qolib, nusxa olinganda chiqib ketardi.
+       content:"" uni butunlay olib tashlaydi. */
+    .fill:empty::before, .services:empty::before{content:"" !important}
+    /* Namuna olingach chiziq qisqarib qolmasin — qo'lda yozishga joy qoladi.
+       (.services allaqachon min-height:74px li blok maydon — unga tegilmaydi.) */
+    .fill:empty{min-width:38mm}
     .foot{padding-top:10mm}
   }`;
 }
