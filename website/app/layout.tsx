@@ -96,7 +96,12 @@ export const metadata: Metadata = {
     canonical: BASE_URL,
   },
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-32.png", type: "image/png", sizes: "32x32" },
+      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
+    ],
+    apple: "/apple-touch-icon.png",
   },
   // Qidiruv tizimi tasdig'i — kodlarni Search Console / Yandex Webmaster'dan olib
   // .env ga qo'yasiz (SITE_VERIFY_GOOGLE, SITE_VERIFY_YANDEX). Bo'sh bo'lsa e'tiborsiz.
