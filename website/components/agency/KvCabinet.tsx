@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAgencySession } from "@/lib/agency/session";
 import { useCrm } from "@/lib/agency/useCrm";
-import { onExternalClick } from "@/lib/agency/external";
+import { onExternalClick, saveFile } from "@/lib/agency/external";
 import { agencyApi, formatMoney, formatDate, statusLabel, readImage } from "@/lib/agency/api";
 import { REGIONS, REGION_GROUPS, regionByKey } from "@/lib/travelData";
 import { getNotifs, markRead, markAllRead, clearNotifs, pushNotif, seedNotifs, type KvNotif } from "@/lib/agency/notify";
@@ -748,13 +748,11 @@ function downloadCsv(filename: string, columns: CsvCol[], rows: any[]) {
   const lines = [columns.map((c) => esc(c.label)).join(",")];
   for (const r of rows) lines.push(columns.map((c) => esc(c.get(r))).join(","));
   const csv = "﻿" + lines.join("\r\n"); // BOM — Excel'да o'zbek harflari to'g'ri ochilishi uchun
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
   const stamp = new Date().toISOString().slice(0, 10);
-  const a = document.createElement("a");
-  a.href = url; a.download = `${filename}-${stamp}.csv`;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  // saveFile — desktopda «Yuklanmalar»ga yozadi, brauzerda odatdagi yuklab olish.
+  // (Ilgari bu yerda to'g'ridan-to'g'ri <a download> edi — desktopda ishlamasdi.)
+  void saveFile(`${filename}-${stamp}.csv`, csv, "text/csv;charset=utf-8;")
+    .catch((e) => alert(e instanceof Error ? e.message : "Faylni saqlab bo'lmadi"));
 }
 function ExportBtn({ rows, filename, columns }: { rows: any[]; filename: string; columns: CsvCol[] }) {
   const empty = !rows || rows.length === 0;
@@ -857,15 +855,20 @@ function DocViewer({ html, filename, title, onClose }: { html: string; filename:
     w.focus();
     w.print();
   }
-  function download() {
+  const [saved, setSaved] = useState("");
+  async function download() {
     // Iframe ichida qo'lda to'ldirilgan maydonlar ham saqlanadi
     const doc = frame.current?.contentDocument;
     const out = doc ? `<!doctype html>${doc.documentElement.outerHTML}` : html;
-    const url = URL.createObjectURL(new Blob([out], { type: "text/html;charset=utf-8" }));
-    const a = document.createElement("a");
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    try {
+      // Desktopda «Yuklanmalar»ga yoziladi va ochiladi; brauzerda oddiy yuklab olish
+      const path = await saveFile(filename, out, "text/html;charset=utf-8");
+      setSaved(path ? `Saqlandi: ${path}` : "Yuklab olindi");
+      setTimeout(() => setSaved(""), 4000);
+    } catch (e) {
+      setSaved(e instanceof Error ? e.message : "Saqlab bo'lmadi");
+      setTimeout(() => setSaved(""), 4000);
+    }
   }
 
   return (
@@ -875,7 +878,8 @@ function DocViewer({ html, filename, title, onClose }: { html: string; filename:
           <b>{title}</b>
           <div className="doc-view__acts">
             <button type="button" className="btn btn-primary btn-sm" onClick={print}><Ic d={I.doc} s={14} /> Chop etish / PDF</button>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={download}><Ic d={I.download} s={14} /> Yuklab olish</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => void download()}><Ic d={I.download} s={14} /> Yuklab olish</button>
+            {saved ? <span className="doc-view__saved" title={saved}>{saved}</span> : null}
             <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Yopish</button>
           </div>
         </div>

@@ -7,6 +7,9 @@
 # Bu yerda FAQAT o'zimiz yozgan buyruqlar ochiladi. Fayl tizimi, shell
 # (buyruq bajarish) va boshqa hech narsa berilmaydi.
 #
+# save_download — faylni «Yuklanmalar» papkasiga saqlaydi (nom tozalanadi,
+# faqat .html/.csv, 8 MB chegara). Boshqa papkaga yozib bo'lmaydi.
+#
 # open_external — tashqi havolani tizim brauzeri/ilovasida ochadi. Rust
 # tomonida sxema qat'iy tekshiriladi (https/http/tel/mailto), shuning uchun
 # bu "istalgan narsani ishga tushirish" imkoniyati emas.
@@ -14,4 +17,4 @@
 [[permission]]
 identifier = "allow-update-commands"
 description = "Ilovaning o'z buyruqlari: yangilanishni tekshirish/o'rnatish va tashqi havolani ochish."
-commands.allow = ["check_update", "install_update", "open_external"]
+commands.allow = ["check_update", "install_update", "open_external", "save_download"]

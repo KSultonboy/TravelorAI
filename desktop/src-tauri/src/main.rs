@@ -88,10 +88,72 @@ async fn open_external(url: String) -> Result<(), String> {
     open::that_detached(u).map_err(|e| e.to_string())
 }
 
+/// Faylni foydalanuvchining «Yuklanmalar» papkasiga saqlaydi va ochadi.
+///
+/// NEGA KERAK: Tauri webview'da `<a download>` orqali fayl yuklab olish
+/// ishlamaydi — brauzerdagidek yuklanmalar paneli yo'q, fayl jimgina
+/// yo'qoladi. Shu sababli CRM'dagi «Yuklab olish» va CSV eksport tugmalari
+/// desktop ilovada hech narsa qilmasdi.
+///
+/// XAVFSIZLIK: ixtiyoriy joyga yozish EMAS —
+///   * fayl faqat «Yuklanmalar» papkasiga tushadi,
+///   * fayl nomidan papka belgilari (/ \ : .. va boshq.) tozalanadi,
+///   * faqat .html va .csv kengaytmalariga ruxsat,
+///   * hajm 8 MB bilan cheklangan,
+///   * mavjud fayl ustiga yozmaydi — nomiga (2), (3) qo'shadi.
+#[tauri::command]
+async fn save_download(filename: String, content: String) -> Result<String, String> {
+    use std::path::PathBuf;
+
+    if content.len() > 8 * 1024 * 1024 {
+        return Err("Fayl juda katta".into());
+    }
+    // Nomni tozalaymiz: faqat oxirgi qismini olamiz va xavfli belgilarni olib tashlaymiz
+    let raw = filename.rsplit(['/', '\\']).next().unwrap_or("").trim().to_string();
+    let safe: String = raw
+        .chars()
+        .filter(|c| !matches!(c, '<' | '>' | ':' | '"' | '|' | '?' | '*') && !c.is_control())
+        .collect();
+    let safe = safe.trim_matches('.').to_string();
+    let lower = safe.to_ascii_lowercase();
+    if safe.is_empty() || safe.contains("..") || !(lower.ends_with(".html") || lower.ends_with(".csv")) {
+        return Err("Fayl nomi ruxsat etilmagan".into());
+    }
+
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .map_err(|_| "Uy papkasi topilmadi".to_string())?;
+    let dir = PathBuf::from(home).join("Downloads");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+    // Ustiga yozmaymiz — «Shartnoma (2).html» ko'rinishida yangi nom
+    let (stem, ext) = match safe.rfind('.') {
+        Some(i) => (safe[..i].to_string(), safe[i..].to_string()),
+        None => (safe.clone(), String::new()),
+    };
+    let mut path = dir.join(&safe);
+    let mut n = 2;
+    while path.exists() && n < 100 {
+        path = dir.join(format!("{stem} ({n}){ext}"));
+        n += 1;
+    }
+
+    std::fs::write(&path, content).map_err(|e| e.to_string())?;
+    let shown = path.to_string_lossy().to_string();
+    // Saqlangan faylni darhol ochamiz — foydalanuvchi natijani ko'radi
+    let _ = open::that_detached(&path);
+    Ok(shown)
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![check_update, install_update, open_external])
+        .invoke_handler(tauri::generate_handler![
+            check_update,
+            install_update,
+            open_external,
+            save_download
+        ])
         .run(tauri::generate_context!())
         .expect("TravelorAI CRM ishga tushmadi");
 }
