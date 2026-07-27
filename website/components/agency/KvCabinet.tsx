@@ -2402,7 +2402,9 @@ function PayPlan() {
 const TEAM_ROLE_LABEL: Record<string, string> = { owner: "Egasi", manager: "Menejer", agent: "Agent", accountant: "Buxgalter" };
 // Jamoa: egasi xodim qo'shadi, rol beradi; xodim o'z email/paroli bilan kiradi.
 // Backend xodimni AgencyMember orqali topadi (agencyPlan middleware).
-const TEAM_LIVE: boolean = true;
+// false — «Tez orada ishga tushadi» kartasi ko'rinadi, xodim qo'shib bo'lmaydi.
+// Kod, backend va baza joyida; yoqish uchun true qilish kifoya.
+const TEAM_LIVE: boolean = false;
 
 function AddMember({ onClose, onAdded }: any) {
   const [name, setName] = useState(""); const [email, setEmail] = useState("");
