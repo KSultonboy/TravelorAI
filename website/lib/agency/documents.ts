@@ -663,7 +663,11 @@ export function buildDocumentHtml(input: BuildInput & { inline?: boolean }): str
     <button class="btn btn-close" onclick="window.close()">Yopish</button>
   </div>`}
   <div class="hint">Sariq chiziqli maydonlarni bosib to'ldiring (pasport, mehmonxona va h.k.), so'ng
-    <b>Chop etish</b> tugmasini bosing. Printer ro'yxatidan <b>«PDF saqlash»</b>ni tanlasangiz — hujjat PDF bo'lib saqlanadi.</div>
+    <b>Chop etish</b> tugmasini bosing. Printer ro'yxatidan <b>«PDF saqlash»</b>ni tanlasangiz — hujjat PDF bo'lib saqlanadi.${
+      type === "shartnoma"
+        ? ` <b>Diqqat:</b> shartnoma ikki nusxada imzolanadi — printer oynasida <b>«Nusxalar: 2»</b> qilib qo'ying (bir bosishda bitta nusxa chiqadi).`
+        : ""
+    }</div>
   <div class="page">
     ${bodyFor(c)}
   </div>
