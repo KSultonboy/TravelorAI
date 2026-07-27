@@ -1,11 +1,11 @@
 {
-  "version": "1.0.5",
-  "notes": "«Yuklab olish» tugmasi endi ishlaydi — shartnoma va CSV fayllar «Yuklanmalar» papkasiga saqlanadi va darhol ochiladi.",
-  "pub_date": "2026-07-27T04:18:18Z",
+  "version": "1.0.6",
+  "notes": "Yangi TravelorAI logotipi — ilova ikonkasi yangilandi (kompas + AI uchqun).",
+  "pub_date": "2026-07-27T09:11:41Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSEZjVWMrQ2FuVXNOek9nQld6emhnb1gzNys2dFdBaWNRSkQrMjlOYlRaWUkvTVpEbTZENDFmUTA4ZkR4bkljcm9lOFMwZ2t3RXZPTEVqSU1INTQvZGkvR1VKZXZEK1FBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg1MTI1ODI5CWZpbGU6VHJhdmVsb3JBSSBDUk1fMS4wLjVfeDY0LXNldHVwLmV4ZQpBZ2IyNGFhZTVXR1c2aG1NQXhYbklOdGthWTkzOWRKL29RaGFhZHNBNTVJcDBPeHpsalBZQjFEczNUYnRqUGNKQTduenhyT1V4bnYveTFtcU5LZmxDZz09Cg==",
-      "url": "https://travelorai.com/desktop/TravelorAI-CRM_1.0.5_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSEZjVWMrQ2FuVXM2b1ZCR0E4aDJkQXhoTDdWOWFROFRNU2t3bHN6K0dKYmhqakRwYlNCek56b1NUMjBLRDNHS2haMy96dldkbU9RdWVLei9WSm4rbVlUVGhNVjNsWFE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg1MTQzNDc3CWZpbGU6VHJhdmVsb3JBSSBDUk1fMS4wLjZfeDY0LXNldHVwLmV4ZQpjZFdTbHFkUldDNFlPNkQ4REhMZ3pnS092dzk0SVZpQk9tbTRDeW5IdXV2WHBWdjJSZzNaSWVYZEt5MjN0UktaWGlYMnJCN2lQeWVMd3N5SmwzR0lEUT09Cg==",
+      "url": "https://travelorai.com/desktop/TravelorAI-CRM_1.0.6_x64-setup.exe"
     }
   }
 }
