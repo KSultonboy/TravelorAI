@@ -108,6 +108,12 @@ export const metadata: Metadata = {
   verification: {
     ...(process.env.SITE_VERIFY_GOOGLE ? { google: process.env.SITE_VERIFY_GOOGLE } : {}),
     ...(process.env.SITE_VERIFY_YANDEX ? { yandex: process.env.SITE_VERIFY_YANDEX } : {}),
+    // Meta (Facebook) domen tasdig'i — Business Portfolio «TravelorAI» uchun.
+    // Bu <head> ichida <meta name="facebook-domain-verification"> bo'lib chiqadi.
+    // Meta shartи: tag AYNAN <head> ichida bo'lsin va JS bilan qo'shilmasin —
+    // Next.js metadata API buni server tomonda chizadi, shart bajariladi.
+    // Instagram/Meta App Review va biznes tasdiqlash uchun kerak.
+    other: { "facebook-domain-verification": "fvmkqsnfy5s1pkuxpl8nqetgitw0o8" },
   },
 };
 
