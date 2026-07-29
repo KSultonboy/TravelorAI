@@ -213,7 +213,10 @@
 .mkt-footer__socials { display: flex; gap: 10px; }
 .mkt-footer__socials a { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: rgba(255,255,255,0.08); color: #fff; }
 .mkt-footer__socials a:hover { background: var(--gold); color: #2a1d00; }
+/* Yuridik rekvizit qatori — copyright'dan tepada, undan pastroq urg'u bilan. */
+.mkt-footer__legal { border-top: 1px solid rgba(255,255,255,0.12); padding: 18px 0 0; font-size: 0.8rem; line-height: 1.65; opacity: 0.72; }
 .mkt-footer__bottom { border-top: 1px solid rgba(255,255,255,0.12); padding: 22px 0; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; font-size: 0.84rem; }
+.mkt-footer__legal + .mkt-footer__bottom { border-top: 0; padding-top: 16px; }
 
 /* ---------- Page hero (ichki sahifalar) ---------- */
 .mkt-phero { position: relative; isolation: isolate; color: #fff; padding: clamp(96px, 14vw, 150px) 0 clamp(48px, 7vw, 80px); overflow: hidden; margin-top: -72px; background: linear-gradient(120deg, var(--primary), #06231a); }
