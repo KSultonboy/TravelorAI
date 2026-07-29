@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAgencySession } from "@/lib/agency/session";
 import { useCrm } from "@/lib/agency/useCrm";
-import { onExternalClick, saveFile } from "@/lib/agency/external";
+import { onExternalClick, openExternal, saveFile } from "@/lib/agency/external";
 import { agencyApi, formatMoney, formatDate, statusLabel, readImage } from "@/lib/agency/api";
 import { REGIONS, REGION_GROUPS, regionByKey } from "@/lib/travelData";
 import { getNotifs, markRead, markAllRead, clearNotifs, pushNotif, seedNotifs, type KvNotif } from "@/lib/agency/notify";
@@ -666,6 +666,7 @@ export default function KvCabinet() {
                 <DocumentsSection show={view === "documents"} agencyId={agencyId} readOnly={readOnly} />
                 <Settings show={view === "settings"} agency={agency} agencyId={agencyId} refresh={refresh} logout={logout} go={setView} access={access} readOnly={readOnly} caps={caps} />
                 <TelegramPage show={view === "telegram"} leads={leads} go={setView} readOnly={readOnly} />
+                <InstagramPage show={view === "instagram"} go={setView} readOnly={readOnly} />
               </>
             )}
           </div>
@@ -1354,9 +1355,13 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat,
             <div className="ld-tools"><ContactActions lead={lead} /></div>
             <div className="ld-tools2">
               <div style={{ flex: 1, minWidth: 130 }}><DocMenu lead={lead} /></div>
-              {lead.source === "telegram" ? (
+              {lead.source === "telegram" || lead.source === "instagram" ? (
                 <button className="tg-chat-btn" style={{ width: "auto", marginTop: 0, padding: "0 14px" }} onClick={() => onOpenChat(lead)}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>Telegram suhbat
+                  {lead.source === "instagram" ? (
+                    <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none" /></svg>Instagram suhbat</>
+                  ) : (
+                    <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>Telegram suhbat</>
+                  )}
                 </button>
               ) : null}
             </div>
@@ -2911,7 +2916,7 @@ function DocRequisitesCard({ agencyId, readOnly }: { agencyId: string; readOnly?
 const SETTINGS_MENU: { key: string; icon: string; label: string; desc: string }[] = [
   { key: "plan", icon: I.card, label: "Obuna va tarif", desc: "Joriy reja, amal muddati va to'lov" },
   { key: "profile", icon: I.box, label: "Agentlik ma'lumotlari", desc: "Nomi, logotipi, telefoni va tavsifi" },
-  { key: "links", icon: I.send, label: "Ulanishlar", desc: "Telegram bot va boshqa kanallar" },
+  { key: "links", icon: I.send, label: "Ulanishlar", desc: "Telegram bot va Instagram Direct" },
   { key: "team", icon: I.users, label: "Jamoa va rollar", desc: "Xodimlarni qo'shish, huquqlarni belgilash" },
   { key: "account", icon: I.lock, label: "Hisob", desc: "Tizimdan chiqish" },
 ];
@@ -2958,7 +2963,12 @@ function Settings({ show, agency, go, refresh, logout, access, readOnly }: any) 
 
           {tab === "plan" ? <SubscriptionCard access={access} onManage={() => go("billing")} /> : null}
           {tab === "profile" ? <ProfileForm agency={agency} refresh={refresh} readOnly={readOnly} /> : null}
-          {tab === "links" ? <TelegramCard go={go} /> : null}
+          {tab === "links" ? (
+            <div style={{ display: "grid", gap: 12 }}>
+              <TelegramCard go={go} />
+              <InstagramCard go={go} />
+            </div>
+          ) : null}
           {tab === "team" ? <TeamSection access={access} /> : null}
           {tab === "account" ? (
             <div className="card" style={{ padding: 18, display: "grid", gap: 12 }}>
@@ -3594,19 +3604,24 @@ function ConfirmDelete({ tour, busy, err, onCancel, onConfirm }: any) {
 function TelegramChat({ lead, onClose, onBack, readOnly }: { lead: CrmLead; onClose: () => void; onBack?: () => void; readOnly?: boolean }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [canReply, setCanReply] = useState(false);
+  // Bitta chat oynasi ikkala kanalga xizmat qiladi — sarlavha va xato
+  // matnlari shunga qarab o'zgaradi.
+  const [channel, setChannel] = useState<string | null>(null);
+  const [sendErr, setSendErr] = useState("");
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<TgTpl[]>([]);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const isIg = channel === "instagram";
 
   useEffect(() => {
     void agencyApi<{ templates: TgTpl[] }>("/telegram/config").then((r) => { if (r.success) setTemplates(r.data.templates || []); });
   }, []);
 
   const load = async () => {
-    const res = await agencyApi<{ messages: any[]; canReply: boolean }>(`/telegram/messages?bookingId=${encodeURIComponent(lead.id)}`);
-    if (res.success) { setMessages(res.data.messages || []); setCanReply(!!res.data.canReply); }
+    const res = await agencyApi<{ messages: any[]; canReply: boolean; channel: string | null }>(`/telegram/messages?bookingId=${encodeURIComponent(lead.id)}`);
+    if (res.success) { setMessages(res.data.messages || []); setCanReply(!!res.data.canReply); setChannel(res.data.channel || null); }
     setLoading(false);
   };
   useEffect(() => { void load(); const t = window.setInterval(() => void load(), 8000); return () => window.clearInterval(t); }, [lead.id]);
@@ -3615,10 +3630,13 @@ function TelegramChat({ lead, onClose, onBack, readOnly }: { lead: CrmLead; onCl
   async function send(e: React.FormEvent) {
     e.preventDefault();
     if (!text.trim()) return;
-    setBusy(true);
+    setBusy(true); setSendErr("");
     const res = await agencyApi("/telegram/reply", { method: "POST", body: JSON.stringify({ bookingId: lead.id, text: text.trim() }) });
     setBusy(false);
     if (res.success) { setText(""); await load(); }
+    // Instagram'da eng ko'p uchraydigan holat — 24 soatlik oyna yopilgani.
+    // Ilgari xato jimgina yutilardi va agent xabar ketdi deb o'ylardi.
+    else setSendErr(res.message || "Yuborib bo'lmadi");
   }
   return (
     <div className="modal-bg" onClick={onClose}>
@@ -3626,7 +3644,7 @@ function TelegramChat({ lead, onClose, onBack, readOnly }: { lead: CrmLead; onCl
         <div className="tg-chat-head">
           <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
             {onBack ? <button className="icon-btn" onClick={onBack} aria-label="Orqaga" title="Mijoz ma'lumotiga qaytish"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg></button> : null}
-            <div style={{ minWidth: 0 }}><b>{lead.customerName}</b><small>Telegram suhbat</small></div>
+            <div style={{ minWidth: 0 }}><b>{lead.customerName}</b><small>{isIg ? "Instagram Direct" : "Telegram suhbat"}</small></div>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Yopish"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg></button>
         </div>
@@ -3644,13 +3662,20 @@ function TelegramChat({ lead, onClose, onBack, readOnly }: { lead: CrmLead; onCl
           <div className="tg-noreply">Faqat o&apos;qish rejimi — obuna muddati tugagan, javob yozib bo&apos;lmaydi.</div>
         ) : canReply ? (
           <div className="tg-reply">
+            {sendErr ? <div className="tg-senderr">{sendErr}</div> : null}
             {templates.length ? <div className="tg-quick">{templates.map((t) => <button key={t.id} type="button" className="tg-quick-btn" onClick={() => setText(t.text)}>{t.title}</button>)}</div> : null}
             <form className="tg-chat-input" onSubmit={send}>
               <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Javob yozing…" />
               <button type="submit" className="btn btn-primary" disabled={busy || !text.trim()}>Yuborish</button>
             </form>
           </div>
-        ) : <div className="tg-noreply">Bu lidda Telegram identifikatori yo&apos;q</div>}
+        ) : (
+          <div className="tg-noreply">
+            {isIg
+              ? "Instagram ulanmagan — Sozlamalar → Ulanishlar bo'limidan ulang."
+              : "Bu lidda yozishma kanali yo'q"}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -3676,6 +3701,155 @@ function TelegramCard({ go }: { go: (v: string) => void }) {
       {st?.connected ? <span className="int-badge">Faol</span> : null}
       <svg className="int-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
     </button>
+  );
+}
+
+/* ================= INSTAGRAM (settings card + dedicated page) ================= */
+const IG_ICON = "M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 6a4 4 0 1 0 0 8 4 4 0 0 0 0-8z";
+
+type IgState = { configured: boolean; connected: boolean; username: string | null; welcome: string; expiresAt: string | null };
+
+function InstagramCard({ go }: { go: (v: string) => void }) {
+  const [st, setSt] = useState<IgState | null>(null);
+  useEffect(() => {
+    void agencyApi<IgState>("/instagram").then((r) => { if (r.success) setSt(r.data); });
+  }, []);
+  return (
+    <button className="int-card" onClick={() => go("instagram")}>
+      <span className="int-ic ig"><Ic d={IG_ICON} s={22} /></span>
+      <span className="int-main">
+        <b>Instagram Direct</b>
+        <small>
+          {st?.connected
+            ? `Ulangan · @${st.username}`
+            : st && !st.configured
+              ? "Tez orada — integratsiya tasdiqdan o'tmoqda"
+              : "Ulash · Direct xabarlar avtomatik lid bo'ladi"}
+        </small>
+      </span>
+      {st?.connected ? <span className="int-badge">Faol</span> : null}
+      <svg className="int-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+    </button>
+  );
+}
+
+function InstagramPage({ show, go, readOnly }: { show: boolean; go: (v: string) => void; readOnly?: boolean }) {
+  const [st, setSt] = useState<IgState | null>(null);
+  const [welcome, setWelcome] = useState("");
+  const [busy, setBusy] = useState("");
+  const [err, setErr] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const load = async () => {
+    const res = await agencyApi<IgState>("/instagram");
+    if (res.success) { setSt(res.data); setWelcome(res.data.welcome || ""); }
+  };
+  useEffect(() => { if (show) void load(); }, [show]);
+  // Ulanish tizim brauzerida ochiladi (desktop ilovada ham) — foydalanuvchi
+  // qaytib kelganda holatni qayta o'qiymiz, aks holda «Ulanmagan» bo'lib turardi.
+  useEffect(() => {
+    if (!show) return;
+    const onFocus = () => void load();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [show]);
+
+  async function connect() {
+    setBusy("connect"); setErr("");
+    const res = await agencyApi<{ url: string }>("/instagram/authorize");
+    setBusy("");
+    if (!res.success) { setErr(res.message || "Ulash manzilini olib bo'lmadi"); return; }
+    // openExternal: desktop ilovada Tauri window.open'ni bloklaydi, shuning
+    // uchun tizim brauzerida ochamiz. Brauzerda oddiy window.open ishlaydi.
+    if (res.data.url) openExternal(res.data.url);
+    else setErr("Ulash manzili bo'sh keldi");
+  }
+  async function disconnect() {
+    setBusy("disconnect"); setErr("");
+    const res = await agencyApi("/instagram/disconnect", { method: "POST" });
+    setBusy("");
+    if (res.success) await load(); else setErr(res.message || "Uzib bo'lmadi");
+  }
+  async function saveWelcome() {
+    setBusy("welcome"); setMsg("");
+    const res = await agencyApi("/instagram/welcome", { method: "PUT", body: JSON.stringify({ text: welcome }) });
+    setBusy("");
+    setMsg(res.success ? "Saqlandi ✓" : (res.message || "Xato"));
+  }
+
+  if (!show) return null;
+  const expiry = st?.expiresAt ? new Date(st.expiresAt) : null;
+
+  return (
+    <section>
+      <div className="section-head">
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+          <button type="button" className="set-back" onClick={() => go("settings")} aria-label="Sozlamalarga qaytish">
+            <Ic d="M15 6l-6 6 6 6" s={17} />
+          </button>
+          <div style={{ minWidth: 0 }}>
+            <h2>Instagram Direct</h2>
+            <div className="sub">Direct xabarlar avtomatik lid bo&apos;ladi</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card tg-set">
+        <div className="tg-set-top">
+          <div className="tg-ic ig"><Ic d={IG_ICON} s={22} /></div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <b>Instagram biznes akkaunt</b>
+            {st?.connected
+              ? <small style={{ color: "var(--primary)" }}>Ulangan · @{st.username}</small>
+              : <small>Akkauntingizga kelgan Direct xabarlar CRM&apos;da ko&apos;rinadi</small>}
+          </div>
+          {st?.connected && !readOnly
+            ? <button className="btn btn-ghost btn-sm" disabled={busy === "disconnect"} onClick={() => void disconnect()}>{busy === "disconnect" ? "..." : "Uzish"}</button>
+            : null}
+        </div>
+
+        {err ? <div className="note note-err" style={{ margin: "12px 0 0" }}>{err}</div> : null}
+
+        {st && !st.configured ? (
+          <div className="tg-connect">
+            <div className="note" style={{ margin: 0 }}>
+              Instagram integratsiyasi Meta tomonidan tasdiqlanmoqda. Tasdiqlangach shu yerda
+              «Ulash» tugmasi paydo bo&apos;ladi — qo&apos;shimcha hech narsa qilish shart emas.
+            </div>
+          </div>
+        ) : !st?.connected ? (
+          <div className="tg-connect">
+            <div className="tg-hint">
+              Ulash uchun Instagram <b>biznes</b> yoki <b>creator</b> akkaunti kerak
+              (Instagram → Sozlamalar → Akkaunt turi). Facebook sahifasi shart emas.
+            </div>
+            <button className="btn btn-primary" disabled={busy === "connect" || readOnly} onClick={() => void connect()}>
+              {busy === "connect" ? "Ochilmoqda..." : "Instagram'ni ulash"}
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="tg-welcome">
+              <label>Avtomatik salomlashish (mijozning birinchi xabaridan keyin yuboriladi)</label>
+              <textarea value={welcome} onChange={(e) => setWelcome(e.target.value)} rows={2} disabled={readOnly}
+                placeholder="Salom! Xabaringiz uchun rahmat, tez orada bog'lanamiz." />
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
+                <button className="btn btn-primary btn-sm" disabled={busy === "welcome" || readOnly} onClick={() => void saveWelcome()}>{busy === "welcome" ? "..." : "Saqlash"}</button>
+                {msg ? <span style={{ color: "var(--primary)", fontSize: 13, fontWeight: 600 }}>{msg}</span> : null}
+              </div>
+            </div>
+            <div className="fld-hint" style={{ marginTop: 14 }}>
+              <b>Bilib qo&apos;ying:</b> Instagram qoidasiga ko&apos;ra mijozga faqat uning oxirgi
+              xabaridan keyingi <b>24 soat</b> ichida javob yozish mumkin. Muddat o&apos;tsa,
+              mijoz qayta yozmaguncha Direct orqali javob ketmaydi — telefon yoki
+              Telegram orqali bog&apos;lanishingiz mumkin.
+              {expiry ? <><br />Ulanish tokeni avtomatik yangilanadi (joriy muddat: {expiry.toLocaleDateString("uz-UZ")}).</> : null}
+            </div>
+          </>
+        )}
+      </div>
+      <div style={{ height: 16 }} />
+    </section>
   );
 }
 

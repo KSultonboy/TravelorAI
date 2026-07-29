@@ -12,6 +12,9 @@
   --gold:#CA8A04; --gold-soft:#FBEECB; --gold-ink:#8A5A08;
   --rose:#C0392B; --rose-soft:#FBE9E7;
   --sky:#3E86B0; --sky-soft:#E6F0F6;
+  /* Instagram kanali uchun — brend gradienti CRM'ning yashil palitrasi bilan
+     urishadi, shuning uchun uning pushti-siyohrang oralig'i pasaytirilgan. */
+  --ig-soft:#FBEAF2; --ig-ink:#A63A6B;
   --t1:#14201A; --t2:#566B60; --t3:#93A5A0;
   --border:#E4EDE7; --radius:14px;
   /* Kiritish maydonlari uchun ALOHIDA token. Nega: --border juda och (#E4EDE7)
@@ -456,6 +459,9 @@
   .tg-cfg-row textarea{ width:100%; border:1px solid var(--border); border-radius:8px; padding:7px 10px; font-family:inherit; font-size:13px; outline:none; resize:vertical; background:var(--surface); }
   .tg-cfg-row textarea:focus{ border-color:var(--primary); }
   .tg-reply{ border-top:1px solid var(--border); }
+  /* Yuborish xatosi (masalan Instagram'ning 24 soatlik oynasi yopilgani) —
+     ilgari jimgina yutilardi va agent xabar ketdi deb o'ylardi. */
+  .tg-senderr{ margin:10px 14px 0; padding:9px 12px; border-radius:9px; background:var(--rose-soft); color:#8f2a20; border:1px solid #f3c9c4; font-size:12.5px; line-height:1.5; }
   .tg-reply .tg-chat-input{ border-top:none; }
   .tg-quick{ display:flex; gap:6px; flex-wrap:wrap; padding:10px 14px 0; }
   .tg-quick-btn{ font-size:12px; font-weight:600; color:var(--primary); background:var(--primary-soft); border:1px solid #CDE3D6; border-radius:999px; padding:5px 12px; cursor:pointer; }
@@ -466,6 +472,7 @@
   .int-card:hover{ border-color:var(--primary); transform:translateY(-1px); box-shadow:0 8px 24px rgba(15,81,50,.09); }
   .int-ic{ width:44px; height:44px; border-radius:12px; display:grid; place-items:center; flex-shrink:0; }
   .int-ic.tg{ background:var(--sky-soft); color:#255d7d; }
+  .int-ic.ig, .tg-ic.ig{ background:var(--ig-soft); color:var(--ig-ink); }
   .int-main{ flex:1; min-width:0; }
   .int-main b{ display:block; font-family:var(--disp); font-size:14.5px; font-weight:600; }
   .int-main small{ display:block; color:var(--t2); font-size:12.5px; margin-top:1px; }
@@ -654,6 +661,7 @@
   --gold:#E3AE39; --gold-soft:rgba(227,174,57,.15); --gold-ink:#EBCB80;
   --rose:#E5675A; --rose-soft:rgba(229,103,90,.15);
   --sky:#5AA8D0; --sky-soft:rgba(90,168,208,.15);
+  --ig-soft:rgba(214,109,158,.16); --ig-ink:#E8A7C6;
   --t1:#E9F1EC; --t2:#9FB4AB; --t3:#6E857C;
   --border:#26382D;
   /* Tungi rejimda maydon kartadan QUYUQROQ bo'ladi — ichkariga bosilgan
@@ -672,6 +680,8 @@
 :root[data-theme="dark"] .kv .kstage2-opt.sel{ background:var(--primary-soft); }
 :root[data-theme="dark"] .kv .search{ background:var(--canvas); }
 :root[data-theme="dark"] .kv .sub-card__warn{ color:#f0b3ab; }
+/* Xato yozuvlari tungi rejimda: #8f2a20 quyuq fonda deyarli o'qilmaydi. */
+:root[data-theme="dark"] .kv .tg-senderr{ color:#f0b3ab; border-color:rgba(229,103,90,.35); }
 :root[data-theme="dark"] .kv .doc-ph code{ color:var(--primary-ink); }
 /* kanban ustuni, jadval header, funnel yo'lakchasi — dark */
 :root[data-theme="dark"] .kv .kcol{ background:#121c17; }

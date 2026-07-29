@@ -3,6 +3,9 @@ const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { ensureApprovedAgency } = require('./agency.controller');
 const tg = require('../services/telegram.service');
+// Javob yuborish kanalga qarab bo'linadi (reply funksiyasiga qarang).
+// Sikl yo'q: instagram.controller telegram.controller'ni chaqirmaydi.
+const instagram = require('./instagram.controller');
 const { DEFAULT_BIRTHDAY, fillBirthday } = require('../services/scheduler.service');
 const reviewService = require('../services/review.service');
 
@@ -137,25 +140,55 @@ async function listMessages(req, res) {
       orderBy: { createdAt: 'asc' },
       take: 300,
     });
-    return success(res, { messages, chatId: booking.telegramChatId, canReply: !!booking.telegramChatId });
+    // Jadval ikkala kanalga xizmat qiladi, shuning uchun lid qaysi kanaldan
+    // kelganini ham qaytaramiz — chat oynasi shunga qarab yozuv ko'rsatadi.
+    const channel = booking.telegramChatId ? 'telegram' : (booking.instagramUserId ? 'instagram' : null);
+    return success(res, {
+      messages,
+      channel,
+      chatId: booking.telegramChatId,
+      canReply: Boolean(
+        (booking.telegramChatId && agency.telegramBotActive && agency.telegramBotToken) ||
+        (booking.instagramUserId && agency.instagramActive && agency.instagramToken)
+      ),
+    });
   } catch (err) {
     return error(res, err.message, 500);
   }
 }
 
+/**
+ * Lidga javob. Manzil tarixiy sabablarga ko'ra /telegram/reply, lekin endi u
+ * KANALGA BOG'LIQ EMAS: lidda telegramChatId bo'lsa — Telegram, instagramUserId
+ * bo'lsa — Instagram Direct. Shu tufayli CRM'dagi chat oynasi bitta qolib,
+ * ikkala kanalga ham xizmat qiladi.
+ */
 async function reply(req, res) {
   try {
     const agency = await ensureApprovedAgency(req, res);
     if (!agency) return;
-    if (!agency.telegramBotToken || !agency.telegramBotActive) return error(res, 'Telegram bot ulanmagan', 400);
     const bookingId = String((req.body && req.body.bookingId) || '');
     const text = String((req.body && req.body.text) || '').trim();
     if (!text) return error(res, 'Xabar bosh', 400);
     const booking = await prisma.tourBooking.findFirst({ where: { id: bookingId, agencyId: agency.id } });
-    if (!booking || !booking.telegramChatId) return error(res, 'Bu lidda Telegram suhbati yoq', 400);
-    await tg.sendMessage(agency.telegramBotToken, booking.telegramChatId, text);
+    if (!booking) return error(res, 'Lid topilmadi', 404);
+
+    let channel;
+    if (booking.telegramChatId) {
+      if (!agency.telegramBotToken || !agency.telegramBotActive) return error(res, 'Telegram bot ulanmagan', 400);
+      await tg.sendMessage(agency.telegramBotToken, booking.telegramChatId, text);
+      channel = 'telegram';
+    } else if (booking.instagramUserId) {
+      // Instagram'ning 24 soatlik oynasi shu yerda tekshiriladi va xato
+      // agentga tushunarli o'zbekcha matn bilan qaytadi.
+      await instagram.sendReply(agency, booking, text);
+      channel = 'instagram';
+    } else {
+      return error(res, 'Bu lidda yozishma kanali yoq', 400);
+    }
+
     const message = await prisma.telegramMessage.create({
-      data: { agencyId: agency.id, bookingId, direction: 'out', text, fromName: 'Agent' },
+      data: { agencyId: agency.id, bookingId, channel, direction: 'out', text, fromName: 'Agent' },
     });
     return success(res, { message });
   } catch (err) {
