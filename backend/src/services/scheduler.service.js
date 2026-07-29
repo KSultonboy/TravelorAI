@@ -3,6 +3,7 @@
 // O'zbekiston vaqti (UTC+5, DST yo'q) bo'yicha ishlaydi.
 const { prisma } = require('../config/database');
 const tg = require('./telegram.service');
+const ig = require('./instagram.service');
 
 // Standart tabrik matni — agentlik o'zi o'zgartirmasa shu ishlatiladi.
 // {name} = mijoz ismi, {agency} = agentlik nomi.
@@ -146,6 +147,54 @@ async function runAutoArchive() {
   return res.count;
 }
 
+/**
+ * Instagram uzoq muddatli tokeni 60 kun yashaydi. Yangilanmasa ulanish
+ * jimgina o'ladi — agentlik buni faqat mijoz yozmay qo'yganda sezardi.
+ *
+ * Meta shartlari: token kamida 24 soat eskirgan VA hali tugamagan bo'lishi
+ * kerak. Shuning uchun muddat tugashiga 10 kundan kam qolganlarini
+ * yangilaymiz — bu «hali tugamagan» oynasi ichida, lekin kechikish yoki
+ * bir necha marta o'tkazib yuborilgan tsikl uchun ham zaxira qoldiradi.
+ */
+const IG_REFRESH_BEFORE_DAYS = 10;
+
+async function runInstagramTokenRefresh() {
+  const soon = new Date(Date.now() + IG_REFRESH_BEFORE_DAYS * 24 * 60 * 60 * 1000);
+  const agencies = await prisma.tourAgency.findMany({
+    where: {
+      instagramActive: true,
+      instagramToken: { not: null },
+      instagramTokenExpiresAt: { not: null, lt: soon },
+    },
+    select: { id: true, instagramToken: true, instagramTokenExpiresAt: true },
+  });
+
+  let refreshed = 0;
+  for (const a of agencies) {
+    // Muddati butunlay tugagan bo'lsa yangilab bo'lmaydi — ulanishni
+    // o'chiramiz, CRM «Ulanmagan» ko'rsatadi va agentlik qayta ulaydi.
+    if (a.instagramTokenExpiresAt <= new Date()) {
+      await prisma.tourAgency.update({
+        where: { id: a.id },
+        data: { instagramActive: false, instagramToken: null, instagramTokenExpiresAt: null },
+      }).catch(() => {});
+      continue;
+    }
+    try {
+      const r = await ig.refreshLongLived(a.instagramToken);
+      await prisma.tourAgency.update({
+        where: { id: a.id },
+        data: {
+          instagramToken: r.accessToken,
+          instagramTokenExpiresAt: r.expiresIn ? new Date(Date.now() + r.expiresIn * 1000) : null,
+        },
+      });
+      refreshed += 1;
+    } catch { /* keyingi tsiklda qayta urinadi */ }
+  }
+  return refreshed;
+}
+
 let started = false;
 function startScheduler() {
   if (started) return;
@@ -154,9 +203,10 @@ function startScheduler() {
     try { await runBirthdayGreetings(); } catch { /* ignore */ }
     try { await runTripReminders(); } catch { /* ignore */ }
     try { await runAutoArchive(); } catch { /* ignore */ }
+    try { await runInstagramTokenRefresh(); } catch { /* ignore */ }
   };
   setTimeout(tick, 45_000); // boot'дан 45s keyin bir marta
   setInterval(tick, 30 * 60 * 1000); // keyin har 30 daqiqada
 }
 
-module.exports = { startScheduler, runBirthdayGreetings, runTripReminders, runAutoArchive, DEFAULT_BIRTHDAY, fillBirthday };
+module.exports = { startScheduler, runBirthdayGreetings, runTripReminders, runAutoArchive, runInstagramTokenRefresh, DEFAULT_BIRTHDAY, fillBirthday };
