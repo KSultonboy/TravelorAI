@@ -254,6 +254,26 @@
 .mkt-prose p, .mkt-prose li { color: var(--muted); line-height: 1.8; font-size: 0.98rem; }
 .mkt-prose ul { padding-left: 20px; }
 .mkt-prose li { margin-bottom: 8px; }
+/* Havolalar matndan ajralib tursin: --muted merosda qolsa, havola atrofidagi
+   matndan OCH bo'lib qolardi va bosiladiganligi bilinmasdi. */
+/* --primary (yorug'da #0f5132) oq fonda 8.9:1 beradi; --primary-3 esa atigi
+   4.5:1 — chegarada. Shuning uchun rang o'zgarmaydi, hover faqat chizig'ini
+   quyuqlashtiradi: ikkala holatda ham kontrast maksimal qoladi. */
+.mkt-prose a {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+  transition: text-decoration-color 0.15s ease;
+}
+.mkt-prose a:hover { text-decoration-color: currentColor; }
+.mkt-prose a:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
 
 /* ---------- About / roadmap / contact ---------- */
 .mkt-values { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }

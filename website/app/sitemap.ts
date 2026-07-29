@@ -18,6 +18,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/offer`, priority: 0.4, changeFrequency: "yearly", lastModified: now },
     { url: `${BASE_URL}/privacy`, priority: 0.3, changeFrequency: "yearly", lastModified: now },
     { url: `${BASE_URL}/terms`, priority: 0.3, changeFrequency: "yearly", lastModified: now },
+    // Meta/Google App Review shu manzilni «User Data Deletion» sifatida tekshiradi —
+    // indekslanadigan va topiladigan bo'lishi kerak.
+    { url: `${BASE_URL}/data-deletion`, priority: 0.3, changeFrequency: "yearly", lastModified: now },
   ];
 
   let tourRoutes: MetadataRoute.Sitemap = [];

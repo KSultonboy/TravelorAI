@@ -28,6 +28,7 @@ const COLS = [
       ["Ommaviy oferta", "/offer"],
       ["Maxfiylik siyosati", "/privacy"],
       ["Foydalanish shartlari", "/terms"],
+      ["Ma’lumotlarni o‘chirish", "/data-deletion"],
     ],
   },
 ];
