@@ -125,9 +125,9 @@ const NAV: { key: string; label: string; icon: string; group: string; badge?: "l
   { key: "payments", label: "Mijoz to'lovlari", icon: I.card, group: "Sotuv" },
   { key: "reports", label: "Hisobotlar", icon: I.chart, group: "Boshqa" },
   { key: "documents", label: "Hujjatlar", icon: I.doc, group: "Boshqa" },
-  // Obuna to'lovi (CLICK) — mijoz to'lovlaridan ALOHIDA. Bu yerda agentlik
-  // TravelorAI xizmatiga (o'z obunasiga) to'laydi.
-  { key: "billing", label: "Obuna va to'lov", icon: I.money, group: "Boshqa" },
+  // Obuna to'lovi (CLICK) endi Sozlamalar → «Obuna va tarif» ichida.
+  // Ilgari alohida band edi, lekin Sozlamalar ham xuddi shu narsani
+  // ko'rsatardi — bir xil narsa ikki joyda turardi.
   { key: "settings", label: "Sozlamalar", icon: I.gear, group: "Boshqa" },
 ];
 const TITLES: Record<string, string> = { ...Object.fromEntries(NAV.map((n) => [n.key, n.label])), telegram: "Telegram bot" };
@@ -574,9 +574,10 @@ export default function KvCabinet() {
   const canExport = caps.csvExport !== false;
   const allowedSections = access?.sections || null; // null = cheklovsiz (grandfather / eski agentlik)
   const sectionAllowed = (key: string) => {
-    // DIQQAT: «billing» DOIM ochiq bo'lishi SHART — muddat tugagan/read-only
-    // holatда ham agentlik to'lay olishi kerak (aks holda qamalib qoladi).
-    if (key === "dashboard" || key === "settings" || key === "reviews" || key === "documents" || key === "billing") return true; // doim ochiq
+    // DIQQAT: «settings» DOIM ochiq bo'lishi SHART — obuna to'lovi endi
+    // Sozlamalar ichida, ya'ni muddat tugaganda ham agentlik to'lay olishi
+    // kerak (aks holda kabinetda qamalib qoladi va tiklay olmaydi).
+    if (key === "dashboard" || key === "settings" || key === "reviews" || key === "documents") return true; // doim ochiq
     if (key === "telegram") return caps.telegram !== false;
     if (key === "presentations") return caps.presentations !== false;
     if (!allowedSections) return true;
@@ -662,7 +663,6 @@ export default function KvCabinet() {
                 <Reviews show={view === "reviews"} readOnly={readOnly} />
                 <Payments show={view === "payments"} leads={leads} move={guardedMove} busyId={busyId} readOnly={readOnly} canExport={canExport} />
                 <Reports show={view === "reports"} leads={leads} />
-                <Billing show={view === "billing"} access={access} />
                 <DocumentsSection show={view === "documents"} agencyId={agencyId} readOnly={readOnly} />
                 <Settings show={view === "settings"} agency={agency} agencyId={agencyId} refresh={refresh} logout={logout} go={setView} access={access} readOnly={readOnly} caps={caps} />
                 <TelegramPage show={view === "telegram"} leads={leads} go={setView} readOnly={readOnly} />
@@ -2325,16 +2325,19 @@ function SubscriptionCard({ access, onManage }: any) {
   );
 }
 
-/* «Obuna va to'lov» ekrani — CLICK menejerlari uchun ham aniq oqim:
-   joriy tarif → hisobni to'ldirish (CLICK) → to'lov tarixi → ommaviy oferta. */
-function Billing({ show, access }: { show: boolean; access: any }) {
+/* Obuna to'lovi — Sozlamalar → «Obuna va tarif» ichida ko'rsatiladi.
+   Ilgari alohida sidebar bandi edi, lekin Sozlamalar ham xuddi shu holat
+   kartasini ko'rsatardi — bir xil narsa ikki joyda turardi.
+   CLICK menejerlari uchun oqim o'zgarmadi: joriy tarif → hisobni to'ldirish
+   → to'lov tarixi → ommaviy oferta.
+   DIQQAT: «settings» muddat tugaganda ham ochiq (sectionAllowed'ga qarang) —
+   aks holda agentlik to'lay olmay kabinetda qamalib qolardi. */
+function PlanSection({ access }: { access: any }) {
   return (
-    <section className={`view${show ? " active" : ""}`}>
-      <div className="section-head">
-        <div>
-          <h2>Obuna va to&apos;lov</h2>
-          <div className="sub">Bu yerda siz TravelorAI xizmatiga (o&apos;z obunangizga) to&apos;laysiz. Mijozlardan olingan pul — «Mijoz to&apos;lovlari» bo&apos;limida.</div>
-        </div>
+    <>
+      <div className="note" style={{ marginBottom: 14 }}>
+        Bu yerda siz <b>TravelorAI xizmatiga</b> — o&apos;z obunangizga to&apos;laysiz.
+        Mijozlardan olingan pul «Mijoz to&apos;lovlari» bo&apos;limida.
       </div>
       <SubscriptionCard access={access} />
       <PayPlan heading="Hisobni to'ldirish" />
@@ -2344,7 +2347,7 @@ function Billing({ show, access }: { show: boolean; access: any }) {
         {" · "}
         <a href="/pricing" target="_blank" rel="noreferrer" onClick={onExternalClick("https://travelorai.com/pricing")}>tariflar</a>
       </div>
-    </section>
+    </>
   );
 }
 
@@ -2914,7 +2917,7 @@ function DocRequisitesCard({ agencyId, readOnly }: { agencyId: string; readOnly?
    turardi — nima qayerda ekanini topish qiyin edi. Endi menyu: bo'limni
    bosasiz → faqat o'sha bo'lim ochiladi, orqaga qaytish tugmasi bilan. */
 const SETTINGS_MENU: { key: string; icon: string; label: string; desc: string }[] = [
-  { key: "plan", icon: I.card, label: "Obuna va tarif", desc: "Joriy reja, amal muddati va to'lov" },
+  { key: "plan", icon: I.money, label: "Obuna va to'lov", desc: "Joriy tarif, amal muddati, hisobni to'ldirish va to'lov tarixi" },
   { key: "profile", icon: I.box, label: "Agentlik ma'lumotlari", desc: "Nomi, logotipi, telefoni va tavsifi" },
   { key: "links", icon: I.send, label: "Ulanishlar", desc: "Telegram bot va Instagram Direct" },
   { key: "team", icon: I.users, label: "Jamoa va rollar", desc: "Xodimlarni qo'shish, huquqlarni belgilash" },
@@ -2961,7 +2964,10 @@ function Settings({ show, agency, go, refresh, logout, access, readOnly }: any) 
             </div>
           </div>
 
-          {tab === "plan" ? <SubscriptionCard access={access} onManage={() => go("billing")} /> : null}
+          {/* Obuna to'lovi ilgari alohida sidebar bandida edi va bu yerda faqat
+              holat kartasi turardi — bir xil narsa ikki joyda. Endi to'liq oqim
+              shu yerda: holat → to'lash → tarix → huquqiy havolalar. */}
+          {tab === "plan" ? <PlanSection access={access} /> : null}
           {tab === "profile" ? <ProfileForm agency={agency} refresh={refresh} readOnly={readOnly} /> : null}
           {tab === "links" ? (
             <div style={{ display: "grid", gap: 12 }}>
