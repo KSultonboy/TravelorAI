@@ -4176,6 +4176,9 @@ function ProfileForm({ agency, refresh, readOnly }: any) {
     setPhone(agency?.phone || ""); setTelegram(agency?.telegram || ""); setWebsite(agency?.website || "");
     setDescription(agency?.description || ""); setImg(agency?.imageUrl || "");
   }, [agency]);
+  // Logotip saqlanganidan farq qiladimi — foydalanuvchiga saqlash kerakligini
+  // ko'rsatish uchun. save() ham aynan shu shartga qarab imageUrl yuboradi.
+  const logoChanged = img !== (agency?.imageUrl || "");
   async function pickImg(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
     try { setImg(await readImage(file)); setMsg(""); } catch (er) { setErr(er instanceof Error ? er.message : "Rasm xato"); }
@@ -4204,9 +4207,18 @@ function ProfileForm({ agency, refresh, readOnly }: any) {
         <div className="prof-logo-tx">
           <label className="prof-pick">{img ? "Logotipni almashtirish" : "Logotip yuklash"}<input type="file" accept="image/*" onChange={pickImg} style={{ display: "none" }} disabled={readOnly} /></label>
           <small>PNG yoki JPG · kvadrat rasm tavsiya etiladi</small>
-          {img && !readOnly ? <button type="button" className="prof-logo-rm" onClick={() => setImg("")}>O&apos;chirish</button> : null}
+          {img && !readOnly ? <button type="button" className="prof-logo-rm" onClick={() => setImg("")}>Olib tashlash</button> : null}
         </div>
       </div>
+      {/* Logotip almashtirilsa/olib tashlansa — u faqat formada o'zgaradi,
+          bazaga «Saqlash» bosilgandan keyin yoziladi. Ilgari bu ko'rinmasdi:
+          «O'chirish» bosilardi, sahifa yangilanardi va eski logotip qaytardi. */}
+      {logoChanged && !readOnly ? (
+        <div className="prof-logo-warn">
+          {img ? "Yangi logotip tanlandi" : "Logotip olib tashlandi"} — o&apos;zgarish hali saqlanmagan.
+          Pastdagi <b>«Saqlash»</b> tugmasini bosing.
+        </div>
+      ) : null}
       <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div className="fld"><label>Agentlik nomi *</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Demo Travel CRM" /></div>
         <div className="fld"><label>Shahar</label><input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Toshkent" /></div>
