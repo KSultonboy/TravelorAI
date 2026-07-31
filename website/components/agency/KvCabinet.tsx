@@ -2569,7 +2569,7 @@ function TeamSection({ access }: any) {
         {/* Sarlavha Sozlamalar bo'limi tepasida chiqadi — bu yerda takrorlanmaydi */}
         <div className="card team-lock">
           <span className="team-lock__ic"><Ic d={I.clock} s={20} /></span>
-          <div><b>Tez orada ishga tushadi</b><span>Bir nechta xodim qo&apos;shish, rollar berish va lidlarni taqsimlash tez kunda ochiladi.</span></div>
+          <div><b>{SOON_LABEL}</b><span>Bir nechta xodim qo&apos;shish, rollar berish va lidlarni taqsimlash tez kunda ochiladi.</span></div>
         </div>
         {showAdd ? <AddMember onClose={() => setShowAdd(false)} onAdded={load} /> : null}
       </>
@@ -2973,6 +2973,7 @@ function Settings({ show, agency, go, refresh, logout, access, readOnly }: any) 
             <div style={{ display: "grid", gap: 12 }}>
               <TelegramCard go={go} />
               <InstagramCard go={go} />
+              <WhatsappCard />
             </div>
           ) : null}
           {tab === "team" ? <TeamSection access={access} /> : null}
@@ -3712,6 +3713,12 @@ function TelegramCard({ go }: { go: (v: string) => void }) {
 
 /* ================= INSTAGRAM (settings card + dedicated page) ================= */
 const IG_ICON = "M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 6a4 4 0 1 0 0 8 4 4 0 0 0 0-8z";
+const WA_ICON = "M17.5 14.4c-.3-.15-1.7-.85-2-.95-.26-.1-.45-.15-.64.15-.19.28-.73.94-.9 1.13-.16.19-.33.21-.61.07-.3-.15-1.25-.46-2.38-1.47-.88-.78-1.47-1.75-1.64-2.04-.17-.29-.02-.44.13-.59.13-.13.3-.34.44-.51.15-.17.19-.29.29-.48.1-.19.05-.36-.02-.51-.08-.15-.64-1.55-.88-2.12-.23-.55-.47-.48-.64-.49h-.55c-.19 0-.5.07-.76.36-.26.29-1 .98-1 2.38s1.02 2.76 1.17 2.95c.14.19 2.01 3.08 4.88 4.32.68.29 1.21.47 1.63.6.68.22 1.3.19 1.79.11.55-.08 1.7-.69 1.94-1.36.24-.67.24-1.24.17-1.36-.07-.12-.26-.19-.55-.34zM12 2a10 10 0 0 0-8.6 15.06L2 22l5.06-1.33A10 10 0 1 0 12 2z";
+
+/* Hali ochilmagan funksiyalar uchun yagona belgi. Ilgari har joyda har xil
+   yozilardi («Tez orada», «Tez orada ishga tushadi», «tasdiqdan o'tmoqda») —
+   agentlik nima kutayotganini tushunmasdi. */
+const SOON_LABEL = "Ishga tushirilmoqda";
 
 type IgState = { configured: boolean; connected: boolean; username: string | null; welcome: string; expiresAt: string | null };
 
@@ -3729,13 +3736,33 @@ function InstagramCard({ go }: { go: (v: string) => void }) {
           {st?.connected
             ? `Ulangan · @${st.username}`
             : st && !st.configured
-              ? "Tez orada — integratsiya tasdiqdan o'tmoqda"
+              ? "Direct xabarlar avtomatik lid bo'ladi — ulanish tayyorlanmoqda"
               : "Ulash · Direct xabarlar avtomatik lid bo'ladi"}
         </small>
       </span>
-      {st?.connected ? <span className="int-badge">Faol</span> : null}
+      {st?.connected
+        ? <span className="int-badge">Faol</span>
+        : st && !st.configured
+          ? <span className="int-badge int-badge--soon">{SOON_LABEL}</span>
+          : null}
       <svg className="int-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
     </button>
+  );
+}
+
+/* WhatsApp Business — hali ochilmagan. Karta ATAYLAB bosilmaydi (button emas,
+   div): bosilsa bo'sh sahifaga olib borardi. Agentlik nima kelayotganini
+   ko'rsin, lekin ishlamaydigan ekranga tushmasin. */
+function WhatsappCard() {
+  return (
+    <div className="int-card int-card--soon" aria-disabled="true">
+      <span className="int-ic wa"><Ic d={WA_ICON} s={22} /></span>
+      <span className="int-main">
+        <b>WhatsApp Business</b>
+        <small>Mijoz xabarlari CRM&apos;ga tushadi — Instagram bilan birga ochiladi</small>
+      </span>
+      <span className="int-badge int-badge--soon">{SOON_LABEL}</span>
+    </div>
   );
 }
 
@@ -3819,8 +3846,12 @@ function InstagramPage({ show, go, readOnly }: { show: boolean; go: (v: string) 
         {st && !st.configured ? (
           <div className="tg-connect">
             <div className="note" style={{ margin: 0 }}>
-              Instagram integratsiyasi Meta tomonidan tasdiqlanmoqda. Tasdiqlangach shu yerda
-              «Ulash» tugmasi paydo bo&apos;ladi — qo&apos;shimcha hech narsa qilish shart emas.
+              <b>{SOON_LABEL}.</b> Integratsiya tayyor va Meta tomonida ro&apos;yxatdan
+              o&apos;tkazilmoqda. Ishga tushgach shu yerda «Ulash» tugmasi paydo bo&apos;ladi —
+              sizdan qo&apos;shimcha hech narsa talab qilinmaydi.
+              <br /><br />
+              Shu vaqt ichida mijozlar bilan <b>Telegram</b> orqali ishlashingiz mumkin —
+              u to&apos;liq ishlaydi va xabarlar avtomatik lid bo&apos;lib tushadi.
             </div>
           </div>
         ) : !st?.connected ? (

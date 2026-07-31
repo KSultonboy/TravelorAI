@@ -473,6 +473,12 @@
   .int-ic{ width:44px; height:44px; border-radius:12px; display:grid; place-items:center; flex-shrink:0; }
   .int-ic.tg{ background:var(--sky-soft); color:#255d7d; }
   .int-ic.ig, .tg-ic.ig{ background:var(--ig-soft); color:var(--ig-ink); }
+  .int-ic.wa{ background:rgba(37,167,104,.14); color:#1B7A4B; }
+  /* Hali ochilmagan kanal: bosilmaydi, shuning uchun kursor ham o'zgarmaydi
+     va hover ko'tarilmaydi — aks holda bosiladigandek ko'rinardi. */
+  .int-card--soon{ cursor:default; opacity:.82; }
+  .int-card--soon:hover{ border-color:var(--border); transform:none; box-shadow:var(--shadow); }
+  .int-badge--soon{ color:var(--gold-ink); background:var(--gold-soft); border-color:rgba(202,138,4,.3); }
   .int-main{ flex:1; min-width:0; }
   .int-main b{ display:block; font-family:var(--disp); font-size:14.5px; font-weight:600; }
   .int-main small{ display:block; color:var(--t2); font-size:12.5px; margin-top:1px; }
