@@ -8,6 +8,13 @@ const nullableUrl = z
   .or(z.literal(''))
   .transform((value) => value || undefined);
 
+// Rasm maydoni uch xil qiymatni ANGLATADI va uchalasi ham kerak:
+//   undefined → tegilmaydi (tahrirlashda «bu maydonni o'zgartirmayman»)
+//   null / '' → rasmni OLIB TASHLASH
+//   satr      → rasmning o'zi (URL, /uploads/... yoki data:image base64)
+// Ilgari sxema `null` ni qabul qilmasdi, CRM formasi esa rasm tanlanmaganda
+// aynan `null` yuborardi — natijada butun so'rov «Invalid input» bilan
+// qaytardi va yangi tur umuman qo'shilmasdi.
 const imageValue = z
   .string()
   .trim()
@@ -20,9 +27,8 @@ const imageValue = z
       /^data:image\/(?:jpeg|png|webp|gif);base64,/i.test(value),
     'Rasm URL yoki JPG/PNG/WEBP/GIF fayl bo‘lishi kerak'
   )
-  .optional()
-  .or(z.literal(''))
-  .transform((value) => value || undefined);
+  .nullish()
+  .transform((value) => (value ? value : value === undefined ? undefined : null));
 
 const tourBadge = z
   .string()
