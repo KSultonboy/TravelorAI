@@ -132,10 +132,22 @@ async function subscribeWebhooks(token) {
 
 /* ============ PROFIL / XABAR ============ */
 
+/**
+ * DIQQAT: bu yerda IKKI xil id qaytadi va ular BOSHQA-BOSHQA:
+ *   · `user_id` — IG professional akkaunt id'si (17841…), API chaqiruvlarida ishlatiladi
+ *   · `id`      — app doirasidagi id (27841…)
+ * Webhook `recipient.id`da qaysi biri kelishi hujjatlarда aniq emas, shuning
+ * uchun ikkalasini ham saqlaymiz (qarang: controller webhook qidiruvi).
+ */
 async function getMe(token) {
-  const params = new URLSearchParams({ fields: 'user_id,username,name', access_token: token });
+  const params = new URLSearchParams({ fields: 'id,user_id,username,name', access_token: token });
   const data = await igFetch(`${GRAPH}/${GRAPH_VERSION}/me?${params.toString()}`);
-  return { userId: String(data.user_id || ''), username: data.username || '', name: data.name || '' };
+  return {
+    userId: String(data.user_id || ''),
+    appScopedId: String(data.id || ''),
+    username: data.username || '',
+    name: data.name || '',
+  };
 }
 
 /**

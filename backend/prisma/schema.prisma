@@ -407,6 +407,11 @@ model TourAgency {
   // Instagram Direct → lid. OAuth bilan ulanadi, token 60 kunlik —
   // shuning uchun Telegram'dan farqli o'laroq muddat ustuni bor.
   instagramUserId         String?
+  // GET /me ikki xil id qaytaradi: `user_id` (IG professional akkaunt id'si,
+  // yuqoridagi ustun) va `id` (app doirasidagi id). Webhook `recipient.id`da
+  // qaysi birini yuborishi Meta tomonidan kafolatlanmagan, shuning uchun
+  // ikkalasini ham saqlaymiz va webhook ikkalasi bo'yicha qidiradi.
+  instagramAppScopedId    String?
   instagramUsername       String?
   instagramToken          String?
   instagramTokenExpiresAt DateTime?
@@ -452,6 +457,7 @@ model TourAgency {
   @@index([ownerAccountId])
   @@index([approvalStatus])
   @@index([instagramUserId])
+  @@index([instagramAppScopedId])
 }
 
 model Tariff {

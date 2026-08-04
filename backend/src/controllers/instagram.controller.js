@@ -1,4 +1,5 @@
 const { prisma } = require('../config/database');
+const { logger } = require('../config/logger');
 const { success, error } = require('../utils/response');
 const { ensureApprovedAgency } = require('./agency.controller');
 const ig = require('../services/instagram.service');
@@ -54,6 +55,7 @@ async function disconnectInstagram(req, res) {
         instagramToken: null,
         instagramTokenExpiresAt: null,
         instagramUserId: null,
+        instagramAppScopedId: null,
         instagramUsername: null,
       },
     });
@@ -121,7 +123,7 @@ async function callback(req, res) {
       await ig.subscribeWebhooks(long.accessToken);
     } catch (err) {
       subscribeError = err.message || 'noma’lum xato';
-      require('../config/logger').logger.error('Instagram subscribed_apps failed', {
+      logger.error('Instagram subscribed_apps failed', {
         agencyId: agency.id, igUserId: me.userId || short.userId, error: subscribeError,
       });
     }
@@ -130,6 +132,7 @@ async function callback(req, res) {
       where: { id: agency.id },
       data: {
         instagramUserId: me.userId || short.userId,
+        instagramAppScopedId: me.appScopedId || null,
         instagramUsername: me.username || null,
         instagramToken: long.accessToken,
         instagramTokenExpiresAt: long.expiresIn ? new Date(Date.now() + long.expiresIn * 1000) : null,
@@ -221,6 +224,20 @@ async function webhook(req, res) {
       return res.status(403).json({ ok: false });
     }
     const body = req.body || {};
+
+    // Har bir webhook'ning qisqa xulosasi. Ilgari bu yerda hech narsa
+    // yozilmagani uchun «200 qaytyapti, lekin lid yo'q» holatini kuzatib
+    // bo'lmasdi — payload shaklini faqat shu log ko'rsatadi.
+    // Hodisa turini yozamiz, MAZMUNINI emas — mijoz xabarlari logga tushmasin.
+    // (Turi muhim: Meta `messages`dan tashqari `read`, `message_edit` kabi
+    // hodisalarni ham yuboradi, ular lid yaratmaydi.)
+    logger.info('Instagram webhook', {
+      object: body.object,
+      events: (Array.isArray(body.entry) ? body.entry : []).flatMap((e) =>
+        (Array.isArray(e.messaging) ? e.messaging : []).map((m) =>
+          Object.keys(m || {}).filter((k) => k !== 'sender' && k !== 'recipient' && k !== 'timestamp').join(',') || 'bo‘sh')),
+    });
+
     if (body.object !== 'instagram') return res.status(200).json({ ok: true });
 
     for (const entry of Array.isArray(body.entry) ? body.entry : []) {
@@ -230,17 +247,31 @@ async function webhook(req, res) {
       // recipient.id — bizning (agentlikning) IG akkaunt id'si.
       const accountId = String((events[0].recipient && events[0].recipient.id) || entry.id || '');
       if (!accountId) continue;
+      // Meta `recipient.id`da `user_id`ni ham, app doirasidagi `id`ni ham
+      // yuborishi mumkin — ikkalasi bo'yicha qidiramiz.
       const agency = await prisma.tourAgency.findFirst({
-        where: { instagramUserId: accountId, instagramActive: true },
+        where: {
+          instagramActive: true,
+          OR: [{ instagramUserId: accountId }, { instagramAppScopedId: accountId }],
+        },
       });
-      if (!agency || !agency.instagramToken) continue;
+      if (!agency || !agency.instagramToken) {
+        // Jim o'tib ketmaymiz: aks holda «webhook 200 qaytaryapti, lekin lid
+        // yo'q» holatini sababsiz qidirishga to'g'ri keladi.
+        logger.warn('Instagram webhook: mos agentlik topilmadi', { accountId });
+        continue;
+      }
 
       for (const event of events) {
         // is_echo — bu bizning o'zimiz yuborgan xabarimizning aks-sadosi.
         // Filtrlanmasa har javob ikki marta yozilardi.
         if (event.message && event.message.is_echo) continue;
         if (!event.message) continue;
-        await handleMessage(agency, event).catch(() => {});
+        // Xatoni yutib yubormaymiz — ilgari lid yaratilmasa ham hech qayerda
+        // iz qolmasdi.
+        await handleMessage(agency, event).catch((err) => {
+          logger.error('Instagram handleMessage xato', { agencyId: agency.id, error: err.message });
+        });
       }
     }
     return res.status(200).json({ ok: true });
