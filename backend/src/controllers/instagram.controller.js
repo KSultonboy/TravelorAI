@@ -112,6 +112,20 @@ async function callback(req, res) {
     const long = await ig.exchangeLongLived(short.accessToken);
     const me = await ig.getMe(long.accessToken);
 
+    // Akkaunt darajasidagi webhook obunasi — busiz Direct xabarlar kelmaydi.
+    // Ulanishni bekor QILMAYMIZ: token allaqachon olindi va uni tashlab
+    // yuborish agentlikni butunlay ulanmagan holatda qoldirardi. O'rniga
+    // xatoni logga yozamiz va foydalanuvchiga ochiq aytamiz.
+    let subscribeError = null;
+    try {
+      await ig.subscribeWebhooks(long.accessToken);
+    } catch (err) {
+      subscribeError = err.message || 'noma’lum xato';
+      require('../config/logger').logger.error('Instagram subscribed_apps failed', {
+        agencyId: agency.id, igUserId: me.userId || short.userId, error: subscribeError,
+      });
+    }
+
     await prisma.tourAgency.update({
       where: { id: agency.id },
       data: {
@@ -122,6 +136,10 @@ async function callback(req, res) {
         instagramActive: true,
       },
     });
+    if (subscribeError) {
+      return closeWindow(res, false,
+        `@${me.username || 'akkaunt'} ulandi, lekin xabarlarga obuna bo‘lib bo‘lmadi — Direct xabarlar CRM'ga tushmaydi. Ulanishni uzib, qaytadan ulang. (${subscribeError})`);
+    }
     return closeWindow(res, true, `@${me.username || 'akkaunt'} ulandi. Endi Direct xabarlar CRM'da lid bo‘lib chiqadi.`);
   } catch (err) {
     return closeWindow(res, false, err.message || 'Kutilmagan xato.');

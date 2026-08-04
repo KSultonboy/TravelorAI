@@ -117,6 +117,19 @@ async function refreshLongLived(longToken) {
   return { accessToken: data.access_token, expiresIn: Number(data.expires_in || 0) };
 }
 
+/**
+ * Webhook obunasi AKKAUNT darajasида.
+ *
+ * MUHIM: Meta konsolидаги ilova darajasidagi obuna (3-qadam, `messages`
+ * maydoni) O'ZI YETARLI EMAS. Har bir ulangan akkaunt uchun alohida
+ * `POST /me/subscribed_apps` chaqirilmаса, Direct xabarlar webhook'ga
+ * UMUMAN kelmaydi — ulanish "muvaffaqiyatli" ko'rinadi, lekin lid tushmaydi.
+ */
+async function subscribeWebhooks(token) {
+  const params = new URLSearchParams({ subscribed_fields: 'messages', access_token: token });
+  return igFetch(`${GRAPH}/${GRAPH_VERSION}/me/subscribed_apps?${params.toString()}`, { method: 'POST' });
+}
+
 /* ============ PROFIL / XABAR ============ */
 
 async function getMe(token) {
@@ -191,6 +204,7 @@ module.exports = {
   exchangeCode,
   exchangeLongLived,
   refreshLongLived,
+  subscribeWebhooks,
   getMe,
   getSenderProfile,
   sendMessage,
