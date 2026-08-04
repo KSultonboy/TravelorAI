@@ -130,7 +130,7 @@ const NAV: { key: string; label: string; icon: string; group: string; badge?: "l
   // ko'rsatardi — bir xil narsa ikki joyda turardi.
   { key: "settings", label: "Sozlamalar", icon: I.gear, group: "Boshqa" },
 ];
-const TITLES: Record<string, string> = { ...Object.fromEntries(NAV.map((n) => [n.key, n.label])), telegram: "Telegram bot" };
+const TITLES: Record<string, string> = { ...Object.fromEntries(NAV.map((n) => [n.key, n.label])), telegram: "Telegram bot", instagram: "Instagram Direct" };
 const OPEN: CrmStage[] = ["new", "contacted", "quoted"];
 const UZ_MONTH = ["Yan", "Fev", "Mar", "Apr", "May", "Iyun", "Iyul", "Avg", "Sen", "Okt", "Noy", "Dek"];
 const PKG_GRADS = [
@@ -578,7 +578,10 @@ export default function KvCabinet() {
     // Sozlamalar ichida, ya'ni muddat tugaganda ham agentlik to'lay olishi
     // kerak (aks holda kabinetda qamalib qoladi va tiklay olmaydi).
     if (key === "dashboard" || key === "settings" || key === "reviews" || key === "documents") return true; // doim ochiq
-    if (key === "telegram") return caps.telegram !== false;
+    // «instagram» ham shu yerda: u NAV kaliti emas, shuning uchun quyidagi
+    // sections tekshiruviga tushib qolsa Premium agentlik ham paywall ko'rardi.
+    // Daraja backend bilan bir xil: /agency/instagram → requireCapability('telegram').
+    if (key === "telegram" || key === "instagram") return caps.telegram !== false;
     if (key === "presentations") return caps.presentations !== false;
     if (!allowedSections) return true;
     return allowedSections.includes(key);
