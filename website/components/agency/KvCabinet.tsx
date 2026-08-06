@@ -2400,6 +2400,28 @@ function PaymentHistory() {
 const somUz = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 const MONTH_OPTS = [1, 3, 6, 12];
 
+/**
+ * CLICK'ning «karta bilan, saytdan chiqmasdan» kutubxonasi.
+ * Bir marta yuklanadi va keshlanadi; sahifa ochilganda emas, faqat tugma
+ * bosilganda — shunda CRM'ning yuklanish tezligiga ta'sir qilmaydi.
+ */
+let clickSdkLoading: Promise<void> | null = null;
+function loadClickSdk(): Promise<void> {
+  if (typeof window === "undefined") return Promise.reject(new Error("SSR"));
+  if ((window as any).createPaymentRequest) return Promise.resolve();
+  if (!clickSdkLoading) {
+    clickSdkLoading = new Promise<void>((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://my.click.uz/pay/checkout.js";
+      s.async = true;
+      s.onload = () => resolve();
+      s.onerror = () => { clickSdkLoading = null; reject(new Error("yuklanmadi")); };
+      document.head.appendChild(s);
+    });
+  }
+  return clickSdkLoading;
+}
+
 /** Obunani CLICK orqali to'lash — tarif + muddat tanlanadi, havolaga o'tadi. */
 function PayPlan({ heading = "Obunani to'lash" }: { heading?: string }) {
   const [plans, setPlans] = useState<any[]>([]);
@@ -2408,6 +2430,7 @@ function PayPlan({ heading = "Obunani to'lash" }: { heading?: string }) {
   const [months, setMonths] = useState(1);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [info, setInfo] = useState("");
 
   useEffect(() => {
     void agencyApi<any>("/payments/plans").then((r) => {
@@ -2431,6 +2454,66 @@ function PayPlan({ heading = "Obunani to'lash" }: { heading?: string }) {
     });
     if (!res.success) { setBusy(false); setErr(res.message || "To'lov havolasini olib bo'lmadi"); return; }
     window.location.href = res.data.payUrl; // CLICK to'lov sahifasi
+  }
+
+  /**
+   * Ikkinchi usul — karta bilan, saytdan CHIQMASDAN: to'lov oynasi CRM ustida
+   * ochiladi. CLICK'ga ulanmagan odam ham to'lay oladi, faqat UZCARD/HUMO
+   * kartasi bo'lsa bas. Karta ma'lumotlari bizga umuman kelmaydi — hammasi
+   * CLICK kutubxonasi ichida qoladi.
+   */
+  async function payByCard() {
+    if (!slug || busy) return;
+    setBusy(true); setErr(""); setInfo("");
+    const res = await agencyApi<any>("/payments/checkout", {
+      method: "POST",
+      body: JSON.stringify({ tariffSlug: slug, months }),
+    });
+    if (!res.success) { setBusy(false); setErr(res.message || "To'lovni boshlab bo'lmadi"); return; }
+    const d = res.data;
+
+    try {
+      await loadClickSdk();
+    } catch {
+      // Kutubxona yuklanmasa to'lovni yo'qotmaymiz — oddiy CLICK sahifasiga o'tamiz.
+      window.location.href = d.payUrl;
+      return;
+    }
+
+    setInfo("To'lov oynasi ochildi…");
+    (window as any).createPaymentRequest(
+      {
+        service_id: Number(d.click.serviceId),
+        merchant_id: Number(d.click.merchantId),
+        merchant_user_id: d.click.merchantUserId || undefined,
+        amount: Number(d.amount),
+        transaction_param: d.merchantTransId,
+      },
+      (r: any) => { void afterCardPay(Number(r && r.status), d.merchantTransId); },
+    );
+  }
+
+  /**
+   * Widget holati: <0 xato, 0 yaratildi, 1 jarayonda, 2 muvaffaqiyatli.
+   * Muvaffaqiyat bo'lganda ham obunani BIZNING server faollashtiradi — CLICK
+   * Complete so'rovini yuborgach. Ikkalasi bir vaqtda bo'lmaydi, shuning
+   * uchun holatni so'rab turamiz va faollashgach sahifani yangilaymiz.
+   */
+  async function afterCardPay(status: number, mti: string) {
+    if (status !== 2) {
+      setBusy(false); setInfo("");
+      if (status < 0) setErr("To'lov amalga oshmadi. Qayta urinib ko'ring.");
+      return;
+    }
+    setInfo("To'lov qabul qilindi, obuna faollashtirilmoqda…");
+    for (let i = 0; i < 12; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const st = await agencyApi<any>(`/payments/${encodeURIComponent(mti)}`);
+      if (st.success && st.data && st.data.state === "paid") { window.location.reload(); return; }
+    }
+    // 24 soniyada tasdiq kelmadi — pul o'tgan, obuna biroz keyin faollashadi.
+    setBusy(false);
+    setInfo("To'lov o'tdi. Obuna bir necha daqiqada faollashadi — sahifani yangilang.");
   }
 
   if (enabled === null) return null;
@@ -2477,19 +2560,33 @@ function PayPlan({ heading = "Obunani to'lash" }: { heading?: string }) {
       </div>
 
       {err ? <div className="sub-card__warn" style={{ marginTop: 0 }}>{err}</div> : null}
+      {info ? <div className="sub-pay__pending" style={{ marginTop: 0 }}>{info}</div> : null}
 
       <div className="sub-pay__foot">
         <div className="sub-pay__total">
           Jami: <b>{somUz(total)} so&apos;m</b>
         </div>
-        <button
-          className="btn btn-primary"
-          disabled={busy || !slug || !enabled}
-          title={!enabled ? "CLICK hisobi ulangach faollashadi" : undefined}
-          onClick={() => void pay()}
-        >
-          {busy ? "Havola ochilmoqda…" : "CLICK orqali to'lash"}
-        </button>
+        {/* Ikkala tugma ham CLICK talabi bo'yicha turadi: birinchisi CLICK
+            ilovasi orqali, ikkinchisi esa har qanday UZCARD/HUMO kartasi
+            bilan — CLICK'ga ulanmagan agentlik ham to'lay olishi uchun. */}
+        <div className="sub-pay__btns">
+          <button
+            className="btn btn-primary"
+            disabled={busy || !slug || !enabled}
+            title={!enabled ? "CLICK hisobi ulangach faollashadi" : undefined}
+            onClick={() => void pay()}
+          >
+            {busy ? "Kuting…" : "CLICK orqali to'lash"}
+          </button>
+          <button
+            className="btn"
+            disabled={busy || !slug || !enabled}
+            title={!enabled ? "CLICK hisobi ulangach faollashadi" : "Saytdan chiqmasdan, karta raqami bilan"}
+            onClick={() => void payByCard()}
+          >
+            Karta bilan to&apos;lash
+          </button>
+        </div>
       </div>
       <div className="sub-pay__note">
         To&apos;lov o&apos;tgan zahoti obuna avtomatik faollashadi. To&apos;lov CLICK&apos;ning xavfsiz sahifasida amalga oshiriladi — karta ma&apos;lumotlari bizga saqlanmaydi. Shartlar — <a href="/offer" target="_blank" rel="noreferrer" onClick={onExternalClick("https://travelorai.com/offer")}>ommaviy oferta</a>.

@@ -645,6 +645,8 @@
 .kv .sub-pay__m:hover{ border-color:var(--primary); color:var(--primary); }
 .kv .sub-pay__m.on{ border-color:var(--primary); background:var(--primary); color:#fff; }
 .kv .sub-pay__foot{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+/* Ikkita to'lov tugmasi — tor ekranda ustma-ust tushadi */
+.kv .sub-pay__btns{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .kv .sub-pay__total{ font-size:13px; color:var(--t2); }
 .kv .sub-pay__total b{ font-family:var(--disp); font-size:18px; color:var(--gold-ink); font-variant-numeric:tabular-nums; }
 .kv .sub-pay__note{ font-size:11.5px; color:var(--t3); }

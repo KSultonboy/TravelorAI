@@ -335,6 +335,14 @@ async function checkout(req, res) {
     return success(res, {
       payUrl, merchantTransId, amount, months,
       tariff: { slug: tariff.slug, name: tariff.name },
+      // Saytdan chiqmasdan to'lash uchun (my.click.uz/pay/checkout.js).
+      // Bu uchtasi MAXFIY EMAS — ular yuqoridagi payUrl ichida ham ochiq
+      // turadi; maxfiysi faqat SECRET_KEY, u hech qachon frontendga ketmaydi.
+      click: {
+        serviceId: click.SERVICE_ID,
+        merchantId: click.MERCHANT_ID,
+        merchantUserId: click.MERCHANT_USER_ID || '',
+      },
     });
   } catch (e) {
     console.error('[click:checkout]', e.message);
