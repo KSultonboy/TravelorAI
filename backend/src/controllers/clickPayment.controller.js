@@ -16,6 +16,7 @@
 
 const crypto = require('crypto');
 const { prisma } = require('../config/database');
+const { logger } = require('../config/logger');
 const { success, error } = require('../utils/response');
 const click = require('../config/click');
 
@@ -49,7 +50,26 @@ const NOTE = {
 };
 
 /** CLICK javobi — HAR DOIM 200 + JSON (aks holda CLICK qayta urinadi). */
+/**
+ * CLICK'ga javob + LOG.
+ *
+ * Prepare va Complete'ning yagona chiqish nuqtasi shu bo'lgani uchun, so'rov
+ * va javobni aynan shu yerda yozamiz — CLICK yo'riqnomasi talabi: «настроить
+ * систему логирования запросов и ответов в точках Prepare и Complete. Это
+ * ускорит поиск и решение проблем при проведении платежей». To'lov muammosi
+ * chiqqanda guruhga aynan shu loglar yuboriladi.
+ *
+ * Karta ma'lumotlari bu yerga umuman kelmaydi (ular CLICK tomonda qoladi),
+ * `sign_string` esa maxfiy emas — u SECRET_KEY'dan olingan hash, va imzo
+ * xatolarini tekshirish uchun aynan u kerak bo'ladi.
+ */
 function clickReply(res, payload) {
+  const req = res.req || {};
+  logger.info('CLICK callback', {
+    url: req.originalUrl,
+    request: req.body || {},
+    response: payload,
+  });
   return res.status(200).json(payload);
 }
 function clickError(res, code, extra = {}) {
