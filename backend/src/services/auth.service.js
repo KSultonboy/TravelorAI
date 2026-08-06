@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const axios = require('axios');
 const { prisma } = require('../config/database');
+const { premiumInfo } = require('../config/userPlans');
 const {
   sendAccountDeleteCodeEmail,
   sendEmailChangeCodeEmail,
@@ -40,6 +41,8 @@ function buildPublicUser(user) {
     email: user.email,
     emailVerified: user.emailVerified,
     authProvider: user.authProvider === AuthProvider.GOOGLE ? 'google' : 'local',
+    // Premium — ilova va sayt uchun yagona holat (CLICK to'lovi shu yerga yozadi)
+    premium: premiumInfo(user),
   };
 }
 

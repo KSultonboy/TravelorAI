@@ -220,9 +220,127 @@ async function getReports(req, res) {
   } catch (err) { return error(res, err.message, 500); }
 }
 
+/* ─────────── TRAVELER PREMIUM (user to'lovlari) ─────────── */
+// GET /admin/user-payments — Premium to'lovlar tarixi (UserPayment)
+async function getUserPayments(req, res) {
+  try {
+    const items = await prisma.userPayment.findMany({
+      orderBy: { paidAt: 'desc' },
+      take: 500,
+      select: {
+        id: true, userId: true, userEmail: true, planSlug: true,
+        amount: true, currency: true, periodMonths: true, method: true,
+        note: true, paidAt: true,
+      },
+    });
+    return success(res, { items, total: items.length });
+  } catch (err) { return error(res, err.message, 500); }
+}
+
+/* ─────────── CLICK TRANZAKSIYALARI (xavfsizlik/audit) ─────────── */
+// GET /admin/click-transactions?state=&payerType=&take= — har ikkala payerType,
+// pul harakatini va muvaffaqiyatsiz faollashtirishlarni kuzatish uchun.
+async function getClickTransactions(req, res) {
+  try {
+    const where = {};
+    if (req.query.state) where.state = String(req.query.state);
+    if (req.query.payerType) where.payerType = String(req.query.payerType);
+    const take = Math.min(500, Math.max(1, parseInt(req.query.take, 10) || 200));
+
+    const items = await prisma.clickTransaction.findMany({
+      where, orderBy: { createdAt: 'desc' }, take,
+      select: {
+        id: true, merchantTransId: true, payerType: true, agencyId: true, userId: true,
+        planSlug: true, tariffSlug: true, amount: true, months: true, state: true,
+        clickTransId: true, errorNote: true, createdAt: true, preparedAt: true,
+        paidAt: true, cancelledAt: true,
+      },
+    });
+
+    // Relation yo'q (schema izohi bo'yicha prod DB divergent) — nomlarni
+    // alohida so'rov bilan biriktiramiz, faqat shu sahifada kerak bo'lgan ID'lar uchun.
+    const agencyIds = [...new Set(items.map((t) => t.agencyId).filter(Boolean))];
+    const userIds = [...new Set(items.map((t) => t.userId).filter(Boolean))];
+    const [agencies, users] = await Promise.all([
+      agencyIds.length ? prisma.tourAgency.findMany({ where: { id: { in: agencyIds } }, select: { id: true, name: true } }) : [],
+      userIds.length ? prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, email: true } }) : [],
+    ]);
+    const agencyMap = new Map(agencies.map((a) => [a.id, a.name]));
+    const userMap = new Map(users.map((u) => [u.id, u.name || u.email]));
+
+    const mapped = items.map((t) => ({
+      ...t,
+      payerName: t.payerType === 'user' ? (userMap.get(t.userId) || null) : (agencyMap.get(t.agencyId) || null),
+    }));
+
+    return success(res, { items: mapped, total: mapped.length });
+  } catch (err) { return error(res, err.message, 500); }
+}
+
+/* ─────────── BIRLASHTIRILGAN AYLANMA (agentlik + Premium) ─────────── */
+// GET /admin/payments-overview — bosh sahifada "qancha pul aylanmoqda" ko'rinishi
+// + xavfsizlik/ops signali: to'langan-lekin-faollashmagan tranzaksiyalar soni.
+async function getPaymentsOverview(req, res) {
+  try {
+    const now = new Date();
+    const d7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const d30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const [
+      agencyPayments, userPayments, activePremiumCount,
+      paidClickTx, openClickTx, failedActivations,
+    ] = await Promise.all([
+      prisma.agencyPayment.findMany({ select: { amount: true, currency: true, method: true, paidAt: true } }),
+      prisma.userPayment.findMany({ select: { amount: true, currency: true, paidAt: true } }),
+      prisma.user.count({ where: { premiumUntil: { gt: now } } }),
+      prisma.clickTransaction.count({ where: { state: 'paid' } }),
+      // 'created'/'prepared' 30 daqiqadan eski — to'lanmagan/tashlab ketilgan urinishlar
+      prisma.clickTransaction.count({
+        where: { state: { in: ['created', 'prepared'] }, createdAt: { lt: new Date(now.getTime() - 30 * 60 * 1000) } },
+      }),
+      // Pul olingan, lekin xizmat OCHILMAGAN — darhol e'tibor talab qiladi
+      prisma.clickTransaction.findMany({
+        where: { state: 'paid', errorNote: { contains: 'ACTIVATION_FAILED' } },
+        orderBy: { paidAt: 'desc' }, take: 20,
+        select: { merchantTransId: true, payerType: true, amount: true, errorNote: true, paidAt: true },
+      }),
+    ]);
+
+    // Click UZS orqali kelgan tushum (agentlik + user) — bitta valyuta, to'g'ridan-to'g'ri qo'shiladi.
+    const agencyClickUzs = agencyPayments.filter((p) => p.method === 'click').reduce((s, p) => s + p.amount, 0);
+    const userClickUzs = userPayments.reduce((s, p) => s + p.amount, 0); // barchasi click, UZS
+    const totalClickUzs = agencyClickUzs + userClickUzs;
+
+    const sumSince = (rows, since) => rows.filter((p) => p.paidAt >= since).reduce((s, p) => s + p.amount, 0);
+    const clickRows = [
+      ...agencyPayments.filter((p) => p.method === 'click').map((p) => ({ amount: p.amount, paidAt: p.paidAt })),
+      ...userPayments.map((p) => ({ amount: p.amount, paidAt: p.paidAt })),
+    ];
+
+    // Agentlik qo'lda/boshqa usulda kiritilgan to'lovlar odatda USD'da — alohida ko'rsatamiz (valyutalarni qo'shmaymiz).
+    const agencyManualUsd = agencyPayments
+      .filter((p) => p.method !== 'click' && (p.currency || 'USD') === 'USD')
+      .reduce((s, p) => s + p.amount, 0);
+
+    return success(res, {
+      totalClickUzs,
+      last7ClickUzs: sumSince(clickRows, d7),
+      last30ClickUzs: sumSince(clickRows, d30),
+      agencyClickUzs,
+      userClickUzs,
+      agencyManualUsd,
+      activePremiumUsers: activePremiumCount,
+      paidClickTxCount: paidClickTx,
+      staleOpenClickTxCount: openClickTx,
+      failedActivations,
+    });
+  } catch (err) { return error(res, err.message, 500); }
+}
+
 module.exports = {
   getTariffs, createTariff, updateTariff, deleteTariff,
   getSubscriptions, setAgencySubscription,
   getPayments, createPayment, deletePayment,
   getBillingStats, getReports,
+  getUserPayments, getClickTransactions, getPaymentsOverview,
 };

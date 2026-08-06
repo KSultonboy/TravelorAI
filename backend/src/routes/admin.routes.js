@@ -22,6 +22,9 @@ router.post('/payments', billing.createPayment);
 router.delete('/payments/:id', billing.deletePayment);
 
 router.get('/billing/stats', billing.getBillingStats);
+router.get('/payments-overview', billing.getPaymentsOverview);
+router.get('/click-transactions', billing.getClickTransactions);
+router.get('/user-payments', billing.getUserPayments);
 router.get('/reports', billing.getReports);
 
 router.get('/users', admin.getUsers);

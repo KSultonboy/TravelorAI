@@ -69,6 +69,7 @@ export default function SideMenuScreen() {
       </StitchCard>
 
       <StitchCard>
+        <StitchListRow icon="star-outline" title="Premium" subtitle="Obuna va to‘lovlar" onPress={() => router.push('/payment-methods' as any)} />
         <StitchListRow icon="person-outline" title="Profil" subtitle="Shaxsiy ma’lumotlar" onPress={() => router.push('/(tabs)/profile' as any)} />
         <StitchListRow icon="settings-outline" title="Sozlamalar" subtitle="Til va bildirishnomalar" onPress={() => router.push('/settings' as any)} />
       </StitchCard>

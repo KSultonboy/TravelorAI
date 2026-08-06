@@ -15,6 +15,7 @@ router.use('/poi', require('./poi.routes'));
 router.use('/achievements', require('./achievements.routes'));
 router.use('/feedback', require('./feedback.routes'));
 router.use('/bookings', require('./bookings.routes'));
+router.use('/payments', require('./payment.routes'));
 router.use('/agency', require('./agency.routes'));
 router.use('/telegram', require('./telegram.routes'));
 router.use('/p', require('./presentation.routes'));

@@ -12,6 +12,11 @@ export interface AuthUser {
   email: string;
   emailVerified: boolean;
   authProvider: AuthProvider;
+  premium?: {
+    active: boolean;
+    plan: string | null;
+    until: string | null;
+  } | null;
 }
 
 export interface AuthFlowData {

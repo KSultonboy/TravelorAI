@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Wallet, TrendingUp, Users, CheckCircle2, Plus } from "lucide-react";
+import { Wallet, TrendingUp, Users, CheckCircle2, Plus, ShieldAlert, Star, Zap } from "lucide-react";
 import { api } from "@/lib/adminApi";
 import { StatCard, Spinner, EmptyState, Toast } from "@/components/admin/ui";
 
@@ -9,6 +9,29 @@ type Stats = { totalRevenue: number; last30: number; mrr: number; activeCount: n
 type Sub = { id: string; name: string; city?: string; phone?: string; tariffId?: string | null; subscriptionStatus: string; subscriptionUntil?: string | null; tariff?: { id: string; name: string; priceMonthly: number } | null; totalPaid: number };
 type Tariff = { id: string; name: string; priceMonthly: number };
 type PayDraft = { agencyId: string; agencyName: string; tariffId: string; amount: string; periodMonths: string; paidAt: string; method: string; note: string };
+
+type Overview = {
+  totalClickUzs: number; last7ClickUzs: number; last30ClickUzs: number;
+  agencyClickUzs: number; userClickUzs: number; agencyManualUsd: number;
+  activePremiumUsers: number; paidClickTxCount: number;
+  staleOpenClickTxCount: number;
+  failedActivations: { merchantTransId: string; payerType: string; amount: number; errorNote: string; paidAt: string }[];
+};
+type ClickTx = {
+  id: string; merchantTransId: string; payerType: string; agencyId?: string | null; userId?: string | null;
+  planSlug?: string | null; tariffSlug?: string | null; amount: number; months: number; state: string;
+  errorNote?: string | null; createdAt: string; paidAt?: string | null; payerName?: string | null;
+};
+type UserPay = { id: string; userEmail?: string | null; planSlug?: string | null; amount: number; currency: string; periodMonths: number; method?: string | null; paidAt: string };
+
+const CLICK_STATE_LABEL: Record<string, string> = { created: "Yaratilgan", prepared: "Tayyorlangan", paid: "To‘langan", cancelled: "Bekor qilingan" };
+const CLICK_STATE_STYLE: Record<string, { background: string; color: string }> = {
+  created: { background: "var(--canvas)", color: "var(--muted)" },
+  prepared: { background: "var(--gold-soft)", color: "#9a6a00" },
+  paid: { background: "#e9f9f1", color: "var(--success)" },
+  cancelled: { background: "#fff1f3", color: "var(--danger)" },
+};
+function somUzs(n: number) { return Math.round(n || 0).toLocaleString("uz-UZ") + " so‘m"; }
 
 const STATUS_LABEL: Record<string, string> = { none: "Yo‘q", trial: "Sinov", active: "Faol", expired: "Muddati o‘tgan" };
 const STATUS_STYLE: Record<string, { background: string; color: string }> = {
@@ -28,6 +51,11 @@ export default function BillingPage() {
   const [pay, setPay] = useState<PayDraft | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const [overview, setOverview] = useState<Overview | null>(null);
+  const [clickTx, setClickTx] = useState<ClickTx[] | null>(null);
+  const [clickFilter, setClickFilter] = useState<"" | "agency" | "user">("");
+  const [userPays, setUserPays] = useState<UserPay[] | null>(null);
+
   async function load() {
     try {
       const [s, sub, trf] = await Promise.all([
@@ -37,8 +65,25 @@ export default function BillingPage() {
       ]);
       setStats(s); setSubs(sub.items || []); setTariffs(trf.items || []);
     } catch (e) { setSubs([]); setToast(e instanceof Error ? e.message : "Xato"); }
+
+    try {
+      const [ov, up] = await Promise.all([
+        api<Overview>("/admin/payments-overview"),
+        api<{ items: UserPay[] }>("/admin/user-payments"),
+      ]);
+      setOverview(ov); setUserPays(up.items || []);
+    } catch (e) { setToast(e instanceof Error ? e.message : "Xato"); }
   }
-  useEffect(() => { void load(); }, []);
+
+  async function loadClickTx(payerType: "" | "agency" | "user") {
+    try {
+      const qs = payerType ? `?payerType=${payerType}&take=100` : "?take=100";
+      const res = await api<{ items: ClickTx[] }>(`/admin/click-transactions${qs}`);
+      setClickTx(res.items || []);
+    } catch (e) { setToast(e instanceof Error ? e.message : "Xato"); }
+  }
+
+  useEffect(() => { void load(); void loadClickTx(""); }, []);
 
   function openPay(a: Sub) {
     const t = tariffs.find((x) => x.id === a.tariffId);
@@ -74,11 +119,126 @@ export default function BillingPage() {
       <div><h1 className="adm-h1">To‘lovlar &amp; obuna</h1><p className="adm-sub">Agentliklar obunasi, tariflari va to‘lov tarixi.</p></div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 14, margin: "18px 0" }}>
-        <StatCard icon={<Wallet size={18} />} num={money(stats?.totalRevenue || 0)} label="Jami daromad" />
+        <StatCard icon={<Wallet size={18} />} num={money(stats?.totalRevenue || 0)} label="Jami daromad (qo‘lda + agentlik)" />
         <StatCard icon={<TrendingUp size={18} />} num={money(stats?.mrr || 0)} label="MRR (oylik takror)" />
-        <StatCard icon={<CheckCircle2 size={18} />} num={stats?.activeCount ?? 0} label="Faol obuna" />
+        <StatCard icon={<CheckCircle2 size={18} />} num={stats?.activeCount ?? 0} label="Faol obuna (agentlik)" />
         <StatCard icon={<Users size={18} />} num={stats?.agencyCount ?? 0} label="Jami agentlik" />
       </div>
+
+      <div style={{ margin: "26px 0 10px" }}>
+        <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>CLICK aylanmasi</h2>
+        <p className="adm-sub" style={{ margin: "2px 0 0" }}>Real onlayn to‘lovlar — agentlik tariflari + traveler Premium, ilova va sayt birga.</p>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 14, marginBottom: 18 }}>
+        <StatCard icon={<Zap size={18} />} num={somUzs(overview?.totalClickUzs || 0)} label="Jami CLICK aylanma" />
+        <StatCard icon={<TrendingUp size={18} />} num={somUzs(overview?.last30ClickUzs || 0)} label="Oxirgi 30 kun" />
+        <StatCard icon={<Star size={18} />} num={somUzs(overview?.userClickUzs || 0)} label="— shundan Premium (user)" />
+        <StatCard icon={<Users size={18} />} num={somUzs(overview?.agencyClickUzs || 0)} label="— shundan agentlik" />
+        <StatCard icon={<CheckCircle2 size={18} />} num={overview?.activePremiumUsers ?? 0} label="Faol Premium foydalanuvchi" />
+        <StatCard icon={<ShieldAlert size={18} />} num={overview?.failedActivations.length ?? 0} label="Faollashtirish xatoligi" />
+      </div>
+
+      {overview && overview.failedActivations.length > 0 ? (
+        <div className="adm-card" style={{ padding: 16, marginBottom: 18, border: "1px solid #ffd0d6", background: "#fff8f8" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, color: "var(--danger)", marginBottom: 8 }}>
+            <ShieldAlert size={18} /> Diqqat: pul olingan, lekin xizmat ochilmagan ({overview.failedActivations.length})
+          </div>
+          <p style={{ fontSize: 13, color: "var(--muted)", margin: "0 0 10px" }}>
+            Bu tranzaksiyalarda CLICK to‘lovni tasdiqlagan, lekin obunani faollashtirishda server xatosi bo‘lgan.
+            Pulni qaytarib berish shart emas — qo‘lda faollashtiring (Tarif/Premium bo‘limidan) va sababini tekshiring.
+          </p>
+          <div className="adm-table-wrap">
+            <table className="adm-table">
+              <thead><tr><th>Buyurtma</th><th>Turi</th><th style={{ textAlign: "right" }}>Summa</th><th>Xato</th><th>Sana</th></tr></thead>
+              <tbody>
+                {overview.failedActivations.map((f) => (
+                  <tr key={f.merchantTransId}>
+                    <td><code>{f.merchantTransId}</code></td>
+                    <td>{f.payerType === "user" ? "Premium" : "Agentlik"}</td>
+                    <td style={{ textAlign: "right" }}>{somUzs(f.amount)}</td>
+                    <td style={{ fontSize: 12, color: "var(--danger)" }}>{f.errorNote}</td>
+                    <td>{fmt(f.paidAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
+      {overview && overview.staleOpenClickTxCount > 0 ? (
+        <p style={{ fontSize: 12.5, color: "var(--muted)", margin: "0 0 18px" }}>
+          {overview.staleOpenClickTxCount} ta tranzaksiya 30 daqiqadan beri &quot;yaratilgan/tayyorlangan&quot; holatda qolgan
+          (foydalanuvchi to‘lovni tashlab ketgan bo‘lishi mumkin — normal holat, kuzatish uchun).
+        </p>
+      ) : null}
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "26px 0 10px", flexWrap: "wrap", gap: 8 }}>
+        <div>
+          <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>CLICK tranzaksiyalari</h2>
+          <p className="adm-sub" style={{ margin: "2px 0 0" }}>Barcha urinishlar (audit) — muvaffaqiyatsizlarni ham ko‘rsatadi.</p>
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          {(["", "agency", "user"] as const).map((f) => (
+            <button
+              key={f || "all"}
+              type="button"
+              className={`adm-btn adm-btn--sm ${clickFilter === f ? "adm-btn--primary" : ""}`}
+              onClick={() => { setClickFilter(f); void loadClickTx(f); }}
+            >
+              {f === "" ? "Barchasi" : f === "agency" ? "Agentlik" : "Premium"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {!clickTx ? <Spinner /> : clickTx.length === 0 ? (
+        <EmptyState title="Tranzaksiya yo‘q" hint="CLICK orqali hali to‘lov bo‘lmagan." />
+      ) : (
+        <div className="adm-table-wrap" style={{ marginBottom: 26 }}>
+          <table className="adm-table">
+            <thead><tr><th>Buyurtma</th><th>Kim</th><th>Turi</th><th style={R}>Summa</th><th>Holat</th><th>Sana</th></tr></thead>
+            <tbody>
+              {clickTx.map((t) => (
+                <tr key={t.id}>
+                  <td><code style={{ fontSize: 12 }}>{t.merchantTransId}</code></td>
+                  <td>{t.payerName || "—"}</td>
+                  <td>{t.payerType === "user" ? "Premium" : "Agentlik"}</td>
+                  <td style={R}>{somUzs(t.amount)} · {t.months} oy</td>
+                  <td><span className="adm-badge" style={CLICK_STATE_STYLE[t.state] || CLICK_STATE_STYLE.created}>{CLICK_STATE_LABEL[t.state] || t.state}</span></td>
+                  <td>{fmt(t.paidAt || t.createdAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div style={{ margin: "0 0 10px" }}>
+        <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>Premium to‘lovlar (foydalanuvchilar)</h2>
+        <p className="adm-sub" style={{ margin: "2px 0 0" }}>Ilovada yoki saytda to‘langan — akkaunt bitta, qayerdan to‘lansa ham shu yerda ko‘rinadi.</p>
+      </div>
+      {!userPays ? <Spinner /> : userPays.length === 0 ? (
+        <EmptyState title="Premium to‘lov yo‘q" hint="Foydalanuvchi hali obuna bo‘lmagan." />
+      ) : (
+        <div className="adm-table-wrap" style={{ marginBottom: 26 }}>
+          <table className="adm-table">
+            <thead><tr><th>Foydalanuvchi</th><th>Plan</th><th style={R}>Summa</th><th>Davr</th><th>Usul</th><th>Sana</th></tr></thead>
+            <tbody>
+              {userPays.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.userEmail || "—"}</td>
+                  <td>{p.planSlug || "premium"}</td>
+                  <td style={R}><b>{somUzs(p.amount)}</b></td>
+                  <td>{p.periodMonths} oy</td>
+                  <td>{(p.method || "click").toUpperCase()}</td>
+                  <td>{fmt(p.paidAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {subs.length === 0 ? <EmptyState title="Agentlik yo‘q" hint="Hamkorlar qo‘shilganda shu yerda ko‘rinadi." /> : (
         <div className="adm-table-wrap">

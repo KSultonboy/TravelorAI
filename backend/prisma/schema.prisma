@@ -48,6 +48,10 @@ model User {
   lockoutUntil        DateTime?
   lockoutLevel        Int         @default(0)
   role            String          @default("traveler")
+  /// Premium obuna (CLICK orqali) — ilova va sayt uchun YAGONA holat.
+  /// Faollik lazily hisoblanadi: premiumUntil > now() => active.
+  premiumPlan     String?
+  premiumUntil    DateTime?
   expoPushToken   String?
   emailChangeResendCount   Int      @default(0)
   emailChangeRequestedAt   DateTime?
@@ -62,6 +66,7 @@ model User {
   feedback        Feedback[]
   tripReviews     TripReview[]
   tourBookings    TourBooking[]
+  payments        UserPayment[]
 }
 
 model AuthCode {
@@ -485,13 +490,17 @@ model AgencyPayment {
 }
 
 /// CLICK (SHOP API) to'lov tranzaksiyalari — Prepare/Complete oqimi.
-/// Relation YO'Q (prod DB divergent) — agencyId/tariffId oddiy String.
+/// Relation YO'Q (prod DB divergent) — agencyId/tariffId/userId oddiy String.
+/// payerType: 'agency' (kabinet tarifi) yoki 'user' (traveler Premium).
 model ClickTransaction {
   id               String    @id @default(cuid())
   provider         String    @default("click")
   /// Bizning buyurtma raqami — CLICK'ga transaction_param sifatida ketadi
   merchantTransId  String    @unique
-  agencyId         String
+  payerType        String    @default("agency")
+  agencyId         String?
+  userId           String?
+  planSlug         String?
   tariffId         String?
   tariffSlug       String?
   /// Summa so'mda (butun son)
@@ -511,8 +520,30 @@ model ClickTransaction {
   cancelledAt      DateTime?
 
   @@index([agencyId])
+  @@index([userId])
   @@index([state])
   @@index([clickTransId])
+}
+
+/// Traveler Premium to'lovlari tarixi (AgencyPayment'ning user analogi).
+/// userId SetNull — akkaunt o'chirilsa ham moliyaviy yozuv saqlanadi
+/// (userEmail snapshot rekonsiliatsiya uchun).
+model UserPayment {
+  id           String   @id @default(cuid())
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userEmail    String?
+  planSlug     String?
+  amount       Int
+  currency     String   @default("UZS")
+  periodMonths Int      @default(1)
+  method       String?
+  note         String?
+  paidAt       DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([paidAt])
 }
 
 model LandingInteraction {

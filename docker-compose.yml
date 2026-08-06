@@ -66,13 +66,16 @@ services:
         NEXT_PUBLIC_SITE_URL: https://travelorai.com
     container_name: travelorai_website
     restart: unless-stopped
-    env_file:
-      - ./backend/.env
+    # XAVFSIZLIK: backend/.env BUTUNLIGICHA uzatilmaydi (JWT_SECRET, SMTP_PASS,
+    # CLICK_SECRET_KEY website konteyneriga kerak emas). Website'ga faqat
+    # o'ziga zarur kalitlar beriladi — qiymatlar loyiha ildizidagi .env'dan.
     environment:
       NEXT_PUBLIC_SITE_URL: https://travelorai.com
       NEXT_PUBLIC_API_URL: https://travelorai.com/api/v1
+      NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID:-}
       ADMIN_API_URL: http://backend:4000/api/v1
       AGENCY_API_URL: http://backend:4000/api/v1
+      ADMIN_SECRET_KEY: ${ADMIN_SECRET_KEY:-change_me}
       ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-travelorai_admin_session_change_me}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}

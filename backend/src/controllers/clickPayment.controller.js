@@ -17,9 +17,16 @@
 const crypto = require('crypto');
 const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
+const { logger } = require('../config/logger');
 const click = require('../config/click');
+const userPlans = require('../config/userPlans');
 
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://travelorai.com').replace(/\/$/, '');
+
+/** merchant_prepare_id/confirm_id — kripto-tasodifiy int (Math.random emas). */
+function randomCallbackId() {
+  return crypto.randomInt(100000000, 1000000000);
+}
 
 /* ────────────────────────────── CLICK xato kodlari ───────────────────────── */
 const ERR = {
@@ -48,12 +55,29 @@ const NOTE = {
   [ERR.CANCELLED]: 'Transaction cancelled',
 };
 
+/**
+ * So'rov/javob loglari — CLICK qo'llab-quvvatlash xizmati muammoni tekshirishda
+ * shu loglarni so'raydi ("логи запросов и ответов ... отправить в группу").
+ * MUHIM: sign_string HECH QACHON to'liq loglanmaydi (faqat mos/nomos belgisi).
+ */
+function logClickIn(endpoint, body) {
+  logger.info(`[click:${endpoint}] IN`, {
+    action: body.action, click_trans_id: body.click_trans_id, service_id: body.service_id,
+    merchant_trans_id: body.merchant_trans_id, merchant_prepare_id: body.merchant_prepare_id,
+    amount: body.amount, error: body.error, sign_time: body.sign_time,
+  });
+}
+function logClickOut(endpoint, payload) {
+  logger.info(`[click:${endpoint}] OUT`, payload);
+}
+
 /** CLICK javobi — HAR DOIM 200 + JSON (aks holda CLICK qayta urinadi). */
-function clickReply(res, payload) {
+function clickReply(res, payload, endpoint) {
+  if (endpoint) logClickOut(endpoint, payload);
   return res.status(200).json(payload);
 }
-function clickError(res, code, extra = {}) {
-  return clickReply(res, { error: code, error_note: NOTE[code] || 'Error', ...extra });
+function clickError(res, code, extra = {}, endpoint) {
+  return clickReply(res, { error: code, error_note: NOTE[code] || 'Error', ...extra }, endpoint);
 }
 
 const md5 = (s) => crypto.createHash('md5').update(String(s), 'utf8').digest('hex');
@@ -91,38 +115,39 @@ function amountMatches(received, expected) {
 /* ──────────────────────────────── PREPARE ────────────────────────────────── */
 // action = 0 — to'lovni tekshirish va "band qilish"
 async function prepare(req, res) {
+  const b = req.body || {};
+  logClickIn('prepare', b);
   try {
-    if (!click.isCallbackConfigured()) return clickError(res, ERR.BAD_REQUEST);
+    if (!click.isCallbackConfigured()) return clickError(res, ERR.BAD_REQUEST, {}, 'prepare');
 
-    const b = req.body || {};
-    if (String(b.action) !== '0') return clickError(res, ERR.ACTION);
-    if (String(b.service_id) !== click.SERVICE_ID) return clickError(res, ERR.BAD_REQUEST);
-    if (!verifySign(b, 0)) return clickError(res, ERR.SIGN);
+    if (String(b.action) !== '0') return clickError(res, ERR.ACTION, {}, 'prepare');
+    if (String(b.service_id) !== click.SERVICE_ID) return clickError(res, ERR.BAD_REQUEST, {}, 'prepare');
+    if (!verifySign(b, 0)) return clickError(res, ERR.SIGN, {}, 'prepare');
 
     const merchantTransId = String(b.merchant_trans_id || '').trim();
-    if (!merchantTransId) return clickError(res, ERR.NO_USER);
+    if (!merchantTransId) return clickError(res, ERR.NO_USER, {}, 'prepare');
 
     const tx = await prisma.clickTransaction.findUnique({ where: { merchantTransId } });
-    if (!tx) return clickError(res, ERR.NO_USER);
+    if (!tx) return clickError(res, ERR.NO_USER, {}, 'prepare');
 
     // CLICK o'zi xato yubordi — bizda bekor qilamiz
     if (Number(b.error) < 0) {
       await cancelTx(tx.id, `CLICK error ${b.error}`);
-      return clickError(res, ERR.CANCELLED);
+      return clickError(res, ERR.CANCELLED, {}, 'prepare');
     }
 
     if (tx.state === 'paid') {
       return clickReply(res, {
         error: ERR.ALREADY_PAID, error_note: NOTE[ERR.ALREADY_PAID],
         click_trans_id: b.click_trans_id, merchant_trans_id: merchantTransId,
-      });
+      }, 'prepare');
     }
-    if (tx.state === 'cancelled') return clickError(res, ERR.CANCELLED);
+    if (tx.state === 'cancelled') return clickError(res, ERR.CANCELLED, {}, 'prepare');
 
-    if (!amountMatches(b.amount, tx.amount)) return clickError(res, ERR.AMOUNT);
+    if (!amountMatches(b.amount, tx.amount)) return clickError(res, ERR.AMOUNT, {}, 'prepare');
 
     // merchant_prepare_id — int bo'lishi kerak (CLICK Complete'da qaytaradi)
-    const prepareId = tx.prepareId || Math.floor(Math.random() * 900000000) + 100000000;
+    const prepareId = tx.prepareId || randomCallbackId();
 
     await prisma.clickTransaction.update({
       where: { id: tx.id },
@@ -141,30 +166,31 @@ async function prepare(req, res) {
       click_trans_id: b.click_trans_id,
       merchant_trans_id: merchantTransId,
       merchant_prepare_id: prepareId,
-    });
+    }, 'prepare');
   } catch (e) {
-    console.error('[click:prepare]', e.message);
-    return clickError(res, ERR.UPDATE_FAILED);
+    logger.error('[click:prepare] EXCEPTION', { message: e.message, merchant_trans_id: b.merchant_trans_id });
+    return clickError(res, ERR.UPDATE_FAILED, {}, 'prepare');
   }
 }
 
 /* ─────────────────────────────── COMPLETE ────────────────────────────────── */
 // action = 1 — pul olindi, xizmatni ochamiz
 async function complete(req, res) {
+  const b = req.body || {};
+  logClickIn('complete', b);
   try {
-    if (!click.isCallbackConfigured()) return clickError(res, ERR.BAD_REQUEST);
+    if (!click.isCallbackConfigured()) return clickError(res, ERR.BAD_REQUEST, {}, 'complete');
 
-    const b = req.body || {};
-    if (String(b.action) !== '1') return clickError(res, ERR.ACTION);
-    if (String(b.service_id) !== click.SERVICE_ID) return clickError(res, ERR.BAD_REQUEST);
-    if (!verifySign(b, 1)) return clickError(res, ERR.SIGN);
+    if (String(b.action) !== '1') return clickError(res, ERR.ACTION, {}, 'complete');
+    if (String(b.service_id) !== click.SERVICE_ID) return clickError(res, ERR.BAD_REQUEST, {}, 'complete');
+    if (!verifySign(b, 1)) return clickError(res, ERR.SIGN, {}, 'complete');
 
     const merchantTransId = String(b.merchant_trans_id || '').trim();
     const tx = await prisma.clickTransaction.findUnique({ where: { merchantTransId } });
-    if (!tx) return clickError(res, ERR.NO_USER);
+    if (!tx) return clickError(res, ERR.NO_USER, {}, 'complete');
 
     if (String(tx.prepareId || '') !== String(b.merchant_prepare_id || '')) {
-      return clickError(res, ERR.NO_TRANSACTION);
+      return clickError(res, ERR.NO_TRANSACTION, {}, 'complete');
     }
 
     // CLICK bekor qildi (masalan pul qaytarildi)
@@ -173,7 +199,7 @@ async function complete(req, res) {
       return clickReply(res, {
         error: ERR.CANCELLED, error_note: NOTE[ERR.CANCELLED],
         click_trans_id: b.click_trans_id, merchant_trans_id: merchantTransId,
-      });
+      }, 'complete');
     }
 
     // Idempotentlik: takroriy tasdiq
@@ -182,22 +208,22 @@ async function complete(req, res) {
         error: ERR.ALREADY_PAID, error_note: NOTE[ERR.ALREADY_PAID],
         click_trans_id: b.click_trans_id, merchant_trans_id: merchantTransId,
         merchant_confirm_id: tx.confirmId,
-      });
+      }, 'complete');
     }
-    if (tx.state === 'cancelled') return clickError(res, ERR.CANCELLED);
-    if (!amountMatches(b.amount, tx.amount)) return clickError(res, ERR.AMOUNT);
+    if (tx.state === 'cancelled') return clickError(res, ERR.CANCELLED, {}, 'complete');
+    if (!amountMatches(b.amount, tx.amount)) return clickError(res, ERR.AMOUNT, {}, 'complete');
 
-    const confirmId = Math.floor(Math.random() * 900000000) + 100000000;
+    const confirmId = randomCallbackId();
 
     // Pul allaqachon olingan — bu yerdan keyin XATO QAYTARMASLIK kerak.
     // Obunani faollashtirishda muammo bo'lsa ham "muvaffaqiyatli" deb javob
     // beramiz va qo'lda hal qilish uchun log qoldiramiz (hujjat talabi).
     let activationFailed = null;
     try {
-      await activateSubscription(tx);
+      await fulfill(tx);
     } catch (e) {
       activationFailed = e.message;
-      console.error('[click:complete] OBUNA FAOLLASHMADI —', merchantTransId, e.message);
+      logger.error('[click:complete] OBUNA FAOLLASHMADI', { merchantTransId, message: e.message });
     }
 
     await prisma.clickTransaction.update({
@@ -217,15 +243,57 @@ async function complete(req, res) {
       click_trans_id: b.click_trans_id,
       merchant_trans_id: merchantTransId,
       merchant_confirm_id: confirmId,
-    });
+    }, 'complete');
   } catch (e) {
-    console.error('[click:complete]', e.message);
-    return clickError(res, ERR.UPDATE_FAILED);
+    logger.error('[click:complete] EXCEPTION', { message: e.message, merchant_trans_id: b.merchant_trans_id });
+    return clickError(res, ERR.UPDATE_FAILED, {}, 'complete');
   }
 }
 
 /* ─────────────────────────── obunani faollashtirish ──────────────────────── */
+
+/** To'lovchi turiga qarab xizmatni ochadi — bitta CLICK oqimi, ikki mahsulot. */
+async function fulfill(tx) {
+  if (tx.payerType === 'user' || tx.userId) return activateUserPremium(tx);
+  return activateSubscription(tx);
+}
+
+/** Traveler Premium: User.premiumUntil ustiga oylar qo'shiladi (stacking). */
+async function activateUserPremium(tx) {
+  if (!tx.userId) throw new Error('userId yo\'q');
+  const user = await prisma.user.findUnique({
+    where: { id: tx.userId },
+    select: { id: true, email: true, premiumUntil: true },
+  });
+  if (!user) throw new Error(`user ${tx.userId} topilmadi`);
+
+  const now = new Date();
+  const current = user.premiumUntil ? new Date(user.premiumUntil) : null;
+  const base = current && current.getTime() > now.getTime() ? current : now;
+  const until = new Date(base);
+  until.setMonth(until.getMonth() + Math.max(1, tx.months || 1));
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { premiumPlan: tx.planSlug || 'premium', premiumUntil: until },
+  });
+
+  await prisma.userPayment.create({
+    data: {
+      userId: user.id,
+      userEmail: user.email,
+      planSlug: tx.planSlug || 'premium',
+      amount: tx.amount,
+      currency: 'UZS',
+      periodMonths: Math.max(1, tx.months || 1),
+      method: 'click',
+      note: `CLICK · ${tx.merchantTransId}`,
+    },
+  });
+}
+
 async function activateSubscription(tx) {
+  if (!tx.agencyId) throw new Error('agencyId yo\'q');
   const agency = await prisma.tourAgency.findUnique({
     where: { id: tx.agencyId },
     select: { id: true, subscriptionUntil: true },
@@ -265,7 +333,7 @@ async function cancelTx(id, note) {
       data: { state: 'cancelled', cancelledAt: new Date(), errorNote: String(note || '').slice(0, 200) },
     });
   } catch (e) {
-    console.error('[click:cancelTx]', e.message);
+    logger.error('[click:cancelTx]', { message: e.message });
   }
 }
 
@@ -292,11 +360,12 @@ async function checkout(req, res) {
     }
 
     const amount = monthly * months;
-    const merchantTransId = newTransId();
+    const merchantTransId = newTransId('TA');
 
     await prisma.clickTransaction.create({
       data: {
         merchantTransId,
+        payerType: 'agency',
         agencyId: agency.id,
         tariffId: tariff.id,
         tariffSlug: tariff.slug,
@@ -317,7 +386,7 @@ async function checkout(req, res) {
       tariff: { slug: tariff.slug, name: tariff.name },
     });
   } catch (e) {
-    console.error('[click:checkout]', e.message);
+    logger.error('[click:checkout]', { message: e.message });
     return error(res, "To'lov havolasini yasab bo'lmadi", 500);
   }
 }
@@ -356,11 +425,158 @@ async function listPlans(req, res) {
   }
 }
 
-/** Buyurtma raqami — qisqa, URL-xavfsiz, takrorlanmaydigan. */
-function newTransId() {
+/** Buyurtma raqami — qisqa, URL-xavfsiz, takrorlanmaydigan.
+ *  Prefiks: TA — agentlik tarifi, TU — traveler Premium. */
+function newTransId(prefix = 'TA') {
   const ts = Date.now().toString(36).toUpperCase();
-  const rnd = crypto.randomBytes(3).toString('hex').toUpperCase();
-  return `TA${ts}${rnd}`;
+  const rnd = crypto.randomBytes(5).toString('hex').toUpperCase();
+  return `${prefix}${ts}${rnd}`;
 }
 
-module.exports = { prepare, complete, checkout, paymentStatus, listPlans };
+/* ═══════════════════ TRAVELER PREMIUM (user checkout) ═══════════════════ */
+/* Bitta backend endpoint ikkala klientga xizmat qiladi:
+ *   mobil — to'g'ridan-to'g'ri Bearer token bilan,
+ *   sayt  — /api/backend proxy (httpOnly cookie → Bearer) orqali.
+ * Shu tufayli ilovada to'langan obuna saytda ham ko'rinadi va aksincha —
+ * holat YAGONA joyda: User.premiumUntil.                                   */
+
+// GET /payments/plans — Premium planlar (auth ixtiyoriy: bo'lsa holat ham qaytadi)
+async function userPlansList(req, res) {
+  try {
+    let premium = null;
+    if (req.user && req.user.id && !req.user.role) {
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { premiumPlan: true, premiumUntil: true },
+      });
+      if (user) premium = userPlans.premiumInfo(user);
+    }
+    return success(res, {
+      clickEnabled: click.isConfigured(),
+      plans: userPlans.listPlans(),
+      premium,
+    });
+  } catch (e) {
+    return error(res, 'Planlarni olib bo\'lmadi', 500);
+  }
+}
+
+// POST /payments/checkout  { planSlug, months, platform }  → CLICK havolasi
+async function userCheckout(req, res) {
+  try {
+    if (!click.isConfigured()) {
+      return error(res, "Onlayn to'lov hozircha sozlanmagan. Keyinroq urinib ko'ring.", 503);
+    }
+    const user = req.dbUser;
+    if (!user) return error(res, 'Akkaunt topilmadi', 401);
+
+    const body = req.body || {};
+    const plan = userPlans.getPlan(body.planSlug || 'premium');
+    if (!plan) return error(res, 'Plan topilmadi', 404);
+
+    const months = Math.min(12, Math.max(1, parseInt(body.months || 1, 10) || 1));
+    // Narx FAQAT serverda hisoblanadi — klientdan kelgan summa e'tiborga olinmaydi
+    const amount = plan.priceMonthlyUzs * months;
+
+    // Spam-qo'riqlash: bitta user nomiga ochiq (to'lanmagan) tranzaksiyalar limiti
+    const openCount = await prisma.clickTransaction.count({
+      where: {
+        userId: user.id,
+        state: { in: ['created', 'prepared'] },
+        createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) },
+      },
+    });
+    if (openCount >= 5) {
+      return error(res, "Ochiq to'lovlar ko'p. Avvalgi to'lovni yakunlang yoki keyinroq urinib ko'ring.", 429);
+    }
+
+    const merchantTransId = newTransId('TU');
+    await prisma.clickTransaction.create({
+      data: {
+        merchantTransId,
+        payerType: 'user',
+        userId: user.id,
+        planSlug: plan.slug,
+        amount,
+        months,
+        state: 'created',
+      },
+    });
+
+    // return_url — faqat O'ZIMIZNING sahifa (ochiq redirect bo'lmasin).
+    // Ilovadan kelganda ham shu sahifa: u yerda "Ilovaga qaytish" tugmasi bor,
+    // to'lov holatining manbai esa baribir GET /payments/:id polling'i.
+    const from = String(body.platform || '') === 'app' ? '&from=app' : '';
+    const returnUrl = `${SITE_URL}/payment/return?tx=${encodeURIComponent(merchantTransId)}${from}`;
+
+    const payUrl = click.buildPayUrl({ merchantTransId, amount, returnUrl });
+
+    return success(res, {
+      payUrl, merchantTransId, amount, months,
+      plan: { slug: plan.slug, name: plan.name },
+    });
+  } catch (e) {
+    logger.error('[click:userCheckout]', { message: e.message });
+    return error(res, "To'lov havolasini yasab bo'lmadi", 500);
+  }
+}
+
+// GET /payments/status/:merchantTransId — faqat egasiga (IDOR himoyasi)
+async function userPaymentStatus(req, res) {
+  try {
+    const user = req.dbUser;
+    const tx = await prisma.clickTransaction.findUnique({
+      where: { merchantTransId: String(req.params.merchantTransId || '') },
+      select: {
+        merchantTransId: true, state: true, amount: true, months: true,
+        planSlug: true, userId: true, paidAt: true,
+      },
+    });
+    if (!tx || !user || tx.userId !== user.id) return error(res, 'Tranzaksiya topilmadi', 404);
+
+    // To'langan bo'lsa yangi premium muddatini ham qaytaramiz
+    let premium = null;
+    if (tx.state === 'paid') {
+      const fresh = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { premiumPlan: true, premiumUntil: true },
+      });
+      if (fresh) premium = userPlans.premiumInfo(fresh);
+    }
+
+    const { userId, ...safe } = tx;
+    return success(res, { ...safe, premium });
+  } catch (e) {
+    return error(res, 'Xatolik', 500);
+  }
+}
+
+// GET /payments/me — premium holati + to'lovlar tarixi (profil sahifasi uchun)
+async function myPayments(req, res) {
+  try {
+    const user = req.dbUser;
+    if (!user) return error(res, 'Akkaunt topilmadi', 401);
+
+    const rows = await prisma.userPayment.findMany({
+      where: { userId: user.id },
+      orderBy: { paidAt: 'desc' },
+      take: 50,
+      select: {
+        id: true, planSlug: true, amount: true, currency: true,
+        periodMonths: true, method: true, paidAt: true,
+      },
+    });
+
+    return success(res, {
+      premium: userPlans.premiumInfo(user),
+      payments: rows,
+    });
+  } catch (e) {
+    return error(res, 'Xatolik', 500);
+  }
+}
+
+module.exports = {
+  prepare, complete, checkout, paymentStatus, listPlans,
+  userPlansList, userCheckout, userPaymentStatus, myPayments,
+};

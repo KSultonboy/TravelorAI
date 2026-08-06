@@ -443,3 +443,68 @@ export const achievementsAPI = {
 export const feedbackAPI = {
   submit: (body: FeedbackPayload) => api.post('/feedback', body),
 };
+
+/* ─── Premium to'lovlar (CLICK) ──────────────────────────────────────────────
+ * Bitta backend ilova va saytga xizmat qiladi: shu yerda to'lansa, sayt ham
+ * xuddi shu obunani ko'radi (holat manbai — User.premiumUntil, backendda). */
+
+export interface PremiumInfoPayload {
+  active: boolean;
+  plan: string | null;
+  until: string | null;
+}
+
+export interface PremiumPlanPayload {
+  slug: string;
+  name: string;
+  priceMonthlyUzs: number;
+  features: string[];
+}
+
+export interface PremiumPlansResponse {
+  clickEnabled: boolean;
+  plans: PremiumPlanPayload[];
+  premium: PremiumInfoPayload | null;
+}
+
+export interface PremiumCheckoutResponse {
+  payUrl: string;
+  merchantTransId: string;
+  amount: number;
+  months: number;
+  plan: { slug: string; name: string };
+}
+
+export interface PremiumStatusResponse {
+  merchantTransId: string;
+  state: 'created' | 'prepared' | 'paid' | 'cancelled';
+  amount: number;
+  months: number;
+  planSlug?: string | null;
+  paidAt?: string | null;
+  premium: PremiumInfoPayload | null;
+}
+
+export interface PremiumPaymentItemPayload {
+  id: string;
+  planSlug?: string | null;
+  amount: number;
+  currency: string;
+  periodMonths: number;
+  method?: string | null;
+  paidAt: string;
+}
+
+export interface MyPaymentsResponse {
+  premium: PremiumInfoPayload;
+  payments: PremiumPaymentItemPayload[];
+}
+
+export const paymentsAPI = {
+  getPlans: () => api.get('/payments/plans'),
+  checkout: (body: { planSlug: string; months: number; platform?: 'app' | 'web' }) =>
+    api.post('/payments/checkout', body),
+  getStatus: (merchantTransId: string) =>
+    api.get(`/payments/status/${encodeURIComponent(merchantTransId)}`),
+  getMine: () => api.get('/payments/me'),
+};

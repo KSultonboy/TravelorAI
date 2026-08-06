@@ -10,6 +10,7 @@ import { useAuth } from "./useAuth";
 const NAV = [
   { href: "/destinations", label: "Yo‘nalishlar" },
   { href: "/tours", label: "Turlar" },
+  { href: "/premium", label: "Premium" },
   { href: "/about", label: "Biz haqimizda" },
   { href: "/contact", label: "Aloqa" },
 ];
