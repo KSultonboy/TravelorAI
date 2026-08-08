@@ -7,6 +7,11 @@
 
 const ALL_SECTIONS = ['dashboard', 'leads', 'customers', 'packages', 'bookings', 'payments', 'reports', 'settings'];
 
+// DIQQAT: `integrations` — O'LIK bayroq. Hech bir route uni tekshirmaydi
+// (`requireCapability('integrations')` kodda umuman yo'q). Instagram va
+// Telegram `telegram` imkoniyatiga bog'langan. Uni tarif afzalligi sifatida
+// ko'rsatmang — u hech narsani ochmaydi. Yangi integratsiya qo'shilganda
+// yo shu bayroqni haqiqiy qilib ishlating, yo butunlay olib tashlang.
 const ALL_CAPS = {
   telegram: true, broadcast: true, csvExport: true, analytics: true, manualLeads: true, team: true, integrations: true,
   presentations: true, ai: true,

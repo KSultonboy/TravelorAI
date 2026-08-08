@@ -369,8 +369,8 @@ function UpgradeNotice({ section, planName, go }: { section: string; planName?: 
       <h3>{label} — yuqoriroq tarifda</h3>
       <p>Bu bo&apos;lim joriy tarifingizda{planName ? ` (${planName})` : ""} mavjud emas. Ochish uchun tarifni yuqoriga ko&apos;taring.</p>
       <div className="kv-upg__tiers">
-        <div><b>Pro</b><span>Telegram bot · Hisobotlar · Broadcast · Analitika</span></div>
-        <div><b>Business</b><span>Jamoa · Integratsiyalar · Hammasi</span></div>
+        <div><b>Pro</b><span>Instagram va Telegram · Hisobotlar · Broadcast · Takliflar</span></div>
+        <div><b>Premium</b><span>Jamoa va rollar · AI yordamchi</span></div>
       </div>
       <p className="kv-upg__hint">Tarifni yangilash uchun administrator bilan bog&apos;laning.</p>
       <button className="btn btn-primary" onClick={() => go("settings")}>Sozlamalarga o&apos;tish</button>
@@ -2294,11 +2294,17 @@ function SubscriptionCard({ access, onManage }: any) {
     : status === "trial"
     ? { c: "b-amber", t: "Sinov" }
     : { c: "b-grey", t: "Cheklovsiz" };
+  // DIQQAT: `caps.integrations` bu yerda ATAYIN yo'q — u backendda hech qanday
+  // route'ni himoya qilmaydi (o'lik bayroq), shuning uchun uni tarif afzalligi
+  // sifatida ko'rsatish yolg'on bo'lardi. Instagram va Telegram ikkalasi ham
+  // `telegram` imkoniyatiga bog'langan.
   const feats = [
-    caps?.telegram && "Telegram bot",
+    caps?.telegram && "Instagram va Telegram",
     caps?.broadcast && "Broadcast",
     caps?.analytics && "Analitika / CSV",
-    caps?.integrations && "Integratsiyalar",
+    caps?.presentations && "Dinamik takliflar",
+    caps?.team && "Jamoa va rollar",
+    caps?.ai && "AI yordamchi",
   ].filter(Boolean) as string[];
   return (
     <div className="card sub-card">
@@ -2442,18 +2448,73 @@ function PayPlan({ heading = "Obunani to'lash" }: { heading?: string }) {
     });
   }, []);
 
+  // CLICK `return_url` orqali qaytarganda ?payment=<mti> keladi — natijani
+  // ko'rsatamiz. Ilgari bu parametr umuman o'qilmasdi: foydalanuvchi to'lab
+  // qaytardi-yu, hech qanday tasdiq ko'rmasdi.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mti = new URLSearchParams(window.location.search).get("payment");
+    if (!mti) return;
+    // Manzilni tozalaymiz, aks holda har yangilashda qaytadan tekshiriladi.
+    window.history.replaceState({}, "", window.location.pathname);
+    setBusy(true);
+    setInfo("To'lov tekshirilmoqda…");
+    void waitForPayment(mti);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const active = useMemo(() => plans.find((p) => p.slug === slug) || null, [plans, slug]);
   const total = active ? Number(active.priceMonthlyUzs) * months : 0;
 
+  /**
+   * To'lov holatini kuzatadi. Obunani BIZ emas, CLICK'ning Complete so'rovi
+   * faollashtiradi, shuning uchun natijani serverdan so'rab turamiz.
+   * 3 daqiqa — QR kodni telefonda skanerlab to'lash uchun yetarli.
+   */
+  async function waitForPayment(mti: string) {
+    for (let i = 0; i < 90; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const st = await agencyApi<any>(`/payments/${encodeURIComponent(mti)}`);
+      if (!st.success || !st.data) continue;
+      if (st.data.state === "paid") {
+        setInfo("To'lov qabul qilindi ✓ Obuna faollashtirildi.");
+        setTimeout(() => window.location.reload(), 1500);
+        return;
+      }
+      if (st.data.state === "cancelled") {
+        setBusy(false); setInfo(""); setErr("To'lov bekor qilindi.");
+        return;
+      }
+    }
+    setBusy(false);
+    setInfo("To'lov hali tasdiqlanmadi. To'lagan bo'lsangiz sahifani yangilang — obuna bir necha daqiqada faollashadi.");
+  }
+
+  /**
+   * CLICK to'lov sahifasi ALOHIDA oynada ochiladi, CRM sahifasi tirik qoladi.
+   *
+   * Ilgari `window.location.href` ishlatilardi — CRM sahifasi almashtirilib,
+   * to'lovni kuzatadigan hech narsa qolmasdi. Mijozlar esa ko'pincha QR kodni
+   * TELEFONDA skanerlab to'laydi: u holda to'lov boshqa qurilmada tugaydi va
+   * CLICK'ning `return_url`i hech qachon ishlamaydi — odam «to'ladim, lekin
+   * hech narsa bo'lmadi» degan ekranda qolib ketardi.
+   */
   async function pay() {
     if (!slug || busy) return;
-    setBusy(true); setErr("");
-    const res = await agencyApi<{ payUrl: string }>("/payments/checkout", {
+    setBusy(true); setErr(""); setInfo("");
+    const res = await agencyApi<any>("/payments/checkout", {
       method: "POST",
       body: JSON.stringify({ tariffSlug: slug, months }),
     });
     if (!res.success) { setBusy(false); setErr(res.message || "To'lov havolasini olib bo'lmadi"); return; }
-    window.location.href = res.data.payUrl; // CLICK to'lov sahifasi
+    const d = res.data;
+    if (!openExternal(d.payUrl)) {
+      // Yangi oyna bloklandi — hech bo'lmaganda to'lov ketsin.
+      window.location.href = d.payUrl;
+      return;
+    }
+    setInfo("To'lov oynasi ochildi. To'laganingizdan keyin shu yerda avtomatik tasdiqlanadi — oynani yopmang.");
+    void waitForPayment(d.merchantTransId);
   }
 
   /**
@@ -2506,14 +2567,7 @@ function PayPlan({ heading = "Obunani to'lash" }: { heading?: string }) {
       return;
     }
     setInfo("To'lov qabul qilindi, obuna faollashtirilmoqda…");
-    for (let i = 0; i < 12; i++) {
-      await new Promise((r) => setTimeout(r, 2000));
-      const st = await agencyApi<any>(`/payments/${encodeURIComponent(mti)}`);
-      if (st.success && st.data && st.data.state === "paid") { window.location.reload(); return; }
-    }
-    // 24 soniyada tasdiq kelmadi — pul o'tgan, obuna biroz keyin faollashadi.
-    setBusy(false);
-    setInfo("To'lov o'tdi. Obuna bir necha daqiqada faollashadi — sahifani yangilang.");
+    await waitForPayment(mti);
   }
 
   if (enabled === null) return null;
