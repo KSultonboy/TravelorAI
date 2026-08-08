@@ -9,7 +9,7 @@ import { fetchTariffs, type PublicTariff } from "@/lib/marketingApi";
 export const metadata: Metadata = {
   title: "Tariflar",
   description:
-    "TravelorAI CRM tariflari — Boshlang'ich, Pro va Premium. Narxlar O'zbekiston so'mida, to'lov CLICK yoki Payme orqali.",
+    "TravelorAI CRM tariflari — Starter, Pro va Premium. Narxlar O'zbekiston so'mida, to'lov CLICK yoki Payme orqali.",
   alternates: { canonical: "/pricing" },
 };
 
@@ -27,10 +27,10 @@ const META: Record<string, { desc: string; best?: boolean }> = {
 
 /** Backend javob bermasa ham sahifa TO'LIQ ko'rinishi kerak (CLICK tekshiradi). */
 const FALLBACK: PublicTariff[] = [
-  { slug: "starter", name: "Boshlang'ich", priceMonthly: 9, priceMonthlyUzs: 99000, sortOrder: 1,
+  { slug: "starter", name: "Starter", priceMonthly: 9, priceMonthlyUzs: 99000, sortOrder: 1,
     features: ["Marketplace lidlari", "Sotuv voronkasi", "Mijozlar bazasi", "Turlar katalogi", "To'lovlar hisobi"] },
   { slug: "pro", name: "Pro", priceMonthly: 19, priceMonthlyUzs: 199000, sortOrder: 2,
-    features: ["Boshlang'ichdagi hammasi", "Telegram bot va Instagram Direct", "Hisobotlar va analitika", "Dinamik takliflar", "Ommaviy xabar yuborish"] },
+    features: ["Starter'dagi hammasi", "Telegram bot va Instagram Direct", "Hisobotlar va analitika", "Dinamik takliflar", "Ommaviy xabar yuborish"] },
   { slug: "business", name: "Premium", priceMonthly: 29, priceMonthlyUzs: 299000, sortOrder: 3,
     features: ["Pro'dagi hammasi", "Jamoa, rollar va huquqlar", "AI yordamchi", "Ustuvor qo'llab-quvvatlash"] },
 ];
