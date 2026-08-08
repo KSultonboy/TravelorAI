@@ -20,20 +20,28 @@ const PLANS = {
   // Tarifsiz / eski agentliklar — to'liq (grandfather, buzilmasin).
   unlimited: { sections: ALL_SECTIONS, caps: { ...ALL_CAPS } },
 
-  // $9 — asosiy CRM: lidlar (qo'lda ham qo'shish mumkin), mijozlar, turlar, bronlar, to'lovlar, CSV eksport. Telegram/Hisobot/Broadcast YO'Q.
+  // 99 000 so'm — asosiy CRM: lidlar (qo'lda ham qo'shish mumkin), mijozlar, turlar,
+  // bronlar, to'lovlar, CSV eksport. Xabar kanallari / Hisobot / Broadcast YO'Q.
   starter: {
     sections: ['dashboard', 'leads', 'customers', 'packages', 'bookings', 'payments', 'settings'],
     caps: { ...NO_CAPS, manualLeads: true, csvExport: true },
   },
 
-  // $29 — + Hisobotlar, Telegram bot, Broadcast, Dinamik takliflar, Analitika/CSV, qo'lda lidlar.
-  // AI, jamoa va integratsiyalar (Instagram/WhatsApp) — faqat Premium'да.
+  // 199 000 so'm — + Hisobotlar, xabar kanallari (Telegram bot VA Instagram Direct),
+  // Broadcast, Dinamik takliflar, Analitika/CSV, qo'lda lidlar.
+  //
+  // DIQQAT: Instagram ataylab shu darajada — O'zbekistonda agentlik lidlarining
+  // asosiy qismi Instagramdan keladi, uni Premium ortiga yashirish kichik
+  // agentlik uchun mahsulotning bosh sababini yo'q qiladi. Ikkala kanal ham
+  // `telegram` imkoniyatiga bog'langan (`requireCapability('telegram')`).
+  //
+  // Jamoa va AI — faqat Premium'da.
   pro: {
     sections: ALL_SECTIONS,
     caps: { ...ALL_CAPS, team: false, integrations: false, ai: false },
   },
 
-  // $59 (Premium) — hammasi + jamoa + AI + integratsiyalar.
+  // 299 000 so'm (Premium) — Pro'dagi hammasi + jamoa va rollar + AI yordamchi.
   // `business` (eski slug) va `premium` (yangi nomdan hosil bo'lishi mumkin) — ikkisi ham to'liq.
   business: { sections: ALL_SECTIONS, caps: { ...ALL_CAPS } },
   premium: { sections: ALL_SECTIONS, caps: { ...ALL_CAPS } },

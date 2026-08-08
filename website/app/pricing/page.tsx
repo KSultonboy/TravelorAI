@@ -20,8 +20,8 @@ const HERO = "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=
 /** Tavsif va tartib — bazadagi tarif slug'iga bog'lanadi. */
 const META: Record<string, { desc: string; best?: boolean }> = {
   starter: { desc: "Yangi boshlagan agentliklar uchun — asosiy CRM va marketplace lidlari." },
-  pro: { desc: "O'sib borayotgan agentliklar uchun — Telegram bot, hisobotlar va dinamik takliflar.", best: true },
-  business: { desc: "Jamoa bilan ishlaydigan agentliklar uchun — rollar, integratsiyalar va AI." },
+  pro: { desc: "O'sib borayotgan agentliklar uchun — Instagram va Telegram xabarlari CRM ichida.", best: true },
+  business: { desc: "Jamoa bilan ishlaydigan agentliklar uchun — rollar, huquqlar va AI yordamchi." },
   enterprise: { desc: "Yirik tarmoqlar uchun — maxsus integratsiya va shartlar." },
 };
 
@@ -29,10 +29,10 @@ const META: Record<string, { desc: string; best?: boolean }> = {
 const FALLBACK: PublicTariff[] = [
   { slug: "starter", name: "Boshlang'ich", priceMonthly: 9, priceMonthlyUzs: 99000, sortOrder: 1,
     features: ["Marketplace lidlari", "Sotuv voronkasi", "Mijozlar bazasi", "Turlar katalogi", "To'lovlar hisobi"] },
-  { slug: "pro", name: "Pro", priceMonthly: 29, priceMonthlyUzs: 299000, sortOrder: 2,
-    features: ["Boshlang'ichdagi hammasi", "Telegram bot va avtomatik xabarlar", "Dinamik takliflar", "Hisobotlar va analitika", "Qo'lda lid qo'shish"] },
-  { slug: "business", name: "Premium", priceMonthly: 59, priceMonthlyUzs: 599000, sortOrder: 3,
-    features: ["Pro'dagi hammasi", "Jamoa va rollar", "Integratsiyalar", "AI yordamchi", "Ustuvor qo'llab-quvvatlash"] },
+  { slug: "pro", name: "Pro", priceMonthly: 19, priceMonthlyUzs: 199000, sortOrder: 2,
+    features: ["Boshlang'ichdagi hammasi", "Telegram bot va Instagram Direct", "Hisobotlar va analitika", "Dinamik takliflar", "Ommaviy xabar yuborish"] },
+  { slug: "business", name: "Premium", priceMonthly: 29, priceMonthlyUzs: 299000, sortOrder: 3,
+    features: ["Pro'dagi hammasi", "Jamoa, rollar va huquqlar", "AI yordamchi", "Ustuvor qo'llab-quvvatlash"] },
 ];
 
 const som = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
