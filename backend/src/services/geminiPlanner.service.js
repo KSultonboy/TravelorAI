@@ -1,6 +1,5 @@
 const axios = require('axios');
 const { logger } = require('../config/logger');
-const { AI_ITINERARY_SCHEMA, buildAiItineraryPrompt, mapAiItineraryToPlan } = require('./aiItinerary');
 
 const DEFAULT_MODEL = 'gemini-2.5-flash';
 const DEFAULT_API_BASE_URL = 'https://generativelanguage.googleapis.com';
@@ -309,50 +308,4 @@ async function refineTripPlanWithGemini({ basePlan, request }) {
   }
 }
 
-// To'liq marshrutni NOLDAN yaratadi (POI/destination ma'lumoti bo'lmaganda).
-// refineTripPlanWithGemini faqat matnni yaxshilaydi; bu esa kun-marshrutni o'zi quradi.
-async function generateTripPlanWithGemini(input) {
-  const config = readConfig();
-  if (!config.enabled || !config.apiKey) return null;
-
-  const url = `${config.apiBaseUrl.replace(/\/$/, '')}/v1beta/models/${encodeURIComponent(
-    config.model
-  )}:generateContent`;
-
-  const body = {
-    contents: [{ role: 'user', parts: [{ text: buildAiItineraryPrompt(input) }] }],
-    generationConfig: {
-      temperature: 0.4,
-      topP: 0.9,
-      maxOutputTokens: 8192,
-      responseMimeType: 'application/json',
-      responseJsonSchema: AI_ITINERARY_SCHEMA,
-      // gemini-2.5-flash "thinking"ni o'chiramiz — generatsiya ancha tezlashadi.
-      thinkingConfig: { thinkingBudget: 0 },
-    },
-  };
-
-  try {
-    const response = await axios.post(url, body, {
-      timeout: Math.max(config.timeoutMs, 50000),
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': config.apiKey },
-    });
-
-    const text = extractResponseText(response.data);
-    const parsed = tryParseJson(text);
-    const plan = mapAiItineraryToPlan(parsed, input, { provider: 'gemini', model: config.model });
-
-    if (!plan) {
-      logger.warn('Gemini planner returned unusable generation payload');
-      return null;
-    }
-    return plan;
-  } catch (err) {
-    const status = err?.response?.status;
-    const message = err?.response?.data?.error?.message || err?.message || 'unknown Gemini error';
-    logger.warn('Gemini planner generation failed', { status, message });
-    return null;
-  }
-}
-
-module.exports = { refineTripPlanWithGemini, generateTripPlanWithGemini };
+module.exports = { refineTripPlanWithGemini };

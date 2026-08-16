@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Instagram, Mail, MapPin, Phone, Send, Youtube } from "lucide-react";
 import Logo from "./Logo";
+import { CONTACT } from "@/lib/legalEntity";
 
 const COLS = [
   {
@@ -16,14 +17,15 @@ const COLS = [
     title: "Hamkorlar uchun",
     links: [
       ["Hamkor bo‘lish", "/partners"],
+      ["Tariflar", "/pricing"],
       ["Agentlik portali", "/agency"],
-      ["Biz haqimizda", "/about"],
       ["Aloqa", "/contact"],
     ],
   },
   {
     title: "Huquqiy",
     links: [
+      ["Ommaviy oferta", "/offer"],
       ["Maxfiylik siyosati", "/privacy"],
       ["Foydalanish shartlari", "/terms"],
     ],
@@ -54,7 +56,7 @@ export default function SiteFooter() {
               <h4>{col.title}</h4>
               <ul>
                 {col.links.map(([label, href]) => (
-                  <li key={label}><Link href={href}>{label}</Link></li>
+                  <li key={label}><Link href={href} prefetch={false}>{label}</Link></li>
                 ))}
               </ul>
             </div>
@@ -64,9 +66,10 @@ export default function SiteFooter() {
         <div className="mkt-footer__bottom">
           <span>© {year} TravelorAI. Barcha huquqlar himoyalangan.</span>
           <span style={{ display: "flex", gap: "18px", flexWrap: "wrap" }}>
-            <span className="mkt-footer__contact" style={{ margin: 0 }}><MapPin size={15} /> Toshkent, O‘zbekiston</span>
-            <span className="mkt-footer__contact" style={{ margin: 0 }}><Phone size={15} /> +998 90 000 00 00</span>
-            <span className="mkt-footer__contact" style={{ margin: 0 }}><Mail size={15} /> support@travelorai.com</span>
+            <span className="mkt-footer__contact" style={{ margin: 0 }}><MapPin size={15} /> O‘zbekiston</span>
+            <a className="mkt-footer__contact" style={{ margin: 0 }} href={`tel:${CONTACT.phoneHref}`}><Phone size={15} /> {CONTACT.phone}</a>
+            <a className="mkt-footer__contact" style={{ margin: 0 }} href={`mailto:${CONTACT.email}`}><Mail size={15} /> {CONTACT.email}</a>
+            <a className="mkt-footer__contact" style={{ margin: 0 }} href={CONTACT.telegram} target="_blank" rel="noopener noreferrer"><Send size={15} /> @travelorai</a>
           </span>
         </div>
       </div>

@@ -5,6 +5,7 @@ export type Account = {
   email: string;
   emailVerified: boolean;
   status: string;
+  mustChangePassword?: boolean;
   pendingEmail?: string | null;
   emailChangeResendCount?: number;
   emailChangeResendsRemaining?: number;
@@ -103,6 +104,20 @@ export type BookingItem = {
   travelDate?: string | null;
   message?: string | null;
   status: string;
+  pipelineStage?: string | null;
+  source?: string | null;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  referrer?: string | null;
+  customerBirthday?: string | null;
+  leadTour?: string | null;
+  leadCity?: string | null;
+  leadTelegram?: string | null;
+  leadWhatsapp?: string | null;
+  paidAmount?: number | null;
+  archived?: boolean | null;
+  archivedAt?: string | null;
   responseDeadlineAt?: string | null;
   totalEstimate?: number | null;
   currency: string;
@@ -132,6 +147,21 @@ export type BookingStats = {
   conversion: number;
 };
 
+export type AgencyAccess = {
+  plan: string;
+  planName: string;
+  status: string;
+  role?: string;
+  canManageTeam?: boolean;
+  active: boolean;
+  readOnly: boolean;
+  expired: boolean;
+  until: string | null;
+  daysLeft: number | null;
+  sections: string[];
+  caps: Record<string, boolean>;
+};
+
 export type MeData = {
   account: Account;
   application: AgencyApplication | null;
@@ -139,6 +169,7 @@ export type MeData = {
   stats: Record<string, number>;
   bookingStats?: BookingStats;
   supportEmail?: string;
+  access?: AgencyAccess;
 };
 
 export type BookingStatusAction = "confirmed" | "rejected" | "cancelled" | "completed";

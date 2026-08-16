@@ -79,6 +79,15 @@ export function AgencySessionProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await agencyApi("/auth/logout", { method: "POST" });
+    // MUHIM: state'ni o'zgartirmasdan darrov navigatsiya qilamiz. Aks holda
+    // setPhase("guest") oraliq ekranni bir zumga chizadi ("miltillash"). Joriy
+    // ekran /signin yuklanguncha turadi — hech qanday oraliq ko'rinmaydi.
+    // replace — assign emas: tarixда /agency qolmaydi, shuning uchun /signin'да
+    // "orqaga" bosilganda guest ekraniga qaytib qolmaydi.
+    if (typeof window !== "undefined") {
+      window.location.replace("/signin");
+      return;
+    }
     setMe(null);
     setTours([]);
     setBookings([]);
@@ -94,6 +103,13 @@ export function AgencySessionProvider({ children }: { children: ReactNode }) {
     const timer = window.setInterval(() => setClock((value) => value + 1), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  // Yangi lidlar (Telegram, marketplace) avtomatik ko'rinishi uchun davriy yangilash
+  useEffect(() => {
+    if (phase !== "approved") return;
+    const timer = window.setInterval(() => { void refreshBookings(); }, 20000);
+    return () => window.clearInterval(timer);
+  }, [phase, refreshBookings]);
 
   const value = useMemo(
     () => ({ phase, me, tours, bookings, bookingStats, clock, refresh, refreshBookings, refreshTours, logout }),

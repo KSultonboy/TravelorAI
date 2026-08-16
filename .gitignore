@@ -70,3 +70,8 @@ website/website@0.1.0
 .idea/
 .vscode/
 Thumbs.db
+
+# maxfiy kalitlar — hech qachon commit qilinmasin
+mobile/fcm-service-account.json
+**/*service-account*.json
+**/serviceAccountKey*.json

@@ -94,6 +94,12 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+const resetPasswordSchema = z.object({
+  email: z.string().trim().email(),
+  code: z.string().trim().regex(/^\d{6}$/, "Kod 6 xonali bo'lishi kerak"),
+  newPassword: z.string().min(8, 'Parol kamida 8 ta belgi'),
+});
+
 const applicationSchema = z.object({
   companyName: z.string().trim().min(2),
   legalName: z.string().trim().optional().or(z.literal('')),
@@ -130,12 +136,7 @@ const tourSchema = z.object({
   destinationCountry: optionalText,
   tourGroup: optionalText,
   nights: z.coerce.number().int().nonnegative().optional().nullable(),
-  days: z.coerce.number().int().nonnegative().optional().nullable(),
   hotelIncluded: z.coerce.boolean().optional().default(false),
-  flightIncluded: z.coerce.boolean().optional().default(false),
-  discount: optionalText,
-  priceBasisPeople: z.coerce.number().int().positive().optional().nullable(),
-  priceLockMinutes: z.coerce.number().int().nonnegative().max(100000).optional().nullable(),
   hotelName: optionalText,
   hotelCategory: optionalText,
   hotelLocation: optionalText,
@@ -150,6 +151,18 @@ const tourSchema = z.object({
   promo: z.coerce.boolean().optional().default(false),
   priceIncludes: stringList,
   priceExcludes: stringList,
+  images: z.array(z.string().min(1)).max(6).optional(),
+  mapAddress: optionalText,
+  routeStops: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(120),
+        lat: z.coerce.number().min(-90).max(90),
+        lng: z.coerce.number().min(-180).max(180),
+      })
+    )
+    .max(12)
+    .optional(),
 });
 
 const googleAuthSchema = z.object({
@@ -167,6 +180,7 @@ module.exports = {
   emailChangeRequestSchema,
   emailChangeConfirmSchema,
   loginSchema,
+  resetPasswordSchema,
   applicationSchema,
   tourSchema,
   adminReviewSchema,

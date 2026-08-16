@@ -4,26 +4,28 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Bell, Building2, ClipboardList, LayoutDashboard, LogOut, Menu, MessageSquareWarning,
-  PackageSearch, Search, Star, TrendingUp, Users, X,
+  Bell, Building2, ClipboardList, CreditCard, LayoutDashboard, LogOut, Menu, MessageSquareWarning,
+  PackageSearch, Search, TrendingUp, Users, Wallet, X,
 } from "lucide-react";
-import { clearToken, fetchMe, type AdminUser } from "@/lib/adminApi";
+import { adminLogout, fetchMe, type AdminUser } from "@/lib/adminApi";
 
 const NAV = [
   { href: "/admin", label: "Boshqaruv", icon: LayoutDashboard, exact: true },
   { href: "/admin/partners", label: "Hamkorlar", icon: Building2 },
+  { href: "/admin/billing", label: "To'lovlar & obuna", icon: Wallet },
+  { href: "/admin/tariffs", label: "Tariflar", icon: CreditCard },
   { href: "/admin/listings", label: "Turlar (listing)", icon: PackageSearch },
   { href: "/admin/bookings", label: "Bronlar", icon: ClipboardList },
   { href: "/admin/reports", label: "Hisobotlar", icon: TrendingUp },
   { href: "/admin/users", label: "Foydalanuvchilar", icon: Users },
-  { href: "/admin/reviews", label: "Sharhlar", icon: Star },
   { href: "/admin/feedback", label: "Fikr & shikoyat", icon: MessageSquareWarning },
 ];
 
 const TITLES: Record<string, string> = {
   "/admin": "Boshqaruv paneli", "/admin/partners": "Hamkorlar", "/admin/partners/new": "Yangi hamkor",
+  "/admin/billing": "To'lovlar & obuna", "/admin/tariffs": "Tariflar",
   "/admin/listings": "Turlar (listing)", "/admin/bookings": "Bronlar", "/admin/reports": "Hisobotlar",
-  "/admin/users": "Foydalanuvchilar", "/admin/reviews": "Sharhlar", "/admin/feedback": "Fikr & shikoyat",
+  "/admin/users": "Foydalanuvchilar", "/admin/feedback": "Fikr & shikoyat",
 };
 
 export default function AdminShell({ children }: { children: ReactNode }) {
@@ -35,7 +37,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   useEffect(() => { fetchMe().then((d) => setUser(d.user)).catch(() => {}); }, []);
   useEffect(() => { setOpen(false); }, [pathname]);
 
-  function signOut() { clearToken(); router.replace("/admin/login"); }
+  function signOut() { void adminLogout().finally(() => router.replace("/admin/login")); }
   const title = TITLES[pathname] || "Admin";
   const isActive = (item: (typeof NAV)[number]) => (item.exact ? pathname === item.href : pathname.startsWith(item.href));
 

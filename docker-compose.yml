@@ -46,7 +46,7 @@ services:
       PORT: 4000
       DATABASE_URL: postgresql://travelorai:travelorai_pass@postgres:5432/travelorai_db
       REDIS_URL: redis://redis:6379
-      ALLOWED_ORIGINS: http://localhost,http://127.0.0.1,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8081,http://localhost:19006,https://travelorai.com,https://www.travelorai.com,https://admin.travelorai.com,https://agency.travelorai.com
+      ALLOWED_ORIGINS: http://localhost,http://127.0.0.1,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8081,http://localhost:19006,https://travelorai.com,https://www.travelorai.com
     ports:
       - '4000:4000'
     depends_on:

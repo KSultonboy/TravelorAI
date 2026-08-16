@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LogOut, Menu, UserRound, X } from "lucide-react";
 import Logo from "./Logo";
+import ThemeToggle from "./ThemeToggle";
 import { useAuth } from "./useAuth";
 
 const NAV = [
@@ -36,11 +37,12 @@ export default function SiteHeader({ transparentOverHero = false }: { transparen
 
         <nav className="mkt-nav" aria-label="Asosiy navigatsiya">
           {NAV.map((item) => (
-            <Link key={item.href} href={item.href}>{item.label}</Link>
+            <Link key={item.href} href={item.href} prefetch={false}>{item.label}</Link>
           ))}
         </nav>
 
         <div className="mkt-header__actions">
+          <ThemeToggle />
           {!loading && user ? (
             <>
               <Link className="btn btn--ghost btn--md" href="/my-trips"><UserRound size={17} /> Mening safarlarim</Link>
@@ -68,7 +70,7 @@ export default function SiteHeader({ transparentOverHero = false }: { transparen
         <div className="mkt-mobile">
           <div className="mkt-wrap mkt-mobile__inner">
             {NAV.map((item) => (
-              <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>{item.label}</Link>
+              <Link key={item.href} href={item.href} prefetch={false} onClick={() => setOpen(false)}>{item.label}</Link>
             ))}
             {!loading && user ? (
               <>

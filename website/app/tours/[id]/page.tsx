@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BedDouble, Clock3, MapPin, Plane, ShieldCheck, Star, Utensils } from "lucide-react";
+import { BedDouble, Clock3, MapPin, Plane, ShieldCheck, Star } from "lucide-react";
 import MarketingShell from "@/components/marketing/MarketingShell";
 import Reveal from "@/components/marketing/Reveal";
 import BookingPanel from "@/components/marketing/BookingPanel";
@@ -9,6 +9,8 @@ import { publicImageSrc } from "@/lib/imageUrls";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://travelorai.com").replace(/\/$/, "");
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -25,12 +27,15 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   };
 }
 
+/**
+ * Faqat HAQIQATDAN kiritilgan xizmatlar. Ilgari "Tasdiqlangan agentlik"
+ * (bu xizmat emas, balgi) va "Ovqatlanish" shartsiz ko'rsatilardi —
+ * ovqat kiritilmagan turda ham "bor" deb chiqib, mijozni chalg'itardi.
+ */
 function inclusions(tour: Tour): { icon: typeof BedDouble; label: string }[] {
   const list: { icon: typeof BedDouble; label: string }[] = [];
-  if (tour.hotelIncluded) list.push({ icon: BedDouble, label: "Mehmonxona kiritilgan" });
-  if (tour.flightIncluded) list.push({ icon: Plane, label: "Aviabilet kiritilgan" });
-  list.push({ icon: ShieldCheck, label: "Tasdiqlangan agentlik" });
-  list.push({ icon: Utensils, label: "Ovqatlanish (paketga ko‘ra)" });
+  if (tour.hotelIncluded) list.push({ icon: BedDouble, label: "Mehmonxona" });
+  if (tour.flightIncluded) list.push({ icon: Plane, label: "Aviabilet" });
   return list;
 }
 
@@ -59,15 +64,39 @@ export default async function TourDetailPage({ params }: { params: Promise<{ id:
   const rating = tour.rating || 0;
   const reviewCount = tour.reviewCount || 0;
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: tour.title,
-    description: tour.subtitle || tour.description || tour.title,
-    image: baseImg || undefined,
-    ...(rating > 0 ? { aggregateRating: { "@type": "AggregateRating", ratingValue: rating, reviewCount: Math.max(reviewCount, 1) } } : {}),
-    ...(tour.priceMin ? { offers: { "@type": "Offer", price: tour.priceMin, priceCurrency: tour.currency || "USD", availability: "https://schema.org/InStock" } } : {}),
-  };
+  const canonical = `${SITE_URL}/tours/${slug}`;
+  const jsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      name: tour.title,
+      description: tour.description || tour.subtitle || `${tour.city} bo‘yicha tasdiqlangan agentlik turi.`,
+      image: baseImg || undefined,
+      category: "Sayohat turi",
+      ...(tour.agency?.name ? { brand: { "@type": "TravelAgency", name: tour.agency.name } } : {}),
+      ...(rating > 0 ? { aggregateRating: { "@type": "AggregateRating", ratingValue: rating, reviewCount: Math.max(reviewCount, 1) } } : {}),
+      ...(tour.priceMin
+        ? {
+            offers: {
+              "@type": "Offer",
+              price: tour.priceMin,
+              priceCurrency: tour.currency || "USD",
+              availability: "https://schema.org/InStock",
+              url: canonical,
+            },
+          }
+        : {}),
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Bosh sahifa", item: SITE_URL },
+        { "@type": "ListItem", position: 2, name: "Turlar", item: `${SITE_URL}/tours` },
+        { "@type": "ListItem", position: 3, name: tour.title, item: canonical },
+      ],
+    },
+  ];
 
   return (
     <MarketingShell>
@@ -97,13 +126,19 @@ export default async function TourDetailPage({ params }: { params: Promise<{ id:
 
               <Reveal className="mkt-detail__section">
                 <h2>Nimalar kiritilgan</h2>
-                <div className="mkt-chips">
-                  {inclusions(tour).map((inc) => {
-                    const Icon = inc.icon;
-                    return <span key={inc.label} className="chip"><Icon size={14} /> {inc.label}</span>;
-                  })}
-                  {(tour.priceIncludes || []).map((x) => <span key={x} className="chip chip--gold">{x}</span>)}
-                </div>
+                {inclusions(tour).length || (tour.priceIncludes || []).length ? (
+                  <div className="mkt-chips">
+                    {inclusions(tour).map((inc) => {
+                      const Icon = inc.icon;
+                      return <span key={inc.label} className="chip"><Icon size={14} /> {inc.label}</span>;
+                    })}
+                    {(tour.priceIncludes || []).map((x) => <span key={x} className="chip chip--gold">{x}</span>)}
+                  </div>
+                ) : (
+                  <p style={{ color: "var(--muted)", margin: 0 }}>
+                    Paketga nimalar kiritilgani agentlik bilan aniqlashtiriladi — bron so&apos;rovi qoldirsangiz, batafsil aytib beradi.
+                  </p>
+                )}
               </Reveal>
 
               <Reveal className="mkt-detail__section">
@@ -118,16 +153,24 @@ export default async function TourDetailPage({ params }: { params: Promise<{ id:
 
               <Reveal className="mkt-detail__section">
                 <h2>Sharhlar</h2>
+                {/* Ilgari bu yerda QO'LDA YOZILGAN soxta sharh chiqardi ("Sayohatchi —
+                    Tasdiqlangan agentlik, ishonchli xizmat"). Hech kim yozmagan matnni
+                    ko'rsatish mijozni chalg'itadi — o'rniga faqat HAQIQIY o'rtacha baho
+                    va sharhlar soni ko'rsatiladi. */}
                 {reviewCount > 0 ? (
                   <div className="mkt-review">
                     <div className="mkt-review__top">
-                      <span className="mkt-review__av">A</span>
+                      <span className="mkt-review__av"><Star size={16} fill="currentColor" /></span>
                       <div>
-                        <b>Sayohatchi</b>
-                        <div className="rating"><Star size={13} fill="currentColor" /> {rating.toFixed(1)}</div>
+                        <b>{rating.toFixed(1)} / 5</b>
+                        <div style={{ color: "var(--muted)", fontSize: "0.86rem" }}>
+                          {reviewCount} ta sayohatchi baholadi
+                        </div>
                       </div>
                     </div>
-                    <p style={{ color: "var(--muted)", margin: "10px 0 0" }}>Tasdiqlangan agentlik, ishonchli xizmat. Tavsiya qilaman.</p>
+                    <p style={{ color: "var(--muted)", margin: "10px 0 0", fontSize: "0.88rem" }}>
+                      Baholar sayohatdan keyin mijozlardan yig&apos;iladi — shuning uchun ular haqiqiy.
+                    </p>
                   </div>
                 ) : (
                   <p style={{ color: "var(--muted)" }}>Hali sharhlar yo‘q. Birinchi bo‘lib sayohat qiling va fikr qoldiring.</p>

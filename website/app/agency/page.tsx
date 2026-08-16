@@ -1,5 +1,7 @@
-import AgencyDashboard from "@/components/agency/AgencyDashboard";
+import KvCabinet from "@/components/agency/KvCabinet";
 
-export default function AgencyHomePage() {
-  return <AgencyDashboard />;
+export const dynamic = "force-dynamic";
+
+export default function AgencyPage() {
+  return <KvCabinet />;
 }

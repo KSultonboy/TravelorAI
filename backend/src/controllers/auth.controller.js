@@ -11,6 +11,14 @@ const {
 } = require('../services/auth.service');
 const { signToken } = require('../utils/jwt');
 const { success, error } = require('../utils/response');
+const {
+  SUPPORT_EMAIL,
+  withDecay,
+  getActiveLock,
+  lockedResponse,
+  registerFailure,
+  RESET_ON_SUCCESS,
+} = require('../services/loginSecurity.service');
 
 const PASSWORD_SALT_ROUNDS = 10;
 const DEFAULT_PREFERENCES = {
@@ -67,17 +75,6 @@ async function register(req, res) {
         requiresVerification: authProvider === 'local' && !existing.emailVerified,
         email: existing.email,
       });
-    }
-
-    // Cross-check: bu email agentlik akkaunti sifatida band bo'lmasin (bir email — bir rol).
-    const agencyAccount = await prisma.agencyAccount.findUnique({ where: { email: normalizedEmail } });
-    if (agencyAccount?.emailVerified) {
-      return error(
-        res,
-        'Bu email agentlik akkaunti sifatida ro‘yxatdan o‘tgan. Foydalanuvchi sifatida ro‘yxatdan o‘tib bo‘lmaydi.',
-        409,
-        { accountType: 'agency' }
-      );
     }
 
     const hashedPassword = await bcrypt.hash(password, PASSWORD_SALT_ROUNDS);
@@ -192,24 +189,45 @@ async function login(req, res) {
   try {
     const { email, password } = req.body;
     const normalizedEmail = normalizeEmail(email);
-    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    const found = await prisma.user.findUnique({ where: { email: normalizedEmail } });
 
-    if (!user) {
+    if (!found) {
       return error(res, 'Email yoki parol noto\'g\'ri.', 401);
     }
 
-    if (!user.password) {
-      return error(res, 'Bu email Google orqali ro\'yxatdan o\'tgan. Google bilan kiring.', 400, {
+    if (found.blocked) {
+      return error(res, 'Hisobingiz bloklangan. Qo\'llab-quvvatlashga murojaat qiling.', 403, {
+        blocked: true,
+        supportEmail: SUPPORT_EMAIL,
+      });
+    }
+
+    if (!found.password) {
+      return error(res, 'Bu email Google orqali ochilgan (paroli yo\'q). "Parolni unutdingizmi?" orqali parol o\'rnating — keyin email va parol bilan kirasiz.', 400, {
         authProvider: 'google',
       });
     }
 
+    const now = new Date();
+    const user = withDecay(found, now);
+
+    // Reject early if the account is still inside a lockout window.
+    const lock = getActiveLock(user, now);
+    if (lock.locked) {
+      const payload = lockedResponse(lock);
+      return error(res, payload.message, payload.status, payload.extra);
+    }
+
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
-      return error(res, 'Email yoki parol noto\'g\'ri.', 401);
+      const failure = registerFailure(user, now);
+      await prisma.user.update({ where: { id: user.id }, data: failure.data });
+      return error(res, failure.message, failure.status, failure.extra);
     }
 
     if (!user.emailVerified) {
+      // Correct password → clear the brute-force counters, but still require verification.
+      await prisma.user.update({ where: { id: user.id }, data: RESET_ON_SUCCESS });
       return error(res, 'Email tasdiqlanmagan.', 403, {
         requiresVerification: true,
         email: user.email,
@@ -218,50 +236,10 @@ async function login(req, res) {
 
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: { ...RESET_ON_SUCCESS, lastLoginAt: now },
     });
 
     return success(res, createAuthPayload(updatedUser));
-  } catch (err) {
-    return error(res, err.message, 500);
-  }
-}
-
-// ===== Admin panel auth: login + parol → JWT (role=admin). Email/2FA yo'q. =====
-async function adminLogin(req, res) {
-  try {
-    const username = String(req.body.username || req.body.email || '').trim();
-    const password = String(req.body.password || '');
-    const expectedUser = process.env.ADMIN_USERNAME || 'admin';
-    const expectedPass = process.env.ADMIN_PASSWORD || 'admin123';
-    if (username !== expectedUser || password !== expectedPass) {
-      return error(res, 'Login yoki parol noto\'g\'ri.', 401);
-    }
-    const token = signToken({ role: 'admin', username, admin: true });
-    return success(res, { token, user: { name: username, username, role: 'admin' } });
-  } catch (err) {
-    return error(res, err.message, 500);
-  }
-}
-
-async function adminLoginVerify(req, res) {
-  try {
-    const normalizedEmail = normalizeEmail(req.body.email || '');
-    const code = String(req.body.code || '').trim();
-    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-    if (!user || user.role !== 'admin') {
-      return error(res, 'Admin hisob topilmadi.', 403);
-    }
-    try {
-      await consumeAuthCode({ userId: user.id, type: AuthCodeType.EMAIL_VERIFICATION, code });
-    } catch (codeErr) {
-      return mapCodeError(res, codeErr);
-    }
-    const updated = await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-    return success(res, {
-      token: signToken({ id: updated.id, email: updated.email, role: 'admin' }),
-      user: { ...buildPublicUser(updated), role: 'admin' },
-    });
   } catch (err) {
     return error(res, err.message, 500);
   }
@@ -272,7 +250,9 @@ async function forgotPassword(req, res) {
     const normalizedEmail = normalizeEmail(req.body.email);
     const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
 
-    if (!user || !user.password) {
+    // Google-only accounts (no password yet) are allowed to SET a password this
+    // way — the code goes to their own email, so it's the account owner setting it.
+    if (!user) {
       return success(res, {
         message: 'Agar email mavjud bo\'lsa, parol tiklash kodi yuborildi.',
       });
@@ -300,11 +280,8 @@ async function resetPassword(req, res) {
       return error(res, 'Foydalanuvchi topilmadi.', 404);
     }
 
-    if (!user.password) {
-      return error(res, 'Bu akkaunt Google orqali yaratilgan. Parol tiklash mavjud emas.', 400, {
-        authProvider: 'google',
-      });
-    }
+    // Note: a Google-only account (no password) can set one here — the code was
+    // sent to its own email, so this is the owner adding a password login.
 
     try {
       await consumeAuthCode({ userId: user.id, type: AuthCodeType.PASSWORD_RESET, code });
@@ -320,6 +297,8 @@ async function resetPassword(req, res) {
         emailVerified: true,
         emailVerifiedAt: user.emailVerifiedAt || new Date(),
         lastLoginAt: new Date(),
+        // A successful reset also lifts any brute-force lockout.
+        ...RESET_ON_SUCCESS,
       },
     });
 
@@ -344,19 +323,14 @@ async function googleAuth(req, res) {
         },
       })) || null;
 
-    if (!user) {
-      // Cross-check: agentlik emaili Google orqali ham foydalanuvchi akkauntini yaratmasin.
-      const agencyAccount = await prisma.agencyAccount.findUnique({
-        where: { email: normalizeEmail(googleProfile.email) },
+    if (user?.blocked) {
+      return error(res, 'Hisobingiz bloklangan. Qo\'llab-quvvatlashga murojaat qiling.', 403, {
+        blocked: true,
+        supportEmail: SUPPORT_EMAIL,
       });
-      if (agencyAccount?.emailVerified) {
-        return error(
-          res,
-          'Bu email agentlik akkaunti sifatida ro‘yxatdan o‘tgan. Agentlik portalidan kiring.',
-          409,
-          { accountType: 'agency' }
-        );
-      }
+    }
+
+    if (!user) {
       user = await prisma.user.create({
         data: {
           name: googleProfile.name,
@@ -391,9 +365,6 @@ async function googleAuth(req, res) {
     }
 
     if (err.message === 'GOOGLE_AUDIENCE_MISMATCH') {
-      try {
-        require('../config/logger').logger.warn('GOOGLE_AUDIENCE_MISMATCH', err.meta || {});
-      } catch {}
       return error(res, 'Google client ID mos kelmadi. Android OAuth client (package + SHA-1) ni tekshiring.', 401, err.meta || undefined);
     }
 
@@ -401,6 +372,21 @@ async function googleAuth(req, res) {
       return error(res, 'Google akkauntdagi email tasdiqlanmagan.', 401);
     }
 
+    return error(res, err.message, 500);
+  }
+}
+
+// Public "am I logged in?" probe. Uses optionalAuth, so guests get 200 {user:null}
+// instead of a 401 — this keeps the website header/session check out of the
+// browser error console. Authenticated callers get the same public user shape.
+async function getSession(req, res) {
+  try {
+    if (!req.user?.id) {
+      return success(res, { user: null });
+    }
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    return success(res, { user: user ? buildPublicUser(user) : null });
+  } catch (err) {
     return error(res, err.message, 500);
   }
 }
@@ -651,20 +637,6 @@ async function deleteAccount(req, res) {
   }
 }
 
-
-async function savePushToken(req, res) {
-  try {
-    const token = String((req.body && req.body.token) || '').trim();
-    if (token.length < 20) {
-      return error(res, 'Yaroqsiz push token', 400);
-    }
-    await prisma.user.update({ where: { id: req.user.id }, data: { expoPushToken: token } });
-    return success(res, { saved: true });
-  } catch (err) {
-    return error(res, err.message, 500);
-  }
-}
-
 module.exports = {
   register,
   verifyEmail,
@@ -673,15 +645,13 @@ module.exports = {
   forgotPassword,
   resetPassword,
   googleAuth,
-  adminLogin,
-  adminLoginVerify,
   updateProfile,
   getMe,
+  getSession,
   getPreferences,
   updatePreferences,
   requestEmailChange,
   verifyEmailChange,
   requestAccountDeletion,
   deleteAccount,
-  savePushToken,
 };

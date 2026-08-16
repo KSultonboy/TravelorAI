@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "TravelorAI CRM asosiy oyna ruxsatlari. Remote (travelorai.com) sahifaga Tauri API berilmaydi.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

@@ -7,7 +7,7 @@ type RevealProps = {
   /** Kechikish (ms) — staggered ketma-ketlik uchun */
   delay?: number;
   /** Boshlang'ich siljish yo'nalishi */
-  from?: "up" | "down" | "left" | "right" | "none";
+  from?: "up" | "down" | "left" | "right" | "none" | "scale" | "blur";
   className?: string;
   as?: "div" | "section" | "article" | "li" | "span";
   style?: CSSProperties;

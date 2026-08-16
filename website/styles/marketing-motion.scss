@@ -1,0 +1,91 @@
+/* ==========================================================================
+   TravelorAI — Bold motion layer (public site)
+   marketing.scss'dan KEYIN yuklanadi. prefers-reduced-motion to'liq hurmat qilinadi.
+   ========================================================================== */
+
+@keyframes kbZoom { from { transform: scale(1.03); } to { transform: scale(1.17) translateY(-1.6%); } }
+@keyframes floatGlow { 0%, 100% { transform: translate(0, 0) scale(1); opacity: .85; } 50% { transform: translate(-26px, 24px) scale(1.14); opacity: 1; } }
+@keyframes pulseGold { 0%, 100% { text-shadow: 0 0 0 rgba(234,179,8,0); } 50% { text-shadow: 0 0 18px rgba(234,179,8,.45); } }
+@keyframes floatY { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes revClip { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+
+/* ---- bolder scroll reveals (override marketing.scss defaults) ---- */
+.reveal { transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1), transform 0.9s cubic-bezier(0.16, 1, 0.3, 1), filter 0.9s ease; }
+.reveal--up { transform: translateY(48px); }
+.reveal--down { transform: translateY(-48px); }
+.reveal--left { transform: translateX(54px); }
+.reveal--right { transform: translateX(-54px); }
+.reveal--scale { transform: translateY(38px) scale(0.9); }
+.reveal--blur { transform: translateY(34px); filter: blur(12px); }
+.reveal--in { transform: none !important; filter: none !important; }
+
+/* ---- continuous + hover motion: only when motion is allowed ---- */
+@media (prefers-reduced-motion: no-preference) {
+
+  /* hero — cinematic Ken Burns + floating gold glow + shimmering eyebrow */
+  .mkt-hero__bg { will-change: transform; }
+  .mkt-hero__bg img { animation: kbZoom 26s ease-in-out infinite alternate; will-change: transform; }
+  .mkt-hero__glow { animation: floatGlow 11s ease-in-out infinite; }
+  .mkt-hero__eyebrow { animation: pulseGold 3.2s ease-in-out infinite; }
+
+  /* tour cards — lift + image zoom + gold ring */
+  .tcard { transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1), box-shadow 0.35s ease, border-color 0.35s ease; }
+  .tcard:hover { transform: translateY(-9px); box-shadow: 0 28px 62px rgba(15, 81, 50, 0.18); border-color: var(--gold-2); }
+  .tcard:hover .tcard__media img { transform: scale(1.09); }
+  .tcard__heart { transition: transform 0.2s ease, background 0.2s ease; }
+  .tcard__heart:hover { transform: scale(1.15); }
+
+  /* category cards — lift + icon tilt */
+  .mkt-cat { transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1), box-shadow 0.35s ease, border-color 0.35s ease; }
+  .mkt-cat:hover { transform: translateY(-9px); box-shadow: 0 28px 58px rgba(15, 81, 50, 0.16); border-color: var(--gold-2); }
+  .mkt-cat__icon { transition: transform 0.4s cubic-bezier(0.2, 0.9, 0.3, 1); }
+  .mkt-cat:hover .mkt-cat__icon { transform: rotate(-7deg) scale(1.1); }
+  .mkt-cat:hover .mkt-cat__link { gap: 10px; }
+  .mkt-cat__link { transition: gap 0.25s ease; }
+
+  /* destination tiles — lift + deep zoom */
+  .mkt-tile { transition: transform 0.4s cubic-bezier(0.2, 0.9, 0.3, 1), box-shadow 0.4s ease; }
+  .mkt-tile:hover { transform: translateY(-7px); box-shadow: 0 26px 56px rgba(7, 38, 26, 0.3); }
+  .mkt-tile:hover img { transform: scale(1.12); }
+  .mkt-tile--solid { transition: transform 0.4s cubic-bezier(0.2, 0.9, 0.3, 1), box-shadow 0.4s ease; }
+  .mkt-tile--solid:hover { transform: translateY(-7px) scale(1.015); box-shadow: 0 26px 56px rgba(7, 38, 26, 0.28); }
+
+  /* value / quote / channel cards */
+  .mkt-vcard, .mkt-quote, .mkt-channel { transition: transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1), box-shadow 0.32s ease, border-color 0.32s ease; }
+  .mkt-vcard:hover, .mkt-quote:hover, .mkt-channel:hover { transform: translateY(-7px); box-shadow: 0 26px 56px rgba(15, 81, 50, 0.14); }
+
+  /* stats — number pop on hover */
+  .mkt-stat__num { display: inline-block; transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1); }
+  .mkt-stat:hover .mkt-stat__num { transform: scale(1.08); color: var(--gold); }
+
+  /* buttons — shine sweep + press */
+  .btn--gold, .btn--navy { position: relative; overflow: hidden; }
+  .btn--gold::after, .btn--navy::after { content: ""; position: absolute; top: 0; left: -130%; width: 55%; height: 100%; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.4), transparent); transform: skewX(-18deg); transition: left 0.55s ease; pointer-events: none; }
+  .btn--gold:hover::after, .btn--navy:hover::after { left: 135%; }
+  .btn:active { transform: translateY(0) scale(0.96); }
+
+  /* nav links — gold underline grow */
+  .mkt-nav a { position: relative; }
+  .mkt-nav a::after { content: ""; position: absolute; left: 0; bottom: -5px; height: 2px; width: 0; background: var(--gold-2); border-radius: 2px; transition: width 0.28s cubic-bezier(0.2, 0.9, 0.3, 1); }
+  .mkt-nav a:hover::after { width: 100%; }
+
+  /* section eyebrow — subtle rise */
+  .mkt-section__head .mkt-eyebrow { display: inline-block; }
+
+  /* FAQ chevron already animates; make accordion feel snappier */
+  .mkt-faq__item:hover { border-color: var(--gold-2); transform: translateY(-2px); }
+  .mkt-faq__item { transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease; }
+
+  /* role buttons (signin) */
+  .mkt-rolebtn:hover { transform: translateY(-3px); border-color: var(--gold-2); box-shadow: 0 16px 36px rgba(15, 81, 50, 0.12); }
+  .mkt-rolebtn__icon { transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1); }
+  .mkt-rolebtn:hover .mkt-rolebtn__icon { transform: scale(1.12) rotate(-5deg); }
+
+  /* auth left panel image — slow drift */
+  .mkt-auth__left img { animation: kbZoom 30s ease-in-out infinite alternate; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal { filter: none !important; transition: none !important; }
+  .mkt-hero__bg, .mkt-hero__bg img, .mkt-hero__glow, .mkt-hero__eyebrow, .mkt-auth__left img { animation: none !important; transform: none !important; }
+}

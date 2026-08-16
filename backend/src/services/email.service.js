@@ -22,14 +22,6 @@ function getTransporter() {
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT),
       secure: String(process.env.SMTP_SECURE || 'false') === 'true',
-      // Hang'lardan himoya: SMTP sekin bo'lsa cheksiz kutib qolmasin.
-      connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT || 10000),
-      greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT || 10000),
-      socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT || 20000),
-      // Ulanishni qayta ishlatish — har email uchun yangi TLS handshake (sekin) qilmaslik.
-      pool: true,
-      maxConnections: Number(process.env.SMTP_MAX_CONNECTIONS || 3),
-      maxMessages: Number(process.env.SMTP_MAX_MESSAGES || 50),
       ...(SMTP_ALLOW_INVALID_TLS ? { tls: { rejectUnauthorized: false } } : {}),
       auth: process.env.SMTP_USER
         ? {
@@ -141,46 +133,30 @@ async function sendEmailChangeCodeEmail({ email, name, code, expiresInMinutes, n
   });
 }
 
-// Email almashtirish YAKUNLANGANDA xabarnoma — eski va yangi manzilga (kodsiz)
-async function sendEmailChangedNoticeEmail({ oldEmail, newEmail }) {
+async function sendPasswordResetCodeEmail({ email, name, code, expiresInMinutes }) {
+  const WEB_URL = process.env.PUBLIC_WEB_URL || process.env.SITE_URL || 'https://travelorai.com';
+  const resetUrl = `${WEB_URL}/reset-password?email=${encodeURIComponent(email)}&code=${code}`;
   const html = `
     <div style="font-family:Arial,sans-serif;background:#f4f7f5;padding:24px;">
       <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:20px;padding:32px;border:1px solid #eaf0eb;">
         <p style="margin:0 0 8px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#1a6b3c;">${APP_NAME}</p>
-        <h1 style="margin:0 0 12px;font-size:24px;color:#122117;">Email muvaffaqiyatli o'zgartirildi ✅</h1>
-        <p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#4f6355;">
-          Agency akkauntingiz login emaili <b>${safeText(oldEmail)}</b> dan <b>${safeText(newEmail)}</b> ga almashtirildi.
-          Endi tizimga yangi email bilan kirasiz.
-        </p>
-        <p style="margin:0 0 10px;font-size:13px;line-height:1.7;color:#7c8a81;">
-          Eslatma: Google orqali kirish eski hisobdan uzildi — Google bilan kirish uchun endi yangi emailingizdagi Google akkauntdan foydalaning.
-        </p>
-        <p style="margin:0;font-size:13px;line-height:1.7;color:#7c8a81;">
-          Agar bu o'zgarishni siz qilmagan bo'lsangiz, darhol support bilan bog'laning: ${SUPPORT_EMAIL}
-        </p>
+        <h1 style="margin:0 0 12px;font-size:26px;color:#122117;">Parolni yangilash</h1>
+        <p style="margin:0 0 20px;font-size:15px;line-height:1.7;color:#4f6355;">${name || 'Salom'}, yangi parol o'rnatish uchun quyidagi tugmani bosing:</p>
+        <div style="margin:24px 0;text-align:center;">
+          <a href="${resetUrl}" style="display:inline-block;background:#1a6b3c;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 28px;border-radius:12px;">Yangi parol o'rnatish</a>
+        </div>
+        <p style="margin:0 0 6px;font-size:13px;line-height:1.6;color:#7c8a81;">Yoki mobil ilovada shu kodni kiriting:</p>
+        <div style="margin:6px 0 18px;padding:14px;border-radius:14px;background:#e7f5ec;text-align:center;font-size:28px;letter-spacing:8px;font-weight:700;color:#1a6b3c;">${code}</div>
+        <p style="margin:0 0 8px;font-size:13px;line-height:1.7;color:#7c8a81;">Havola va kod ${expiresInMinutes} daqiqa amal qiladi.</p>
+        <p style="margin:0;font-size:12px;line-height:1.6;color:#9aa79f;word-break:break-all;">Tugma ishlamasa: ${resetUrl}</p>
       </div>
     </div>
   `;
-  const text = `Agency login emailingiz ${safeText(oldEmail)} dan ${safeText(newEmail)} ga almashtirildi. Bu siz bo'lmasangiz: ${SUPPORT_EMAIL}`;
-  const results = await Promise.allSettled([
-    sendMail({ to: newEmail, subject: `${APP_NAME} — email o'zgartirildi`, html, text, logMeta: { type: 'agency_email_changed_notice', email: newEmail } }),
-    sendMail({ to: oldEmail, subject: `${APP_NAME} — email o'zgartirildi`, html, text, logMeta: { type: 'agency_email_changed_notice', email: oldEmail } }),
-  ]);
-  return results;
-}
-
-async function sendPasswordResetCodeEmail({ email, name, code, expiresInMinutes }) {
   return sendMail({
     to: email,
-    subject: `${APP_NAME} parol tiklash kodi`,
-    html: buildHtml({
-      heading: 'Parolni yangilash',
-      intro: `${name || 'Salom'}, parolni tiklash uchun quyidagi koddan foydalaning.`,
-      code,
-      expiresInMinutes,
-      footer: "Agar siz parol tiklash so'rovini yubormagan bo'lsangiz, akkauntingiz xavfsiz qoladi.",
-    }),
-    text: `Parol tiklash kodi: ${code}. Kod ${expiresInMinutes} daqiqa amal qiladi.`,
+    subject: `${APP_NAME} parol tiklash`,
+    html,
+    text: `Parolni yangilash havolasi: ${resetUrl}\nYoki mobil ilovada kod: ${code}. ${expiresInMinutes} daqiqa amal qiladi.`,
     logMeta: { type: 'password_reset', code, email },
   });
 }
@@ -198,6 +174,31 @@ async function sendAccountDeleteCodeEmail({ email, name, code, expiresInMinutes 
     }),
     text: `Hisobni o'chirish kodi: ${code}. Kod ${expiresInMinutes} daqiqa amal qiladi.`,
     logMeta: { type: 'account_delete', code, email },
+  });
+}
+
+async function sendAgencyPasswordResetLinkEmail({ email, resetUrl, expiresInMinutes }) {
+  const html = `
+    <div style="font-family:Arial,sans-serif;background:#f4f7f5;padding:24px;">
+      <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:20px;padding:32px;border:1px solid #eaf0eb;">
+        <p style="margin:0 0 8px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#1a6b3c;">${APP_NAME} — Agentlik</p>
+        <h1 style="margin:0 0 12px;font-size:26px;color:#122117;">Parolni yangilash</h1>
+        <p style="margin:0 0 20px;font-size:15px;line-height:1.7;color:#4f6355;">Agentlik hisobingiz parolini yangilash so'raldi. Yangi parol o'rnatish uchun quyidagi tugmani bosing:</p>
+        <div style="margin:26px 0;text-align:center;">
+          <a href="${resetUrl}" style="display:inline-block;background:#1a6b3c;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 28px;border-radius:12px;">Yangi parol o'rnatish</a>
+        </div>
+        <p style="margin:0 0 8px;font-size:13px;line-height:1.7;color:#7c8a81;">Havola ${expiresInMinutes} daqiqa ichida amal qiladi.</p>
+        <p style="margin:0;font-size:12px;line-height:1.6;color:#9aa79f;word-break:break-all;">Tugma ishlamasa, shu havolani brauzerga nusxalang:<br>${resetUrl}</p>
+        <p style="margin:16px 0 0;font-size:13px;line-height:1.7;color:#7c8a81;">Agar bu so'rovni siz yubormagan bo'lsangiz, ushbu xatni e'tiborsiz qoldiring — parolingiz o'zgarmaydi.</p>
+      </div>
+    </div>
+  `;
+  return sendMail({
+    to: email,
+    subject: `${APP_NAME} agentlik — parolni yangilash`,
+    html,
+    text: `Agentlik parolini yangilash havolasi: ${resetUrl}\nHavola ${expiresInMinutes} daqiqa amal qiladi.`,
+    logMeta: { type: 'agency_password_reset', email },
   });
 }
 
@@ -318,11 +319,39 @@ async function sendBookingLeadEmail({ to, agencyName, tourTitle, customerName, c
   return sendMail({ to, subject, html, text, logMeta: { type: 'booking_lead', to } });
 }
 
+async function sendEmailChangedNoticeEmail({ oldEmail, newEmail }) {
+  const html = `
+    <div style="font-family:Arial,sans-serif;background:#f4f7f5;padding:24px;">
+      <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:20px;padding:32px;border:1px solid #eaf0eb;">
+        <p style="margin:0 0 8px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#1a6b3c;">${APP_NAME}</p>
+        <h1 style="margin:0 0 12px;font-size:24px;color:#122117;">Email muvaffaqiyatli o'zgartirildi ✅</h1>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#4f6355;">
+          Agency akkauntingiz login emaili <b>${safeText(oldEmail)}</b> dan <b>${safeText(newEmail)}</b> ga almashtirildi.
+          Endi tizimga yangi email bilan kirasiz.
+        </p>
+        <p style="margin:0 0 10px;font-size:13px;line-height:1.7;color:#7c8a81;">
+          Eslatma: Google orqali kirish eski hisobdan uzildi — Google bilan kirish uchun endi yangi emailingizdagi Google akkauntdan foydalaning.
+        </p>
+        <p style="margin:0;font-size:13px;line-height:1.7;color:#7c8a81;">
+          Agar bu o'zgarishni siz qilmagan bo'lsangiz, darhol support bilan bog'laning: ${SUPPORT_EMAIL}
+        </p>
+      </div>
+    </div>
+  `;
+  const text = `Agency login emailingiz ${safeText(oldEmail)} dan ${safeText(newEmail)} ga almashtirildi. Bu siz bo'lmasangiz: ${SUPPORT_EMAIL}`;
+  const results = await Promise.allSettled([
+    sendMail({ to: newEmail, subject: `${APP_NAME} — email o'zgartirildi`, html, text, logMeta: { type: 'agency_email_changed_notice', email: newEmail } }),
+    sendMail({ to: oldEmail, subject: `${APP_NAME} — email o'zgartirildi`, html, text, logMeta: { type: 'agency_email_changed_notice', email: oldEmail } }),
+  ]);
+  return results;
+}
+
 module.exports = {
+  sendEmailChangedNoticeEmail,
   sendVerificationCodeEmail,
   sendEmailChangeCodeEmail,
-  sendEmailChangedNoticeEmail,
   sendPasswordResetCodeEmail,
+  sendAgencyPasswordResetLinkEmail,
   sendAccountDeleteCodeEmail,
   sendSupportFeedbackEmail,
   sendBookingLeadEmail,

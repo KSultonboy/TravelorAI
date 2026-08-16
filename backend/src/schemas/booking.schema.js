@@ -11,6 +11,11 @@ const createBookingSchema = z
     travelDate: z.string().trim().optional().or(z.literal('')),
     message: z.string().trim().max(1200).optional().or(z.literal('')),
     source: z.string().trim().max(60).optional().default('mobile'),
+    // Lid manbasi — reklama havolasidan keladi, mijoz kiritmaydi
+    utmSource: z.string().trim().max(80).optional().or(z.literal('')),
+    utmMedium: z.string().trim().max(80).optional().or(z.literal('')),
+    utmCampaign: z.string().trim().max(120).optional().or(z.literal('')),
+    referrer: z.string().trim().max(300).optional().or(z.literal('')),
   })
   .refine((value) => value.tourId || value.tourSlug, {
     message: 'tourId yoki tourSlug talab qilinadi',

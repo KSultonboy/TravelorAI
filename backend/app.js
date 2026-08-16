@@ -307,6 +307,15 @@ app.get(['/privacy-policy', '/privacy'], (req, res) => {
   res.status(200).send(renderPrivacyPolicyPage(baseUrl));
 });
 
+// CLICK to'lov callback'lari — rateLimiter'DAN OLDIN va o'z body-parser'i bilan.
+// CLICK `application/x-www-form-urlencoded` yuboradi (global parser faqat JSON),
+// hamda to'lov tasdig'i so'rov limitiga urilib qolmasligi kerak.
+app.use(
+  '/api/v1/payments/click',
+  express.urlencoded({ extended: false }),
+  require('./src/routes/clickPublic.routes')
+);
+
 app.use('/api/v1', rateLimiter, routes);
 
 app.use((err, req, res, next) => {

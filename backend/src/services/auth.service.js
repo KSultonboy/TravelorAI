@@ -1,7 +1,6 @@
 const crypto = require('crypto');
 const axios = require('axios');
 const { prisma } = require('../config/database');
-const { logger } = require('../config/logger');
 const {
   sendAccountDeleteCodeEmail,
   sendEmailChangeCodeEmail,
@@ -41,7 +40,6 @@ function buildPublicUser(user) {
     email: user.email,
     emailVerified: user.emailVerified,
     authProvider: user.authProvider === AuthProvider.GOOGLE ? 'google' : 'local',
-    role: user.role || 'traveler',
   };
 }
 
@@ -78,33 +76,20 @@ async function issueAuthCode({ user, type, newEmail }) {
     code,
     expiresInMinutes: ttlMinutes,
   };
-
-  let sendFn;
+  let emailResult;
   if (type === AuthCodeType.EMAIL_VERIFICATION) {
-    sendFn = () => sendVerificationCodeEmail(mailPayload);
+    emailResult = await sendVerificationCodeEmail(mailPayload);
   } else if (type === AuthCodeType.EMAIL_CHANGE) {
-    sendFn = () => sendEmailChangeCodeEmail({ ...mailPayload, newEmail });
+    emailResult = await sendEmailChangeCodeEmail({ ...mailPayload, newEmail });
   } else if (type === AuthCodeType.ACCOUNT_DELETE) {
-    sendFn = () => sendAccountDeleteCodeEmail(mailPayload);
+    emailResult = await sendAccountDeleteCodeEmail(mailPayload);
   } else {
-    sendFn = () => sendPasswordResetCodeEmail(mailPayload);
+    emailResult = await sendPasswordResetCodeEmail(mailPayload);
   }
 
-  // Emailni BLOKLAMASDAN (fire-and-forget) yuboramiz: Gmail SMTP 2-13s olishi mumkin,
-  // shuning uchun javobni kutdirib qo'ymaymiz. Kod allaqachon bazaga yozilgan —
-  // foydalanuvchi email kelganda kiritadi. Xato bo'lsa logga yozamiz.
-  Promise.resolve()
-    .then(sendFn)
-    .catch((err) =>
-      logger.error('Auth email send failed (async)', { type, email: user.email, message: err.message })
-    );
-
-  // SMTP sozlangan bo'lsa 'smtp', aks holda 'log' (dev'da devCode qaytaramiz).
-  const willSendEmail = Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT);
   return {
-    delivery: willSendEmail ? 'smtp' : 'log',
+    ...emailResult,
     expiresInMinutes: ttlMinutes,
-    ...(process.env.NODE_ENV !== 'production' && !willSendEmail ? { devCode: code } : {}),
   };
 }
 

@@ -1,0 +1,933 @@
+/* Dinamik taklif sahifasi (/p/[token]) — mijozga yuboriladigan shaxsiy sayohat taklifi.
+   MUHIM: brend tokenlari marketing.scss'да `.mkt` ichida e'lon qilingan, `:root`да EMAS.
+   Bu sahifa `.mkt` ishlatmaydi — shuning uchun tokenlar shu yerda MUSTAQIL belgilanadi.
+   Aks holda barcha var() bo'sh qaytadi va sahifa stilsiz ko'rinadi. */
+
+.pres,
+.pres-missing {
+  /* Zumrad — brend asosi */
+  --em-900: #052e20;
+  --em-800: #0b3d2a;
+  --em-700: #0f5132;
+  --em-600: #147348;
+  --em-500: #1d9160;
+  --em-050: #e8f4ed;
+
+  /* Tilla — FAQAT bitta harakat uchun (qiziqish tugmasi) */
+  --gold-600: #a06c07;
+  --gold-500: #d9a108;
+  --gold-400: #eab308;
+  --gold-050: #fdf6e3;
+  --gold-line: #f0dfae;
+
+  /* Matn va yuzalar — kontrast tekshirilgan (barchasi ≥4.5:1) */
+  --ink: #10201a;      /* ~15:1 oq fonda */
+  --ink-2: #33473d;    /* ~9:1 */
+  --muted: #5c6f66;    /* ~5.1:1 — eng och matn shu, undan ochrogi yo'q */
+  --line: #e2eae5;
+  --surface: #ffffff;
+  --canvas: #f4f8f5;
+
+  --shadow-sm: 0 2px 10px rgba(5, 46, 32, 0.06);
+  --shadow-md: 0 14px 36px rgba(5, 46, 32, 0.1);
+  --shadow-lg: 0 30px 70px rgba(5, 46, 32, 0.18);
+
+  --r: 16px;
+  --r-lg: 26px;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --z-sticky: 40;
+
+  --pad: clamp(20px, 5vw, 34px);
+}
+
+.pres {
+  min-height: 100vh;
+  background: var(--canvas);
+  color: var(--ink);
+  padding-bottom: 120px; /* mobil sticky panel uchun joy */
+  overflow-x: hidden;
+}
+
+.pres-wrap {
+  width: min(940px, calc(100% - 40px));
+  margin-inline: auto;
+}
+
+/* ============ HERO ============ */
+.pres-hero {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: flex-end;
+  color: #fff;
+  /* Rasm bo'lmasa ham "bo'sh quti" ko'rinmasin: boy zumrad drenaj + tilla nur */
+  background:
+    radial-gradient(118% 88% at 80% 8%, rgba(234, 179, 8, 0.22), transparent 60%),
+    radial-gradient(92% 74% at 8% 96%, rgba(29, 145, 96, 0.4), transparent 62%),
+    linear-gradient(158deg, var(--em-800) 0%, var(--em-900) 100%);
+}
+
+/* Nozik diagonal tekstura — yassi rang emas, "ishlangan" yuza */
+.pres-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: repeating-linear-gradient(
+    118deg,
+    rgba(255, 255, 255, 0.045) 0 1px,
+    transparent 1px 9px
+  );
+  mask-image: radial-gradient(80% 70% at 70% 20%, #000 20%, transparent 78%);
+}
+
+.pres-hero__photo {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Rasm ustidagi scrim — matn har qanday fotoda o'qiladi */
+.pres-hero--photo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    180deg,
+    rgba(5, 46, 32, 0.32) 0%,
+    rgba(5, 46, 32, 0.62) 46%,
+    rgba(5, 46, 32, 0.92) 100%
+  );
+}
+
+.pres-hero--photo {
+  min-height: clamp(340px, 52vw, 470px);
+}
+
+/* Rasmsiz holat QISQAROQ — baland bo'sh maydon "rasm yuklanmadi" degan taassurot beradi */
+.pres-hero--plain {
+  min-height: 0;
+}
+
+.pres-hero__inner {
+  position: relative;
+  padding-block: clamp(28px, 6vw, 52px) clamp(30px, 5vw, 44px);
+}
+
+/* Agentlik nishoni — logotip matn ustiga chiqib ketmasligi uchun qat'iy flex */
+.pres-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  padding: 6px 16px 6px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  max-width: 100%;
+}
+
+.pres-brand__logo,
+.pres-brand__fallback {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+
+.pres-brand__logo {
+  object-fit: cover;
+  display: block;
+}
+
+.pres-brand__fallback {
+  display: grid;
+  place-items: center;
+  background: var(--gold-400);
+  color: var(--em-900);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.pres-brand__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pres-greeting {
+  margin: clamp(18px, 4vw, 26px) 0 8px;
+  font-size: clamp(15px, 2.2vw, 17px);
+  font-weight: 600;
+  color: var(--gold-400);
+}
+
+.pres-title {
+  margin: 0;
+  font-size: clamp(30px, 6.4vw, 60px);
+  line-height: 1.06;
+  font-weight: 800;
+  letter-spacing: -0.032em;
+  text-wrap: balance;
+  max-width: 16ch;
+}
+
+.pres-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: clamp(16px, 3vw, 22px);
+  font-size: 14px;
+  font-weight: 500;
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+  }
+
+  svg {
+    opacity: 0.85;
+  }
+}
+
+/* ============ NARX PANELI — hero ustiga chiqadi ============ */
+.pres-deal {
+  position: relative;
+  z-index: 2;
+  margin-top: clamp(-40px, -5vw, -28px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: var(--pad);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.pres-deal__label {
+  font-size: 13.5px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.pres-deal__value {
+  font-size: clamp(28px, 5vw, 40px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--em-700);
+}
+
+/* ============ ALOQA TUGMALARI ============ */
+.pres-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.pres-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 13px 22px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease), background-color 0.2s;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  &--call {
+    background: var(--em-700);
+    border-color: var(--em-700);
+    color: #fff;
+
+    &:hover {
+      background: var(--em-600);
+    }
+  }
+
+  &--tg {
+    background: #1c93cc;
+    border-color: #1c93cc;
+    color: #fff;
+  }
+
+  &--wa {
+    background: #17ab4e;
+    border-color: #17ab4e;
+    color: #fff;
+  }
+}
+
+/* Quyuq fonda (yakuniy CTA) — kontur uslub */
+.pres-cta .pres-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.32);
+  color: #fff;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.18);
+  }
+}
+
+/* ============ AGENT IZOHI — sahifaning yuragi ============ */
+.pres-note {
+  margin-top: clamp(26px, 5vw, 40px);
+  padding: var(--pad);
+  background: var(--gold-050);
+  border: 1px solid var(--gold-line);
+  border-radius: var(--r-lg);
+}
+
+.pres-note__quote {
+  display: block;
+  font-size: 46px;
+  line-height: 0.7;
+  font-weight: 800;
+  color: var(--gold-500);
+  margin-bottom: 10px;
+}
+
+.pres-note__text {
+  margin: 0;
+  font-size: clamp(16px, 2.4vw, 18.5px);
+  line-height: 1.62;
+  color: #3a2f10;
+  white-space: pre-wrap;
+  text-wrap: pretty;
+  max-width: 64ch;
+}
+
+.pres-note__by {
+  display: block;
+  margin-top: 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--gold-600);
+}
+
+/* ============ BO'LIMLAR — karta emas, tipografik ritm ============ */
+.pres-section {
+  margin-top: clamp(34px, 6vw, 56px);
+  padding-top: clamp(26px, 4vw, 36px);
+  border-top: 1px solid var(--line);
+
+  h2 {
+    margin: 0 0 clamp(14px, 2.5vw, 20px);
+    font-size: clamp(19px, 3vw, 24px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  > p {
+    margin: 0;
+    font-size: clamp(15.5px, 2.2vw, 17px);
+    line-height: 1.68;
+    color: var(--ink-2);
+    max-width: 68ch;
+    text-wrap: pretty;
+  }
+}
+
+/* Xususiyatlar — katta-kichik kontrast, tracked-caps yorliqsiz */
+.pres-specs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: clamp(16px, 3vw, 26px);
+  margin: 0;
+}
+
+.pres-spec {
+  dt {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+
+  dd {
+    margin: 0;
+    font-size: clamp(16px, 2.3vw, 18px);
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+}
+
+/* Ustunliklar */
+.pres-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 16px;
+    border-radius: 999px;
+    background: var(--em-050);
+    color: var(--em-700);
+    font-size: 14.5px;
+    font-weight: 600;
+  }
+
+  svg {
+    color: var(--em-500);
+  }
+}
+
+/* Galereya — mobilda barmoq bilan suriladi, kengroq ekranda to'r */
+.pres-gallery {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(230px, 76%);
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 6px;
+  scrollbar-width: thin;
+
+  figure {
+    margin: 0;
+    scroll-snap-align: start;
+    border-radius: var(--r);
+    overflow: hidden;
+    background: var(--em-050);
+    aspect-ratio: 4 / 3;
+  }
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+@media (min-width: 760px) {
+  .pres-gallery {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    overflow: visible;
+  }
+}
+
+/* Xarita — Google embed (API kalit kerak emas, matn manzilni o'zi topadi) */
+.pres-section .pres-map__addr {
+  margin: 0 0 14px;
+  font-size: clamp(15px, 2.2vw, 16.5px);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pres-map {
+  border-radius: var(--r);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--em-050);
+  aspect-ratio: 16 / 10;
+
+  iframe {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+}
+
+.pres-map__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 14px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--em-600);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+/* Marshrut xaritasi (Leaflet) — nuqtalar + ularni bog'lovchi uzuq chiziq.
+   `isolation` MUHIM: Leaflet ichkarida z-index 1000 gacha ishlatadi, u yopishqoq
+   pastki panel ustiga chiqib ketmasligi uchun alohida stacking kontekst yaratamiz. */
+.pres-route__map {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  height: clamp(300px, 46vw, 440px);
+  border-radius: var(--r);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--em-050);
+
+  &--sm {
+    height: clamp(190px, 34vw, 260px);
+  }
+
+  .leaflet-container {
+    font: inherit;
+    background: var(--em-050);
+  }
+
+  .leaflet-popup-content-wrapper {
+    border-radius: 12px;
+  }
+
+  .leaflet-popup-content {
+    margin: 10px 14px;
+    font-size: 14px;
+  }
+}
+
+.route-pin {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--em-700);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  border: 2.5px solid #fff;
+  box-shadow: 0 3px 10px rgba(5, 46, 32, 0.35);
+
+  &--end {
+    background: var(--gold-500);
+    color: #241a02;
+  }
+}
+
+/* Nuqtalar ro'yxati — xarita yuklanmasa ham marshrut o'qiladi */
+.pres-route__list {
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px 8px;
+
+  li {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 15px 7px 7px;
+    border-radius: 999px;
+    background: var(--em-050);
+    color: var(--em-700);
+    font-size: 14.5px;
+    font-weight: 600;
+  }
+}
+
+.pres-route__num {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--em-700);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Kun bo'yicha reja — har bir kun alohida karta, o'z mini-xaritasi bilan.
+   Bu yerda karta O'RINLI: har kun mustaqil birlik (matn + xarita + joylar). */
+.pres-days {
+  display: grid;
+  gap: 14px;
+}
+
+.pres-daycard {
+  padding: clamp(16px, 3vw, 22px);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+
+  &__head {
+    display: flex;
+    align-items: flex-start;
+    gap: 13px;
+
+    p {
+      margin: 0;
+      padding-top: 4px;
+      font-size: clamp(15.5px, 2.2vw, 16.5px);
+      line-height: 1.55;
+      color: var(--ink-2);
+      text-wrap: pretty;
+    }
+  }
+
+  &__num {
+    flex: 0 0 auto;
+    display: inline-grid;
+    place-items: center;
+    min-width: 66px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: var(--em-700);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .pres-route__map {
+    margin-top: 14px;
+  }
+
+  &__places {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 12px;
+
+    span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 13px;
+      border-radius: 999px;
+      background: var(--em-050);
+      color: var(--em-700);
+      font-size: 13.5px;
+      font-weight: 600;
+    }
+
+    svg {
+      color: var(--em-500);
+    }
+  }
+}
+
+/* Kiritilgan / kiritilmagan */
+.pres-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 2px 24px;
+
+  li {
+    display: flex;
+    gap: 11px;
+    align-items: flex-start;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 15.5px;
+    line-height: 1.5;
+    color: var(--ink-2);
+  }
+
+  svg {
+    flex: 0 0 auto;
+    margin-top: 3px;
+  }
+
+  &--yes svg {
+    color: var(--em-500);
+  }
+
+  &--no {
+    li {
+      color: var(--muted);
+    }
+
+    svg {
+      color: #b9c6bf;
+    }
+  }
+}
+
+/* ============ YAKUNIY CTA ============ */
+.pres-cta {
+  margin-top: clamp(38px, 7vw, 64px);
+  padding: clamp(32px, 6vw, 56px) var(--pad);
+  border-radius: var(--r-lg);
+  text-align: center;
+  color: #fff;
+  background:
+    radial-gradient(100% 120% at 50% 0%, rgba(29, 145, 96, 0.42), transparent 66%),
+    linear-gradient(158deg, var(--em-800), var(--em-900));
+
+  h2 {
+    margin: 0 0 10px;
+    font-size: clamp(22px, 4vw, 32px);
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+  }
+
+  p {
+    margin: 0 auto clamp(22px, 4vw, 30px);
+    max-width: 46ch;
+    font-size: clamp(15px, 2.2vw, 17px);
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  .pres-actions {
+    justify-content: center;
+    margin-top: 18px;
+  }
+}
+
+/* ============ QIZIQISH TUGMASI — sahifadagi YAGONA tilla element ============ */
+.pres-interest {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 32px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: clamp(15px, 2.3vw, 17px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  color: #241a02;
+  background: linear-gradient(135deg, var(--gold-400), var(--gold-500));
+  box-shadow: 0 10px 30px rgba(202, 138, 4, 0.34);
+  transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease);
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 40px rgba(202, 138, 4, 0.44);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    opacity: 0.75;
+    cursor: default;
+  }
+
+  &--done {
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: none;
+    color: #fff;
+    cursor: default;
+  }
+}
+
+.pres-spin {
+  animation: pres-rotate 0.85s linear infinite;
+}
+
+/* ============ MOBIL STICKY PANEL ============ */
+.pres-sticky {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -8px 28px rgba(5, 46, 32, 0.12);
+  transform: translateY(120%);
+  transition: transform 0.45s var(--ease);
+
+  &.is-on {
+    transform: none;
+  }
+
+  .pres-interest {
+    flex: 1;
+    padding: 14px 18px;
+    box-shadow: none;
+  }
+
+  .pres-btn {
+    flex: 0 0 auto;
+    padding: 14px 18px;
+  }
+}
+
+@media (min-width: 900px) {
+  .pres-sticky {
+    display: none;
+  }
+}
+
+/* ============ FOOTER ============ */
+.pres-foot {
+  margin-top: clamp(28px, 5vw, 40px);
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--muted);
+
+  a {
+    color: var(--em-600);
+    font-weight: 600;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+/* ============ TOPILMADI ============ */
+.pres-missing {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  text-align: center;
+  background: var(--canvas);
+  color: var(--ink);
+
+  h1 {
+    margin: 0 0 10px;
+    font-size: clamp(22px, 4vw, 28px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  p {
+    margin: 0;
+    max-width: 44ch;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+}
+
+/* ============ MOTION — sukut holat KO'RINADIGAN, animatsiya faqat qo'shimcha ============ */
+@keyframes pres-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+
+@keyframes pres-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.pres-hero__inner > * {
+  animation: pres-rise 0.75s var(--ease) both;
+}
+
+.pres-brand {
+  animation-delay: 0.02s;
+}
+
+.pres-greeting {
+  animation-delay: 0.09s;
+}
+
+.pres-title {
+  animation-delay: 0.15s;
+}
+
+.pres-meta {
+  animation-delay: 0.22s;
+}
+
+.pres-deal {
+  animation: pres-rise 0.75s var(--ease) 0.3s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pres-hero__inner > *,
+  .pres-deal {
+    animation: none;
+  }
+
+  .pres-sticky,
+  .pres-btn,
+  .pres-interest {
+    transition: none;
+  }
+
+  .pres-spin {
+    animation: none;
+  }
+}
+
+/* ============ MOBIL ============ */
+@media (max-width: 620px) {
+  .pres-wrap {
+    width: calc(100% - 32px);
+  }
+
+  .pres-deal {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: left;
+  }
+
+  .pres-deal .pres-actions {
+    width: 100%;
+
+    .pres-btn {
+      flex: 1 1 auto;
+    }
+  }
+
+  .pres-title {
+    max-width: none;
+  }
+
+  .pres-map {
+    aspect-ratio: 4 / 3;
+  }
+
+  .pres-daycard__head {
+    flex-direction: column;
+    gap: 9px;
+
+    p {
+      padding-top: 0;
+    }
+  }
+}

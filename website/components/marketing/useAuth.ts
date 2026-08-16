@@ -25,7 +25,8 @@ export function useAuth() {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch("/api/backend/auth/me", { cache: "no-store" });
+      // /auth/session: public probe — guests get 200 {user:null} (no console 401).
+      const res = await fetch("/api/backend/auth/session", { cache: "no-store" });
       if (!res.ok) {
         setState({ user: null, loading: false });
         return;

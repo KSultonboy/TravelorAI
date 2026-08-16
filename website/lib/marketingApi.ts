@@ -86,6 +86,69 @@ export async function fetchTour(idOrSlug: string): Promise<Tour | null> {
   return tours.find((t) => t.slug === idOrSlug || t.id === idOrSlug) || null;
 }
 
+/* ===== Tariflar (ommaviy) — /pricing sahifasi uchun. Narxlar so'mda. ===== */
+export type PublicTariff = {
+  slug: string;
+  name: string;
+  priceMonthly: number;
+  priceMonthlyUzs: number;
+  features: string[];
+  sortOrder: number;
+};
+
+export async function fetchTariffs(): Promise<PublicTariff[]> {
+  const json = await getJson("/tariffs");
+  const items = json?.data;
+  return Array.isArray(items) ? (items as PublicTariff[]) : [];
+}
+
+/* ===== Dinamik taklif (prezentatsiya) — agent mijozga yuboradigan shaxsiy sahifa ===== */
+
+export type PresentationTour = {
+  title: string;
+  city?: string | null;
+  subtitle?: string | null;
+  description?: string | null;
+  duration?: string | null;
+  price?: string | null;
+  imageUrl?: string | null;
+  images?: string[] | null;
+  mapAddress?: string | null;
+  routeStops?: unknown;
+  highlights?: string[] | null;
+  itinerary?: unknown;
+  nights?: number | null;
+  hotelName?: string | null;
+  hotelCategory?: string | null;
+  mealPlanLabel?: string | null;
+  priceIncludes?: string[] | null;
+  priceExcludes?: string[] | null;
+  destinationCountry?: string | null;
+};
+
+export type Presentation = {
+  title: string;
+  customerName?: string | null;
+  priceText?: string | null;
+  note?: string | null;
+  interested: boolean;
+  createdAt: string;
+  agency: {
+    name: string;
+    city?: string | null;
+    phone?: string | null;
+    telegram?: string | null;
+    imageUrl?: string | null;
+    slug?: string | null;
+  } | null;
+  tour: PresentationTour | null;
+};
+
+export async function fetchPresentation(token: string): Promise<Presentation | null> {
+  const json = await getJson(`/p/${encodeURIComponent(token)}`);
+  return json?.data || null;
+}
+
 export async function fetchHeroImage(): Promise<string | null> {
   const json = await getJson(`/home/hero-slides?limit=6`);
   const items = json?.data?.items;
