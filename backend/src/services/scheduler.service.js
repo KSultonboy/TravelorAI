@@ -181,11 +181,11 @@ async function runInstagramTokenRefresh() {
       continue;
     }
     try {
-      const r = await ig.refreshLongLived(a.instagramToken);
+      const r = await ig.refreshLongLived(ig.decryptToken(a.instagramToken));
       await prisma.tourAgency.update({
         where: { id: a.id },
         data: {
-          instagramToken: r.accessToken,
+          instagramToken: ig.encryptToken(r.accessToken),
           instagramTokenExpiresAt: r.expiresIn ? new Date(Date.now() + r.expiresIn * 1000) : null,
         },
       });

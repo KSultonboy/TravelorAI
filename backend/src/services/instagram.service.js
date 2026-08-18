@@ -17,10 +17,38 @@ const GRAPH_VERSION = 'v23.0';
 const APP_ID = () => process.env.INSTAGRAM_APP_ID || '';
 const APP_SECRET = () => process.env.INSTAGRAM_APP_SECRET || '';
 const VERIFY_TOKEN = () => process.env.INSTAGRAM_VERIFY_TOKEN || '';
+const TOKEN_KEY = () => process.env.INSTAGRAM_TOKEN_ENCRYPTION_KEY || '';
 
 /** Sozlangan bo'lsagina UI «Ulash» tugmasini ko'rsatadi. */
 function isConfigured() {
-  return Boolean(APP_ID() && APP_SECRET());
+  return Boolean(APP_ID() && APP_SECRET() && VERIFY_TOKEN() && TOKEN_KEY());
+}
+
+function tokenKey() {
+  const raw = TOKEN_KEY();
+  if (/^[a-f0-9]{64}$/i.test(raw)) return Buffer.from(raw, 'hex');
+  const decoded = Buffer.from(raw, 'base64');
+  if (decoded.length !== 32) throw new Error('INSTAGRAM_TOKEN_ENCRYPTION_KEY 32 baytli base64 yoki 64 belgili hex bo‘lishi kerak');
+  return decoded;
+}
+
+/** Access token DB'da faqat AES-256-GCM ko'rinishida saqlanadi. */
+function encryptToken(token) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', tokenKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(String(token), 'utf8'), cipher.final()]);
+  return ['enc:v1', iv.toString('base64url'), cipher.getAuthTag().toString('base64url'), encrypted.toString('base64url')].join('.');
+}
+
+function decryptToken(value) {
+  const raw = String(value || '');
+  // Oldin ulangan akkaunt bo'lsa bir marta o'qib, keyingi refreshda shifrlanadi.
+  if (!raw.startsWith('enc:v1.')) return raw;
+  const [, ivRaw, tagRaw, encryptedRaw] = raw.split('.');
+  if (!ivRaw || !tagRaw || !encryptedRaw) throw new Error('Instagram token formati yaroqsiz');
+  const decipher = crypto.createDecipheriv('aes-256-gcm', tokenKey(), Buffer.from(ivRaw, 'base64url'));
+  decipher.setAuthTag(Buffer.from(tagRaw, 'base64url'));
+  return Buffer.concat([decipher.update(Buffer.from(encryptedRaw, 'base64url')), decipher.final()]).toString('utf8');
 }
 
 /** OAuth'dan keyin Meta shu manzilga qaytaradi — Meta konsolida AYNAN shu yozilishi kerak. */
@@ -60,23 +88,30 @@ function authorizeUrl(state) {
   return `https://www.instagram.com/oauth/authorize?${params.toString()}`;
 }
 
-/** state = "<agencyId>.<hmac>" — o'zgartirilgan bo'lsa null qaytadi. */
+/** State 10 daqiqa yashaydi; HMAC CSRF va agencyId almashtirishdan himoya qiladi. */
 function signState(agencyId) {
-  const mac = crypto.createHmac('sha256', APP_SECRET()).update(String(agencyId)).digest('hex').slice(0, 32);
-  return `${agencyId}.${mac}`;
+  const body = Buffer.from(JSON.stringify({ agencyId: String(agencyId), exp: Date.now() + 10 * 60 * 1000, nonce: crypto.randomBytes(12).toString('hex') })).toString('base64url');
+  const mac = crypto.createHmac('sha256', APP_SECRET()).update(body).digest('base64url');
+  return `${body}.${mac}`;
 }
 
 function verifyState(state) {
   const raw = String(state || '');
   const dot = raw.lastIndexOf('.');
   if (dot < 1) return null;
-  const agencyId = raw.slice(0, dot);
+  const body = raw.slice(0, dot);
   const given = raw.slice(dot + 1);
-  const expected = crypto.createHmac('sha256', APP_SECRET()).update(agencyId).digest('hex').slice(0, 32);
+  const expected = crypto.createHmac('sha256', APP_SECRET()).update(body).digest('base64url');
   // timingSafeEqual faqat teng uzunlikda ishlaydi — avval uzunlikni tekshiramiz.
   if (given.length !== expected.length) return null;
   if (!crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected))) return null;
-  return agencyId;
+  try {
+    const parsed = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+    if (!parsed.agencyId || !parsed.exp || Date.now() > Number(parsed.exp)) return null;
+    return String(parsed.agencyId);
+  } catch {
+    return null;
+  }
 }
 
 /** code → qisqa muddatli token (1 soat) + IG user id. */
@@ -222,4 +257,6 @@ module.exports = {
   sendMessage,
   verifyChallenge,
   verifySignature,
+  encryptToken,
+  decryptToken,
 };

@@ -804,6 +804,7 @@ model TelegramMessage {
   direction String
   text      String
   fromName  String?
+  externalId String?  @unique // Meta message id — webhook retry deduplikatsiyasi
   createdAt DateTime @default(now())
 
   @@index([agencyId])

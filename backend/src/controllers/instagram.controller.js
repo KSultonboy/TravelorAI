@@ -134,7 +134,7 @@ async function callback(req, res) {
         instagramUserId: me.userId || short.userId,
         instagramAppScopedId: me.appScopedId || null,
         instagramUsername: me.username || null,
-        instagramToken: long.accessToken,
+        instagramToken: ig.encryptToken(long.accessToken),
         instagramTokenExpiresAt: long.expiresIn ? new Date(Date.now() + long.expiresIn * 1000) : null,
         instagramActive: true,
       },
@@ -159,10 +159,16 @@ function webhookVerify(req, res) {
 
 async function handleMessage(agency, event) {
   const senderId = String((event.sender && event.sender.id) || '');
-  const text = String((event.message && event.message.text) || '').slice(0, 4000);
+  const externalId = String((event.message && event.message.mid) || '');
+  const text = String((event.message && event.message.text) || (event.message && event.message.attachments && '[Media fayl]') || '').slice(0, 4000);
   if (!senderId || !text) return;
+  if (externalId) {
+    const duplicate = await prisma.telegramMessage.findUnique({ where: { externalId } });
+    if (duplicate) return;
+  }
 
-  const profile = await ig.getSenderProfile(agency.instagramToken, senderId);
+  const accessToken = ig.decryptToken(agency.instagramToken);
+  const profile = await ig.getSenderProfile(accessToken, senderId);
   const uname = profile.username ? `@${profile.username}` : null;
   const displayName = profile.name || profile.username || 'Instagram mijoz';
 
@@ -198,6 +204,7 @@ async function handleMessage(agency, event) {
       direction: 'in',
       text,
       fromName: uname || displayName,
+      externalId: externalId || null,
     },
   });
 
@@ -205,11 +212,11 @@ async function handleMessage(agency, event) {
   // birinchi xabar doim oyna ichida bo'ladi, shuning uchun bu xavfsiz.
   if (isNew && agency.instagramWelcome) {
     try {
-      await ig.sendMessage(agency.instagramToken, agency.instagramUserId, senderId, agency.instagramWelcome);
+      const sent = await ig.sendMessage(accessToken, agency.instagramUserId, senderId, agency.instagramWelcome);
       await prisma.telegramMessage.create({
         data: {
           agencyId: agency.id, bookingId: booking.id, channel: 'instagram',
-          direction: 'out', text: agency.instagramWelcome, fromName: 'Avto',
+          direction: 'out', text: agency.instagramWelcome, fromName: 'Avto', externalId: sent.message_id || null,
         },
       });
     } catch { /* yuborilmasa ham lid saqlanib qoladi */ }
@@ -291,7 +298,7 @@ async function sendReply(agency, booking, text) {
     throw new Error('Instagram ulanmagan');
   }
   try {
-    await ig.sendMessage(agency.instagramToken, agency.instagramUserId, booking.instagramUserId, text);
+    return await ig.sendMessage(ig.decryptToken(agency.instagramToken), agency.instagramUserId, booking.instagramUserId, text);
   } catch (err) {
     const m = String(err.message || '');
     if (/24|window|outside|allowed window/i.test(m)) {

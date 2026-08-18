@@ -174,6 +174,7 @@ async function reply(req, res) {
     if (!booking) return error(res, 'Lid topilmadi', 404);
 
     let channel;
+    let externalId = null;
     if (booking.telegramChatId) {
       if (!agency.telegramBotToken || !agency.telegramBotActive) return error(res, 'Telegram bot ulanmagan', 400);
       await tg.sendMessage(agency.telegramBotToken, booking.telegramChatId, text);
@@ -181,14 +182,15 @@ async function reply(req, res) {
     } else if (booking.instagramUserId) {
       // Instagram'ning 24 soatlik oynasi shu yerda tekshiriladi va xato
       // agentga tushunarli o'zbekcha matn bilan qaytadi.
-      await instagram.sendReply(agency, booking, text);
+      const sent = await instagram.sendReply(agency, booking, text);
+      externalId = sent && sent.message_id ? String(sent.message_id) : null;
       channel = 'instagram';
     } else {
       return error(res, 'Bu lidda yozishma kanali yoq', 400);
     }
 
     const message = await prisma.telegramMessage.create({
-      data: { agencyId: agency.id, bookingId, channel, direction: 'out', text, fromName: 'Agent' },
+      data: { agencyId: agency.id, bookingId, channel, direction: 'out', text, fromName: 'Agent', externalId },
     });
     return success(res, { message });
   } catch (err) {

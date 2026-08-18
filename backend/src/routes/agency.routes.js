@@ -96,8 +96,8 @@ router.post('/telegram/broadcast', blockWhenReadOnly, requireCapability('broadca
 // ketadi: u kanalni lidning o'zidan aniqlaydi.
 router.use('/instagram', requireCapability('telegram'));
 router.get('/instagram', instagram.getInstagram);
-router.get('/instagram/authorize', instagram.authorize);
-router.post('/instagram/disconnect', blockWhenReadOnly, instagram.disconnectInstagram);
+router.get('/instagram/authorize', requireOwner, instagram.authorize);
+router.post('/instagram/disconnect', blockWhenReadOnly, requireOwner, instagram.disconnectInstagram);
 router.put('/instagram/welcome', blockWhenReadOnly, instagram.setWelcome);
 
 // Jamoa (Business tarif) — ko'rish hammaga, boshqarish faqat egasiga (controller ichida tekshiriladi).
