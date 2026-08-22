@@ -13,6 +13,7 @@ const leadFiles = require('../controllers/leadFiles.controller');
 const clickPay = require('../controllers/clickPayment.controller');
 const crm = require('../controllers/agencyCrm.controller');
 const finance = require('../controllers/agencyFinance.controller');
+const reconciliation = require('../controllers/agencyReconciliation.controller');
 const documents = require('../controllers/agencyDocuments.controller');
 const { agencyAuditMiddleware } = require('../middleware/agencyAudit.middleware');
 
@@ -86,6 +87,12 @@ router.get('/crm/audit', requireOwner, crm.listAudit);
 // Operatsion moliya: kassa/bank, kirim-chiqim, qarzdorlik va bitim foydasi.
 router.get('/crm/finance', finance.listFinance);
 router.get('/crm/finance/exchange-rates', finance.listExchangeRates);
+router.get('/crm/finance/reconciliation', reconciliation.list);
+router.post('/crm/finance/reconciliation/inspect', blockWhenReadOnly, reconciliation.inspect);
+router.post('/crm/finance/reconciliation/import', blockWhenReadOnly, reconciliation.importStatement);
+router.post('/crm/finance/reconciliation/rows/:id/match', blockWhenReadOnly, reconciliation.match);
+router.post('/crm/finance/reconciliation/rows/:id/create', blockWhenReadOnly, reconciliation.createFromRow);
+router.patch('/crm/finance/reconciliation/rows/:id/ignore', blockWhenReadOnly, reconciliation.ignore);
 router.post('/crm/finance/accounts', blockWhenReadOnly, finance.createAccount);
 router.post('/crm/finance/suppliers', blockWhenReadOnly, finance.createSupplier);
 router.patch('/crm/finance/suppliers/:id', blockWhenReadOnly, finance.updateSupplier);

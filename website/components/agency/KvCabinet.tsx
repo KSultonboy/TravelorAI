@@ -2206,6 +2206,15 @@ type ExchangeRatePayload = {
   source: string; baseCurrency: "UZS"; effectiveDate: string; fetchedAt: string; cached: boolean; stale?: boolean;
   rates: { code: string; name: string; nominal: number; rate: number; unitRateUzs: number; difference: number }[];
 };
+type BankTransactionBrief = { id: string; direction: "income" | "expense"; amount: number; currency: string; category: string; counterparty?: string; status: string; dueAt?: string; paidAt?: string };
+type BankStatementImport = { id: string; fileName: string; currency: string; status: string; totalRows: number; suggestedRows: number; matchedRows: number; ignoredRows: number; createdAt: string; account?: { id: string; name: string; currency: string } | null };
+type BankStatementRow = {
+  id: string; rowNumber: number; transactionDate: string; direction: "income" | "expense"; amount: number; currency: string;
+  counterparty?: string; description?: string; externalId?: string; status: "unmatched" | "suggested" | "matched" | "ignored" | "duplicate";
+  matchScore?: number; suggestedTransaction?: BankTransactionBrief | null; matchedTransaction?: BankTransactionBrief | null;
+};
+type ReconciliationPayload = { imports: BankStatementImport[]; activeImport?: BankStatementImport | null; rows: BankStatementRow[] };
+type BankCsvInspect = { headers: string[]; sample: string[][]; suggestedMapping: Record<string, string>; delimiter: string; errors: string[] };
 type FinancePayload = {
   accounts: FinanceAccount[]; transactions: FinanceTransaction[];
   suppliers: FinanceSupplier[]; team: FinanceTeam[]; supplierBalances: FinanceSupplier[];
@@ -2262,6 +2271,9 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
   const [exchangeRates, setExchangeRates] = useState<ExchangeRatePayload | null>(null);
   const [ratesBusy, setRatesBusy] = useState(false);
   const [ratesError, setRatesError] = useState("");
+  const [reconciliation, setReconciliation] = useState<ReconciliationPayload | null>(null);
+  const [statementOpen, setStatementOpen] = useState(false);
+  const [reconciliationBusyId, setReconciliationBusyId] = useState("");
   const [entryKind, setEntryKind] = useState<"income" | "expense" | "account" | null>(null);
   async function loadFinance() {
     const result = await agencyApi<FinancePayload>(`/crm/finance?currency=${currency}`);
@@ -2273,7 +2285,19 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
     setRatesBusy(false);
     if (result.success) setExchangeRates(result.data); else setRatesError(result.message || "Valyuta kurslarini olib bo‘lmadi");
   }
-  useEffect(() => { if (show) { void loadFinance(); void loadExchangeRates(); } }, [show, currency]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function loadReconciliation(importId?: string) {
+    const result = await agencyApi<ReconciliationPayload>(`/crm/finance/reconciliation${importId ? `?importId=${encodeURIComponent(importId)}` : ""}`);
+    if (result.success) setReconciliation(result.data);
+  }
+  async function reconcileRow(row: BankStatementRow, action: "match" | "create" | "ignore") {
+    setReconciliationBusyId(row.id);
+    const path = action === "match" ? `/crm/finance/reconciliation/rows/${row.id}/match` : action === "create" ? `/crm/finance/reconciliation/rows/${row.id}/create` : `/crm/finance/reconciliation/rows/${row.id}/ignore`;
+    const result = await agencyApi(path, { method: action === "ignore" ? "PATCH" : "POST", body: JSON.stringify(action === "match" ? { transactionId: row.suggestedTransaction?.id } : {}) });
+    setReconciliationBusyId("");
+    if (!result.success) { alert(result.message); return; }
+    await Promise.all([loadFinance(), loadReconciliation(reconciliation?.activeImport?.id)]);
+  }
+  useEffect(() => { if (show) { void loadFinance(); void loadExchangeRates(); void loadReconciliation(); } }, [show, currency]); // eslint-disable-line react-hooks/exhaustive-deps
   async function setFinanceStatus(row: FinanceTransaction, status: "paid" | "cancelled") {
     const result = await agencyApi(`/crm/finance/transactions/${row.id}`, { method: "PATCH", body: JSON.stringify({ status }) });
     if (result.success) await loadFinance();
@@ -2321,6 +2345,29 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
           {selectedRate ? <span className="badge2 b-green">Tanlangan: 1 {currency} = <b>{Math.round(selectedRate).toLocaleString("uz-UZ")} UZS</b></span> : null}
           {exchangeRates?.stale ? <span className="badge2 b-amber">Oxirgi saqlangan kurs ko‘rsatildi</span> : null}
         </div> : ratesBusy ? <div className="sub" style={{ marginTop: 10 }}>Kurslar yuklanmoqda…</div> : null}
+      </div>
+      <div className="card" style={{ padding: 16, marginTop: 12 }}>
+        <div className="section-head" style={{ margin: 0 }}>
+          <div><b>Bank ko‘chirmasi va reconciliation</b><div className="sub">CSV operatsiyalarini CRM kirim-chiqimlari bilan avtomatik solishtirish</div></div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {reconciliation?.imports.length ? <select value={reconciliation.activeImport?.id || ""} onChange={(event) => void loadReconciliation(event.target.value)} style={{ minWidth: 180 }}>{reconciliation.imports.map((item) => <option value={item.id} key={item.id}>{item.fileName} · {formatDate(item.createdAt)}</option>)}</select> : null}
+            {!readOnly ? <button className="btn btn-primary btn-sm" onClick={() => setStatementOpen(true)}>CSV yuklash</button> : null}
+          </div>
+        </div>
+        {reconciliation?.activeImport ? <>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+            <span className="badge2 b-grey">Jami: <b>{reconciliation.activeImport.totalRows}</b></span>
+            <span className="badge2 b-amber">Tavsiya: <b>{reconciliation.activeImport.suggestedRows}</b></span>
+            <span className="badge2 b-green">Moslashtirildi: <b>{reconciliation.activeImport.matchedRows}</b></span>
+            <span className="badge2 b-grey">Hisob: <b>{reconciliation.activeImport.account?.name || "biriktirilmagan"}</b></span>
+          </div>
+          <div className="tbl-wrap" style={{ marginTop: 12 }}><table><thead><tr><th>Sana</th><th>Bank operatsiyasi</th><th className="r">Summa</th><th>Natija</th><th>Amal</th></tr></thead><tbody>
+            {reconciliation.rows.slice(0, 100).map((row) => {
+              const candidate = row.matchedTransaction || row.suggestedTransaction;
+              return <tr key={row.id}><td>{formatDate(row.transactionDate)}</td><td><b>{row.counterparty || "Kontragent ko‘rsatilmagan"}</b><div className="sub">{row.description || row.externalId || `CSV qator ${row.rowNumber}`}</div></td><td className="r money" style={{ color: row.direction === "income" ? "var(--primary)" : "#b42318" }}>{row.direction === "income" ? "+" : "−"}{formatCurrencyAmount(row.amount, row.currency)}</td><td>{row.status === "suggested" ? <><span className="badge2 b-amber">{row.matchScore}% mos</span><div className="sub">{candidate?.category} · {candidate?.counterparty || "CRM tranzaksiya"}</div></> : row.status === "matched" ? <><span className="badge2 b-green">Moslashtirildi</span><div className="sub">{candidate?.category}</div></> : row.status === "duplicate" ? <span className="badge2 b-grey">Dublikat</span> : row.status === "ignored" ? <span className="badge2 b-grey">O‘tkazib yuborildi</span> : <span className="badge2 b-grey">Topilmadi</span>}</td><td>{!readOnly && row.status === "suggested" ? <div className="row-act"><button className="act-btn done-btn" disabled={reconciliationBusyId === row.id} onClick={() => void reconcileRow(row, "match")}>{reconciliationBusyId === row.id ? "..." : "Tasdiqlash"}</button><button className="act-btn no" disabled={reconciliationBusyId === row.id} onClick={() => void reconcileRow(row, "ignore")}>×</button></div> : !readOnly && row.status === "unmatched" ? <div className="row-act"><button className="act-btn done-btn" disabled={reconciliationBusyId === row.id} onClick={() => void reconcileRow(row, "create")}>{reconciliationBusyId === row.id ? "..." : "Yangi tranzaksiya"}</button><button className="act-btn no" disabled={reconciliationBusyId === row.id} onClick={() => void reconcileRow(row, "ignore")}>×</button></div> : "—"}</td></tr>;
+            })}
+          </tbody></table></div>
+        </> : <div className="sub" style={{ marginTop: 12 }}>Bank CSV faylini yuklang — tizim ustunlarni aniqlab, mavjud to‘lovlarni tavsiya qiladi.</div>}
       </div>
       {finance ? <>
         <div className="grid g3" style={{ marginTop: 12 }}>
@@ -2373,6 +2420,7 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
           onConfirm={async (amount) => { await agencyApi(`/bookings/${payLead.id}`, { method: "PATCH", body: JSON.stringify({ paidAmount: amount === "" ? null : amount }) }); await move(payLead, "completed"); }} />
       ) : null}
       {entryKind ? <FinanceEntryModal kind={entryKind} currency={currency} accounts={finance?.accounts || []} leads={leads} suppliers={finance?.suppliers || []} team={finance?.team || []} onClose={() => setEntryKind(null)} onSaved={loadFinance} /> : null}
+      {statementOpen ? <BankStatementImportModal currency={currency} accounts={finance?.accounts || []} onClose={() => setStatementOpen(false)} onImported={async () => { await Promise.all([loadFinance(), loadReconciliation()]); }} /> : null}
     </section>
   );
 }
@@ -3200,6 +3248,55 @@ type BusinessDocumentRow = {
   signatures?: { id: string; status: string; signerName: string; signerEmail: string; verifiedAt?: string }[];
   archives?: { id: string; version: number; filename: string; size: number; sha256: string; createdAt: string }[];
 };
+
+const BANK_MAPPING_FIELDS = [
+  ["date", "Sana *"], ["credit", "Kirim"], ["debit", "Chiqim"], ["amount", "Umumiy summa"], ["direction", "Kirim/chiqim turi"],
+  ["currency", "Valyuta"], ["counterparty", "Kontragent"], ["description", "To‘lov izohi"], ["externalId", "Bank operatsiya ID"],
+] as const;
+
+function BankStatementImportModal({ currency, accounts, onClose, onImported }: { currency: string; accounts: FinanceAccount[]; onClose: () => void; onImported: () => Promise<void> }) {
+  const [fileName, setFileName] = useState(""); const [csv, setCsv] = useState(""); const [inspection, setInspection] = useState<BankCsvInspect | null>(null);
+  const [mapping, setMapping] = useState<Record<string, string>>({}); const [accountId, setAccountId] = useState(""); const [defaultCurrency, setDefaultCurrency] = useState(currency);
+  const [busy, setBusy] = useState(false); const [errorText, setErrorText] = useState("");
+  async function chooseFile(file?: File) {
+    if (!file) return; setErrorText(""); setInspection(null); setFileName(file.name);
+    if (file.size > 8 * 1024 * 1024) { setErrorText("CSV hajmi 8 MB dan oshmasligi kerak"); return; }
+    const text = await file.text(); setCsv(text); setBusy(true);
+    const result = await agencyApi<BankCsvInspect>("/crm/finance/reconciliation/inspect", { method: "POST", body: JSON.stringify({ csv: text }) });
+    setBusy(false);
+    if (!result.success) { setErrorText(result.message || "CSV o‘qilmadi"); return; }
+    setInspection(result.data); setMapping(result.data.suggestedMapping || {});
+  }
+  async function importCsv() {
+    if (!inspection || !csv) return;
+    if (!mapping.date) { setErrorText("Sana ustunini tanlang"); return; }
+    if (!mapping.amount && !mapping.credit && !mapping.debit) { setErrorText("Summa yoki Kirim/Chiqim ustunini tanlang"); return; }
+    setBusy(true); setErrorText("");
+    const result = await agencyApi("/crm/finance/reconciliation/import", { method: "POST", body: JSON.stringify({ csv, fileName, mapping, accountId: accountId || null, currency: defaultCurrency }) });
+    setBusy(false);
+    if (!result.success) { setErrorText(result.message || "CSV import qilinmadi"); return; }
+    await onImported(); onClose();
+  }
+  return <div style={{ position: "fixed", inset: 0, background: "rgba(11,42,30,.42)", backdropFilter: "blur(3px)", zIndex: 75, display: "grid", placeItems: "center", padding: 16 }} onClick={onClose}>
+    <div className="card" style={{ width: "min(760px,100%)", maxHeight: "92vh", overflow: "auto", padding: 22 }} onClick={(event) => event.stopPropagation()}>
+      <div className="section-head" style={{ margin: "0 0 14px" }}><div><h2>Bank ko‘chirmasini yuklash</h2><div className="sub">CSV ustunlarini moslang — tizim to‘lovlarni CRM bilan solishtiradi</div></div><button className="act-btn no" onClick={onClose}>×</button></div>
+      {errorText ? <div className="note" style={{ marginBottom: 12, color: "#8f2a20" }}>{errorText}</div> : null}
+      <div className="fld"><label>CSV fayl</label><input type="file" accept=".csv,text/csv,text/plain" onChange={(event) => void chooseFile(event.target.files?.[0])} /></div>
+      {busy && !inspection ? <div className="sub" style={{ marginTop: 10 }}>CSV tekshirilmoqda…</div> : null}
+      {inspection ? <>
+        <div className="grid g2" style={{ marginTop: 14 }}>
+          <div className="fld"><label>Bank hisobi</label><select value={accountId} onChange={(event) => setAccountId(event.target.value)}><option value="">Biriktirilmagan</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}</select></div>
+          <div className="fld"><label>Standart valyuta</label><select value={defaultCurrency} onChange={(event) => setDefaultCurrency(event.target.value)}><option>UZS</option><option>USD</option><option>EUR</option><option>RUB</option></select></div>
+        </div>
+        <div className="grid g3" style={{ marginTop: 10 }}>
+          {BANK_MAPPING_FIELDS.map(([field, label]) => <div className="fld" key={field}><label>{label}</label><select value={mapping[field] || ""} onChange={(event) => setMapping((current) => ({ ...current, [field]: event.target.value }))}><option value="">Tanlanmagan</option>{inspection.headers.map((header, index) => <option value={header} key={`${field}-${index}`}>{header}</option>)}</select></div>)}
+        </div>
+        {inspection.sample.length ? <div className="tbl-wrap card" style={{ marginTop: 14 }}><table><thead><tr>{inspection.headers.map((header, index) => <th key={`${header}-${index}`}>{header}</th>)}</tr></thead><tbody>{inspection.sample.slice(0, 5).map((row, rowIndex) => <tr key={rowIndex}>{inspection.headers.map((_, index) => <td key={index}>{row[index] || "—"}</td>)}</tr>)}</tbody></table></div> : null}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}><button className="btn btn-ghost" onClick={onClose}>Bekor</button><button className="btn btn-primary" disabled={busy} onClick={() => void importCsv()}>{busy ? "Import qilinmoqda…" : "Import va solishtirish"}</button></div>
+      </> : null}
+    </div>
+  </div>;
+}
 type BusinessDocumentsPayload = { documents: BusinessDocumentRow[]; totals: Record<string, number> };
 
 function NewBusinessDocument({ leads, onClose, onSaved }: { leads: CrmLead[]; onClose: () => void; onSaved: () => Promise<void> }) {

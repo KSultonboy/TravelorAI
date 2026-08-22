@@ -466,6 +466,8 @@ model TourAgency {
   csvImports              CsvImportBatch[]
   financeAccounts         FinanceAccount[]
   financeTransactions     FinanceTransaction[]
+  bankStatementImports    BankStatementImport[]
+  bankStatementRows       BankStatementRow[]
   businessDocuments       BusinessDocument[]
   suppliers               AgencySupplier[]
   managerCommissionRules  ManagerCommissionRule[]
@@ -876,17 +878,18 @@ model AuditLog {
 // Agentlikning kassa, bank va elektron hamyonlari. openingBalance bir xil
 // valyutadagi tranzaksiyalar bilan birga hisoblanadi.
 model FinanceAccount {
-  id             String               @id @default(cuid())
-  agencyId       String
-  agency         TourAgency           @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  name           String
-  type           String               @default("cash") // cash | bank | card | wallet
-  currency       String               @default("USD")
-  openingBalance Int                  @default(0)
-  active         Boolean              @default(true)
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-  transactions   FinanceTransaction[]
+  id               String                @id @default(cuid())
+  agencyId         String
+  agency           TourAgency            @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name             String
+  type             String                @default("cash") // cash | bank | card | wallet
+  currency         String                @default("USD")
+  openingBalance   Int                   @default(0)
+  active           Boolean               @default(true)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  transactions     FinanceTransaction[]
+  statementImports BankStatementImport[]
 
   @@unique([agencyId, name, currency])
   @@index([agencyId, active])
@@ -895,34 +898,36 @@ model FinanceAccount {
 // Agentlikning operatsion moliyasi. direction kirim/chiqimni, status esa
 // rejalashtirilgan yoki amalda to'langanligini ifodalaydi.
 model FinanceTransaction {
-  id                 String                   @id @default(cuid())
-  agencyId           String
-  agency             TourAgency               @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  accountId          String?
-  account            FinanceAccount?          @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  bookingId          String?
-  booking            TourBooking?             @relation(fields: [bookingId], references: [id], onDelete: SetNull)
-  businessDocumentId String?
-  businessDocument   BusinessDocument?        @relation(fields: [businessDocumentId], references: [id], onDelete: SetNull)
-  supplierId         String?
-  supplier           AgencySupplier?          @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  managerMemberId    String?
-  managerMember      AgencyMember?            @relation(fields: [managerMemberId], references: [id], onDelete: SetNull)
-  commissionSourceId String?                  @unique
-  direction          String // income | expense
-  status             String                   @default("planned") // planned | paid | cancelled
-  category           String
-  amount             Int
-  currency           String                   @default("USD")
-  counterparty       String?
-  paymentMethod      String?
-  note               String?
-  dueAt              DateTime?
-  paidAt             DateTime?
-  createdByAccountId String?
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
-  documentPayment    BusinessDocumentPayment?
+  id                     String                   @id @default(cuid())
+  agencyId               String
+  agency                 TourAgency               @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  accountId              String?
+  account                FinanceAccount?          @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  bookingId              String?
+  booking                TourBooking?             @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  businessDocumentId     String?
+  businessDocument       BusinessDocument?        @relation(fields: [businessDocumentId], references: [id], onDelete: SetNull)
+  supplierId             String?
+  supplier               AgencySupplier?          @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  managerMemberId        String?
+  managerMember          AgencyMember?            @relation(fields: [managerMemberId], references: [id], onDelete: SetNull)
+  commissionSourceId     String?                  @unique
+  direction              String // income | expense
+  status                 String                   @default("planned") // planned | paid | cancelled
+  category               String
+  amount                 Int
+  currency               String                   @default("USD")
+  counterparty           String?
+  paymentMethod          String?
+  note                   String?
+  dueAt                  DateTime?
+  paidAt                 DateTime?
+  createdByAccountId     String?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  documentPayment        BusinessDocumentPayment?
+  suggestedStatementRows BankStatementRow[]       @relation("StatementSuggestedTransaction")
+  matchedStatementRows   BankStatementRow[]       @relation("StatementMatchedTransaction")
 
   @@index([agencyId, currency, status, dueAt])
   @@index([agencyId, paidAt])
@@ -931,6 +936,65 @@ model FinanceTransaction {
   @@index([businessDocumentId])
   @@index([supplierId])
   @@index([managerMemberId])
+}
+
+// Bank CSV ko‘chirmasi importi. Mapping va sarlavhalar saqlanadi, shuning uchun
+// har bir bankning formatini UI orqali bir marta moslab ishlatish mumkin.
+model BankStatementImport {
+  id                 String             @id @default(cuid())
+  agencyId           String
+  agency             TourAgency         @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  accountId          String?
+  account            FinanceAccount?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  fileName           String
+  currency           String             @default("UZS")
+  status             String             @default("processed") // processed | reconciled
+  headers            Json
+  mapping            Json
+  totalRows          Int                @default(0)
+  suggestedRows      Int                @default(0)
+  matchedRows        Int                @default(0)
+  ignoredRows        Int                @default(0)
+  createdByAccountId String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  rows               BankStatementRow[]
+
+  @@index([agencyId, createdAt])
+  @@index([accountId, createdAt])
+}
+
+// Ko‘chirmadagi bitta bank operatsiyasi va CRM tranzaksiyasiga reconciliation.
+model BankStatementRow {
+  id                     String              @id @default(cuid())
+  agencyId               String
+  agency                 TourAgency          @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  importId               String
+  import                 BankStatementImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  rowNumber              Int
+  transactionDate        DateTime
+  direction              String // income | expense
+  amount                 Int
+  currency               String              @default("UZS")
+  counterparty           String?
+  description            String?
+  externalId             String?
+  fingerprint            String
+  status                 String              @default("unmatched") // unmatched | suggested | matched | ignored | duplicate
+  suggestedTransactionId String?
+  suggestedTransaction   FinanceTransaction? @relation("StatementSuggestedTransaction", fields: [suggestedTransactionId], references: [id], onDelete: SetNull)
+  matchedTransactionId   String?
+  matchedTransaction     FinanceTransaction? @relation("StatementMatchedTransaction", fields: [matchedTransactionId], references: [id], onDelete: SetNull)
+  matchScore             Int?
+  raw                    Json
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  @@unique([importId, rowNumber])
+  @@index([agencyId, status])
+  @@index([agencyId, fingerprint])
+  @@index([suggestedTransactionId])
+  @@index([matchedTransactionId])
 }
 
 // Turoperator, mehmonxona, aviatashuvchi va boshqa hamkorlar kesimidagi
