@@ -319,6 +319,22 @@ async function sendBookingLeadEmail({ to, agencyName, tourTitle, customerName, c
   return sendMail({ to, subject, html, text, logMeta: { type: 'booking_lead', to } });
 }
 
+async function sendDocumentSignatureCodeEmail({ email, signerName, documentNumber, code, expiresInMinutes }) {
+  return sendMail({
+    to: email,
+    subject: `${APP_NAME} — ${safeText(documentNumber)} hujjatini tasdiqlash`,
+    html: buildHtml({
+      heading: 'Hujjatni elektron tasdiqlash',
+      intro: `${safeText(signerName) || 'Hurmatli mijoz'}, ${safeText(documentNumber)} raqamli hujjatni tasdiqlash uchun quyidagi bir martalik koddan foydalaning. Kodni faqat hujjat mazmunini tekshirganingizdan keyin ayting.`,
+      code,
+      expiresInMinutes,
+      footer: "Agar bu so'rov sizga tegishli bo'lmasa, kodni hech kimga bermang.",
+    }),
+    text: `${documentNumber} hujjatini tasdiqlash kodi: ${code}. Kod ${expiresInMinutes} daqiqa amal qiladi.`,
+    logMeta: { type: 'document_signature', code, email, documentNumber },
+  });
+}
+
 async function sendEmailChangedNoticeEmail({ oldEmail, newEmail }) {
   const html = `
     <div style="font-family:Arial,sans-serif;background:#f4f7f5;padding:24px;">
@@ -355,4 +371,5 @@ module.exports = {
   sendAccountDeleteCodeEmail,
   sendSupportFeedbackEmail,
   sendBookingLeadEmail,
+  sendDocumentSignatureCodeEmail,
 };

@@ -75,4 +75,26 @@ async function generate({ system, prompt, maxTokens = 700 }) {
   };
 }
 
-module.exports = { generate, isConfigured, MODEL };
+async function generateVision({ system, prompt, mediaType, data, maxTokens = 900 }) {
+  const anthropic = getClient();
+  if (!anthropic) {
+    const err = new Error(loadSdk() ? 'AI hali sozlanmagan (ANTHROPIC_API_KEY yo‘q)' : 'AI kutubxonasi image‘da o‘rnatilmagan (@anthropic-ai/sdk)');
+    err.code = 'AI_NOT_CONFIGURED';
+    throw err;
+  }
+  const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+  if (!allowed.has(mediaType)) throw new Error('OCR uchun JPG, PNG yoki WEBP kerak');
+  const res = await anthropic.messages.create({
+    model: MODEL,
+    max_tokens: maxTokens,
+    system,
+    messages: [{ role: 'user', content: [
+      { type: 'image', source: { type: 'base64', media_type: mediaType, data } },
+      { type: 'text', text: prompt },
+    ] }],
+  });
+  const text = (res.content || []).filter((block) => block.type === 'text').map((block) => block.text).join('').trim();
+  return { text, usage: { input: res.usage?.input_tokens || 0, output: res.usage?.output_tokens || 0 } };
+}
+
+module.exports = { generate, generateVision, isConfigured, MODEL };

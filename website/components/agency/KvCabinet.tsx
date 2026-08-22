@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useAgencySession } from "@/lib/agency/session";
 import { useCrm } from "@/lib/agency/useCrm";
 import { onExternalClick, openExternal, saveFile } from "@/lib/agency/external";
@@ -989,7 +989,7 @@ function DocMenu({ lead }: { lead: CrmLead }) {
   );
 }
 /* Lid hujjatlari (pasport / viza / shartnoma) — DB'да, maxfiy, faqat egasi ko'radi */
-type LeadFileMeta = { id: string; name: string; mimeType: string; size: number; createdAt: string };
+type LeadFileMeta = { id: string; name: string; mimeType: string; size: number; ocrStatus?: string; ocrData?: Record<string, unknown>; ocrAt?: string; ocrError?: string; createdAt: string };
 function fileSize(n: number) { return n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`; }
 function FilesButton({ lead, readOnly }: { lead: CrmLead; readOnly?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -1056,6 +1056,12 @@ function FilesModal({ lead, readOnly, onClose }: { lead: CrmLead; readOnly?: boo
     setBusy(false);
     if (res.success) await load();
   }
+  async function ocr(f: LeadFileMeta) {
+    setBusy(true); setErr("");
+    const res = await agencyApi<{ file: LeadFileMeta }>(`/files/${f.id}/ocr`, { method: "POST" });
+    setBusy(false);
+    if (res.success) await load(); else setErr(res.message || "Pasportni o'qib bo'lmadi.");
+  }
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(11,42,30,.42)", backdropFilter: "blur(3px)", zIndex: 70, display: "grid", placeItems: "center", padding: 16 }} onPointerDown={(e) => e.stopPropagation()} onClick={onClose}>
       <div className="card" style={{ width: "min(520px,100%)", padding: 22, maxHeight: "88vh", overflow: "auto" }} onClick={(e) => e.stopPropagation()}>
@@ -1072,15 +1078,19 @@ function FilesModal({ lead, readOnly, onClose }: { lead: CrmLead; readOnly?: boo
         ) : files.length ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {files.map((f) => (
-              <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", border: "1px solid var(--border)", borderRadius: 10 }}>
+              <Fragment key={f.id}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", border: "1px solid var(--border)", borderRadius: 10 }}>
                 <span style={{ fontSize: 18, flex: "none" }}>{f.mimeType === "application/pdf" ? "📄" : "🖼"}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.name}</div>
                   <div style={{ fontSize: 11, color: "var(--t3)" }}>{fileSize(f.size)} · {formatDate(f.createdAt)}</div>
                 </div>
                 <button className="btn btn-ghost btn-sm" onClick={() => void openFile(f)}>Ochish</button>
+                {!readOnly && f.mimeType.startsWith("image/") ? <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void ocr(f)}>{f.ocrStatus === "done" ? "Qayta OCR" : "Pasport OCR"}</button> : null}
                 {!readOnly ? <button className="btn btn-ghost btn-sm" style={{ color: "#c0392b" }} disabled={busy} onClick={() => void del(f)}>O&apos;chirish</button> : null}
               </div>
+              {f.ocrStatus === "done" && f.ocrData ? <div className="note" style={{ margin: "0 0 4px", fontSize: 12 }}><b>{String(f.ocrData.surname || "")} {String(f.ocrData.givenNames || "")}</b> · Pasport: {String(f.ocrData.passportNumber || "—")} · Tug&apos;ilgan sana: {String(f.ocrData.birthDate || "—")} · Amal qiladi: {String(f.ocrData.expiryDate || "—")}</div> : null}
+              </Fragment>
             ))}
           </div>
         ) : (
@@ -2187,24 +2197,32 @@ type FinanceTransaction = {
   amount: number; currency: string; counterparty?: string; dueAt?: string; paidAt?: string; note?: string;
   account?: { id: string; name: string } | null; booking?: { id: string; customerName: string } | null;
   businessDocument?: { id: string; number: string } | null;
+  supplierId?: string; managerMemberId?: string; commissionSourceId?: string;
+  supplier?: { id: string; name: string; type: string } | null; managerMember?: { id: string; name: string } | null;
 };
+type FinanceSupplier = { id: string; name: string; type: string; currency: string; phone?: string; email?: string; paid?: number; payable?: number; overdue?: number };
+type FinanceTeam = { id: string; name: string; role: string; commissionRule?: { percent: number; fixedAmount: number; currency: string; active: boolean } | null };
 type FinancePayload = {
   accounts: FinanceAccount[]; transactions: FinanceTransaction[];
+  suppliers: FinanceSupplier[]; team: FinanceTeam[]; supplierBalances: FinanceSupplier[];
+  commissions: { memberId: string; name: string; role: string; accrued: number; paid: number; payable: number; rule?: FinanceTeam["commissionRule"] }[];
+  calendar: { id: string; dueAt: string; direction: "income" | "expense"; amount: number; currency: string; category: string; counterparty?: string }[];
   summary: { currency: string; received: number; spent: number; profit: number; receivable: number; payable: number; overdue: number; accountBalances: { id: string; name: string; type: string; currency: string; balance: number }[] };
 };
 
-function FinanceEntryModal({ kind, currency, accounts, leads, onClose, onSaved }: {
-  kind: "income" | "expense" | "account"; currency: string; accounts: FinanceAccount[]; leads: CrmLead[];
+function FinanceEntryModal({ kind, currency, accounts, leads, suppliers, team, onClose, onSaved }: {
+  kind: "income" | "expense" | "account"; currency: string; accounts: FinanceAccount[]; leads: CrmLead[]; suppliers: FinanceSupplier[]; team: FinanceTeam[];
   onClose: () => void; onSaved: () => Promise<void>;
 }) {
   const [amount, setAmount] = useState(""); const [name, setName] = useState(""); const [category, setCategory] = useState(kind === "income" ? "Mijoz to'lovi" : "Operatsion xarajat");
   const [status, setStatus] = useState("paid"); const [accountId, setAccountId] = useState(""); const [bookingId, setBookingId] = useState("");
+  const [supplierId, setSupplierId] = useState(""); const [managerMemberId, setManagerMemberId] = useState("");
   const [dueAt, setDueAt] = useState(""); const [note, setNote] = useState(""); const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
   async function save(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setErr("");
     const result = kind === "account"
       ? await agencyApi("/crm/finance/accounts", { method: "POST", body: JSON.stringify({ name, type: "cash", currency, openingBalance: amount || 0 }) })
-      : await agencyApi("/crm/finance/transactions", { method: "POST", body: JSON.stringify({ direction: kind, status, amount, currency, category, accountId: accountId || null, bookingId: bookingId || null, counterparty: name || null, dueAt: dueAt || null, note }) });
+      : await agencyApi("/crm/finance/transactions", { method: "POST", body: JSON.stringify({ direction: kind, status, amount, currency, category, accountId: accountId || null, bookingId: bookingId || null, supplierId: supplierId || null, managerMemberId: managerMemberId || null, counterparty: name || null, dueAt: dueAt || null, note }) });
     setBusy(false);
     if (!result.success) { setErr(result.message || "Saqlab bo'lmadi"); return; }
     await onSaved(); onClose();
@@ -2222,6 +2240,8 @@ function FinanceEntryModal({ kind, currency, accounts, leads, onClose, onSaved }
             <div className="fld"><label>Holat</label><select value={status} onChange={(e) => setStatus(e.target.value)}><option value="paid">To'langan</option><option value="planned">Rejalashtirilgan</option></select></div>
             <div className="fld"><label>Kassa / hisob</label><select value={accountId} onChange={(e) => setAccountId(e.target.value)}><option value="">Biriktirilmagan</option>{accounts.filter((a) => a.currency === currency).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
             <div className="fld"><label>Lid / bitim</label><select value={bookingId} onChange={(e) => setBookingId(e.target.value)}><option value="">Biriktirilmagan</option>{leads.map((l) => <option key={l.id} value={l.id}>{l.customerName} — {l.tourTitle || "tur"}</option>)}</select></div>
+            {kind === "expense" ? <div className="fld"><label>Turoperator / hamkor</label><select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}><option value="">Biriktirilmagan</option>{suppliers.filter((s) => s.currency === currency).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div> : null}
+            <div className="fld"><label>Mas&apos;ul menejer</label><select value={managerMemberId} onChange={(e) => setManagerMemberId(e.target.value)}><option value="">Avtomatik / yo&apos;q</option>{team.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
             {status === "planned" ? <div className="fld"><label>To'lov muddati</label><input type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} /></div> : null}
             <div className="fld" style={{ gridColumn: "1 / -1" }}><label>Izoh</label><textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} /></div>
           </> : null}
@@ -2245,6 +2265,17 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
     const result = await agencyApi(`/crm/finance/transactions/${row.id}`, { method: "PATCH", body: JSON.stringify({ status }) });
     if (result.success) await loadFinance();
   }
+  async function addSupplier() {
+    const name = window.prompt("Turoperator yoki hamkor nomi:"); if (!name?.trim()) return;
+    const result = await agencyApi("/crm/finance/suppliers", { method: "POST", body: JSON.stringify({ name: name.trim(), type: "tour_operator", currency }) });
+    if (result.success) await loadFinance(); else alert(result.message);
+  }
+  async function setCommission(member: FinanceTeam) {
+    const percent = window.prompt(`${member.name} uchun komissiya foizi:`, String(member.commissionRule?.percent ?? 0)); if (percent === null) return;
+    const fixedAmount = window.prompt(`Qo'shimcha qat'iy summa (${currency}):`, String(member.commissionRule?.fixedAmount ?? 0)); if (fixedAmount === null) return;
+    const result = await agencyApi(`/crm/finance/commission-rules/${member.id}`, { method: "PUT", body: JSON.stringify({ percent, fixedAmount, currency, active: true }) });
+    if (result.success) await loadFinance(); else alert(result.message);
+  }
   const m = useMemo(() => {
     const paid = leads.filter((l: CrmLead) => l.stage === "won" || l.stage === "completed");
     const completed = leads.filter((l: CrmLead) => l.stage === "completed");
@@ -2258,7 +2289,7 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
   }, [leads]);
   return (
     <section className={`view${show ? " active" : ""}`}>
-      <div className="section-head"><div><h2>Moliya</h2><div className="sub">Kassa, bank, kirim-chiqim va qarzdorlik</div></div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><select value={currency} onChange={(e) => setCurrency(e.target.value)} style={{ width: 90 }}><option>USD</option><option>UZS</option><option>EUR</option></select>{!readOnly ? <><button className="btn btn-ghost btn-sm" onClick={() => setEntryKind("account")}>+ Hisob</button><button className="btn btn-ghost btn-sm" onClick={() => setEntryKind("expense")}>− Chiqim</button><button className="btn btn-primary btn-sm" onClick={() => setEntryKind("income")}>+ Kirim</button></> : null}</div></div>
+      <div className="section-head"><div><h2>Moliya</h2><div className="sub">Kassa, bank, kirim-chiqim, supplier qarzi va menejer komissiyasi</div></div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><select value={currency} onChange={(e) => setCurrency(e.target.value)} style={{ width: 90 }}><option>USD</option><option>UZS</option><option>EUR</option></select>{!readOnly ? <><button className="btn btn-ghost btn-sm" onClick={() => void addSupplier()}>+ Hamkor</button><button className="btn btn-ghost btn-sm" onClick={() => setEntryKind("account")}>+ Hisob</button><button className="btn btn-ghost btn-sm" onClick={() => setEntryKind("expense")}>− Chiqim</button><button className="btn btn-primary btn-sm" onClick={() => setEntryKind("income")}>+ Kirim</button></> : null}</div></div>
       <div className="grid g3">
         <div className="card kpi gold"><div className="top"><div className="ico"><Ic d={I.check} s={19} /></div></div><div className="val">{formatCurrencyAmount(finance?.summary.received ?? m.received, currency)}</div><div className="lbl">Jami kirim</div></div>
         <div className="card kpi"><div className="top"><div className="ico"><Ic d={I.clock} s={19} /></div></div><div className="val">{formatCurrencyAmount(finance?.summary.receivable ?? m.pending, currency)}</div><div className="lbl">Mijozlardan olinadi</div></div>
@@ -2271,6 +2302,11 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
           <div className="card" style={{ padding: 16 }}><div className="sub">Muddati o&apos;tgan</div><b className="money" style={{ fontSize: 20, color: finance.summary.overdue ? "#b42318" : undefined }}>{formatCurrencyAmount(finance.summary.overdue, currency)}</b></div>
         </div>
         {finance.summary.accountBalances.length ? <div className="card" style={{ padding: 14, marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>{finance.summary.accountBalances.map((a) => <span className="badge2 b-grey" key={a.id}>{a.name}: <b>{formatCurrencyAmount(a.balance, currency)}</b></span>)}</div> : null}
+        <div className="grid g2" style={{ marginTop: 12 }}>
+          <div className="card" style={{ padding: 16 }}><b>Turoperator va hamkorlar</b><div className="sub" style={{ margin: "4px 0 10px" }}>Qancha to&apos;landi va qancha qarz qoldi</div>{finance.supplierBalances.length ? finance.supplierBalances.map((s) => <div key={s.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "7px 0", borderTop: "1px solid var(--border)" }}><span>{s.name}</span><span className="money">Qarz: {formatCurrencyAmount(s.payable || 0, currency)}{s.overdue ? <small style={{ color: "#b42318" }}> · kechikkan {formatCurrencyAmount(s.overdue, currency)}</small> : null}</span></div>) : <span className="sub">Hamkor qo&apos;shilmagan</span>}</div>
+          <div className="card" style={{ padding: 16 }}><b>Menejer komissiyasi</b><div className="sub" style={{ margin: "4px 0 10px" }}>To&apos;langan bitimdan avtomatik hisoblanadi</div>{finance.commissions.length ? finance.commissions.map((m) => <div key={m.memberId} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "7px 0", borderTop: "1px solid var(--border)" }}><span>{m.name} <small className="sub">{m.rule ? `${m.rule.percent}% + ${m.rule.fixedAmount}` : "qoida yo'q"}</small></span><span><b>{formatCurrencyAmount(m.payable, currency)}</b>{!readOnly ? <button className="act-btn" style={{ marginLeft: 6 }} onClick={() => void setCommission(finance.team.find((x) => x.id === m.memberId) || m as unknown as FinanceTeam)}>Sozlash</button> : null}</span></div>) : <span className="sub">Faol xodim yo&apos;q</span>}</div>
+        </div>
+        <div className="card" style={{ padding: 16, marginTop: 12 }}><b>To&apos;lov kalendari</b><div className="sub" style={{ margin: "4px 0 10px" }}>Kelgusi va muddati o&apos;tgan reja to&apos;lovlari</div>{finance.calendar.length ? <div className="tbl-wrap"><table><thead><tr><th>Sana</th><th>To&apos;lov</th><th>Kontragent</th><th className="r">Summa</th></tr></thead><tbody>{finance.calendar.slice(0, 20).map((row) => <tr key={row.id}><td style={{ color: new Date(row.dueAt) < new Date() ? "#b42318" : undefined }}>{formatDate(row.dueAt)}</td><td>{row.category}</td><td>{row.counterparty || "—"}</td><td className="r money">{row.direction === "income" ? "+" : "−"}{formatCurrencyAmount(row.amount, row.currency)}</td></tr>)}</tbody></table></div> : <span className="sub">Rejalashtirilgan to&apos;lov yo&apos;q</span>}</div>
         <div className="section-head" style={{ marginTop: 20 }}><div><h2>Moliya jurnali</h2><div className="sub">Barcha reja va haqiqiy to&apos;lovlar</div></div>{canExport ? <ExportBtn rows={finance.transactions} filename="moliya-jurnali" columns={[{ label: "Kategoriya", get: (r) => r.category }, { label: "Kontragent", get: (r) => r.counterparty || r.booking?.customerName || "" }, { label: "Tur", get: (r) => r.direction }, { label: "Holat", get: (r) => r.status }, { label: "Summa", get: (r) => r.amount }, { label: "Valyuta", get: (r) => r.currency }]} /> : null}</div>
         <div className="card tbl-wrap">
           {finance.transactions.length ? <table><thead><tr><th>To&apos;lov</th><th>Kontragent</th><th>Hisob / hujjat</th><th>Muddat</th><th className="r">Summa</th><th>Holat</th><th>Amal</th></tr></thead><tbody>{finance.transactions.map((row) => <tr key={row.id}><td><b>{row.category}</b><div className="sub">{row.direction === "income" ? "Kirim" : "Chiqim"}</div></td><td>{row.counterparty || row.booking?.customerName || "—"}</td><td>{row.account?.name || row.businessDocument?.number || "—"}</td><td>{row.dueAt ? formatDate(row.dueAt) : row.paidAt ? formatDate(row.paidAt) : "—"}</td><td className="r money" style={{ color: row.direction === "income" ? "var(--primary)" : "#b42318" }}>{row.direction === "income" ? "+" : "−"}{formatCurrencyAmount(row.amount, row.currency)}</td><td><span className={`badge2 ${row.status === "paid" ? "b-green" : row.status === "planned" ? "b-amber" : "b-grey"}`}>{row.status === "paid" ? "To'langan" : row.status === "planned" ? "Rejada" : "Bekor"}</span></td><td>{!readOnly && row.status === "planned" ? <div className="row-act"><button className="act-btn done-btn" onClick={() => void setFinanceStatus(row, "paid")}>To&apos;landi</button><button className="act-btn no" onClick={() => void setFinanceStatus(row, "cancelled")}>×</button></div> : "—"}</td></tr>)}</tbody></table> : <Empty icon={I.money} text="Hali moliyaviy operatsiya yo'q." />}
@@ -2309,7 +2345,7 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
         <PayConfirm lead={payLead} onClose={() => setPayLead(null)}
           onConfirm={async (amount) => { await agencyApi(`/bookings/${payLead.id}`, { method: "PATCH", body: JSON.stringify({ paidAmount: amount === "" ? null : amount }) }); await move(payLead, "completed"); }} />
       ) : null}
-      {entryKind ? <FinanceEntryModal kind={entryKind} currency={currency} accounts={finance?.accounts || []} leads={leads} onClose={() => setEntryKind(null)} onSaved={loadFinance} /> : null}
+      {entryKind ? <FinanceEntryModal kind={entryKind} currency={currency} accounts={finance?.accounts || []} leads={leads} suppliers={finance?.suppliers || []} team={finance?.team || []} onClose={() => setEntryKind(null)} onSaved={loadFinance} /> : null}
     </section>
   );
 }
@@ -3132,6 +3168,10 @@ type BusinessDocumentRow = {
   id: string; number: string; type: string; status: string; title: string; customerName?: string; amount?: number; currency: string;
   issuedAt: string; dueAt?: string; signedAt?: string; paidAt?: string; currentVersion: number;
   booking?: { id: string; customerName: string; leadTour?: string } | null; _count?: { versions: number; transactions: number };
+  payments?: { amount: number; paidAt: string }[];
+  approvals?: { id: string; status: string; comment?: string }[];
+  signatures?: { id: string; status: string; signerName: string; signerEmail: string; verifiedAt?: string }[];
+  archives?: { id: string; version: number; filename: string; size: number; sha256: string; createdAt: string }[];
 };
 type BusinessDocumentsPayload = { documents: BusinessDocumentRow[]; totals: Record<string, number> };
 
@@ -3189,6 +3229,37 @@ function DocumentsSection({ show, agencyId, leads, readOnly }: { show: boolean; 
     const result = await agencyApi(`/crm/business-documents/${row.id}`, { method: "PATCH", body: JSON.stringify({ status }) });
     if (result.success) await loadRegistry(); else alert(result.message);
   }
+  async function addDocumentPayment(row: BusinessDocumentRow) {
+    const paid = (row.payments || []).reduce((sum, item) => sum + item.amount, 0);
+    const amount = window.prompt(`To'lov summasi (${row.currency}). Qoldiq: ${Math.max(0, Number(row.amount || 0) - paid)}`); if (!amount) return;
+    const result = await agencyApi(`/crm/business-documents/${row.id}/payments`, { method: "POST", body: JSON.stringify({ amount }) });
+    if (result.success) await loadRegistry(); else alert(result.message);
+  }
+  async function makeDocumentPdf(row: BusinessDocumentRow) {
+    const result = await agencyApi<{ dataUrl: string }>(`/crm/business-documents/${row.id}/pdf`, { method: "POST" });
+    if (!result.success) { alert(result.message); return; }
+    const link = document.createElement("a"); link.href = result.data.dataUrl; link.download = `${row.number}.pdf`; document.body.appendChild(link); link.click(); link.remove();
+    await loadRegistry();
+  }
+  async function submitApproval(row: BusinessDocumentRow) {
+    const pending = row.approvals?.find((item) => item.status === "pending");
+    const result = pending
+      ? await agencyApi(`/crm/business-documents/approvals/${pending.id}`, { method: "PATCH", body: JSON.stringify({ status: "approved" }) })
+      : await agencyApi(`/crm/business-documents/${row.id}/approval`, { method: "POST", body: JSON.stringify({ comment: "Tasdiqlash uchun yuborildi" }) });
+    if (result.success) await loadRegistry(); else alert(result.message);
+  }
+  async function signatureFlow(row: BusinessDocumentRow) {
+    const pending = row.signatures?.find((item) => item.status === "pending");
+    if (pending) {
+      const code = window.prompt(`${pending.signerEmail} manziliga yuborilgan 6 xonali kod:`); if (!code) return;
+      const result = await agencyApi(`/crm/business-documents/signatures/${pending.id}/verify`, { method: "POST", body: JSON.stringify({ code }) });
+      if (result.success) await loadRegistry(); else alert(result.message); return;
+    }
+    const signerEmail = window.prompt("Imzolovchi emaili:", ""); if (!signerEmail) return;
+    const signerName = window.prompt("Imzolovchi F.I.Sh.:", row.customerName || row.booking?.customerName || ""); if (!signerName) return;
+    const result = await agencyApi(`/crm/business-documents/${row.id}/signature`, { method: "POST", body: JSON.stringify({ signerEmail, signerName }) });
+    if (result.success) { alert("Tasdiqlash kodi emailga yuborildi."); await loadRegistry(); } else alert(result.message);
+  }
   function setField(type: DocType, key: string, val: string) {
     setTpl((p) => ({ ...p, [type]: { ...(p as Record<string, Record<string, string>>)[type], [key]: val } }) as DocTemplates);
     setMsg("");
@@ -3222,7 +3293,7 @@ function DocumentsSection({ show, agencyId, leads, readOnly }: { show: boolean; 
         <div className="card kpi gold"><div className="val">{registry.totals.paid || 0}</div><div className="lbl">To&apos;langan invoice</div></div>
       </div>
       <div className="card tbl-wrap" style={{ marginTop: 16 }}>
-        {registry.documents.length ? <table><thead><tr><th>Raqam</th><th>Hujjat / mijoz</th><th>Sana</th><th className="r">Summa</th><th>Versiya</th><th>Holat</th><th>Amal</th></tr></thead><tbody>{registry.documents.map((row) => <tr key={row.id}><td><b>{row.number}</b></td><td><b>{row.title}</b><div className="sub">{row.customerName || row.booking?.customerName || "Mijoz biriktirilmagan"}</div></td><td>{formatDate(row.issuedAt)}</td><td className="r money">{row.amount ? formatCurrencyAmount(row.amount, row.currency) : "—"}</td><td>v{row.currentVersion} <span className="sub">({row._count?.versions || 1})</span></td><td><span className={`badge2 ${row.status === "paid" || row.status === "signed" ? "b-green" : row.status === "sent" ? "b-amber" : "b-grey"}`}>{({ draft: "Qoralama", sent: "Yuborilgan", signed: "Imzolangan", paid: "To'langan", cancelled: "Bekor" } as Record<string, string>)[row.status] || row.status}</span></td><td>{!readOnly && row.status !== "cancelled" ? <select value={row.status} onChange={(e) => void setDocumentStatus(row, e.target.value)} style={{ minWidth: 130 }}><option value="draft">Qoralama</option><option value="sent">Yuborildi</option><option value="signed">Imzolandi</option>{row.type === "invoice" ? <option value="paid">To&apos;landi</option> : null}<option value="cancelled">Bekor qilindi</option></select> : "—"}</td></tr>)}</tbody></table> : <Empty icon={I.doc} text="Hali hujjat yaratilmagan." />}
+        {registry.documents.length ? <table><thead><tr><th>Raqam</th><th>Hujjat / mijoz</th><th>Sana</th><th className="r">Summa</th><th>Versiya</th><th>Holat</th><th>Amal</th></tr></thead><tbody>{registry.documents.map((row) => <tr key={row.id}><td><b>{row.number}</b>{row.archives?.length ? <div className="sub">PDF v{row.archives[0].version} arxivda</div> : null}</td><td><b>{row.title}</b><div className="sub">{row.customerName || row.booking?.customerName || "Mijoz biriktirilmagan"}</div></td><td>{formatDate(row.issuedAt)}</td><td className="r money">{row.amount ? <>{formatCurrencyAmount((row.payments || []).reduce((sum, item) => sum + item.amount, 0), row.currency)} / {formatCurrencyAmount(row.amount, row.currency)}</> : "—"}</td><td>v{row.currentVersion} <span className="sub">({row._count?.versions || 1})</span></td><td><span className={`badge2 ${row.status === "paid" || row.status === "signed" ? "b-green" : row.status === "sent" || row.status === "partially_paid" ? "b-amber" : "b-grey"}`}>{({ draft: "Qoralama", sent: "Yuborilgan", partially_paid: "Qisman to'langan", signed: "Imzolangan", paid: "To'langan", cancelled: "Bekor" } as Record<string, string>)[row.status] || row.status}</span></td><td>{!readOnly && row.status !== "cancelled" ? <div style={{ display: "flex", gap: 5, flexWrap: "wrap", minWidth: 250 }}><select value={row.status} onChange={(e) => void setDocumentStatus(row, e.target.value)} style={{ minWidth: 115 }}><option value="draft">Qoralama</option><option value="sent">Yuborildi</option><option value="signed">Imzolandi</option>{row.type === "invoice" ? <><option value="partially_paid">Qisman</option><option value="paid">To&apos;landi</option></> : null}<option value="cancelled">Bekor</option></select>{row.type === "invoice" && row.status !== "paid" ? <button className="act-btn" onClick={() => void addDocumentPayment(row)}>+ To&apos;lov</button> : null}<button className="act-btn" onClick={() => void makeDocumentPdf(row)}>PDF</button><button className="act-btn" onClick={() => void submitApproval(row)}>{row.approvals?.some((x) => x.status === "pending") ? "Tasdiqlash" : "Tasdiqqa"}</button><button className="act-btn done-btn" onClick={() => void signatureFlow(row)}>{row.signatures?.some((x) => x.status === "pending") ? "OTP kiritish" : "E-imzo"}</button></div> : "—"}</td></tr>)}</tbody></table> : <Empty icon={I.doc} text="Hali hujjat yaratilmagan." />}
       </div>
 
       <div className="section-head" style={{ marginTop: 22 }}><div><h2>Rekvizitlar</h2><div className="sub">STIR, bank, direktor, manzil — barcha hujjatga qo&apos;yiladi</div></div></div>

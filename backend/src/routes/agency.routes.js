@@ -86,6 +86,9 @@ router.get('/crm/audit', requireOwner, crm.listAudit);
 // Operatsion moliya: kassa/bank, kirim-chiqim, qarzdorlik va bitim foydasi.
 router.get('/crm/finance', finance.listFinance);
 router.post('/crm/finance/accounts', blockWhenReadOnly, finance.createAccount);
+router.post('/crm/finance/suppliers', blockWhenReadOnly, finance.createSupplier);
+router.patch('/crm/finance/suppliers/:id', blockWhenReadOnly, finance.updateSupplier);
+router.put('/crm/finance/commission-rules/:memberId', blockWhenReadOnly, requireOwner, finance.saveCommissionRule);
 router.post('/crm/finance/transactions', blockWhenReadOnly, finance.createTransaction);
 router.patch('/crm/finance/transactions/:id', blockWhenReadOnly, finance.updateTransaction);
 router.delete('/crm/finance/transactions/:id', blockWhenReadOnly, requireOwner, finance.deleteTransaction);
@@ -95,6 +98,13 @@ router.get('/crm/business-documents', documents.listDocuments);
 router.get('/crm/business-documents/:id', documents.getDocument);
 router.post('/crm/business-documents', blockWhenReadOnly, documents.createDocument);
 router.patch('/crm/business-documents/:id', blockWhenReadOnly, documents.updateDocument);
+router.post('/crm/business-documents/:id/payments', blockWhenReadOnly, documents.addPayment);
+router.post('/crm/business-documents/:id/pdf', blockWhenReadOnly, documents.generatePdf);
+router.get('/crm/business-documents/archives/:archiveId', documents.downloadPdf);
+router.post('/crm/business-documents/:id/approval', blockWhenReadOnly, documents.requestApproval);
+router.patch('/crm/business-documents/approvals/:approvalId', blockWhenReadOnly, requireOwner, documents.decideApproval);
+router.post('/crm/business-documents/:id/signature', blockWhenReadOnly, documents.requestSignature);
+router.post('/crm/business-documents/signatures/:signatureId/verify', blockWhenReadOnly, documents.verifySignature);
 
 // Mijoz sharhlari + reyting (marketplace'да ko'rinadi) — ko'rish hammaga ochiq.
 router.get('/reviews', agency.listReviews);
@@ -105,6 +115,7 @@ router.get('/bookings/:id/files', leadFiles.listFiles);
 router.post('/bookings/:id/files', blockWhenReadOnly, leadFiles.uploadFile);
 router.get('/files/:id', leadFiles.downloadFile);
 router.delete('/files/:id', blockWhenReadOnly, leadFiles.deleteFile);
+router.post('/files/:id/ocr', blockWhenReadOnly, requireCapability('ai'), leadFiles.ocrPassport);
 
 // AI yordamchilar — faqat Premium.
 router.get('/ai/status', requireCapability('ai'), aiCtrl.status);

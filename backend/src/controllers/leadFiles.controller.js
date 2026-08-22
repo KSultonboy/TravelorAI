@@ -4,6 +4,7 @@
 const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { ensureApprovedAgency } = require('./agency.controller');
+const { generateVision } = require('../services/ai.service');
 
 const MAX_FILE_BYTES = 6 * 1024 * 1024; // 6 MB
 const MAX_FILES_PER_LEAD = 15;
@@ -34,7 +35,7 @@ async function listFiles(req, res) {
     if (!booking) return error(res, 'Lid topilmadi', 404);
     const files = await prisma.leadFile.findMany({
       where: { bookingId: booking.id, agencyId: agency.id },
-      select: { id: true, name: true, mimeType: true, size: true, createdAt: true },
+      select: { id: true, name: true, mimeType: true, size: true, ocrStatus: true, ocrData: true, ocrAt: true, ocrError: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     });
     return success(res, { files });
@@ -71,7 +72,7 @@ async function uploadFile(req, res) {
         size: parsed.buffer.length,
         data: parsed.buffer,
       },
-      select: { id: true, name: true, mimeType: true, size: true, createdAt: true },
+      select: { id: true, name: true, mimeType: true, size: true, ocrStatus: true, ocrData: true, ocrAt: true, createdAt: true },
     });
     return success(res, { file: created });
   } catch (err) {
@@ -107,4 +108,37 @@ async function deleteFile(req, res) {
   }
 }
 
-module.exports = { listFiles, uploadFile, downloadFile, deleteFile };
+function parseOcrJson(text) {
+  const raw = String(text || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  const start = raw.indexOf('{'); const end = raw.lastIndexOf('}');
+  if (start < 0 || end < start) throw new Error('OCR natijasini o‘qib bo‘lmadi');
+  const value = JSON.parse(raw.slice(start, end + 1));
+  const allowed = ['documentType', 'countryCode', 'passportNumber', 'surname', 'givenNames', 'nationality', 'birthDate', 'sex', 'issueDate', 'expiryDate', 'personalNumber', 'mrz', 'confidence', 'warnings'];
+  return Object.fromEntries(allowed.filter((key) => value[key] !== undefined).map((key) => [key, value[key]]));
+}
+
+async function ocrPassport(req, res) {
+  try {
+    const agency = await ensureApprovedAgency(req, res);
+    if (!agency) return;
+    const file = await prisma.leadFile.findFirst({ where: { id: req.params.id, agencyId: agency.id } });
+    if (!file) return error(res, 'Fayl topilmadi', 404);
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimeType)) return error(res, 'OCR uchun pasportning JPG, PNG yoki WEBP rasmi kerak', 400);
+    await prisma.leadFile.update({ where: { id: file.id }, data: { ocrStatus: 'processing', ocrError: null } });
+    try {
+      const result = await generateVision({
+        system: 'You are a passport OCR engine. Extract only clearly visible data. Never guess. Return strict JSON and no prose.',
+        prompt: 'Extract this passport or identity document. Return JSON with: documentType, countryCode, passportNumber, surname, givenNames, nationality, birthDate (YYYY-MM-DD), sex, issueDate (YYYY-MM-DD), expiryDate (YYYY-MM-DD), personalNumber, mrz, confidence (0..1), warnings (array). Use null for unreadable fields.',
+        mediaType: file.mimeType, data: Buffer.from(file.data).toString('base64'), maxTokens: 900,
+      });
+      const ocrData = parseOcrJson(result.text);
+      const updated = await prisma.leadFile.update({ where: { id: file.id }, data: { ocrStatus: 'done', ocrData, ocrAt: new Date(), ocrError: null }, select: { id: true, ocrStatus: true, ocrData: true, ocrAt: true } });
+      return success(res, { file: updated });
+    } catch (ocrErr) {
+      await prisma.leadFile.update({ where: { id: file.id }, data: { ocrStatus: 'failed', ocrError: String(ocrErr.message || 'OCR xatosi').slice(0, 500) } });
+      throw ocrErr;
+    }
+  } catch (err) { return error(res, err.message, err.code === 'AI_NOT_CONFIGURED' ? 503 : 400); }
+}
+
+module.exports = { listFiles, uploadFile, downloadFile, deleteFile, ocrPassport };

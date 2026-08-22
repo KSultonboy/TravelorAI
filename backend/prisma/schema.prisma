@@ -107,18 +107,20 @@ model AgencyAccount {
 }
 
 model AgencyMember {
-  id               String        @id @default(cuid())
-  agencyId         String
-  agency           TourAgency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  accountId        String
-  account          AgencyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  name             String
-  role             String        @default("agent") // manager | agent | accountant (owner emas — u ownerAccountId)
-  status           String        @default("active")
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  assignedBookings TourBooking[] @relation("AssignedLeadManager")
-  assignedTasks    CrmTask[]     @relation("AssignedTaskManager")
+  id                  String                 @id @default(cuid())
+  agencyId            String
+  agency              TourAgency             @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  accountId           String
+  account             AgencyAccount          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  name                String
+  role                String                 @default("agent") // manager | agent | accountant (owner emas — u ownerAccountId)
+  status              String                 @default("active")
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  assignedBookings    TourBooking[]          @relation("AssignedLeadManager")
+  assignedTasks       CrmTask[]              @relation("AssignedTaskManager")
+  commissionRule      ManagerCommissionRule?
+  financeTransactions FinanceTransaction[]
 
   @@unique([agencyId, accountId])
   @@index([agencyId])
@@ -388,22 +390,22 @@ model TravelerStory {
 }
 
 model TourAgency {
-  id                      String               @id @default(cuid())
-  slug                    String               @unique
+  id                      String                    @id @default(cuid())
+  slug                    String                    @unique
   ownerAccountId          String?
-  ownerAccount            AgencyAccount?       @relation(fields: [ownerAccountId], references: [id], onDelete: SetNull)
+  ownerAccount            AgencyAccount?            @relation(fields: [ownerAccountId], references: [id], onDelete: SetNull)
   name                    String
   city                    String
   description             String?
   specialty               String
-  rating                  Float                @default(0)
-  reviews                 Int                  @default(0)
-  toursCount              Int                  @default(0)
+  rating                  Float                     @default(0)
+  reviews                 Int                       @default(0)
+  toursCount              Int                       @default(0)
   phone                   String?
   telegram                String?
   telegramBotToken        String?
   telegramBotUsername     String?
-  telegramBotActive       Boolean              @default(false)
+  telegramBotActive       Boolean                   @default(false)
   telegramWelcome         String?
   telegramConfig          String?
   // Instagram Direct → lid. OAuth bilan ulanadi, token 60 kunlik —
@@ -417,40 +419,40 @@ model TourAgency {
   instagramUsername       String?
   instagramToken          String?
   instagramTokenExpiresAt DateTime?
-  instagramActive         Boolean              @default(false)
+  instagramActive         Boolean                   @default(false)
   instagramWelcome        String?
   whatsappPhoneNumberId   String?
   whatsappWabaId          String?
   whatsappDisplayPhone    String?
   whatsappToken           String?
-  whatsappActive          Boolean              @default(false)
+  whatsappActive          Boolean                   @default(false)
   whatsappWelcome         String?
   birthdayTemplate        String? // tug'ilgan kun tabrigi matni ({name}, {agency})
   notifyChatId            String? // agent xabarnoma oladigan Telegram chat (mijoz lidi EMAS)
   tariffId                String?
-  subscriptionStatus      String               @default("none")
+  subscriptionStatus      String                    @default("none")
   subscriptionUntil       DateTime?
   website                 String?
   imageUrl                String?
-  active                  Boolean              @default(true)
-  source                  String               @default("admin")
+  active                  Boolean                   @default(true)
+  source                  String                    @default("admin")
   sourceUrl               String?
   lastVerifiedAt          DateTime?
-  confidenceScore         Float                @default(0.7)
-  featured                Boolean              @default(false)
-  manualBoost             Float                @default(0)
-  qualityScore            Float                @default(0.7)
-  landingSortOrder        Int                  @default(0)
-  approvalStatus          String               @default("approved")
+  confidenceScore         Float                     @default(0.7)
+  featured                Boolean                   @default(false)
+  manualBoost             Float                     @default(0)
+  qualityScore            Float                     @default(0.7)
+  landingSortOrder        Int                       @default(0)
+  approvalStatus          String                    @default("approved")
   approvedAt              DateTime?
   rejectedAt              DateTime?
   adminNote               String?
-  createdAt               DateTime             @default(now())
-  updatedAt               DateTime             @updatedAt
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
   tours                   Tour[]
   applications            AgencyApplication[]
   bookings                TourBooking[]
-  tariff                  Tariff?              @relation(fields: [tariffId], references: [id], onDelete: SetNull)
+  tariff                  Tariff?                   @relation(fields: [tariffId], references: [id], onDelete: SetNull)
   payments                AgencyPayment[]
   members                 AgencyMember[]
   presentations           TourPresentation[]
@@ -465,6 +467,12 @@ model TourAgency {
   financeAccounts         FinanceAccount[]
   financeTransactions     FinanceTransaction[]
   businessDocuments       BusinessDocument[]
+  suppliers               AgencySupplier[]
+  managerCommissionRules  ManagerCommissionRule[]
+  documentPayments        BusinessDocumentPayment[]
+  documentArchives        BusinessDocumentArchive[]
+  documentApprovals       DocumentApproval[]
+  documentSignatures      DocumentSignature[]
 
   @@index([active])
   @@index([tariffId])
@@ -887,34 +895,81 @@ model FinanceAccount {
 // Agentlikning operatsion moliyasi. direction kirim/chiqimni, status esa
 // rejalashtirilgan yoki amalda to'langanligini ifodalaydi.
 model FinanceTransaction {
-  id                 String            @id @default(cuid())
+  id                 String                   @id @default(cuid())
   agencyId           String
-  agency             TourAgency        @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agency             TourAgency               @relation(fields: [agencyId], references: [id], onDelete: Cascade)
   accountId          String?
-  account            FinanceAccount?   @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  account            FinanceAccount?          @relation(fields: [accountId], references: [id], onDelete: SetNull)
   bookingId          String?
-  booking            TourBooking?      @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  booking            TourBooking?             @relation(fields: [bookingId], references: [id], onDelete: SetNull)
   businessDocumentId String?
-  businessDocument   BusinessDocument? @relation(fields: [businessDocumentId], references: [id], onDelete: SetNull)
+  businessDocument   BusinessDocument?        @relation(fields: [businessDocumentId], references: [id], onDelete: SetNull)
+  supplierId         String?
+  supplier           AgencySupplier?          @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  managerMemberId    String?
+  managerMember      AgencyMember?            @relation(fields: [managerMemberId], references: [id], onDelete: SetNull)
+  commissionSourceId String?                  @unique
   direction          String // income | expense
-  status             String            @default("planned") // planned | paid | cancelled
+  status             String                   @default("planned") // planned | paid | cancelled
   category           String
   amount             Int
-  currency           String            @default("USD")
+  currency           String                   @default("USD")
   counterparty       String?
   paymentMethod      String?
   note               String?
   dueAt              DateTime?
   paidAt             DateTime?
   createdByAccountId String?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  documentPayment    BusinessDocumentPayment?
 
   @@index([agencyId, currency, status, dueAt])
   @@index([agencyId, paidAt])
   @@index([bookingId])
   @@index([accountId])
   @@index([businessDocumentId])
+  @@index([supplierId])
+  @@index([managerMemberId])
+}
+
+// Turoperator, mehmonxona, aviatashuvchi va boshqa hamkorlar kesimidagi
+// qarzdorlikni alohida ko'rish uchun kontragent kartochkasi.
+model AgencySupplier {
+  id           String               @id @default(cuid())
+  agencyId     String
+  agency       TourAgency           @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name         String
+  type         String               @default("tour_operator")
+  taxId        String?
+  phone        String?
+  email        String?
+  currency     String               @default("USD")
+  notes        String?
+  active       Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  transactions FinanceTransaction[]
+
+  @@unique([agencyId, name])
+  @@index([agencyId, active])
+}
+
+// Har bir menejer uchun yopilgan va to'langan bitimdan hisoblanadigan qoida.
+model ManagerCommissionRule {
+  id          String       @id @default(cuid())
+  agencyId    String
+  agency      TourAgency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  memberId    String       @unique
+  member      AgencyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  percent     Float        @default(0)
+  fixedAmount Int          @default(0)
+  currency    String       @default("USD")
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([agencyId, active])
 }
 
 // Yaratilgan shartnoma, hisob-faktura, voucher va dalolatnomalar reyestri.
@@ -944,10 +999,98 @@ model BusinessDocument {
   updatedAt          DateTime                  @updatedAt
   versions           BusinessDocumentVersion[]
   transactions       FinanceTransaction[]
+  payments           BusinessDocumentPayment[]
+  archives           BusinessDocumentArchive[]
+  approvals          DocumentApproval[]
+  signatures         DocumentSignature[]
 
   @@unique([agencyId, number])
   @@index([agencyId, type, status, issuedAt])
   @@index([bookingId])
+}
+
+// Invoice bo'yicha har bir qisman yoki to'liq to'lov alohida saqlanadi.
+model BusinessDocumentPayment {
+  id                 String             @id @default(cuid())
+  agencyId           String
+  agency             TourAgency         @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  businessDocumentId String
+  businessDocument   BusinessDocument   @relation(fields: [businessDocumentId], references: [id], onDelete: Cascade)
+  transactionId      String             @unique
+  transaction        FinanceTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  amount             Int
+  currency           String
+  paidAt             DateTime           @default(now())
+  note               String?
+  createdByAccountId String?
+  createdAt          DateTime           @default(now())
+
+  @@index([agencyId, paidAt])
+  @@index([businessDocumentId, paidAt])
+}
+
+// Server yaratgan PDF nusxalari DB'da hash va versiya bilan arxivlanadi.
+model BusinessDocumentArchive {
+  id                 String           @id @default(cuid())
+  agencyId           String
+  agency             TourAgency       @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  businessDocumentId String
+  businessDocument   BusinessDocument @relation(fields: [businessDocumentId], references: [id], onDelete: Cascade)
+  version            Int
+  filename           String
+  mimeType           String           @default("application/pdf")
+  size               Int
+  sha256             String
+  data               Bytes
+  createdByAccountId String?
+  createdAt          DateTime         @default(now())
+
+  @@index([agencyId, createdAt])
+  @@index([businessDocumentId, version])
+}
+
+// Ichki tasdiqlash oqimi: yuborildi -> tasdiqlandi yoki rad etildi.
+model DocumentApproval {
+  id                 String           @id @default(cuid())
+  agencyId           String
+  agency             TourAgency       @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  businessDocumentId String
+  businessDocument   BusinessDocument @relation(fields: [businessDocumentId], references: [id], onDelete: Cascade)
+  requestedById      String?
+  decidedById        String?
+  status             String           @default("pending")
+  comment            String?
+  decidedAt          DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([agencyId, status, createdAt])
+  @@index([businessDocumentId, createdAt])
+}
+
+// Email orqali yuborilgan bir martalik kod bilan tasdiqlangan elektron imzo izi.
+model DocumentSignature {
+  id                 String           @id @default(cuid())
+  agencyId           String
+  agency             TourAgency       @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  businessDocumentId String
+  businessDocument   BusinessDocument @relation(fields: [businessDocumentId], references: [id], onDelete: Cascade)
+  signerName         String
+  signerEmail        String
+  codeHash           String
+  status             String           @default("pending")
+  expiresAt          DateTime
+  verifiedAt         DateTime?
+  attempts           Int              @default(0)
+  requestedById      String?
+  ipAddress          String?
+  userAgent          String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([agencyId, status, createdAt])
+  @@index([businessDocumentId, createdAt])
+  @@index([signerEmail, expiresAt])
 }
 
 model BusinessDocumentVersion {
@@ -986,14 +1129,18 @@ model TourReview {
 // EMAS; faqat autentifikatsiyalangan endpoint orqali beriladi. Bog'lanishsiz —
 // divergent prod DB uchun xavfsiz.
 model LeadFile {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   agencyId  String
   bookingId String
   name      String
   mimeType  String
   size      Int
   data      Bytes
-  createdAt DateTime @default(now())
+  ocrStatus String    @default("none")
+  ocrData   Json?
+  ocrAt     DateTime?
+  ocrError  String?
+  createdAt DateTime  @default(now())
 
   @@index([bookingId])
   @@index([agencyId])
