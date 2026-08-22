@@ -15,6 +15,7 @@ const crm = require('../controllers/agencyCrm.controller');
 const finance = require('../controllers/agencyFinance.controller');
 const reconciliation = require('../controllers/agencyReconciliation.controller');
 const automation = require('../controllers/agencyAutomation.controller');
+const integrations = require('../controllers/agencyIntegration.controller');
 const documents = require('../controllers/agencyDocuments.controller');
 const { agencyAuditMiddleware } = require('../middleware/agencyAudit.middleware');
 
@@ -92,6 +93,17 @@ router.put('/crm/automation/rules/:id', blockWhenReadOnly, requireOwner, automat
 router.delete('/crm/automation/rules/:id', blockWhenReadOnly, requireOwner, automation.remove);
 router.post('/crm/automation/rules/:id/run', blockWhenReadOnly, requireOwner, automation.runNow);
 router.post('/crm/automation/runs/:id/retry', blockWhenReadOnly, requireOwner, automation.retry);
+
+// Public API kalitlari va outbound webhook boshqaruvi — faqat agentlik egasi.
+router.get('/crm/integrations', requireOwner, requireCapability('integrations'), integrations.list);
+router.post('/crm/integrations/api-keys', blockWhenReadOnly, requireOwner, requireCapability('integrations'), integrations.createKey);
+router.delete('/crm/integrations/api-keys/:id', blockWhenReadOnly, requireOwner, requireCapability('integrations'), integrations.revokeKey);
+router.post('/crm/integrations/webhooks', blockWhenReadOnly, requireOwner, requireCapability('integrations'), integrations.createEndpoint);
+router.put('/crm/integrations/webhooks/:id', blockWhenReadOnly, requireOwner, requireCapability('integrations'), integrations.updateEndpoint);
+router.delete('/crm/integrations/webhooks/:id', blockWhenReadOnly, requireOwner, requireCapability('integrations'), integrations.removeEndpoint);
+router.post('/crm/integrations/webhooks/:id/rotate-secret', blockWhenReadOnly, requireOwner, requireCapability('integrations'), integrations.rotateSecret);
+router.post('/crm/integrations/webhooks/:id/test', blockWhenReadOnly, requireOwner, requireCapability('integrations'), integrations.testEndpoint);
+router.post('/crm/integrations/deliveries/:id/retry', blockWhenReadOnly, requireOwner, requireCapability('integrations'), integrations.retryDelivery);
 
 // Operatsion moliya: kassa/bank, kirim-chiqim, qarzdorlik va bitim foydasi.
 router.get('/crm/finance', finance.listFinance);

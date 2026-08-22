@@ -1,4 +1,5 @@
-const { inferEntity, recordAudit } = require('../services/audit.service');
+const { inferEntity, recordAudit, sanitizeForAudit } = require('../services/audit.service');
+const { enqueueWebhookEvent, inferWebhookEvent } = require('../services/webhookDelivery.service');
 const { logger } = require('../config/logger');
 
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -10,7 +11,7 @@ function agencyAuditMiddleware(req, res, next) {
   res.once('finish', () => {
     if (res.statusCode >= 400) return;
     const { entityType, entityId } = inferEntity(req.originalUrl || req.path);
-    recordAudit({
+    const auditData = {
       agencyId: req.agency.id,
       actorAccountId: req.agencyAccount?.id,
       actorEmail: req.agencyAccount?.email,
@@ -22,7 +23,16 @@ function agencyAuditMiddleware(req, res, next) {
       changes: { body: req.body || null, durationMs: Date.now() - startedAt, statusCode: res.statusCode },
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
-    }).catch((err) => logger.error('AuditLog yozilmadi', { message: err.message }));
+    };
+    recordAudit(auditData)
+      .then(() => enqueueWebhookEvent({
+        agencyId: req.agency.id,
+        type: inferWebhookEvent(req.originalUrl || req.path, req.method),
+        entityType,
+        entityId: req.params?.id || entityId,
+        payload: sanitizeForAudit({ method: req.method, path: req.originalUrl || req.path, body: req.body || null, actorEmail: req.agencyAccount?.email }),
+      }))
+      .catch((err) => logger.error('Audit/webhook event yozilmadi', { message: err.message }));
   });
   next();
 }

@@ -477,6 +477,9 @@ model TourAgency {
   documentSignatures      DocumentSignature[]
   automationRules         AutomationRule[]
   automationRuns          AutomationRun[]
+  publicApiKeys           PublicApiKey[]
+  webhookEndpoints        WebhookEndpoint[]
+  webhookEvents           WebhookEvent[]
 
   @@index([active])
   @@index([tariffId])
@@ -804,6 +807,90 @@ model AutomationRun {
   @@index([agencyId, status, createdAt])
   @@index([status, nextRetryAt])
   @@index([entityType, entityId])
+}
+
+// Tashqi integratorlar uchun scope bilan cheklangan, qayta ko‘rsatib bo‘lmaydigan API kalit.
+// DB'da raw kalit emas, faqat SHA-256 hash va foydalanuvchiga ko‘rinadigan prefix saqlanadi.
+model PublicApiKey {
+  id                 String     @id @default(cuid())
+  agencyId           String
+  agency             TourAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name               String
+  keyPrefix          String
+  keyHash            String     @unique
+  scopes             String[]
+  rateLimitPerMinute Int        @default(120)
+  createdByAccountId String?
+  lastUsedAt         DateTime?
+  expiresAt          DateTime?
+  revokedAt          DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  @@index([agencyId, revokedAt, createdAt])
+}
+
+// Agentlik ulagan outbound webhook manzili. Secret AES-256-GCM bilan shifrlanadi.
+model WebhookEndpoint {
+  id                 String            @id @default(cuid())
+  agencyId           String
+  agency             TourAgency        @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name               String
+  url                String
+  active             Boolean           @default(true)
+  events             String[]
+  secretEncrypted    String
+  secretPrefix       String
+  maxAttempts        Int               @default(6)
+  createdByAccountId String?
+  lastSuccessAt      DateTime?
+  lastFailureAt      DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  deliveries         WebhookDelivery[]
+
+  @@index([agencyId, active, createdAt])
+}
+
+// Transactional outbox: biznes hodisasi deliverylardan alohida saqlanadi.
+model WebhookEvent {
+  id         String            @id @default(cuid())
+  agencyId   String
+  agency     TourAgency        @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  type       String
+  entityType String?
+  entityId   String?
+  payload    Json
+  createdAt  DateTime          @default(now())
+  deliveries WebhookDelivery[]
+
+  @@index([agencyId, createdAt])
+  @@index([agencyId, type, createdAt])
+}
+
+// Har endpoint/event juftligi uchun delivery, retry va DLQ holati.
+model WebhookDelivery {
+  id             String          @id @default(cuid())
+  endpointId     String
+  endpoint       WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  eventId        String
+  event          WebhookEvent    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  status         String          @default("pending") // pending | sending | retry | success | dead
+  attempt        Int             @default(0)
+  maxAttempts    Int             @default(6)
+  nextAttemptAt  DateTime        @default(now())
+  responseStatus Int?
+  responseBody   String?
+  error          String?
+  durationMs     Int?
+  deliveredAt    DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([endpointId, eventId])
+  @@index([status, nextAttemptAt])
+  @@index([endpointId, createdAt])
+  @@index([eventId])
 }
 
 // CSV import avval preview qilinadi, keyin batch sifatida commit bo'ladi.

@@ -41,7 +41,7 @@ import {
   type DocRequisites,
   type DocTemplates,
 } from "@/lib/agency/documents";
-import { AuditPage, AutomationPage, CsvImportPage, InsightsPage, WhatsAppPage } from "./CrmCompetitionPages";
+import { AuditPage, AutomationPage, CsvImportPage, InsightsPage, IntegrationPage, WhatsAppPage } from "./CrmCompetitionPages";
 
 /* ---- tiny inline icons ---- */
 const I = {
@@ -75,6 +75,7 @@ const I = {
   edit: "M12 20h9 M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z",
   info: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 16v-4 M12 8h.01",
   download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3",
+  link: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71 M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71",
 };
 function Ic({ d, s = 18 }: { d: string; s?: number }) {
   return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
@@ -128,6 +129,7 @@ const NAV: { key: string; label: string; icon: string; group: string; badge?: "l
   { key: "reports", label: "Hisobotlar", icon: I.chart, group: "Boshqa" },
   { key: "insights", label: "SLA va KPI", icon: I.clock, group: "Boshqa" },
   { key: "automation", label: "Avtomatizatsiya", icon: I.bolt, group: "Boshqa" },
+  { key: "api-webhooks", label: "API va Webhook", icon: I.link, group: "Boshqa" },
   { key: "csv-import", label: "CSV import", icon: I.download, group: "Boshqa" },
   { key: "audit", label: "Audit tarixi", icon: I.eye, group: "Boshqa" },
   { key: "whatsapp", label: "WhatsApp", icon: I.send, group: "Boshqa" },
@@ -591,6 +593,7 @@ export default function KvCabinet() {
     if (key === "telegram" || key === "instagram" || key === "whatsapp") return caps.telegram !== false;
     if (key === "csv-import") return caps.manualLeads !== false;
     if (key === "insights" || key === "automation") return caps.analytics !== false;
+    if (key === "api-webhooks") return caps.integrations !== false;
     if (key === "presentations") return caps.presentations !== false;
     if (!allowedSections) return true;
     return allowedSections.includes(key);
@@ -678,6 +681,7 @@ export default function KvCabinet() {
                 <Reports show={view === "reports"} leads={leads} />
                 <InsightsPage show={view === "insights"} readOnly={readOnly} />
                 <AutomationPage show={view === "automation"} readOnly={readOnly} />
+                <IntegrationPage show={view === "api-webhooks"} readOnly={readOnly} />
                 <CsvImportPage show={view === "csv-import"} readOnly={readOnly} onImported={refreshBookings} />
                 <AuditPage show={view === "audit"} />
                 <DocumentsSection show={view === "documents"} agencyId={agencyId} leads={leads} readOnly={readOnly} />
