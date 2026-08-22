@@ -32,8 +32,8 @@ async function cleanup() {
 
 async function main() {
   try {
-    const owner = await prisma.agencyAccount.create({ data: { email: ownerEmail, passwordHash: 'smoke-only', status: 'active', emailVerified: true, emailVerifiedAt: new Date() } });
-    const employee = await prisma.agencyAccount.create({ data: { email: memberEmail, passwordHash: 'smoke-only', status: 'active', emailVerified: true, emailVerifiedAt: new Date() } });
+    const owner = await prisma.agencyAccount.create({ data: { email: ownerEmail, passwordHash: 'smoke-only', status: 'approved', emailVerified: true, emailVerifiedAt: new Date() } });
+    const employee = await prisma.agencyAccount.create({ data: { email: memberEmail, passwordHash: 'smoke-only', status: 'approved', emailVerified: true, emailVerifiedAt: new Date() } });
     accountIds = [owner.id, employee.id];
     const agency = await prisma.tourAgency.create({ data: { slug, ownerAccountId: owner.id, name: 'CRM P1 Smoke', city: 'Toshkent', specialty: 'Smoke', approvalStatus: 'approved', approvedAt: new Date() } });
     agencyId = agency.id;
