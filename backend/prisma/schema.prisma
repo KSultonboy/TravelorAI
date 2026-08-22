@@ -406,6 +406,19 @@ model TourAgency {
   telegramBotActive   Boolean             @default(false)
   telegramWelcome     String?
   telegramConfig      String?
+  // Instagram Direct → lid. OAuth bilan ulanadi, token 60 kunlik —
+  // shuning uchun Telegram'dan farqli o'laroq muddat ustuni bor.
+  instagramUserId         String?
+  // GET /me ikki xil id qaytaradi: `user_id` (IG professional akkaunt id'si,
+  // yuqoridagi ustun) va `id` (app doirasidagi id). Webhook `recipient.id`da
+  // qaysi birini yuborishi Meta tomonidan kafolatlanmagan, shuning uchun
+  // ikkalasini ham saqlaymiz va webhook ikkalasi bo'yicha qidiradi.
+  instagramAppScopedId    String?
+  instagramUsername       String?
+  instagramToken          String?
+  instagramTokenExpiresAt DateTime?
+  instagramActive         Boolean  @default(false)
+  instagramWelcome        String?
   birthdayTemplate    String? // tug'ilgan kun tabrigi matni ({name}, {agency})
   notifyChatId        String? // agent xabarnoma oladigan Telegram chat (mijoz lidi EMAS)
   tariffId            String?
@@ -451,6 +464,8 @@ model TourAgency {
   @@index([landingSortOrder])
   @@index([ownerAccountId])
   @@index([approvalStatus])
+  @@index([instagramUserId])
+  @@index([instagramAppScopedId])
 }
 
 model Tariff {
@@ -562,7 +577,15 @@ model Tour {
   destinationCountry  String?
   tourGroup           String?
   nights              Int?
+  /// Kun soni — katalog «1-3 / 4-7 / 7+ kun» filtri aynan shu maydonga qaraydi.
+  days                Int?
   hotelIncluded       Boolean            @default(false)
+  /// Aviabilet kiritilganmi — tur sahifasidagi «Nimalar kiritilgan» shundan.
+  flightIncluded      Boolean            @default(false)
+  /// Transfer (aeroport ⇄ mehmonxona) kiritilganmi.
+  transferIncluded    Boolean            @default(false)
+  /// Sayohat sug'urtasi kiritilganmi.
+  insuranceIncluded   Boolean            @default(false)
   hotelName           String?
   hotelCategory       String?
   hotelLocation       String?
@@ -643,6 +666,8 @@ model TourBooking {
   archived           Boolean            @default(false) // arxivlangan — kanbandan chiqadi
   archivedAt         DateTime?
   telegramChatId     String?
+  instagramUserId    String? // IGSID — app+akkaunt juftligiga bog'liq, ochiq profil id'si EMAS
+  instagramUsername  String?
   utmSource          String? // qayerdan keldi: instagram, telegram, google...
   utmMedium          String? // cpc, post, story, bio...
   utmCampaign        String? // kampaniya nomi
@@ -665,6 +690,7 @@ model TourBooking {
   @@index([status, createdAt])
   @@index([customerEmail])
   @@index([agencyId, assignedMemberId])
+  @@index([instagramUserId])
 }
 
 // CRM vazifalari — barcha xodimlar uchun serverda sinxron saqlanadi.
@@ -894,13 +920,18 @@ model TripReview {
   @@index([userId, createdAt])
 }
 
+// Nomi tarixiy — bu endi UMUMIY xabar jurnali (Telegram + Instagram).
+// Prod bazasi divergent, jadvalni qayta nomlash xavfli bo'lgani uchun nom qoldi;
+// kanal `channel` ustuni bilan ajratiladi.
 model TelegramMessage {
   id        String   @id @default(cuid())
   agencyId  String
   bookingId String?
+  channel   String   @default("telegram") // telegram | instagram
   direction String
   text      String
   fromName  String?
+  externalId String?  @unique // Meta message id — webhook retry deduplikatsiyasi
   createdAt DateTime @default(now())
 
   @@index([agencyId])

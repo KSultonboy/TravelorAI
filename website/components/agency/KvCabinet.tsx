@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAgencySession } from "@/lib/agency/session";
 import { useCrm } from "@/lib/agency/useCrm";
+import { onExternalClick, openExternal, saveFile } from "@/lib/agency/external";
 import { agencyApi, formatMoney, formatDate, statusLabel, readImage } from "@/lib/agency/api";
+import { REGIONS, REGION_GROUPS, regionByKey } from "@/lib/travelData";
 import { getNotifs, markRead, markAllRead, clearNotifs, pushNotif, seedNotifs, type KvNotif } from "@/lib/agency/notify";
 import {
   CRM_STAGES,
@@ -14,12 +16,17 @@ import {
   telegramLinkSmart,
   greetingTemplate,
   normalizePhone,
+  normalizeSource,
+  LEAD_SOURCE_LABEL,
+  LEAD_SOURCE_OPTIONS,
+  LEAD_SOURCES,
   type CrmLead,
   type CrmStage,
 } from "@/lib/agency/crm";
 import {
   DOC_LIST,
-  openDocument,
+  DOC_LABEL,
+  buildDocumentFile,
   getRequisites,
   saveRequisites,
   EMPTY_REQUISITES,
@@ -27,6 +34,9 @@ import {
   saveTemplates,
   DEFAULT_DOC_TEMPLATES,
   DOC_PLACEHOLDERS,
+  parseBody,
+  serializeBody,
+  type DocSection,
   type DocType,
   type DocRequisites,
   type DocTemplates,
@@ -63,6 +73,7 @@ const I = {
   compress: "M8 3v3a2 2 0 0 1-2 2H3 M21 8h-3a2 2 0 0 1-2-2V3 M3 16h3a2 2 0 0 1 2 2v3 M16 21v-3a2 2 0 0 1 2-2h3",
   edit: "M12 20h9 M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z",
   info: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 16v-4 M12 8h.01",
+  download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3",
 };
 function Ic({ d, s = 18 }: { d: string; s?: number }) {
   return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
@@ -109,12 +120,15 @@ const NAV: { key: string; label: string; icon: string; group: string; badge?: "l
   { key: "packages", label: "Turlar / Paketlar", icon: I.box, group: "Sotuv" },
   { key: "presentations", label: "Takliflar", icon: I.send, group: "Sotuv" },
   { key: "reviews", label: "Sharhlar", icon: I.star, group: "Sotuv" },
-  { key: "payments", label: "To'lovlar", icon: I.card, group: "Sotuv" },
+  { key: "payments", label: "Mijoz to'lovlari", icon: I.card, group: "Sotuv" },
   { key: "reports", label: "Hisobotlar", icon: I.chart, group: "Boshqa" },
   { key: "documents", label: "Hujjatlar", icon: I.doc, group: "Boshqa" },
+  // Obuna to'lovi (CLICK) endi Sozlamalar → «Obuna va tarif» ichida.
+  // Ilgari alohida band edi, lekin Sozlamalar ham xuddi shu narsani
+  // ko'rsatardi — bir xil narsa ikki joyda turardi.
   { key: "settings", label: "Sozlamalar", icon: I.gear, group: "Boshqa" },
 ];
-const TITLES: Record<string, string> = { ...Object.fromEntries(NAV.map((n) => [n.key, n.label])), telegram: "Telegram bot" };
+const TITLES: Record<string, string> = { ...Object.fromEntries(NAV.map((n) => [n.key, n.label])), telegram: "Telegram bot", instagram: "Instagram Direct" };
 const OPEN: CrmStage[] = ["new", "contacted", "quoted"];
 const UZ_MONTH = ["Yan", "Fev", "Mar", "Apr", "May", "Iyun", "Iyul", "Avg", "Sen", "Okt", "Noy", "Dek"];
 const PKG_GRADS = [
@@ -232,6 +246,119 @@ function NotificationBell({ agencyId, leads, go }: { agencyId: string; leads: Cr
   );
 }
 
+/* ============ DESKTOP YANGILANISH ============
+   Faqat desktop ilova (Tauri qobiq) ichida ko'rinadi — brauzerда yashirin.
+   Tauri tomonда ochilgan ikki buyruqni chaqiradi: check_update / install_update. */
+type TauriBridge = { core?: { invoke?: (cmd: string, args?: unknown) => Promise<unknown> } };
+type UpdateInfo = { current: string; latest: string | null; available: boolean; notes?: string | null };
+
+function tauriInvoke(): ((cmd: string) => Promise<unknown>) | null {
+  if (typeof window === "undefined") return null;
+  const t = (window as unknown as { __TAURI__?: TauriBridge }).__TAURI__;
+  const fn = t?.core?.invoke;
+  return typeof fn === "function" ? (cmd: string) => fn(cmd) : null;
+}
+
+function DesktopUpdate() {
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [info, setInfo] = useState<UpdateInfo | null>(null);
+  const [state, setState] = useState<"idle" | "checking" | "installing" | "error">("idle");
+  const [err, setErr] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setIsDesktop(!!tauriInvoke()); }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("pointerdown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+
+  async function check() {
+    const invoke = tauriInvoke();
+    if (!invoke) return;
+    setState("checking"); setErr("");
+    try {
+      setInfo((await invoke("check_update")) as UpdateInfo);
+      setState("idle");
+    } catch (e) {
+      setErr(String((e as Error)?.message || e || "Tekshirib bo'lmadi"));
+      setState("error");
+    }
+  }
+
+  async function install() {
+    const invoke = tauriInvoke();
+    if (!invoke) return;
+    setState("installing"); setErr("");
+    try {
+      await invoke("install_update"); // muvaffaqiyatli bo'lsa ilova qayta ishga tushadi
+      setState("idle");
+    } catch (e) {
+      setErr(String((e as Error)?.message || e || "O'rnatib bo'lmadi"));
+      setState("error");
+    }
+  }
+
+  function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next) void check();
+  }
+
+  if (!isDesktop) return null;
+
+  return (
+    <div className={`dsk-upd${open ? " open" : ""}`} ref={ref} onPointerDown={(e) => e.stopPropagation()}>
+      <button className="icon-btn" onClick={toggle} title="Dastur yangilanishi" aria-label="Dastur yangilanishi">
+        {info?.available ? <span className="dsk-upd__dot" /> : null}
+        <Ic d={I.download} s={18} />
+      </button>
+
+      <div className="dsk-upd__menu" role="dialog">
+        <div className="dsk-upd__head">Dastur yangilanishi</div>
+
+        <div className="dsk-upd__status">
+          {state === "checking" ? "Tekshirilmoqda…"
+            : state === "installing" ? "Yuklab olinmoqda va o'rnatilmoqda…"
+            : state === "error" ? "Tekshirishda xatolik"
+            : info?.available ? "Yangi versiya mavjud!"
+            : "Yangilanish topilmadi"}
+        </div>
+
+        <div className="dsk-upd__rows">
+          <div><span>Joriy versiya</span><b>{info?.current || "—"}</b></div>
+          <div><span>Oxirgi versiya</span><b>{info?.latest || "—"}</b></div>
+        </div>
+
+        {info?.notes ? <p className="dsk-upd__notes">{info.notes}</p> : null}
+        {err ? <p className="dsk-upd__err">{err}</p> : null}
+
+        <div className="dsk-upd__foot">
+          {info?.available ? (
+            <button className="btn btn-primary btn-sm" disabled={state === "installing"} onClick={() => void install()}>
+              {state === "installing" ? "O'rnatilmoqda…" : "O'rnatish"}
+            </button>
+          ) : (
+            <button className="btn btn-ghost btn-sm" disabled={state === "checking"} onClick={() => void check()}>
+              {state === "checking" ? "Tekshirilmoqda…" : "Qayta tekshirish"}
+            </button>
+          )}
+          <button className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>Yopish</button>
+        </div>
+
+        {info?.available ? (
+          <p className="dsk-upd__hint">O&apos;rnatilgach dastur o&apos;zi qayta ishga tushadi.</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function UpgradeNotice({ section, planName, go }: { section: string; planName?: string; go: (v: string) => void }) {
   const label = TITLES[section] || "Bu bo'lim";
   return (
@@ -240,8 +367,8 @@ function UpgradeNotice({ section, planName, go }: { section: string; planName?: 
       <h3>{label} — yuqoriroq tarifda</h3>
       <p>Bu bo&apos;lim joriy tarifingizda{planName ? ` (${planName})` : ""} mavjud emas. Ochish uchun tarifni yuqoriga ko&apos;taring.</p>
       <div className="kv-upg__tiers">
-        <div><b>Pro</b><span>Telegram bot · Hisobotlar · Broadcast · Analitika</span></div>
-        <div><b>Business</b><span>Jamoa · Integratsiyalar · Hammasi</span></div>
+        <div><b>Pro</b><span>Instagram va Telegram · Hisobotlar · Broadcast · Takliflar</span></div>
+        <div><b>Premium</b><span>Jamoa va rollar · AI yordamchi</span></div>
       </div>
       <p className="kv-upg__hint">Tarifni yangilash uchun administrator bilan bog&apos;laning.</p>
       <button className="btn btn-primary" onClick={() => go("settings")}>Sozlamalarga o&apos;tish</button>
@@ -445,8 +572,14 @@ export default function KvCabinet() {
   const canExport = caps.csvExport !== false;
   const allowedSections = access?.sections || null; // null = cheklovsiz (grandfather / eski agentlik)
   const sectionAllowed = (key: string) => {
+    // DIQQAT: «settings» DOIM ochiq bo'lishi SHART — obuna to'lovi endi
+    // Sozlamalar ichida, ya'ni muddat tugaganda ham agentlik to'lay olishi
+    // kerak (aks holda kabinetda qamalib qoladi va tiklay olmaydi).
     if (key === "dashboard" || key === "settings" || key === "reviews" || key === "documents") return true; // doim ochiq
-    if (key === "telegram") return caps.telegram !== false;
+    // «instagram» ham shu yerda: u NAV kaliti emas, shuning uchun quyidagi
+    // sections tekshiruviga tushib qolsa Premium agentlik ham paywall ko'rardi.
+    // Daraja backend bilan bir xil: /agency/instagram → requireCapability('telegram').
+    if (key === "telegram" || key === "instagram") return caps.telegram !== false;
     if (key === "presentations") return caps.presentations !== false;
     if (!allowedSections) return true;
     return allowedSections.includes(key);
@@ -502,6 +635,7 @@ export default function KvCabinet() {
               <button className="icon-btn" onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))} title={theme === "dark" ? "Yorug' rejim" : "Tungi rejim"} aria-label="Rejimni almashtirish">
                 <Ic d={theme === "dark" ? I.sun : I.moon} s={18} />
               </button>
+              <DesktopUpdate />
               <NotificationBell agencyId={agencyId} leads={leads} go={setView} />
               <button className="btn btn-primary" onClick={() => setShowAdd(true)} disabled={readOnly} title={readOnly ? "Obuna tugagan — faqat o'qish rejimi" : undefined}><Ic d={I.plus} s={16} /> Yangi lid</button>
             </div>
@@ -534,6 +668,7 @@ export default function KvCabinet() {
                 <DocumentsSection show={view === "documents"} agencyId={agencyId} readOnly={readOnly} />
                 <Settings show={view === "settings"} agency={agency} agencyId={agencyId} refresh={refresh} logout={logout} go={setView} access={access} readOnly={readOnly} caps={caps} />
                 <TelegramPage show={view === "telegram"} leads={leads} go={setView} readOnly={readOnly} />
+                <InstagramPage show={view === "instagram"} go={setView} readOnly={readOnly} />
               </>
             )}
           </div>
@@ -622,13 +757,11 @@ function downloadCsv(filename: string, columns: CsvCol[], rows: any[]) {
   const lines = [columns.map((c) => esc(c.label)).join(",")];
   for (const r of rows) lines.push(columns.map((c) => esc(c.get(r))).join(","));
   const csv = "﻿" + lines.join("\r\n"); // BOM — Excel'да o'zbek harflari to'g'ri ochilishi uchun
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
   const stamp = new Date().toISOString().slice(0, 10);
-  const a = document.createElement("a");
-  a.href = url; a.download = `${filename}-${stamp}.csv`;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  // saveFile — desktopda «Yuklanmalar»ga yozadi, brauzerda odatdagi yuklab olish.
+  // (Ilgari bu yerda to'g'ridan-to'g'ri <a download> edi — desktopda ishlamasdi.)
+  void saveFile(`${filename}-${stamp}.csv`, csv, "text/csv;charset=utf-8;")
+    .catch((e) => alert(e instanceof Error ? e.message : "Faylni saqlab bo'lmadi"));
 }
 function ExportBtn({ rows, filename, columns }: { rows: any[]; filename: string; columns: CsvCol[] }) {
   const empty = !rows || rows.length === 0;
@@ -702,8 +835,14 @@ const PAY_COLS: CsvCol[] = [
 ];
 
 /* ================= LEADS / KANBAN ================= */
-const SRC_BADGE: Record<string, string> = { manual: "b-amber", marketplace: "b-green", telegram: "b-sky" };
-const srcLabel = (s: string) => (s === "manual" ? "Qo'lda" : s === "telegram" ? "Telegram" : "Marketplace");
+const SRC_BADGE: Record<string, string> = {
+  marketplace: "b-green", telegram: "b-sky", instagram: "b-rose", whatsapp: "b-green", offline: "b-amber", manual: "b-amber",
+};
+const srcLabel = (s: string) => LEAD_SOURCE_LABEL[normalizeSource(s)];
+/** Donut/legend uchun manba rangi (hisobotда) */
+const SRC_COLOR: Record<string, string> = {
+  marketplace: "#0F5132", telegram: "#3E86B0", instagram: "#C0392B", whatsapp: "#25A768", offline: "#CA8A04", manual: "#CA8A04",
+};
 
 /* Tez aloqa: WhatsApp / Telegram / qo'ng'iroq — mijoz telefoni bo'lsa (chiquvchi havolalar) */
 function ContactActions({ lead }: { lead: { customerName: string; customerPhone?: string | null; tourTitle?: string | null; whatsappNumber?: string | null; telegramHandle?: string | null } }) {
@@ -715,18 +854,79 @@ function ContactActions({ lead }: { lead: { customerName: string; customerPhone?
   if (!wa && !tg && !tel) return null;
   const stop = (e: any) => e.stopPropagation();
   const base: any = { width: 30, height: 30, borderRadius: 8, display: "inline-grid", placeItems: "center", color: "#fff", textDecoration: "none", flex: "none" };
+  // DIQQAT: onClick faqat stopPropagation qilib qo'yilsa, desktop ilovada (Tauri)
+  // havola OCHILMAYDI — webview target="_blank" ni bloklaydi. onExternalClick
+  // desktopda tizim brauzeri/ilovasiga topshiradi, brauzerda esa oddiy yo'l.
   return (
     <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }} onPointerDown={stop}>
-      {wa ? <a href={wa} target="_blank" rel="noreferrer" title="WhatsApp" onClick={stop} style={{ ...base, background: "#25D366" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.5 14.4c-.3-.15-1.7-.85-2-.95-.26-.1-.45-.15-.64.15-.19.28-.73.94-.9 1.13-.16.19-.33.21-.61.07-.3-.15-1.25-.46-2.38-1.47-.88-.78-1.47-1.75-1.64-2.04-.17-.29-.02-.44.13-.59.13-.13.3-.34.44-.51.15-.17.19-.29.29-.48.1-.19.05-.36-.02-.51-.08-.15-.64-1.55-.88-2.12-.23-.55-.47-.48-.64-.49h-.55c-.19 0-.5.07-.76.36-.26.29-1 .98-1 2.38s1.02 2.76 1.17 2.95c.14.19 2.01 3.08 4.88 4.32.68.29 1.21.47 1.63.6.68.22 1.3.19 1.79.11.55-.08 1.7-.69 1.94-1.36.24-.67.24-1.24.17-1.36-.07-.12-.26-.19-.55-.34zM12 2a10 10 0 0 0-8.6 15.06L2 22l5.06-1.33A10 10 0 1 0 12 2z" /></svg></a> : null}
-      {tg ? <a href={tg} target="_blank" rel="noreferrer" title="Telegram" onClick={stop} style={{ ...base, background: "#229ED9" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.3 18.7 19.4c-.24 1.06-.87 1.32-1.76.82l-4.87-3.59-2.35 2.26c-.26.26-.48.48-.98.48l.35-4.96 9.02-8.15c.39-.35-.09-.55-.6-.2L6.83 13.2l-4.8-1.5c-1.04-.33-1.06-1.04.22-1.54l18.77-7.23c.87-.32 1.63.2 1.35 1.37z" /></svg></a> : null}
-      {tel ? <a href={tel} title="Qo'ng'iroq" onClick={stop} style={{ ...base, background: "#64748B" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.5-1.1a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z" /></svg></a> : null}
+      {wa ? <a href={wa} target="_blank" rel="noreferrer" title="WhatsApp" onClick={onExternalClick(wa)} style={{ ...base, background: "#25D366" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.5 14.4c-.3-.15-1.7-.85-2-.95-.26-.1-.45-.15-.64.15-.19.28-.73.94-.9 1.13-.16.19-.33.21-.61.07-.3-.15-1.25-.46-2.38-1.47-.88-.78-1.47-1.75-1.64-2.04-.17-.29-.02-.44.13-.59.13-.13.3-.34.44-.51.15-.17.19-.29.29-.48.1-.19.05-.36-.02-.51-.08-.15-.64-1.55-.88-2.12-.23-.55-.47-.48-.64-.49h-.55c-.19 0-.5.07-.76.36-.26.29-1 .98-1 2.38s1.02 2.76 1.17 2.95c.14.19 2.01 3.08 4.88 4.32.68.29 1.21.47 1.63.6.68.22 1.3.19 1.79.11.55-.08 1.7-.69 1.94-1.36.24-.67.24-1.24.17-1.36-.07-.12-.26-.19-.55-.34zM12 2a10 10 0 0 0-8.6 15.06L2 22l5.06-1.33A10 10 0 1 0 12 2z" /></svg></a> : null}
+      {tg ? <a href={tg} target="_blank" rel="noreferrer" title="Telegram" onClick={onExternalClick(tg)} style={{ ...base, background: "#229ED9" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.3 18.7 19.4c-.24 1.06-.87 1.32-1.76.82l-4.87-3.59-2.35 2.26c-.26.26-.48.48-.98.48l.35-4.96 9.02-8.15c.39-.35-.09-.55-.6-.2L6.83 13.2l-4.8-1.5c-1.04-.33-1.06-1.04.22-1.54l18.77-7.23c.87-.32 1.63.2 1.35 1.37z" /></svg></a> : null}
+      {tel ? <a href={tel} title="Qo'ng'iroq" onClick={onExternalClick(tel)} style={{ ...base, background: "#64748B" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.5-1.1a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z" /></svg></a> : null}
     </div>
   );
 }
+/**
+ * Hujjat oynasi — CRM ichida (iframe).
+ *
+ * NEGA: ilgari hujjat `window.open()` bilan yangi oynada ochilardi. Desktop
+ * ilovada yangi oyna umuman ochilmaydi, brauzerda esa pop-up blokirovkasiga
+ * tushardi — «Brauzer yangi oynani bloklamoqda» xatosi shundan edi. Endi
+ * hujjat shu yerda chiziladi: chop etish, yuklab olish va yopish — hammasi
+ * ilova ichida, hech qanday pop-up talab qilinmaydi.
+ */
+function DocViewer({ html, filename, title, onClose }: { html: string; filename: string; title: string; onClose: () => void }) {
+  const frame = useRef<HTMLIFrameElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  function print() {
+    const w = frame.current?.contentWindow;
+    if (!w) return;
+    w.focus();
+    w.print();
+  }
+  const [saved, setSaved] = useState("");
+  async function download() {
+    // Iframe ichida qo'lda to'ldirilgan maydonlar ham saqlanadi
+    const doc = frame.current?.contentDocument;
+    const out = doc ? `<!doctype html>${doc.documentElement.outerHTML}` : html;
+    try {
+      // Desktopda «Yuklanmalar»ga yoziladi va ochiladi; brauzerda oddiy yuklab olish
+      const path = await saveFile(filename, out, "text/html;charset=utf-8");
+      setSaved(path ? `Saqlandi: ${path}` : "Yuklab olindi");
+      setTimeout(() => setSaved(""), 4000);
+    } catch (e) {
+      setSaved(e instanceof Error ? e.message : "Saqlab bo'lmadi");
+      setTimeout(() => setSaved(""), 4000);
+    }
+  }
+
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="card doc-view" onClick={(e) => e.stopPropagation()}>
+        <div className="doc-view__head">
+          <b>{title}</b>
+          <div className="doc-view__acts">
+            <button type="button" className="btn btn-primary btn-sm" onClick={print}><Ic d={I.doc} s={14} /> Chop etish / PDF</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => void download()}><Ic d={I.download} s={14} /> Yuklab olish</button>
+            {saved ? <span className="doc-view__saved" title={saved}>{saved}</span> : null}
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Yopish</button>
+          </div>
+        </div>
+        <iframe ref={frame} className="doc-view__frame" srcDoc={html} title={title} />
+      </div>
+    </div>
+  );
+}
+
 /* Hujjat generatsiyasi — lid ma'lumotidan shartnoma/hisob-faktura (print → PDF) */
 function DocMenu({ lead }: { lead: CrmLead }) {
   const { me } = useAgencySession();
   const [open, setOpen] = useState(false);
+  const [doc, setDoc] = useState<{ html: string; filename: string; title: string } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -741,7 +941,7 @@ function DocMenu({ lead }: { lead: CrmLead }) {
   const stop = (e: any) => e.stopPropagation();
   function gen(type: DocType) {
     setOpen(false);
-    const ok = openDocument({
+    const { html, filename } = buildDocumentFile({
       type, agencyId, me: me!,
       lead: {
         customerName: lead.customerName,
@@ -755,7 +955,7 @@ function DocMenu({ lead }: { lead: CrmLead }) {
         currency: lead.currency,
       },
     });
-    if (!ok) alert("Brauzer yangi oynani bloklади. Pop-up'ga ruxsat bering va qayta urining.");
+    setDoc({ html, filename, title: `${DOC_LABEL[type]} — ${lead.customerName}` });
   }
   return (
     <div className={`docmenu${open ? " open" : ""}`} ref={ref} onPointerDown={stop}>
@@ -770,6 +970,7 @@ function DocMenu({ lead }: { lead: CrmLead }) {
           </button>
         ))}
       </div>
+      {doc ? <DocViewer {...doc} onClose={() => setDoc(null)} /> : null}
     </div>
   );
 }
@@ -930,7 +1131,8 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
     const query = q.trim().toLowerCase();
     if (query) a = a.filter((l: CrmLead) => (l.customerName || "").toLowerCase().includes(query) || (l.customerPhone || "").replace(/\s/g, "").includes(query.replace(/\s/g, "")) || (l.customerEmail || "").toLowerCase().includes(query));
     if (fStage !== "all") a = a.filter((l: CrmLead) => l.stage === fStage);
-    if (fSource !== "all") a = a.filter((l: CrmLead) => l.source === fSource);
+    // normalizeSource — eski/notanish qiymatlar ham to'g'ri guruhga tushsin
+    if (fSource !== "all") a = a.filter((l: CrmLead) => normalizeSource(l.source) === fSource);
     return a;
   }, [archivedLeads, q, fStage, fSource]);
   const dl = leads.find((x: CrmLead) => x.id === detailId) || arch.find((x: CrmLead) => x.id === detailId);
@@ -994,9 +1196,11 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
             </select>
             <select className="arch-sel" value={fSource} onChange={(e) => setFSource(e.target.value)}>
               <option value="all">Barcha manba</option>
-              <option value="manual">Qo&apos;lda</option>
-              <option value="telegram">Telegram</option>
-              <option value="marketplace">Marketplace</option>
+              {/* YAGONA manba: lib/agency/crm LEAD_SOURCES — lid qo'shish formasi,
+                  hisobot diagrammasi va bu filtr bir xil ro'yxatdan foydalanadi.
+                  Ilgari bu yerda faqat 3 tasi qo'lda yozilgan edi, shuning uchun
+                  Instagram/WhatsApp/Offline lidlarini filtrlab bo'lmasdi. */}
+              {LEAD_SOURCES.map((s) => <option key={s} value={s}>{LEAD_SOURCE_LABEL[s]}</option>)}
             </select>
           </div>
           <div className="card tbl-wrap">
@@ -1067,6 +1271,7 @@ function LeadDetail({ lead, readOnly, busyId, pres, members, onMove, onClose, on
       travelDate: lead.travelDate ? String(lead.travelDate).slice(0, 10) : "",
       totalEstimate: lead.totalEstimate ? String(lead.totalEstimate) : "",
       customerBirthday: lead.customerBirthday ? String(lead.customerBirthday).slice(0, 10) : "",
+      source: normalizeSource(lead.source),
     });
     setErr(""); setEditing(true);
   }
@@ -1088,6 +1293,7 @@ function LeadDetail({ lead, readOnly, busyId, pres, members, onMove, onClose, on
         travelDate: form.travelDate || null,
         totalEstimate: form.totalEstimate === "" ? null : form.totalEstimate,
         customerBirthday: form.customerBirthday || null,
+        source: form.source || undefined,
       }),
     });
     setBusy(false);
@@ -1105,7 +1311,11 @@ function LeadDetail({ lead, readOnly, busyId, pres, members, onMove, onClose, on
     ["Kishilar soni", lead.travelers || "—"],
     ["Sayohat sanasi", lead.travelDate ? formatDate(lead.travelDate) : "—"],
     ["Taxminiy summa", lead.totalEstimate ? formatMoney(lead.totalEstimate) : "—"],
-    ["Tug'ilgan kun", lead.customerBirthday ? formatDate(lead.customerBirthday) : "—"],
+    ...(BIRTHDAY_LIVE
+      ? ([["Tug'ilgan kun", lead.customerBirthday ? formatDate(lead.customerBirthday) : "—"]] as [string, React.ReactNode][])
+      : []),
+    // Qayerdan keldi — o'qish ko'rinishida ham ko'rinsin (o'zgartirish ✏️ ostida)
+    ["Qayerdan keldi", <span className={`badge2 ${SRC_BADGE[normalizeSource(lead.source)] || "b-grey"}`}>{srcLabel(lead.source)}</span>],
   ];
   if (lead.utmSource) fields.push(["Manba (UTM)", lead.utmSource]);
   async function assign(memberId: string) {
@@ -1178,7 +1388,18 @@ function LeadDetail({ lead, readOnly, busyId, pres, members, onMove, onClose, on
               {inp("travelers", "Kishilar soni", { type: "number" })}
               {inp("travelDate", "Sayohat sanasi", { type: "date" })}
               {inp("totalEstimate", "Taxminiy summa ($)", { ph: "800" })}
-              {inp("customerBirthday", "Tug'ilgan kun", { type: "date" })}
+              {BIRTHDAY_LIVE ? inp("customerBirthday", "Tug'ilgan kun", { type: "date" }) : null}
+              {/* Manba — mijoz qayerdan kelgani. Hisobotdagi doiraviy diagramma shundan yasaladi. */}
+              <div className="fld">
+                <label>Qayerdan keldi (manba)</label>
+                <select value={form.source || "offline"} onChange={(e) => set("source", e.target.value)}>
+                  {LEAD_SOURCE_OPTIONS.map((sv) => (
+                    <option key={sv} value={sv}>{LEAD_SOURCE_LABEL[sv]}</option>
+                  ))}
+                  {/* Eski lidlar "Qo'lda" bo'lsa — ro'yxatdan tushib qolmasin */}
+                  {form.source === "manual" ? <option value="manual">{LEAD_SOURCE_LABEL.manual}</option> : null}
+                </select>
+              </div>
             </div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
               <button className="btn btn-ghost" onClick={() => setEditing(false)} disabled={busy}>Bekor</button>
@@ -1211,9 +1432,13 @@ function LeadDetail({ lead, readOnly, busyId, pres, members, onMove, onClose, on
             <div className="ld-tools"><ContactActions lead={lead} /></div>
             <div className="ld-tools2">
               <div style={{ flex: 1, minWidth: 130 }}><DocMenu lead={lead} /></div>
-              {lead.source === "telegram" ? (
+              {lead.source === "telegram" || lead.source === "instagram" ? (
                 <button className="tg-chat-btn" style={{ width: "auto", marginTop: 0, padding: "0 14px" }} onClick={() => onOpenChat(lead)}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>Telegram suhbat
+                  {lead.source === "instagram" ? (
+                    <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none" /></svg>Instagram suhbat</>
+                  ) : (
+                    <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>Telegram suhbat</>
+                  )}
                 </button>
               ) : null}
             </div>
@@ -1239,6 +1464,19 @@ function LeadDetail({ lead, readOnly, busyId, pres, members, onMove, onClose, on
   );
 }
 
+/**
+ * Tug'ilgan kun / avto-tabrik — VAQTINCHA YASHIRILGAN.
+ *
+ * Sabab: bot faqat o'zi bilan suhbat boshlagan mijozga yozadi (Telegram
+ * cheklovi), shuning uchun Telegramда bo'lmagan mijozlarda tabrik yetib
+ * bormaydi va jadval ⚠ belgilariga to'lib ketardi.
+ *
+ * Kod, backend, baza va migratsiyalar JOYIDA — faqat interfeysda ko'rinmaydi.
+ * Qayta yoqish uchun shu bayroqni `true` qilish kifoya (boshqa hech narsa
+ * o'zgartirilmaydi). Xuddi TEAM_LIVE bayrog'i kabi.
+ */
+const BIRTHDAY_LIVE: boolean = false;
+
 /* Mijoz tug'ilgan kuni — o'zgartirilganda serverга yoziladi (avto-tabrik uchun) */
 function BirthdayCell({ customer, readOnly, onSaved }: any) {
   const [val, setVal] = useState(customer.birthday ? String(customer.birthday).slice(0, 10) : "");
@@ -1253,9 +1491,12 @@ function BirthdayCell({ customer, readOnly, onSaved }: any) {
   if (readOnly) return <span style={{ color: "#8aa398", fontSize: 13 }}>{val ? formatDate(val) : "—"}</span>;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      {/* DIQQAT: bu yerda ilgari qattiq rang va colorScheme:"dark" yozilgan edi —
+          och rejimda chegara ko'rinmasdi va sana tanlash oynasi qora chiqardi.
+          Ranglar mavzu tokenlaridan; color-scheme'ni CSS o'zi hal qiladi. */}
       <input type="date" value={val} max={new Date().toISOString().slice(0, 10)} disabled={busy}
         onChange={(e) => void save(e.target.value)}
-        style={{ padding: "5px 8px", border: "1px solid rgba(255,255,255,.14)", background: "rgba(255,255,255,.04)", color: "inherit", borderRadius: 8, fontSize: 13, colorScheme: "dark" }} />
+        style={{ padding: "5px 8px", border: "1px solid var(--field-border)", background: "var(--field-bg)", color: "var(--t1)", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none" }} />
       {saved ? <span style={{ color: "#1E9E63", fontSize: 13 }}>✓</span> : null}
       {!customer.hasTelegram && val ? (
         <span title="Bu mijoz Telegramда bog'lanmagan — avto-tabrik hozircha faqat Telegram orqali yuboriladi" style={{ color: "#CA8A04", fontSize: 13, cursor: "help" }}>⚠</span>
@@ -1273,13 +1514,13 @@ function Customers({ show, customers, canExport, readOnly, refresh }: any) {
       <div className="card tbl-wrap">
         {customers.length ? (
           <table>
-            <thead><tr><th>Mijoz</th><th>Telefon</th><th>Tug&apos;ilgan kun</th><th>So&apos;rovlar</th><th className="r">Jami qiymat</th><th>Holat</th><th>Aloqa</th></tr></thead>
+            <thead><tr><th>Mijoz</th><th>Telefon</th>{BIRTHDAY_LIVE ? <th>Tug&apos;ilgan kun</th> : null}<th>So&apos;rovlar</th><th className="r">Jami qiymat</th><th>Holat</th><th>Aloqa</th></tr></thead>
             <tbody>
               {customers.map((c: any) => (
                 <tr key={c.keyId}>
                   <td><div className="cell"><span className="av-sm">{initials(c.name)}</span><b>{c.name}</b></div></td>
                   <td>{c.phone || "—"}</td>
-                  <td><BirthdayCell customer={c} readOnly={readOnly} onSaved={refresh} /></td>
+                  {BIRTHDAY_LIVE ? <td><BirthdayCell customer={c} readOnly={readOnly} onSaved={refresh} /></td> : null}
                   <td>{c.leads.length}</td>
                   <td className="r money">{formatMoney(c.totalValue)}</td>
                   <td><span className={`badge2 ${c.totalValue >= 1500 ? "b-amber" : c.wonCount > 1 ? "b-green" : c.wonCount ? "b-grey" : "b-sky"}`}>{c.totalValue >= 1500 ? "VIP" : c.wonCount > 1 ? "Doimiy" : c.wonCount ? "Faol" : "Yangi"}</span></td>
@@ -1318,7 +1559,10 @@ function Tasks({ show, tasks, leads, members, readOnly, createTask, toggleTask, 
   const openTaskLeadIds = useMemo(() => new Set(tasks.filter((t: any) => !t.done && t.leadId).map((t: any) => t.leadId)), [tasks]);
   const untracked = useMemo(() => openLeadOpts.filter((l) => !openTaskLeadIds.has(l.id)), [openLeadOpts, openTaskLeadIds]);
   const activeCount = g.overdue.length + g.today.length + g.upcoming.length + g.noDue.length;
-  const inp: any = { padding: "10px 12px", border: "1px solid rgba(255,255,255,.15)", background: "rgba(255,255,255,.04)", color: "inherit", borderRadius: 10, fontSize: 14, minWidth: 0 };
+  // DIQQAT: qattiq rang YOZILMAYDI. Ilgari chegara rgba(255,255,255,.15) edi —
+  // och rejimda oq kartada ko'rinmasdi, maydonlar chegarasiz turardi. Ranglar
+  // mavzu tokenlaridan olinadi, shuning uchun ikki rejimda ham to'g'ri.
+  const inp: any = { padding: "10px 12px", border: "1px solid var(--field-border)", background: "var(--field-bg)", color: "var(--t1)", borderRadius: 10, fontSize: 14, minWidth: 0, fontFamily: "inherit", outline: "none" };
 
   async function submit(e?: any) {
     e?.preventDefault?.();
@@ -1461,14 +1705,14 @@ function TelegramAlertSetup() {
         botingiz sizga darhol xabar beradi — CRM ochiq bo&apos;lmasa ham.
       </p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <code style={{ padding: "9px 12px", background: "rgba(255,255,255,.06)", borderRadius: 9, fontSize: 13.5 }}>{cmd}</code>
+        <code style={{ padding: "9px 12px", background: "var(--canvas)", border: "1px solid var(--border)", borderRadius: 9, fontSize: 13.5 }}>{cmd}</code>
         <button
           className="btn btn-ghost btn-sm"
           onClick={() => { void navigator.clipboard.writeText(cmd).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); }).catch(() => {}); }}
         >
           <Ic d={I.copy} s={13} /> {copied ? "Nusxalandi" : "Nusxalash"}
         </button>
-        <a className="btn btn-ghost btn-sm" href={`https://t.me/${d.username}`} target="_blank" rel="noopener noreferrer">
+        <a className="btn btn-ghost btn-sm" href={`https://t.me/${d.username}`} target="_blank" rel="noopener noreferrer" onClick={onExternalClick(`https://t.me/${d.username}`)}>
           Botni ochish
         </a>
       </div>
@@ -1476,11 +1720,24 @@ function TelegramAlertSetup() {
   );
 }
 
+/* Taklif narxi kim uchun — erkin matn emas, tanlov. Mijoz sahifasida aynan
+   shu matn chiqadi, shuning uchun imlo/format har taklifda bir xil bo'ladi. */
+const OFFER_BASIS: { v: string; label: string }[] = [
+  { v: "1 kishi uchun", label: "1 kishi uchun" },
+  { v: "2 kishi uchun", label: "2 kishi uchun" },
+  { v: "2 kishilik nomer uchun", label: "2 kishilik nomer uchun" },
+  { v: "butun guruh uchun", label: "Butun guruh uchun" },
+  { v: "", label: "Ko'rsatilmasin" },
+];
+
 function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
   const [leadId, setLeadId] = useState("");
   const [tourId, setTourId] = useState("");
   const [title, setTitle] = useState("");
-  const [price, setPrice] = useState("");
+  // Narx: raqam + valyuta + kim uchun — uchtasi tanlov, matn o'zi yasaladi.
+  const [amount, setAmount] = useState("");
+  const [currency, setCurrency] = useState("USD");
+  const [basis, setBasis] = useState(OFFER_BASIS[0].v);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -1496,8 +1753,20 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
     const t = tours.find((x: any) => x.id === id);
     if (!t) return;
     setTitle(t.title || "");
-    setPrice(t.price || (t.priceMin ? formatMoney(t.priceMin) : ""));
+    // Narxni turdan olamiz: aniq son bo'lmasa matndagi raqamlardan yig'amiz.
+    const num = Number(t.priceMin) || Number(String(t.price || "").replace(/[^\d]/g, "")) || 0;
+    setAmount(num ? String(num) : "");
+    if (t.priceCurrency === "UZS" || t.priceCurrency === "USD") setCurrency(t.priceCurrency);
   }
+  // Mijoz sahifasida ko'rinadigan narx matni — tanlovlardan yasaladi.
+  const priceText = (() => {
+    const num = Number(String(amount).replace(/[^\d]/g, ""));
+    if (!num) return "";
+    const money = currency === "UZS"
+      ? `${new Intl.NumberFormat("ru-RU").format(num)} so'm`
+      : formatMoney(num);
+    return basis ? `${money} / ${basis}` : money;
+  })();
   function pickTour(id: string) {
     setTourId(id);
     if (id) fillFromTour(id);
@@ -1533,7 +1802,10 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
     interested: items.filter((p: any) => p.status === "interested").length,
   }), [items]);
 
-  const inp: any = { padding: "10px 12px", border: "1px solid rgba(255,255,255,.15)", background: "rgba(255,255,255,.04)", color: "inherit", borderRadius: 10, fontSize: 14, minWidth: 0 };
+  // DIQQAT: qattiq rang YOZILMAYDI. Ilgari chegara rgba(255,255,255,.15) edi —
+  // och rejimda oq kartada ko'rinmasdi, maydonlar chegarasiz turardi. Ranglar
+  // mavzu tokenlaridan olinadi, shuning uchun ikki rejimda ham to'g'ri.
+  const inp: any = { padding: "10px 12px", border: "1px solid var(--field-border)", background: "var(--field-bg)", color: "var(--t1)", borderRadius: 10, fontSize: 14, minWidth: 0, fontFamily: "inherit", outline: "none" };
   const stepLabel: any = { display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 700 };
   const stepNum: any = { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: 999, background: "rgba(234,179,8,.15)", color: "#EAB308", fontSize: 12.5, fontWeight: 800, flex: "0 0 auto" };
   const hint: any = { color: "#8aa398", fontSize: 12.5 };
@@ -1561,14 +1833,14 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
         tourId: tourId || undefined,
         title: title.trim() || undefined,
         customerName: lead?.customerName || undefined,
-        priceText: price.trim() || undefined,
+        priceText: priceText || undefined,
         note: note.trim() || undefined,
       }),
     });
     setBusy(false);
     if (!res.success) { setErr(res.message || "Taklif yaratilmadi"); return; }
     setCreated(res.data);
-    setTitle(""); setPrice(""); setNote(""); setTourId(""); setLeadId("");
+    setTitle(""); setAmount(""); setBasis(OFFER_BASIS[0].v); setNote(""); setTourId(""); setLeadId("");
     await reload();
   }
 
@@ -1617,7 +1889,7 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
         <div className="card" style={{ padding: 16, marginBottom: 12, borderColor: "rgba(234,179,8,.45)" }}>
           <b style={{ color: "#EAB308" }}>Taklif tayyor — havolani mijozga yuboring</b>
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <code style={{ flex: "1 1 260px", padding: "10px 12px", background: "rgba(255,255,255,.05)", borderRadius: 10, fontSize: 13, wordBreak: "break-all" }}>{created.url}</code>
+            <code style={{ flex: "1 1 260px", padding: "10px 12px", background: "var(--canvas)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 13, wordBreak: "break-all" }}>{created.url}</code>
             <button className="btn btn-primary btn-sm" onClick={() => void copy(created.url, "new")}>
               <Ic d={I.copy} s={14} /> {copied === "new" ? "Nusxalandi" : "Nusxalash"}
             </button>
@@ -1656,11 +1928,32 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
           {/* 3 — Nomi, narx, izoh */}
           <div style={{ display: "grid", gap: 6 }}>
             <label style={stepLabel}><span style={stepNum}>3</span> Nomi, narxi va izoh</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Taklif nomi" style={inp} />
+            {/* Narx — erkin matn EMAS: son + valyuta + kim uchun. Mijoz sahifasidagi
+                matn shundan yasaladi, har taklifda bir xil ko'rinishda bo'ladi. */}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Taklif nomi" style={{ ...inp, flex: "2 1 240px" }} />
-              <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Narx, masalan: 850$ / kishi" style={{ ...inp, flex: "1 1 180px" }} />
+              <input
+                value={amount}
+                onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))}
+                inputMode="numeric"
+                placeholder="Narx (faqat son)"
+                style={{ ...inp, flex: "1 1 150px" }}
+              />
+              {/* Valyuta kodi — tur qo'shish formasi bilan BIR XIL yozilishi
+                  kerak (USD / UZS), aks holda ikki joyda boshqacha ko'rinadi. */}
+              <select value={currency} onChange={(e) => setCurrency(e.target.value)} style={{ ...inp, flex: "0 1 110px" }}>
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select value={basis} onChange={(e) => setBasis(e.target.value)} style={{ ...inp, flex: "1 1 190px" }}>
+                {OFFER_BASIS.map((b) => <option key={b.v || "none"} value={b.v}>{b.label}</option>)}
+              </select>
             </div>
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Shaxsiy izoh — nega aynan shu tur mos kelishini yozing (ixtiyoriy)…" style={{ ...inp, resize: "vertical", width: "100%" }} />
+            <small style={hint}>
+              {priceText
+                ? <>Mijoz shunday ko&apos;radi: <b style={{ color: "#EAB308" }}>{priceText}</b></>
+                : "Narxni yozsangiz — mijoz sahifasida qanday ko'rinishini shu yerda ko'rsatamiz."}
+            </small>
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Shaxsiy izoh — nega aynan shu tur mos kelishini yozing (ixtiyoriy)…" style={{ ...inp, resize: "vertical", width: "100%", lineHeight: 1.5 }} />
           </div>
 
           {err ? <div style={{ color: "#F43F5E", fontSize: 13 }}>{err}</div> : null}
@@ -1948,7 +2241,7 @@ function Reports({ show, leads }: any) {
     const maxRev = Math.max(1, ...months.map((x) => x.v));
     // sources
     const src: Record<string, number> = {};
-    leads.forEach((l: CrmLead) => { const k = l.source === "manual" ? "Qo'lda" : "Marketplace"; src[k] = (src[k] || 0) + 1; });
+    leads.forEach((l: CrmLead) => { const k = normalizeSource(l.source); src[k] = (src[k] || 0) + 1; });
     const total = Math.max(1, leads.length);
     // destinations
     const dest: Record<string, number> = {};
@@ -1962,7 +2255,7 @@ function Reports({ show, leads }: any) {
     leads.forEach((l: CrmLead) => {
       const key =
         String(l.utmSource || "").trim().toLowerCase() ||
-        (l.source === "telegram" ? "telegram bot" : l.source === "manual" ? "qo'lda kiritilgan" : "marketplace");
+        srcLabel(l.source).toLowerCase();
       const row = chanMap[key] || (chanMap[key] = { leads: 0, won: 0, revenue: 0 });
       row.leads += 1;
       if (l.stage === "won" || l.stage === "completed") {
@@ -1978,10 +2271,17 @@ function Reports({ show, leads }: any) {
     return { months, maxRev, src, total, topDest, maxDest, channels, maxChanRev };
   }, [leads]);
 
-  const srcColors: Record<string, string> = { Marketplace: "var(--primary)", "Qo'lda": "var(--gold)" };
-  const srcEntries = Object.entries(r.src);
+  // Doiraviy diagramma: ko'pdan kamga, har manbaga o'z rangi
+  const srcEntries = Object.entries(r.src).sort((a, b) => b[1] - a[1]);
   let acc = 0;
-  const stops = srcEntries.map(([k, v]) => { const start = (acc / r.total) * 100; acc += v; const end = (acc / r.total) * 100; return `${srcColors[k] || "var(--sky)"} ${start}% ${end}%`; }).join(", ");
+  const stops = srcEntries
+    .map(([k, v]) => {
+      const start = (acc / r.total) * 100;
+      acc += v;
+      const end = (acc / r.total) * 100;
+      return `${SRC_COLOR[k] || "#8899A6"} ${start}% ${end}%`;
+    })
+    .join(", ");
 
   return (
     <section className={`view reports${show ? " active" : ""}`}>
@@ -2001,7 +2301,11 @@ function Reports({ show, leads }: any) {
             <div className="donut" style={{ background: stops ? `conic-gradient(${stops})` : "#E7F1EB" }} />
             <div className="legend">
               {srcEntries.length ? srcEntries.map(([k, v]) => (
-                <div className="l" key={k}><span className="sw" style={{ background: srcColors[k] || "var(--sky)" }} />{k}<span className="pc">{Math.round((v / r.total) * 100)}%</span></div>
+                <div className="l" key={k}>
+                  <span className="sw" style={{ background: SRC_COLOR[k] || "#8899A6" }} />
+                  {srcLabel(k)}
+                  <span className="pc">{v} · {Math.round((v / r.total) * 100)}%</span>
+                </div>
               )) : <p style={{ color: "var(--t3)", fontSize: 13 }}>Ma&apos;lumot yo&apos;q</p>}
             </div>
           </div>
@@ -2039,7 +2343,7 @@ function Reports({ show, leads }: any) {
                   </td>
                   <td className="r">
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
-                      <div style={{ width: 54, height: 5, borderRadius: 3, background: "rgba(255,255,255,.08)", overflow: "hidden" }}>
+                      <div style={{ width: 54, height: 5, borderRadius: 3, background: "var(--border)", overflow: "hidden" }}>
                         <div style={{ width: `${(c.revenue / r.maxChanRev) * 100}%`, height: "100%", background: "#0F5132" }} />
                       </div>
                       <b>{formatMoney(c.revenue)}</b>
@@ -2058,7 +2362,7 @@ function Reports({ show, leads }: any) {
 }
 
 /* ================= SETTINGS ================= */
-function SubscriptionCard({ access }: any) {
+function SubscriptionCard({ access, onManage }: any) {
   if (!access) return null;
   const { planName, status, readOnly, expired, until, daysLeft, caps } = access;
   const badge = expired
@@ -2068,11 +2372,17 @@ function SubscriptionCard({ access }: any) {
     : status === "trial"
     ? { c: "b-amber", t: "Sinov" }
     : { c: "b-grey", t: "Cheklovsiz" };
+  // DIQQAT: `caps.integrations` bu yerda ATAYIN yo'q — u backendda hech qanday
+  // route'ni himoya qilmaydi (o'lik bayroq), shuning uchun uni tarif afzalligi
+  // sifatida ko'rsatish yolg'on bo'lardi. Instagram va Telegram ikkalasi ham
+  // `telegram` imkoniyatiga bog'langan.
   const feats = [
-    caps?.telegram && "Telegram bot",
+    caps?.telegram && "Instagram va Telegram",
     caps?.broadcast && "Broadcast",
     caps?.analytics && "Analitika / CSV",
-    caps?.integrations && "Integratsiyalar",
+    caps?.presentations && "Dinamik takliflar",
+    caps?.team && "Jamoa va rollar",
+    caps?.ai && "AI yordamchi",
   ].filter(Boolean) as string[];
   return (
     <div className="card sub-card">
@@ -2091,7 +2401,82 @@ function SubscriptionCard({ access }: any) {
         <div className="sub-card__warn">Obuna muddati tugagan — hozir faqat o&apos;qish rejimi. Quyida tarifni tanlab to&apos;lov qilsangiz, kabinet darhol tiklanadi.</div>
       ) : null}
       {feats.length ? <div className="sub-card__feats">{feats.map((f) => <span key={f} className="chip">{f}</span>)}</div> : null}
-      <PayPlan />
+      {/* To'lash amaliyoti alohida «Obuna va to'lov» ekranida — bu yerda faqat
+          holat. onManage berilsa (Sozlamalarда), o'sha ekranga o'tkazadi. */}
+      {onManage ? (
+        <div style={{ marginTop: 14 }}>
+          <button className="btn btn-primary" onClick={onManage}><Ic d={I.money} s={16} /> Hisobni to&apos;ldirish</button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/* Obuna to'lovi — Sozlamalar → «Obuna va tarif» ichida ko'rsatiladi.
+   Ilgari alohida sidebar bandi edi, lekin Sozlamalar ham xuddi shu holat
+   kartasini ko'rsatardi — bir xil narsa ikki joyda turardi.
+   CLICK menejerlari uchun oqim o'zgarmadi: joriy tarif → hisobni to'ldirish
+   → to'lov tarixi → ommaviy oferta.
+   DIQQAT: «settings» muddat tugaganda ham ochiq (sectionAllowed'ga qarang) —
+   aks holda agentlik to'lay olmay kabinetda qamalib qolardi. */
+function PlanSection({ access }: { access: any }) {
+  return (
+    <>
+      <div className="note" style={{ marginBottom: 14 }}>
+        Bu yerda siz <b>TravelorAI xizmatiga</b> — o&apos;z obunangizga to&apos;laysiz.
+        Mijozlardan olingan pul «Mijoz to&apos;lovlari» bo&apos;limida.
+      </div>
+      <SubscriptionCard access={access} />
+      <PayPlan heading="Hisobni to'ldirish" />
+      <PaymentHistory />
+      <div className="bill-legal">
+        To&apos;lov shartlari: <a href="/offer" target="_blank" rel="noreferrer" onClick={onExternalClick("https://travelorai.com/offer")}>ommaviy oferta</a>
+        {" · "}
+        <a href="/pricing" target="_blank" rel="noreferrer" onClick={onExternalClick("https://travelorai.com/pricing")}>tariflar</a>
+      </div>
+    </>
+  );
+}
+
+type PayTx = { merchantTransId: string; tariffSlug?: string | null; months: number; amount: number; state: string; paidAt?: string | null; createdAt: string };
+const PAY_STATE: Record<string, { c: string; t: string }> = {
+  paid: { c: "b-green", t: "To'landi" },
+  prepared: { c: "b-amber", t: "Kutilmoqda" },
+  created: { c: "b-grey", t: "Boshlandi" },
+  cancelled: { c: "b-rose", t: "Bekor qilindi" },
+};
+
+/** To'lov tarixi — agentlikning CLICK tranzaksiyalari. */
+function PaymentHistory() {
+  const [rows, setRows] = useState<PayTx[] | null>(null);
+  useEffect(() => {
+    void agencyApi<{ items: PayTx[] }>("/payments/history").then((r) => setRows(r.success ? (r.data.items || []) : []));
+  }, []);
+  if (rows === null) return null;
+  return (
+    <div style={{ marginTop: 18 }}>
+      <div className="section-head" style={{ marginBottom: 10 }}><div><h2 style={{ fontSize: 16 }}>To&apos;lov tarixi</h2></div></div>
+      <div className="card tbl-wrap">
+        {rows.length ? (
+          <table>
+            <thead><tr><th>Sana</th><th>Tarif</th><th>Muddat</th><th className="r">Summa</th><th>Holat</th></tr></thead>
+            <tbody>
+              {rows.map((t) => {
+                const s = PAY_STATE[t.state] || PAY_STATE.created;
+                return (
+                  <tr key={t.merchantTransId}>
+                    <td>{formatDate(t.paidAt || t.createdAt)}</td>
+                    <td>{t.tariffSlug || "—"}</td>
+                    <td>{t.months} oy</td>
+                    <td className="r money">{somUz(t.amount)} so&apos;m</td>
+                    <td><span className={`badge2 ${s.c}`}>{s.t}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : <Empty icon={I.money} text="Hali to'lov qilinmagan. Yuqorida tarifni tanlab hisobni to'ldiring." />}
+      </div>
     </div>
   );
 }
@@ -2099,14 +2484,37 @@ function SubscriptionCard({ access }: any) {
 const somUz = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 const MONTH_OPTS = [1, 3, 6, 12];
 
+/**
+ * CLICK'ning «karta bilan, saytdan chiqmasdan» kutubxonasi.
+ * Bir marta yuklanadi va keshlanadi; sahifa ochilganda emas, faqat tugma
+ * bosilganda — shunda CRM'ning yuklanish tezligiga ta'sir qilmaydi.
+ */
+let clickSdkLoading: Promise<void> | null = null;
+function loadClickSdk(): Promise<void> {
+  if (typeof window === "undefined") return Promise.reject(new Error("SSR"));
+  if ((window as any).createPaymentRequest) return Promise.resolve();
+  if (!clickSdkLoading) {
+    clickSdkLoading = new Promise<void>((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://my.click.uz/pay/checkout.js";
+      s.async = true;
+      s.onload = () => resolve();
+      s.onerror = () => { clickSdkLoading = null; reject(new Error("yuklanmadi")); };
+      document.head.appendChild(s);
+    });
+  }
+  return clickSdkLoading;
+}
+
 /** Obunani CLICK orqali to'lash — tarif + muddat tanlanadi, havolaga o'tadi. */
-function PayPlan() {
+function PayPlan({ heading = "Obunani to'lash" }: { heading?: string }) {
   const [plans, setPlans] = useState<any[]>([]);
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [slug, setSlug] = useState("");
   const [months, setMonths] = useState(1);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [info, setInfo] = useState("");
 
   useEffect(() => {
     void agencyApi<any>("/payments/plans").then((r) => {
@@ -2118,34 +2526,143 @@ function PayPlan() {
     });
   }, []);
 
+  // CLICK `return_url` orqali qaytarganda ?payment=<mti> keladi — natijani
+  // ko'rsatamiz. Ilgari bu parametr umuman o'qilmasdi: foydalanuvchi to'lab
+  // qaytardi-yu, hech qanday tasdiq ko'rmasdi.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mti = new URLSearchParams(window.location.search).get("payment");
+    if (!mti) return;
+    // Manzilni tozalaymiz, aks holda har yangilashda qaytadan tekshiriladi.
+    window.history.replaceState({}, "", window.location.pathname);
+    setBusy(true);
+    setInfo("To'lov tekshirilmoqda…");
+    void waitForPayment(mti);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const active = useMemo(() => plans.find((p) => p.slug === slug) || null, [plans, slug]);
   const total = active ? Number(active.priceMonthlyUzs) * months : 0;
 
+  /**
+   * To'lov holatini kuzatadi. Obunani BIZ emas, CLICK'ning Complete so'rovi
+   * faollashtiradi, shuning uchun natijani serverdan so'rab turamiz.
+   * 3 daqiqa — QR kodni telefonda skanerlab to'lash uchun yetarli.
+   */
+  async function waitForPayment(mti: string) {
+    for (let i = 0; i < 90; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const st = await agencyApi<any>(`/payments/${encodeURIComponent(mti)}`);
+      if (!st.success || !st.data) continue;
+      if (st.data.state === "paid") {
+        setInfo("To'lov qabul qilindi ✓ Obuna faollashtirildi.");
+        setTimeout(() => window.location.reload(), 1500);
+        return;
+      }
+      if (st.data.state === "cancelled") {
+        setBusy(false); setInfo(""); setErr("To'lov bekor qilindi.");
+        return;
+      }
+    }
+    setBusy(false);
+    setInfo("To'lov hali tasdiqlanmadi. To'lagan bo'lsangiz sahifani yangilang — obuna bir necha daqiqada faollashadi.");
+  }
+
+  /**
+   * CLICK to'lov sahifasi ALOHIDA oynada ochiladi, CRM sahifasi tirik qoladi.
+   *
+   * Ilgari `window.location.href` ishlatilardi — CRM sahifasi almashtirilib,
+   * to'lovni kuzatadigan hech narsa qolmasdi. Mijozlar esa ko'pincha QR kodni
+   * TELEFONDA skanerlab to'laydi: u holda to'lov boshqa qurilmada tugaydi va
+   * CLICK'ning `return_url`i hech qachon ishlamaydi — odam «to'ladim, lekin
+   * hech narsa bo'lmadi» degan ekranda qolib ketardi.
+   */
   async function pay() {
     if (!slug || busy) return;
-    setBusy(true); setErr("");
-    const res = await agencyApi<{ payUrl: string }>("/payments/checkout", {
+    setBusy(true); setErr(""); setInfo("");
+    const res = await agencyApi<any>("/payments/checkout", {
       method: "POST",
       body: JSON.stringify({ tariffSlug: slug, months }),
     });
     if (!res.success) { setBusy(false); setErr(res.message || "To'lov havolasini olib bo'lmadi"); return; }
-    window.location.href = res.data.payUrl; // CLICK to'lov sahifasi
+    const d = res.data;
+    if (!openExternal(d.payUrl)) {
+      // Yangi oyna bloklandi — hech bo'lmaganda to'lov ketsin.
+      window.location.href = d.payUrl;
+      return;
+    }
+    setInfo("To'lov oynasi ochildi. To'laganingizdan keyin shu yerda avtomatik tasdiqlanadi — oynani yopmang.");
+    void waitForPayment(d.merchantTransId);
+  }
+
+  /**
+   * Ikkinchi usul — karta bilan, saytdan CHIQMASDAN: to'lov oynasi CRM ustida
+   * ochiladi. CLICK'ga ulanmagan odam ham to'lay oladi, faqat UZCARD/HUMO
+   * kartasi bo'lsa bas. Karta ma'lumotlari bizga umuman kelmaydi — hammasi
+   * CLICK kutubxonasi ichida qoladi.
+   */
+  async function payByCard() {
+    if (!slug || busy) return;
+    setBusy(true); setErr(""); setInfo("");
+    const res = await agencyApi<any>("/payments/checkout", {
+      method: "POST",
+      body: JSON.stringify({ tariffSlug: slug, months }),
+    });
+    if (!res.success) { setBusy(false); setErr(res.message || "To'lovni boshlab bo'lmadi"); return; }
+    const d = res.data;
+
+    try {
+      await loadClickSdk();
+    } catch {
+      // Kutubxona yuklanmasa to'lovni yo'qotmaymiz — oddiy CLICK sahifasiga o'tamiz.
+      window.location.href = d.payUrl;
+      return;
+    }
+
+    setInfo("To'lov oynasi ochildi…");
+    (window as any).createPaymentRequest(
+      {
+        service_id: Number(d.click.serviceId),
+        merchant_id: Number(d.click.merchantId),
+        merchant_user_id: d.click.merchantUserId || undefined,
+        amount: Number(d.amount),
+        transaction_param: d.merchantTransId,
+      },
+      (r: any) => { void afterCardPay(Number(r && r.status), d.merchantTransId); },
+    );
+  }
+
+  /**
+   * Widget holati: <0 xato, 0 yaratildi, 1 jarayonda, 2 muvaffaqiyatli.
+   * Muvaffaqiyat bo'lganda ham obunani BIZNING server faollashtiradi — CLICK
+   * Complete so'rovini yuborgach. Ikkalasi bir vaqtda bo'lmaydi, shuning
+   * uchun holatni so'rab turamiz va faollashgach sahifani yangilaymiz.
+   */
+  async function afterCardPay(status: number, mti: string) {
+    if (status !== 2) {
+      setBusy(false); setInfo("");
+      if (status < 0) setErr("To'lov amalga oshmadi. Qayta urinib ko'ring.");
+      return;
+    }
+    setInfo("To'lov qabul qilindi, obuna faollashtirilmoqda…");
+    await waitForPayment(mti);
   }
 
   if (enabled === null) return null;
-  if (!enabled) {
-    return (
-      <div className="sub-pay sub-pay--off">
-        <b>Onlayn to&apos;lov hozircha ulanmagan.</b>
-        <span>To&apos;lovni yangilash uchun administrator bilan bog&apos;laning — CLICK/Payme ulanishi jarayonida.</span>
-      </div>
-    );
-  }
   if (!plans.length) return null;
 
   return (
     <div className="sub-pay">
-      <div className="sub-pay__head">Obunani to&apos;lash</div>
+      <div className="sub-pay__head">{heading}</div>
+
+      {/* CLICK kaliti hali ulanmagan bo'lsa — oqim baribir KO'RINADI (tarif,
+          summa), faqat tugma o'rniga ogohlantirish. Shunda menejerlar to'liq
+          to'lov oqimini ko'radi, kalit ulangach tugma darhol ishlaydi. */}
+      {!enabled ? (
+        <div className="sub-pay__pending">
+          <b>CLICK ulanmoqda.</b> Tarif va summani tanlashingiz mumkin — «CLICK orqali to&apos;lash» tugmasi hisob ulangач faollashadi.
+        </div>
+      ) : null}
 
       <div className="sub-pay__plans">
         {plans.map((p) => (
@@ -2175,17 +2692,36 @@ function PayPlan() {
       </div>
 
       {err ? <div className="sub-card__warn" style={{ marginTop: 0 }}>{err}</div> : null}
+      {info ? <div className="sub-pay__pending" style={{ marginTop: 0 }}>{info}</div> : null}
 
       <div className="sub-pay__foot">
         <div className="sub-pay__total">
           Jami: <b>{somUz(total)} so&apos;m</b>
         </div>
-        <button className="btn btn-primary" disabled={busy || !slug} onClick={() => void pay()}>
-          {busy ? "Havola ochilmoqda…" : "CLICK orqali to'lash"}
-        </button>
+        {/* Ikkala tugma ham CLICK talabi bo'yicha turadi: birinchisi CLICK
+            ilovasi orqali, ikkinchisi esa har qanday UZCARD/HUMO kartasi
+            bilan — CLICK'ga ulanmagan agentlik ham to'lay olishi uchun. */}
+        <div className="sub-pay__btns">
+          <button
+            className="btn btn-primary"
+            disabled={busy || !slug || !enabled}
+            title={!enabled ? "CLICK hisobi ulangach faollashadi" : undefined}
+            onClick={() => void pay()}
+          >
+            {busy ? "Kuting…" : "CLICK orqali to'lash"}
+          </button>
+          <button
+            className="btn"
+            disabled={busy || !slug || !enabled}
+            title={!enabled ? "CLICK hisobi ulangach faollashadi" : "Saytdan chiqmasdan, karta raqami bilan"}
+            onClick={() => void payByCard()}
+          >
+            Karta bilan to&apos;lash
+          </button>
+        </div>
       </div>
       <div className="sub-pay__note">
-        To&apos;lov o&apos;tgan zahoti obuna avtomatik faollashadi. Shartlar — <a href="/offer" target="_blank" rel="noreferrer">ommaviy oferta</a>.
+        To&apos;lov o&apos;tgan zahoti obuna avtomatik faollashadi. To&apos;lov CLICK&apos;ning xavfsiz sahifasida amalga oshiriladi — karta ma&apos;lumotlari bizga saqlanmaydi. Shartlar — <a href="/offer" target="_blank" rel="noreferrer" onClick={onExternalClick("https://travelorai.com/offer")}>ommaviy oferta</a>.
       </div>
     </div>
   );
@@ -2194,7 +2730,9 @@ function PayPlan() {
 const TEAM_ROLE_LABEL: Record<string, string> = { owner: "Egasi", manager: "Menejer", agent: "Agent", accountant: "Buxgalter" };
 // Jamoa: egasi xodim qo'shadi, rol beradi; xodim o'z email/paroli bilan kiradi.
 // Backend xodimni AgencyMember orqali topadi (agencyPlan middleware).
-const TEAM_LIVE: boolean = true;
+// false — «Tez orada ishga tushadi» kartasi ko'rinadi, xodim qo'shib bo'lmaydi.
+// Kod, backend va baza joyida; yoqish uchun true qilish kifoya.
+const TEAM_LIVE: boolean = false;
 
 function AddMember({ onClose, onAdded }: any) {
   const [name, setName] = useState(""); const [email, setEmail] = useState("");
@@ -2260,10 +2798,10 @@ function TeamSection({ access }: any) {
   if (!TEAM_LIVE) {
     return (
       <>
-        <div className="section-head"><div><h2>Jamoa va rollar</h2><div className="sub">Bir nechta xodim va rollar</div></div></div>
+        {/* Sarlavha Sozlamalar bo'limi tepasida chiqadi — bu yerda takrorlanmaydi */}
         <div className="card team-lock">
           <span className="team-lock__ic"><Ic d={I.clock} s={20} /></span>
-          <div><b>Tez orada ishga tushadi</b><span>Bir nechta xodim qo&apos;shish, rollar berish va lidlarni taqsimlash tez kunda ochiladi.</span></div>
+          <div><b>{SOON_LABEL}</b><span>Bir nechta xodim qo&apos;shish, rollar berish va lidlarni taqsimlash tez kunda ochiladi.</span></div>
         </div>
         {showAdd ? <AddMember onClose={() => setShowAdd(false)} onAdded={load} /> : null}
       </>
@@ -2272,10 +2810,12 @@ function TeamSection({ access }: any) {
 
   return (
     <>
-      <div className="section-head">
-        <div><h2>Jamoa va rollar</h2><div className="sub">Xodimlarni qo&apos;shing va rollarni belgilang</div></div>
-        {canManage && hasTeamCap && !readOnly ? <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Ic d={I.plus} s={16} /> Xodim qo&apos;shish</button> : null}
-      </div>
+      {/* Sarlavha Sozlamalar bo'limi tepasida — bu yerda faqat amal tugmasi */}
+      {canManage && hasTeamCap && !readOnly ? (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+          <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Ic d={I.plus} s={16} /> Xodim qo&apos;shish</button>
+        </div>
+      ) : null}
       {!hasTeamCap ? (
         <div className="card team-lock">
           <span className="team-lock__ic"><Ic d={I.lock} s={20} /></span>
@@ -2420,10 +2960,87 @@ function TplEditor({ title, onPreview, onReset, readOnly, children }: { title: s
     </div>
   );
 }
+/**
+ * Shartnoma matnini BAND-BANDGA tahrirlash.
+ *
+ * NEGA: ilgari butun shartnoma bitta katta oynada, «## » belgilari bilan
+ * yozilgan holda turardi. Agentlik egasi bu belgilarni bilishi, band
+ * raqamlarini (## 3., 3.1., 3.2.) qo'lda tuzatishi kerak edi — bir bandni
+ * o'chirsa, qolganlarini qayta raqamlash kerak bo'lardi.
+ *
+ * Endi: har band alohida — sarlavhasi va matni. Raqamlar avtomatik qo'yiladi,
+ * bandni yuqori/pastga ko'chirish yoki o'chirish mumkin. Saqlanish formati
+ * O'ZGARMAYDI (parseBody/serializeBody), ya'ni eski shablonlar ham ochiladi.
+ */
+function BodySections({ value, onChange, readOnly }: { value: string; onChange: (v: string) => void; readOnly?: boolean }) {
+  const parsed = useMemo(() => parseBody(value), [value]);
+  const set = (next: { intro?: string; sections?: DocSection[] }) =>
+    onChange(serializeBody({ intro: next.intro ?? parsed.intro, sections: next.sections ?? parsed.sections }));
+
+  const editSection = (i: number, patch: Partial<DocSection>) => {
+    const s = parsed.sections.map((x, j) => (j === i ? { ...x, ...patch } : x));
+    set({ sections: s });
+  };
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= parsed.sections.length) return;
+    const s = [...parsed.sections];
+    [s[i], s[j]] = [s[j], s[i]];
+    set({ sections: s });
+  };
+  const remove = (i: number) => set({ sections: parsed.sections.filter((_, j) => j !== i) });
+  const add = () => set({ sections: [...parsed.sections, { title: "Yangi band", text: "" }] });
+
+  return (
+    <div className="doc-sec-wrap">
+      <div className="fld">
+        <label>Kirish qismi — bandlardan oldingi matn</label>
+        <textarea rows={3} value={parsed.intro} disabled={readOnly}
+          onChange={(e) => set({ intro: e.target.value })} />
+      </div>
+
+      <div className="doc-sec-head">
+        <b>Bandlar</b>
+        <small>Raqamlar avtomatik qo&apos;yiladi — qo&apos;lda yozish shart emas</small>
+      </div>
+
+      {parsed.sections.map((s, i) => (
+        <div className="doc-sec" key={i}>
+          <div className="doc-sec__bar">
+            <span className="doc-sec__n">{i + 1}</span>
+            <input className="doc-sec__title" value={s.title} disabled={readOnly} placeholder="Band sarlavhasi"
+              onChange={(e) => editSection(i, { title: e.target.value })} />
+            {!readOnly ? (
+              <div className="doc-sec__acts">
+                <button type="button" title="Yuqoriga" disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
+                <button type="button" title="Pastga" disabled={i === parsed.sections.length - 1} onClick={() => move(i, 1)}>↓</button>
+                <button type="button" title="Bandni o'chirish" className="doc-sec__del" onClick={() => remove(i)}>
+                  <Ic d={I.trash} s={14} />
+                </button>
+              </div>
+            ) : null}
+          </div>
+          <textarea rows={Math.min(8, Math.max(2, s.text.split("\n").length + 1))} value={s.text} disabled={readOnly}
+            placeholder={`${i + 1}.1. Band matnini yozing…`}
+            onChange={(e) => editSection(i, { text: e.target.value })} />
+        </div>
+      ))}
+
+      {!readOnly ? (
+        <button type="button" className="doc-sec-add" onClick={add}>
+          <Ic d={I.plus} s={15} /> Band qo&apos;shish
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function DocumentsSection({ show, agencyId, readOnly }: { show: boolean; agencyId: string; readOnly?: boolean }) {
   const { me } = useAgencySession();
   const [tpl, setTpl] = useState<DocTemplates>(DEFAULT_DOC_TEMPLATES);
   const [msg, setMsg] = useState("");
+  const [doc, setDoc] = useState<{ html: string; filename: string; title: string } | null>(null);
+  const [copiedPh, setCopiedPh] = useState("");
   useEffect(() => { setTpl(getTemplates(agencyId)); }, [agencyId]);
   function setField(type: DocType, key: string, val: string) {
     setTpl((p) => ({ ...p, [type]: { ...(p as Record<string, Record<string, string>>)[type], [key]: val } }) as DocTemplates);
@@ -2441,11 +3058,12 @@ function DocumentsSection({ show, agencyId, readOnly }: { show: boolean; agencyI
   function preview(type: DocType) {
     saveTemplates(agencyId, tpl);
     if (!me) return;
-    const ok = openDocument({
+    // Ko'rib chiqish ham CRM ichida — pop-up talab qilmaydi (desktopda ham ishlaydi)
+    const { html, filename } = buildDocumentFile({
       type, agencyId, me,
       lead: { customerName: "Aziz Karimov (namuna)", customerPhone: "+998 90 123 45 67", customerEmail: "aziz@example.com", travelers: 2, travelDate: "2026-08-15", tourTitle: "Dubay dam olish", tourCity: "Dubay", totalEstimate: 1500, currency: "USD" },
     });
-    if (!ok) alert("Brauzer yangi oynani bloklади. Pop-up'ga ruxsat bering.");
+    setDoc({ html, filename, title: `${DOC_LABEL[type]} — namuna` });
   }
   return (
     <section className={`view${show ? " active" : ""}`}>
@@ -2454,16 +3072,29 @@ function DocumentsSection({ show, agencyId, readOnly }: { show: boolean; agencyI
       <div className="section-head"><div><h2>Rekvizitlar</h2><div className="sub">STIR, bank, direktor, manzil — barcha hujjatga qo&apos;yiladi</div></div></div>
       <DocRequisitesCard agencyId={agencyId} readOnly={readOnly} />
 
-      <div className="card" style={{ padding: 14, marginTop: 16 }}>
-        <b style={{ fontSize: 13 }}>Belgilar (yozganingizда avtomatik to&apos;ladi):</b>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 9 }}>
-          {DOC_PLACEHOLDERS.map((p) => <span key={p.key} className="doc-ph" title={p.label}><code>{p.key}</code> {p.label}</span>)}
+      {/* Belgilar — bosilsa nusxalanadi, keyin matnga qo'yish mumkin.
+          Ilgari faqat ro'yxat edi: qanday ishlatilishi tushunarsiz edi. */}
+      <div className="card doc-ph-card">
+        <div className="doc-ph-card__head">
+          <b>Avtomatik to&apos;ladigan belgilar</b>
+          <small>Matnga shu belgini yozsangiz — hujjat tayyorlanganda o&apos;rniga haqiqiy ma&apos;lumot qo&apos;yiladi.
+            Masalan <code>{"{mijoz}"}</code> → mijozning ismi. Belgini bosib nusxalab oling.</small>
+        </div>
+        <div className="doc-ph-list">
+          {DOC_PLACEHOLDERS.map((p) => (
+            <button type="button" key={p.key} className="doc-ph" title="Nusxalash uchun bosing"
+              onClick={() => { void navigator.clipboard?.writeText(p.key).then(() => { setCopiedPh(p.key); setTimeout(() => setCopiedPh(""), 1400); }).catch(() => {}); }}>
+              <code>{p.key}</code>
+              <span>{copiedPh === p.key ? "nusxalandi ✓" : p.label}</span>
+            </button>
+          ))}
         </div>
       </div>
 
       <TplEditor title="Shartnoma" onPreview={() => preview("shartnoma")} onReset={() => resetType("shartnoma")} readOnly={readOnly}>
         <DocFld label="Sarlavha"><input value={tpl.shartnoma.title} onChange={(e) => setField("shartnoma", "title", e.target.value)} disabled={readOnly} /></DocFld>
-        <DocFld label="Matn — «## » bilan sarlavha, bo&apos;sh qator yangi xatboshi"><textarea rows={12} value={tpl.shartnoma.body} onChange={(e) => setField("shartnoma", "body", e.target.value)} disabled={readOnly} /></DocFld>
+        <BodySections value={tpl.shartnoma.body} readOnly={readOnly}
+          onChange={(v) => setField("shartnoma", "body", v)} />
       </TplEditor>
 
       <TplEditor title="Hisob-faktura" onPreview={() => preview("invoice")} onReset={() => resetType("invoice")} readOnly={readOnly}>
@@ -2478,6 +3109,7 @@ function DocumentsSection({ show, agencyId, readOnly }: { show: boolean; agencyI
           <span style={{ color: "var(--t3)", fontSize: 12, marginLeft: "auto" }}>«Namuna ochish» — o&apos;zgarishlarni saqlab, chop etish oynasini ko&apos;rsatadi</span>
         </div>
       ) : null}
+      {doc ? <DocViewer {...doc} onClose={() => setDoc(null)} /> : null}
     </section>
   );
 }
@@ -2521,23 +3153,84 @@ function DocRequisitesCard({ agencyId, readOnly }: { agencyId: string; readOnly?
     </div>
   );
 }
+/* Sozlamalar bo'limlari. Ilgari hammasi bitta uzun sahifada ustma-ust
+   turardi — nima qayerda ekanini topish qiyin edi. Endi menyu: bo'limni
+   bosasiz → faqat o'sha bo'lim ochiladi, orqaga qaytish tugmasi bilan. */
+const SETTINGS_MENU: { key: string; icon: string; label: string; desc: string }[] = [
+  { key: "plan", icon: I.money, label: "Obuna va to'lov", desc: "Joriy tarif, amal muddati, hisobni to'ldirish va to'lov tarixi" },
+  { key: "profile", icon: I.box, label: "Agentlik ma'lumotlari", desc: "Nomi, logotipi, telefoni va tavsifi" },
+  { key: "links", icon: I.send, label: "Ulanishlar", desc: "Telegram bot va Instagram Direct" },
+  { key: "team", icon: I.users, label: "Jamoa va rollar", desc: "Xodimlarni qo'shish, huquqlarni belgilash" },
+  { key: "account", icon: I.lock, label: "Hisob", desc: "Tizimdan chiqish" },
+];
+
 function Settings({ show, agency, go, refresh, logout, access, readOnly }: any) {
+  const [tab, setTab] = useState("");
+  const active = SETTINGS_MENU.find((m) => m.key === tab);
+
+  // Bo'limdan chiqilganda menyuga qaytamiz (masalan boshqa bo'limga o'tib kelsa)
+  useEffect(() => { if (!show) setTab(""); }, [show]);
+
   return (
     <section className={`view${show ? " active" : ""}`}>
-      <div className="section-head"><div><h2>Sozlamalar</h2></div></div>
+      {!active ? (
+        <>
+          <div className="section-head"><div><h2>Sozlamalar</h2><div className="sub">Kerakli bo&apos;limni tanlang</div></div></div>
+          <div className="set-menu">
+            {SETTINGS_MENU.map((m) => (
+              <button type="button" key={m.key} className="set-item" aria-label={`${m.label} — ${m.desc}`} onClick={() => setTab(m.key)}>
+                <span className="set-item__ic"><Ic d={m.icon} s={18} /></span>
+                <span className="set-item__tx">
+                  <b>{m.label}</b>
+                  <small>{m.desc}</small>
+                </span>
+                <span className="set-item__go" aria-hidden><Ic d="M9 6l6 6-6 6" s={16} /></span>
+              </button>
+            ))}
+          </div>
+          <div style={{ height: 16 }} />
+        </>
+      ) : (
+        <>
+          <div className="section-head">
+            <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+              <button type="button" className="set-back" onClick={() => setTab("")} aria-label="Sozlamalarga qaytish">
+                <Ic d="M15 6l-6 6 6 6" s={17} />
+              </button>
+              <div style={{ minWidth: 0 }}>
+                <h2>{active.label}</h2>
+                <div className="sub">{active.desc}</div>
+              </div>
+            </div>
+          </div>
 
-      <div className="section-head"><div><h2>Obuna va tarif</h2><div className="sub">Joriy rejangiz, amal muddati va imkoniyatlar</div></div></div>
-      <SubscriptionCard access={access} />
-
-      <div className="section-head"><div><h2>Agentlik ma&apos;lumoti</h2><div className="sub">Nomi, logotipi va telefoni — sidebar va CRM&apos;da shu ma&apos;lumot ko&apos;rinadi</div></div></div>
-      <ProfileForm agency={agency} refresh={refresh} readOnly={readOnly} />
-
-      <div className="section-head"><div><h2>Integratsiyalar</h2><div className="sub">Tashqi kanallarni ulang va boshqaring</div></div></div>
-      <TelegramCard go={go} />
-
-      <TeamSection access={access} />
-      <div style={{ marginTop: 18 }}><button className="btn btn-ghost" onClick={() => void logout()}><Ic d={I.out} s={16} /> Chiqish</button></div>
-      <div style={{ height: 16 }} />
+          {/* Obuna to'lovi ilgari alohida sidebar bandida edi va bu yerda faqat
+              holat kartasi turardi — bir xil narsa ikki joyda. Endi to'liq oqim
+              shu yerda: holat → to'lash → tarix → huquqiy havolalar. */}
+          {tab === "plan" ? <PlanSection access={access} /> : null}
+          {tab === "profile" ? <ProfileForm agency={agency} refresh={refresh} readOnly={readOnly} /> : null}
+          {tab === "links" ? (
+            <div style={{ display: "grid", gap: 12 }}>
+              <TelegramCard go={go} />
+              <InstagramCard go={go} />
+              <WhatsappCard />
+            </div>
+          ) : null}
+          {tab === "team" ? <TeamSection access={access} /> : null}
+          {tab === "account" ? (
+            <div className="card" style={{ padding: 18, display: "grid", gap: 12 }}>
+              <div style={{ color: "var(--t2)", fontSize: 13.5, lineHeight: 1.6 }}>
+                Hisobdan chiqsangiz, keyingi kirishda emailingiz va parolingiz qayta so&apos;raladi.
+                Ma&apos;lumotlaringiz saqlanib qoladi.
+              </div>
+              <div>
+                <button className="btn btn-ghost" onClick={() => void logout()}><Ic d={I.out} s={16} /> Chiqish</button>
+              </div>
+            </div>
+          ) : null}
+          <div style={{ height: 16 }} />
+        </>
+      )}
     </section>
   );
 }
@@ -2545,6 +3238,7 @@ function Settings({ show, agency, go, refresh, logout, access, readOnly }: any) 
 /* ================= ADD LEAD MODAL ================= */
 function AddLead({ onClose, onCreated }: any) {
   const [name, setName] = useState(""); const [phone, setPhone] = useState(""); const [tour, setTour] = useState(""); const [sum, setSum] = useState(""); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  const [src, setSrc] = useState("offline"); // mijoz qayerdan keldi
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (name.trim().length < 2) { setErr("Mijoz ismini kiriting."); return; }
@@ -2556,6 +3250,7 @@ function AddLead({ onClose, onCreated }: any) {
         customerPhone: phone.trim() || undefined,
         leadTour: tour.trim() || undefined,
         totalEstimate: sum ? sum.replace(/[^\d]/g, "") : undefined,
+        source: src,
       }),
     });
     setBusy(false);
@@ -2574,6 +3269,12 @@ function AddLead({ onClose, onCreated }: any) {
             <div className="fld"><label>Summa ($)</label><input value={sum} onChange={(e) => setSum(e.target.value)} placeholder="masalan 800" /></div>
           </div>
           <div className="fld"><label>Tur / yo&apos;nalish</label><input value={tour} onChange={(e) => setTour(e.target.value)} placeholder="Masalan: Dubay 5 kun" /></div>
+          <div className="fld">
+            <label>Qayerdan keldi (manba)</label>
+            <select value={src} onChange={(e) => setSrc(e.target.value)}>
+              {LEAD_SOURCE_OPTIONS.map((sv) => <option key={sv} value={sv}>{LEAD_SOURCE_LABEL[sv]}</option>)}
+            </select>
+          </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 6 }}>
             <button type="button" className="btn btn-ghost" onClick={onClose}>Bekor</button>
             <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Qo'shilmoqda..." : "Qo'shish"}</button>
@@ -2642,23 +3343,75 @@ function PlacePicker({ onPick, onError, placeholder, small }: {
   );
 }
 
+/* Tanlov ro'yxatlari — filtrlar aniq ishlashi uchun erkin matn EMAS.
+   Yo'nalish/shahar YAGONA manbadan (lib/travelData REGIONS) olinadi — katalog
+   filtri ham shu manbaga qaraydi, shuning uchun 100% mos keladi. */
+const MEAL_PLANS: { v: string; label: string }[] = [
+  { v: "", label: "Ko'rsatilmagan" },
+  { v: "RO", label: "RO — ovqatsiz" },
+  { v: "BB", label: "BB — nonushta" },
+  { v: "HB", label: "HB — nonushta + kechki" },
+  { v: "FB", label: "FB — 3 mahal" },
+  { v: "AI", label: "AI — All inclusive" },
+  { v: "UAI", label: "UAI — Ultra all inclusive" },
+];
+const HOTEL_CATS: string[] = ["", "2*", "3*", "4*", "5*", "Apartament", "Villa", "Hostel"];
+const CURRENCIES: string[] = ["USD", "UZS"];
+const DAY_OPTS = Array.from({ length: 30 }, (_, i) => i + 1);
+const NIGHT_OPTS = Array.from({ length: 31 }, (_, i) => i);
+const OTHER_CITY = "__other__";
+/** Ro'yxatda yo'q davlat — erkin yozish uchun. Hech qanday yo'nalish bloklanmaydi. */
+const OTHER_REGION = "__other_region__";
+
+/** Tur shahri qaysi yo'nalishga tegishli — tahrirlashda tanlovni tiklash uchun. */
+function regionKeyForCity(city?: string | null, country?: string | null): string {
+  const hay = `${city || ""} ${country || ""}`.toLowerCase();
+  const hit = REGIONS.find((r) => r.cities.some((c) => c.toLowerCase() === String(city || "").toLowerCase()))
+    || REGIONS.find((r) => r.match.some((m) => hay.includes(m)));
+  if (hit) return hit.key;
+  // Ro'yxatda yo'q, lekin davlat yozilgan bo'lsa — «Boshqa davlat» rejimida ochamiz.
+  return String(country || "").trim() ? OTHER_REGION : "";
+}
+
 function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
   const editing = !!tour && !duplicate;
+  const initRegion = regionKeyForCity(tour?.city, tour?.destinationCountry);
+  const initCityKnown = initRegion && initRegion !== OTHER_REGION
+    ? (regionByKey(initRegion)?.cities || []).some((c) => c.toLowerCase() === String(tour?.city || "").toLowerCase())
+    : false;
   const [f, setF] = useState({
     title: duplicate && tour?.title ? `${tour.title} (nusxa)` : (tour?.title || ""), city: tour?.city || "", subtitle: tour?.subtitle || "",
     duration: tour?.duration || "", price: tour?.price || (tour?.priceMin ? `$${tour.priceMin}` : ""),
     highlights: Array.isArray(tour?.highlights) ? tour.highlights.join(", ") : "",
     mapAddress: tour?.mapAddress || "",
+    // ── Dropdown bilan boshqariladigan maydonlar
+    region: initRegion,
+    countryText: initRegion === OTHER_REGION ? String(tour?.destinationCountry || "") : "",
+    citySelect: initCityKnown ? String(tour?.city || "") : (tour?.city ? OTHER_CITY : ""),
+    days: tour?.days ? String(tour.days) : "",
+    nights: tour?.nights !== undefined && tour?.nights !== null ? String(tour.nights) : "",
+    priceAmount: tour?.priceMin ? String(tour.priceMin) : "",
+    currency: tour?.priceCurrency || "USD",
+    mealPlan: tour?.mealPlan || "",
+    hotelCategory: tour?.hotelCategory || "",
   });
+  const [hotelIncluded, setHotelIncluded] = useState<boolean>(!!tour?.hotelIncluded);
+  const [flightIncluded, setFlightIncluded] = useState<boolean>(!!tour?.flightIncluded);
+  const [transferIncluded, setTransferIncluded] = useState<boolean>(!!tour?.transferIncluded);
+  const [insuranceIncluded, setInsuranceIncluded] = useState<boolean>(!!tour?.insuranceIncluded);
   // Yangi tur — forma yig'iq (tezkor: 4-5 maydon + rasm). Tahrir/nusxa — batafsil ochiq.
   const [advanced, setAdvanced] = useState(!!tour);
   const [img, setImg] = useState(tour?.imageUrl || "");
   const [gallery, setGallery] = useState<string[]>(Array.isArray(tour?.images) ? tour.images : []);
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
+  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
   // Xizmatlar uchun tez tanlov chiplari — bosib qo'shiladi, yozib o'tirilmaydi.
-  const HL_CHIPS = ["Aviabilet", "Transfer", "Gid", "Mehmonxona", "Ovqat", "Viza", "Sug'urta", "Ekskursiya"];
+  // DIQQAT: mehmonxona / aviabilet / transfer / sug'urta bu yerda YO'Q — ular
+  // yuqoridagi checkbox'lar bilan belgilanadi (takror kiritishga hojat yo'q) va
+  // sayt tur sahifasidagi «Nimalar kiritilgan» ro'yxatiga tushadi. doSave
+  // ularni xizmatlar ro'yxatiga ham o'zi qo'shib qo'yadi.
+  const HL_CHIPS = ["Gid", "Ovqat", "Viza", "Ekskursiya", "SIM-karta", "Muzey chiptalari"];
   const hlHas = (c: string) => String(f.highlights).split(",").map((s: string) => s.trim().toLowerCase()).includes(c.toLowerCase());
   const toggleHl = (c: string) => setF((p) => {
     const arr = String(p.highlights).split(",").map((s: string) => s.trim()).filter(Boolean);
@@ -2731,18 +3484,52 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
   }
   function validate() {
     if (f.title.trim().length < 3) { setErr("Tur nomi kamida 3 harf bo'lsin."); return false; }
-    if (f.city.trim().length < 2) { setErr("Shahar / yo'nalishni kiriting."); return false; }
+    if (!f.region) { setErr("Yo'nalishni tanlang."); return false; }
+    if (f.region === OTHER_REGION && f.countryText.trim().length < 3) { setErr("Davlat nomini yozing."); return false; }
+    if (f.city.trim().length < 2) { setErr("Shaharni tanlang (yoki 'Boshqa' tanlab yozing)."); return false; }
+    if (!f.days) { setErr("Necha kunlik turligini tanlang."); return false; }
     if (f.subtitle.trim().length < 3) { setErr("Qisqa tavsif kiriting."); return false; }
-    if (f.duration.trim().length < 2) { setErr("Davomiylikni kiriting (masalan: 5 kun)."); return false; }
     setErr(""); return true;
   }
   async function doSave(publish: boolean) {
     setBusy(true); setErr("");
-    const priceMin = f.price ? Number(f.price.replace(/[^\d]/g, "")) || undefined : undefined;
-    const highlights = String(f.highlights).split(",").map((s: string) => s.trim()).filter((s: string) => s.length >= 2).slice(0, 20);
+    // Narx: raqam + valyuta (filtr priceMin'ga qaraydi)
+    const priceMin = f.priceAmount ? Number(String(f.priceAmount).replace(/[^\d]/g, "")) || undefined : undefined;
+    // DIQQAT: pastda `days` nomi kun bo'yicha REJA massivi uchun ishlatiladi —
+    // shuning uchun kun/kecha SONI boshqa nom bilan.
+    const dayCount = f.days ? Number(f.days) : undefined;
+    const nightCount = f.nights !== "" ? Number(f.nights) : undefined;
+    // Davomiylik matni kun/kechadan yasaladi — qo'lda yozilmaydi (filtr toza bo'lsin)
+    const duration = dayCount ? `${dayCount} kun${nightCount ? ` ${nightCount} kecha` : ""}` : String(f.duration || "").trim();
+    // Yo'nalish: ro'yxatdan yoki «Boshqa davlat» — erkin yozilgan nom.
+    const countryLabel = f.region === OTHER_REGION ? f.countryText.trim() : regionByKey(f.region)?.label;
+    // Xizmatlar ro'yxati. Mehmonxona/Aviabilet checkbox'dan keladi — agent
+    // ularni ikkinchi marta yozmaydi. Belgi olib tashlansa — ro'yxatdan ham chiqadi.
+    const hlSet = String(f.highlights).split(",").map((s: string) => s.trim()).filter((s: string) => s.length >= 2);
+    const syncFlag = (on: boolean, word: string) => {
+      const i = hlSet.findIndex((x) => x.toLowerCase() === word.toLowerCase());
+      if (on && i < 0) hlSet.unshift(word);
+      if (!on && i >= 0) hlSet.splice(i, 1);
+    };
+    syncFlag(hotelIncluded, "Mehmonxona");
+    syncFlag(flightIncluded, "Aviabilet");
+    syncFlag(transferIncluded, "Transfer");
+    syncFlag(insuranceIncluded, "Sug'urta");
+    const highlights = hlSet.slice(0, 20);
     const body: Record<string, unknown> = {
-      title: f.title.trim(), city: f.city.trim(), subtitle: f.subtitle.trim(), duration: f.duration.trim(),
-      price: f.price.trim() || undefined, priceMin, highlights,
+      title: f.title.trim(), city: f.city.trim(), subtitle: f.subtitle.trim(), duration,
+      priceMin, highlights,
+      // Filtrlar uchun aniq qiymatlar
+      destinationCountry: countryLabel || undefined,
+      days: dayCount, nights: nightCount,
+      priceCurrency: f.currency || undefined,
+      price: priceMin ? `${f.currency === "UZS" ? "" : "$"}${priceMin}${f.currency === "UZS" ? " so'm" : ""}` : undefined,
+      mealPlan: f.mealPlan || undefined,
+      hotelCategory: f.hotelCategory || undefined,
+      hotelIncluded,
+      flightIncluded,
+      transferIncluded,
+      insuranceIncluded,
     };
     if (!editing || img !== (tour?.imageUrl || "")) body.imageUrl = img || null;
     body.images = gallery;
@@ -2782,14 +3569,113 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
         ) : (
         <form onSubmit={(e) => { e.preventDefault(); if (validate()) setConfirming(true); }}>
           <div className="fld"><label>Tur nomi *</label><input value={f.title} onChange={set("title")} placeholder="Masalan: Dubay 5 kun" /></div>
+          {/* Yo'nalish + shahar — YAGONA manbadan (travelData). Katalog filtri ham
+              shu manbaga qaraydi, shuning uchun tanlangan tur filtrga aniq tushadi. */}
           <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div className="fld"><label>Shahar / yo&apos;nalish *</label><input value={f.city} onChange={set("city")} placeholder="Dubay" /></div>
-            <div className="fld"><label>Davomiyligi *</label><input value={f.duration} onChange={set("duration")} placeholder="5 kun 4 kecha" /></div>
+            <div className="fld">
+              <label>Yo&apos;nalish *</label>
+              <select
+                value={f.region}
+                onChange={(e) => setF((p) => ({ ...p, region: e.target.value, countryText: "", citySelect: "", city: "" }))}
+              >
+                <option value="">Tanlang…</option>
+                {REGION_GROUPS.filter((g) => g.regions.length > 0).map((g) => (
+                  <optgroup key={g.group} label={g.label}>
+                    {g.regions.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+                  </optgroup>
+                ))}
+                <optgroup label="Ro'yxatda yo'q">
+                  <option value={OTHER_REGION}>Boshqa davlat…</option>
+                </optgroup>
+              </select>
+            </div>
+            {f.region === OTHER_REGION ? (
+              <div className="fld"><label>Davlat nomi *</label><input value={f.countryText} onChange={set("countryText")} placeholder="Masalan: Islandiya" /></div>
+            ) : (
+              <div className="fld">
+                <label>Shahar *</label>
+                <select
+                  value={f.citySelect}
+                  disabled={!f.region}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setF((p) => ({ ...p, citySelect: v, city: v === OTHER_CITY ? "" : v }));
+                  }}
+                >
+                  <option value="">{f.region ? "Tanlang…" : "Avval yo'nalishni tanlang"}</option>
+                  {(regionByKey(f.region)?.cities || []).map((c) => <option key={c} value={c}>{c}</option>)}
+                  {f.region ? <option value={OTHER_CITY}>Boshqa shahar…</option> : null}
+                </select>
+              </div>
+            )}
           </div>
-          <div className="fld"><label>Qisqa tavsif *</label><input value={f.subtitle} onChange={set("subtitle")} placeholder="All inclusive, aviabilet + mehmonxona" /></div>
+          {f.citySelect === OTHER_CITY || f.region === OTHER_REGION ? (
+            <div className="fld"><label>Shahar nomi *</label><input value={f.city} onChange={set("city")} placeholder="Masalan: Sharm-ash-Shayx" /></div>
+          ) : null}
+
+          {/* Davomiylik — raqamli tanlov. Filtr «1-3 / 4-7 / 7+ kun» aynan kun soniga qaraydi. */}
           <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div className="fld"><label>Narx</label><input value={f.price} onChange={set("price")} placeholder="$900" /></div>
-            <div className="fld"><label>Xizmatlar</label><input value={f.highlights} onChange={set("highlights")} placeholder="Aviabilet, Transfer, Gid" /></div>
+            <div className="fld">
+              <label>Necha kun *</label>
+              <select value={f.days} onChange={set("days")}>
+                <option value="">Tanlang…</option>
+                {DAY_OPTS.map((d) => <option key={d} value={d}>{d} kun</option>)}
+              </select>
+            </div>
+            <div className="fld">
+              <label>Necha kecha</label>
+              <select value={f.nights} onChange={set("nights")}>
+                <option value="">Ko&apos;rsatilmagan</option>
+                {NIGHT_OPTS.map((n) => <option key={n} value={n}>{n} kecha</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="fld"><label>Qisqa tavsif *</label><input value={f.subtitle} onChange={set("subtitle")} placeholder="All inclusive, aviabilet + mehmonxona" /></div>
+
+          {/* Narx — raqam + valyuta (filtr priceMin'ga qaraydi, matnni parse qilmaydi) */}
+          <div className="grid" style={{ gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+            <div className="fld"><label>Narx (kishi boshiga)</label><input type="number" min={0} value={f.priceAmount} onChange={set("priceAmount")} placeholder="900" /></div>
+            <div className="fld">
+              <label>Valyuta</label>
+              <select value={f.currency} onChange={set("currency")}>
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Ovqatlanish va mehmonxona toifasi — standart kodlar (BB/HB/AI…) */}
+          <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div className="fld">
+              <label>Ovqatlanish</label>
+              <select value={f.mealPlan} onChange={set("mealPlan")}>
+                {MEAL_PLANS.map((m) => <option key={m.v || "none"} value={m.v}>{m.label}</option>)}
+              </select>
+            </div>
+            <div className="fld">
+              <label>Mehmonxona toifasi</label>
+              <select value={f.hotelCategory} onChange={set("hotelCategory")}>
+                {HOTEL_CATS.map((c) => <option key={c || "none"} value={c}>{c || "Ko'rsatilmagan"}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Kiritilganmi — tur sahifasidagi «Nimalar kiritilgan» shundan yasaladi */}
+          <div className="fld" style={{ marginBottom: 12 }}>
+            <label>Narxga nimalar kiritilgan</label>
+            <div className="kv-checkrow">
+              <label className="kv-check"><input type="checkbox" checked={hotelIncluded} onChange={(e) => setHotelIncluded(e.target.checked)} /> Mehmonxona</label>
+              <label className="kv-check"><input type="checkbox" checked={flightIncluded} onChange={(e) => setFlightIncluded(e.target.checked)} /> Aviabilet</label>
+              <label className="kv-check"><input type="checkbox" checked={transferIncluded} onChange={(e) => setTransferIncluded(e.target.checked)} /> Transfer</label>
+              <label className="kv-check"><input type="checkbox" checked={insuranceIncluded} onChange={(e) => setInsuranceIncluded(e.target.checked)} /> Sug&apos;urta</label>
+            </div>
+            <small className="fld-hint">Belgilanganlari tur sahifasida «Nimalar kiritilgan» bo&apos;limida belgichalar bilan chiqadi.</small>
+          </div>
+
+          <div className="fld">
+            <label>Qo&apos;shimcha xizmatlar</label>
+            <input value={f.highlights} onChange={set("highlights")} placeholder="Gid, Ovqat, Viza" />
+            <small className="fld-hint">Mehmonxona, aviabilet, transfer va sug&apos;urtani yuqoridagi belgilar bilan tanlaysiz — bu yerga qayta yozish shart emas.</small>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "-4px 0 2px" }}>
             {HL_CHIPS.map((c) => {
@@ -2827,7 +3713,7 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
             {gallery.length ? (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
                 {gallery.map((src, i) => (
-                  <div key={`${src.slice(0, 24)}-${i}`} style={{ position: "relative", width: 84, height: 64, borderRadius: 10, overflow: "hidden", background: "rgba(255,255,255,.06)" }}>
+                  <div key={`${src.slice(0, 24)}-${i}`} style={{ position: "relative", width: 84, height: 64, borderRadius: 10, overflow: "hidden", background: "var(--canvas)" }}>
                     <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                     <button
                       type="button"
@@ -2856,14 +3742,14 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
             {stops.length ? (
               <div style={{ display: "grid", gap: 6, marginTop: 10 }}>
                 {stops.map((s, i) => (
-                  <div key={`${s.lat}-${s.lng}-${i}`} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", borderRadius: 10, background: "rgba(255,255,255,.05)" }}>
+                  <div key={`${s.lat}-${s.lng}-${i}`} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", borderRadius: 10, background: "var(--canvas)", border: "1px solid var(--border)" }}>
                     <span style={{ flex: "0 0 auto", width: 22, height: 22, borderRadius: "50%", background: "#0F5132", color: "#fff", fontSize: 12, fontWeight: 700, display: "grid", placeItems: "center" }}>{i + 1}</span>
                     <input
                       value={s.name}
                       onChange={(e) => setStops((p) => p.map((x, xi) => (xi === i ? { ...x, name: e.target.value } : x)))}
                       aria-label={`${i + 1}-nuqta nomi`}
                       title="Nomni o'zgartirishingiz mumkin — mijoz aynan shuni ko'radi"
-                      style={{ flex: 1, minWidth: 0, padding: "5px 9px", fontSize: 14, background: "transparent", border: "1px solid rgba(255,255,255,.13)", borderRadius: 7, color: "inherit" }}
+                      style={{ flex: 1, minWidth: 0, padding: "5px 9px", fontSize: 14, fontFamily: "inherit", background: "var(--field-bg)", border: "1px solid var(--field-border)", borderRadius: 7, color: "var(--t1)", outline: "none" }}
                     />
                     <button type="button" onClick={() => moveStop(i, -1)} disabled={i === 0} aria-label="Yuqoriga" style={{ background: "transparent", border: 0, color: "inherit", cursor: i === 0 ? "default" : "pointer", opacity: i === 0 ? 0.25 : 0.6, padding: 3 }}>↑</button>
                     <button type="button" onClick={() => moveStop(i, 1)} disabled={i === stops.length - 1} aria-label="Pastga" style={{ background: "transparent", border: 0, color: "inherit", cursor: i === stops.length - 1 ? "default" : "pointer", opacity: i === stops.length - 1 ? 0.25 : 0.6, padding: 3 }}>↓</button>
@@ -2884,7 +3770,7 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
             {days.length ? (
               <div style={{ display: "grid", gap: 10 }}>
                 {days.map((d, i) => (
-                  <div key={i} style={{ padding: 12, borderRadius: 12, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.09)" }}>
+                  <div key={i} style={{ padding: 12, borderRadius: 12, background: "var(--canvas)", border: "1px solid var(--border)" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 9 }}>
                       <span style={{ flex: "0 0 auto", padding: "5px 11px", borderRadius: 999, background: "#0F5132", color: "#fff", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{i + 1}-kun</span>
                       <input
@@ -2901,7 +3787,7 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
                     {d.places.length ? (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 9 }}>
                         {d.places.map((pl, pi) => (
-                          <span key={`${pl.lat}-${pl.lng}-${pi}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 6px 5px 11px", borderRadius: 999, background: "rgba(255,255,255,.07)", fontSize: 13 }}>
+                          <span key={`${pl.lat}-${pl.lng}-${pi}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 6px 5px 11px", borderRadius: 999, background: "var(--surface)", border: "1px solid var(--border)", fontSize: 13 }}>
                             {pl.name}
                             <button type="button" onClick={() => patchDay(i, { places: d.places.filter((_, y) => y !== pi) })} aria-label={`${pl.name} — o'chirish`} style={{ width: 17, height: 17, borderRadius: "50%", border: 0, cursor: "pointer", background: "rgba(0,0,0,.28)", color: "inherit", fontSize: 12, lineHeight: 1, display: "grid", placeItems: "center" }}>×</button>
                           </span>
@@ -2935,7 +3821,7 @@ function AddTour({ agencyId, tour, duplicate, onClose, onCreated }: any) {
 
           <div className="modal-foot">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Bekor</button>
-            <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => { if (validate()) void doSave(false); }}>Qoralama saqlash</button>
+            <button type="button" className="btn btn-ghost" disabled={busy} title="Saqlanadi, lekin saytda ko'rinmaydi — keyin tugatib e'lon qilasiz" onClick={() => { if (validate()) void doSave(false); }}>Qoralama saqlash</button>
             <button type="submit" className="btn btn-primary" disabled={busy}>{editing ? "Saqlash va e'lon qilish" : "E'lon qilish"}</button>
           </div>
         </form>
@@ -2965,19 +3851,24 @@ function ConfirmDelete({ tour, busy, err, onCancel, onConfirm }: any) {
 function TelegramChat({ lead, onClose, onBack, readOnly }: { lead: CrmLead; onClose: () => void; onBack?: () => void; readOnly?: boolean }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [canReply, setCanReply] = useState(false);
+  // Bitta chat oynasi ikkala kanalga xizmat qiladi — sarlavha va xato
+  // matnlari shunga qarab o'zgaradi.
+  const [channel, setChannel] = useState<string | null>(null);
+  const [sendErr, setSendErr] = useState("");
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<TgTpl[]>([]);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const isIg = channel === "instagram";
 
   useEffect(() => {
     void agencyApi<{ templates: TgTpl[] }>("/telegram/config").then((r) => { if (r.success) setTemplates(r.data.templates || []); });
   }, []);
 
   const load = async () => {
-    const res = await agencyApi<{ messages: any[]; canReply: boolean }>(`/telegram/messages?bookingId=${encodeURIComponent(lead.id)}`);
-    if (res.success) { setMessages(res.data.messages || []); setCanReply(!!res.data.canReply); }
+    const res = await agencyApi<{ messages: any[]; canReply: boolean; channel: string | null }>(`/telegram/messages?bookingId=${encodeURIComponent(lead.id)}`);
+    if (res.success) { setMessages(res.data.messages || []); setCanReply(!!res.data.canReply); setChannel(res.data.channel || null); }
     setLoading(false);
   };
   useEffect(() => { void load(); const t = window.setInterval(() => void load(), 8000); return () => window.clearInterval(t); }, [lead.id]);
@@ -2986,10 +3877,13 @@ function TelegramChat({ lead, onClose, onBack, readOnly }: { lead: CrmLead; onCl
   async function send(e: React.FormEvent) {
     e.preventDefault();
     if (!text.trim()) return;
-    setBusy(true);
+    setBusy(true); setSendErr("");
     const res = await agencyApi("/telegram/reply", { method: "POST", body: JSON.stringify({ bookingId: lead.id, text: text.trim() }) });
     setBusy(false);
     if (res.success) { setText(""); await load(); }
+    // Instagram'da eng ko'p uchraydigan holat — 24 soatlik oyna yopilgani.
+    // Ilgari xato jimgina yutilardi va agent xabar ketdi deb o'ylardi.
+    else setSendErr(res.message || "Yuborib bo'lmadi");
   }
   return (
     <div className="modal-bg" onClick={onClose}>
@@ -2997,7 +3891,7 @@ function TelegramChat({ lead, onClose, onBack, readOnly }: { lead: CrmLead; onCl
         <div className="tg-chat-head">
           <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
             {onBack ? <button className="icon-btn" onClick={onBack} aria-label="Orqaga" title="Mijoz ma'lumotiga qaytish"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg></button> : null}
-            <div style={{ minWidth: 0 }}><b>{lead.customerName}</b><small>Telegram suhbat</small></div>
+            <div style={{ minWidth: 0 }}><b>{lead.customerName}</b><small>{isIg ? "Instagram Direct" : "Telegram suhbat"}</small></div>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Yopish"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg></button>
         </div>
@@ -3015,13 +3909,20 @@ function TelegramChat({ lead, onClose, onBack, readOnly }: { lead: CrmLead; onCl
           <div className="tg-noreply">Faqat o&apos;qish rejimi — obuna muddati tugagan, javob yozib bo&apos;lmaydi.</div>
         ) : canReply ? (
           <div className="tg-reply">
+            {sendErr ? <div className="tg-senderr">{sendErr}</div> : null}
             {templates.length ? <div className="tg-quick">{templates.map((t) => <button key={t.id} type="button" className="tg-quick-btn" onClick={() => setText(t.text)}>{t.title}</button>)}</div> : null}
             <form className="tg-chat-input" onSubmit={send}>
               <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Javob yozing…" />
               <button type="submit" className="btn btn-primary" disabled={busy || !text.trim()}>Yuborish</button>
             </form>
           </div>
-        ) : <div className="tg-noreply">Bu lidda Telegram identifikatori yo&apos;q</div>}
+        ) : (
+          <div className="tg-noreply">
+            {isIg
+              ? "Instagram ulanmagan — Sozlamalar → Ulanishlar bo'limidan ulang."
+              : "Bu lidda yozishma kanali yo'q"}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -3050,6 +3951,185 @@ function TelegramCard({ go }: { go: (v: string) => void }) {
   );
 }
 
+/* ================= INSTAGRAM (settings card + dedicated page) ================= */
+const IG_ICON = "M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 6a4 4 0 1 0 0 8 4 4 0 0 0 0-8z";
+const WA_ICON = "M17.5 14.4c-.3-.15-1.7-.85-2-.95-.26-.1-.45-.15-.64.15-.19.28-.73.94-.9 1.13-.16.19-.33.21-.61.07-.3-.15-1.25-.46-2.38-1.47-.88-.78-1.47-1.75-1.64-2.04-.17-.29-.02-.44.13-.59.13-.13.3-.34.44-.51.15-.17.19-.29.29-.48.1-.19.05-.36-.02-.51-.08-.15-.64-1.55-.88-2.12-.23-.55-.47-.48-.64-.49h-.55c-.19 0-.5.07-.76.36-.26.29-1 .98-1 2.38s1.02 2.76 1.17 2.95c.14.19 2.01 3.08 4.88 4.32.68.29 1.21.47 1.63.6.68.22 1.3.19 1.79.11.55-.08 1.7-.69 1.94-1.36.24-.67.24-1.24.17-1.36-.07-.12-.26-.19-.55-.34zM12 2a10 10 0 0 0-8.6 15.06L2 22l5.06-1.33A10 10 0 1 0 12 2z";
+
+/* Hali ochilmagan funksiyalar uchun yagona belgi. Ilgari har joyda har xil
+   yozilardi («Tez orada», «Tez orada ishga tushadi», «tasdiqdan o'tmoqda») —
+   agentlik nima kutayotganini tushunmasdi. */
+const SOON_LABEL = "Ishga tushirilmoqda";
+
+type IgState = { configured: boolean; connected: boolean; username: string | null; welcome: string; expiresAt: string | null };
+
+function InstagramCard({ go }: { go: (v: string) => void }) {
+  const [st, setSt] = useState<IgState | null>(null);
+  useEffect(() => {
+    void agencyApi<IgState>("/instagram").then((r) => { if (r.success) setSt(r.data); });
+  }, []);
+  return (
+    <button className="int-card" onClick={() => go("instagram")}>
+      <span className="int-ic ig"><Ic d={IG_ICON} s={22} /></span>
+      <span className="int-main">
+        <b>Instagram Direct</b>
+        <small>
+          {st?.connected
+            ? `Ulangan · @${st.username}`
+            : st && !st.configured
+              ? "Direct xabarlar avtomatik lid bo'ladi — ulanish tayyorlanmoqda"
+              : "Ulash · Direct xabarlar avtomatik lid bo'ladi"}
+        </small>
+      </span>
+      {st?.connected
+        ? <span className="int-badge">Faol</span>
+        : st && !st.configured
+          ? <span className="int-badge int-badge--soon">{SOON_LABEL}</span>
+          : null}
+      <svg className="int-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+    </button>
+  );
+}
+
+/* WhatsApp Business — hali ochilmagan. Karta ATAYLAB bosilmaydi (button emas,
+   div): bosilsa bo'sh sahifaga olib borardi. Agentlik nima kelayotganini
+   ko'rsin, lekin ishlamaydigan ekranga tushmasin. */
+function WhatsappCard() {
+  return (
+    <div className="int-card int-card--soon" aria-disabled="true">
+      <span className="int-ic wa"><Ic d={WA_ICON} s={22} /></span>
+      <span className="int-main">
+        <b>WhatsApp Business</b>
+        <small>Mijoz xabarlari CRM&apos;ga tushadi — Instagram bilan birga ochiladi</small>
+      </span>
+      <span className="int-badge int-badge--soon">{SOON_LABEL}</span>
+    </div>
+  );
+}
+
+function InstagramPage({ show, go, readOnly }: { show: boolean; go: (v: string) => void; readOnly?: boolean }) {
+  const [st, setSt] = useState<IgState | null>(null);
+  const [welcome, setWelcome] = useState("");
+  const [busy, setBusy] = useState("");
+  const [err, setErr] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const load = async () => {
+    const res = await agencyApi<IgState>("/instagram");
+    if (res.success) { setSt(res.data); setWelcome(res.data.welcome || ""); }
+  };
+  useEffect(() => { if (show) void load(); }, [show]);
+  // Ulanish tizim brauzerida ochiladi (desktop ilovada ham) — foydalanuvchi
+  // qaytib kelganda holatni qayta o'qiymiz, aks holda «Ulanmagan» bo'lib turardi.
+  useEffect(() => {
+    if (!show) return;
+    const onFocus = () => void load();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [show]);
+
+  async function connect() {
+    setBusy("connect"); setErr("");
+    const res = await agencyApi<{ url: string }>("/instagram/authorize");
+    setBusy("");
+    if (!res.success) { setErr(res.message || "Ulash manzilini olib bo'lmadi"); return; }
+    // openExternal: desktop ilovada Tauri window.open'ni bloklaydi, shuning
+    // uchun tizim brauzerida ochamiz. Brauzerda oddiy window.open ishlaydi.
+    if (res.data.url) openExternal(res.data.url);
+    else setErr("Ulash manzili bo'sh keldi");
+  }
+  async function disconnect() {
+    setBusy("disconnect"); setErr("");
+    const res = await agencyApi("/instagram/disconnect", { method: "POST" });
+    setBusy("");
+    if (res.success) await load(); else setErr(res.message || "Uzib bo'lmadi");
+  }
+  async function saveWelcome() {
+    setBusy("welcome"); setMsg("");
+    const res = await agencyApi("/instagram/welcome", { method: "PUT", body: JSON.stringify({ text: welcome }) });
+    setBusy("");
+    setMsg(res.success ? "Saqlandi ✓" : (res.message || "Xato"));
+  }
+
+  if (!show) return null;
+  const expiry = st?.expiresAt ? new Date(st.expiresAt) : null;
+
+  return (
+    <section>
+      <div className="section-head">
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+          <button type="button" className="set-back" onClick={() => go("settings")} aria-label="Sozlamalarga qaytish">
+            <Ic d="M15 6l-6 6 6 6" s={17} />
+          </button>
+          <div style={{ minWidth: 0 }}>
+            <h2>Instagram Direct</h2>
+            <div className="sub">Direct xabarlar avtomatik lid bo&apos;ladi</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card tg-set">
+        <div className="tg-set-top">
+          <div className="tg-ic ig"><Ic d={IG_ICON} s={22} /></div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <b>Instagram biznes akkaunt</b>
+            {st?.connected
+              ? <small style={{ color: "var(--primary)" }}>Ulangan · @{st.username}</small>
+              : <small>Akkauntingizga kelgan Direct xabarlar CRM&apos;da ko&apos;rinadi</small>}
+          </div>
+          {st?.connected && !readOnly
+            ? <button className="btn btn-ghost btn-sm" disabled={busy === "disconnect"} onClick={() => void disconnect()}>{busy === "disconnect" ? "..." : "Uzish"}</button>
+            : null}
+        </div>
+
+        {err ? <div className="note note-err" style={{ margin: "12px 0 0" }}>{err}</div> : null}
+
+        {st && !st.configured ? (
+          <div className="tg-connect">
+            <div className="note" style={{ margin: 0 }}>
+              <b>{SOON_LABEL}.</b> Integratsiya tayyor va Meta tomonida ro&apos;yxatdan
+              o&apos;tkazilmoqda. Ishga tushgach shu yerda «Ulash» tugmasi paydo bo&apos;ladi —
+              sizdan qo&apos;shimcha hech narsa talab qilinmaydi.
+              <br /><br />
+              Shu vaqt ichida mijozlar bilan <b>Telegram</b> orqali ishlashingiz mumkin —
+              u to&apos;liq ishlaydi va xabarlar avtomatik lid bo&apos;lib tushadi.
+            </div>
+          </div>
+        ) : !st?.connected ? (
+          <div className="tg-connect">
+            <div className="tg-hint">
+              Ulash uchun Instagram <b>biznes</b> yoki <b>creator</b> akkaunti kerak
+              (Instagram → Sozlamalar → Akkaunt turi). Facebook sahifasi shart emas.
+            </div>
+            <button className="btn btn-primary" disabled={busy === "connect" || readOnly} onClick={() => void connect()}>
+              {busy === "connect" ? "Ochilmoqda..." : "Instagram'ni ulash"}
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="tg-welcome">
+              <label>Avtomatik salomlashish (mijozning birinchi xabaridan keyin yuboriladi)</label>
+              <textarea value={welcome} onChange={(e) => setWelcome(e.target.value)} rows={2} disabled={readOnly}
+                placeholder="Salom! Xabaringiz uchun rahmat, tez orada bog'lanamiz." />
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
+                <button className="btn btn-primary btn-sm" disabled={busy === "welcome" || readOnly} onClick={() => void saveWelcome()}>{busy === "welcome" ? "..." : "Saqlash"}</button>
+                {msg ? <span style={{ color: "var(--primary)", fontSize: 13, fontWeight: 600 }}>{msg}</span> : null}
+              </div>
+            </div>
+            <div className="fld-hint" style={{ marginTop: 14 }}>
+              <b>Bilib qo&apos;ying:</b> Instagram qoidasiga ko&apos;ra mijozga faqat uning oxirgi
+              xabaridan keyingi <b>24 soat</b> ichida javob yozish mumkin. Muddat o&apos;tsa,
+              mijoz qayta yozmaguncha Direct orqali javob ketmaydi — telefon yoki
+              Telegram orqali bog&apos;lanishingiz mumkin.
+              {expiry ? <><br />Ulanish tokeni avtomatik yangilanadi (joriy muddat: {expiry.toLocaleDateString("uz-UZ")}).</> : null}
+            </div>
+          </>
+        )}
+      </div>
+      <div style={{ height: 16 }} />
+    </section>
+  );
+}
+
 /* ================= TELEGRAM BROADCAST (ommaviy xabar) ================= */
 function TelegramBroadcast({ tgLeads, readOnly }: { tgLeads: CrmLead[]; readOnly?: boolean }) {
   const [text, setText] = useState("");
@@ -3059,7 +4139,7 @@ function TelegramBroadcast({ tgLeads, readOnly }: { tgLeads: CrmLead[]; readOnly
   const [result, setResult] = useState<{ total: number; sent: number; failed: number } | null>(null);
   const [err, setErr] = useState("");
   const count = useMemo(() => (stage ? tgLeads.filter((l) => l.stage === stage).length : tgLeads.length), [tgLeads, stage]);
-  const fld: any = { padding: "10px 12px", border: "1px solid rgba(255,255,255,.15)", background: "rgba(255,255,255,.04)", color: "inherit", borderRadius: 10, fontSize: 14 };
+  const fld: any = { padding: "10px 12px", border: "1px solid var(--field-border)", background: "var(--field-bg)", color: "var(--t1)", borderRadius: 10, fontSize: 14, fontFamily: "inherit", outline: "none" };
 
   async function send() {
     setBusy(true); setErr(""); setResult(null);
@@ -3270,7 +4350,9 @@ function TelegramSettings() {
           </div>
         </div>
 
-        <div className="tg-welcome" style={{ marginTop: 14 }}>
+        {/* Tug'ilgan kun tabrigi — BIRTHDAY_LIVE bayrog'i bilan yashirilgan.
+            Matn serverda saqlanib turadi, qayta yoqilganda o'z joyida bo'ladi. */}
+        <div className="tg-welcome" style={{ marginTop: 14, display: BIRTHDAY_LIVE ? undefined : "none" }}>
           <label>🎂 Tug&apos;ilgan kun tabrigi matni (mijoz tug&apos;ilgan kuni bot avtomatik yuboradi)</label>
           <textarea value={birthday} onChange={(e) => setBirthday(e.target.value)} rows={5} placeholder={birthdayDefault || "Standart matn ishlatiladi"} />
           <div style={{ fontSize: 12.5, color: "#8aa398", marginTop: 6 }}>
@@ -3365,6 +4447,9 @@ function ProfileForm({ agency, refresh, readOnly }: any) {
     setPhone(agency?.phone || ""); setTelegram(agency?.telegram || ""); setWebsite(agency?.website || "");
     setDescription(agency?.description || ""); setImg(agency?.imageUrl || "");
   }, [agency]);
+  // Logotip saqlanganidan farq qiladimi — foydalanuvchiga saqlash kerakligini
+  // ko'rsatish uchun. save() ham aynan shu shartga qarab imageUrl yuboradi.
+  const logoChanged = img !== (agency?.imageUrl || "");
   async function pickImg(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
     try { setImg(await readImage(file)); setMsg(""); } catch (er) { setErr(er instanceof Error ? er.message : "Rasm xato"); }
@@ -3393,9 +4478,18 @@ function ProfileForm({ agency, refresh, readOnly }: any) {
         <div className="prof-logo-tx">
           <label className="prof-pick">{img ? "Logotipni almashtirish" : "Logotip yuklash"}<input type="file" accept="image/*" onChange={pickImg} style={{ display: "none" }} disabled={readOnly} /></label>
           <small>PNG yoki JPG · kvadrat rasm tavsiya etiladi</small>
-          {img && !readOnly ? <button type="button" className="prof-logo-rm" onClick={() => setImg("")}>O&apos;chirish</button> : null}
+          {img && !readOnly ? <button type="button" className="prof-logo-rm" onClick={() => setImg("")}>Olib tashlash</button> : null}
         </div>
       </div>
+      {/* Logotip almashtirilsa/olib tashlansa — u faqat formada o'zgaradi,
+          bazaga «Saqlash» bosilgandan keyin yoziladi. Ilgari bu ko'rinmasdi:
+          «O'chirish» bosilardi, sahifa yangilanardi va eski logotip qaytardi. */}
+      {logoChanged && !readOnly ? (
+        <div className="prof-logo-warn">
+          {img ? "Yangi logotip tanlandi" : "Logotip olib tashlandi"} — o&apos;zgarish hali saqlanmagan.
+          Pastdagi <b>«Saqlash»</b> tugmasini bosing.
+        </div>
+      ) : null}
       <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div className="fld"><label>Agentlik nomi *</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Demo Travel CRM" /></div>
         <div className="fld"><label>Shahar</label><input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Toshkent" /></div>

@@ -16,6 +16,7 @@
 
 const crypto = require('crypto');
 const { prisma } = require('../config/database');
+const { logger } = require('../config/logger');
 const { success, error } = require('../utils/response');
 const click = require('../config/click');
 
@@ -49,7 +50,26 @@ const NOTE = {
 };
 
 /** CLICK javobi — HAR DOIM 200 + JSON (aks holda CLICK qayta urinadi). */
+/**
+ * CLICK'ga javob + LOG.
+ *
+ * Prepare va Complete'ning yagona chiqish nuqtasi shu bo'lgani uchun, so'rov
+ * va javobni aynan shu yerda yozamiz — CLICK yo'riqnomasi talabi: «настроить
+ * систему логирования запросов и ответов в точках Prepare и Complete. Это
+ * ускорит поиск и решение проблем при проведении платежей». To'lov muammosi
+ * chiqqanda guruhga aynan shu loglar yuboriladi.
+ *
+ * Karta ma'lumotlari bu yerga umuman kelmaydi (ular CLICK tomonda qoladi),
+ * `sign_string` esa maxfiy emas — u SECRET_KEY'dan olingan hash, va imzo
+ * xatolarini tekshirish uchun aynan u kerak bo'ladi.
+ */
 function clickReply(res, payload) {
+  const req = res.req || {};
+  logger.info('CLICK callback', {
+    url: req.originalUrl,
+    request: req.body || {},
+    response: payload,
+  });
   return res.status(200).json(payload);
 }
 function clickError(res, code, extra = {}) {
@@ -315,6 +335,14 @@ async function checkout(req, res) {
     return success(res, {
       payUrl, merchantTransId, amount, months,
       tariff: { slug: tariff.slug, name: tariff.name },
+      // Saytdan chiqmasdan to'lash uchun (my.click.uz/pay/checkout.js).
+      // Bu uchtasi MAXFIY EMAS — ular yuqoridagi payUrl ichida ham ochiq
+      // turadi; maxfiysi faqat SECRET_KEY, u hech qachon frontendga ketmaydi.
+      click: {
+        serviceId: click.SERVICE_ID,
+        merchantId: click.MERCHANT_ID,
+        merchantUserId: click.MERCHANT_USER_ID || '',
+      },
     });
   } catch (e) {
     console.error('[click:checkout]', e.message);
@@ -335,6 +363,27 @@ async function paymentStatus(req, res) {
     return success(res, safe);
   } catch (e) {
     return error(res, 'Xatolik', 500);
+  }
+}
+
+// GET /agency/payments/history — kabinetdagi «To'lov tarixi» ro'yxati.
+// CLICK menejerlari uchun ham muhim: to'lovlar qayd etilishini ko'rsatadi.
+async function paymentHistory(req, res) {
+  try {
+    const agency = req.agency;
+    if (!agency) return error(res, 'Agentlik topilmadi', 404);
+    const rows = await prisma.clickTransaction.findMany({
+      where: { agencyId: agency.id },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        merchantTransId: true, tariffSlug: true, months: true,
+        amount: true, state: true, paidAt: true, createdAt: true,
+      },
+    });
+    return success(res, { items: rows });
+  } catch (e) {
+    return error(res, 'Tarixni olib bo\'lmadi', 500);
   }
 }
 
@@ -363,4 +412,4 @@ function newTransId() {
   return `TA${ts}${rnd}`;
 }
 
-module.exports = { prepare, complete, checkout, paymentStatus, listPlans };
+module.exports = { prepare, complete, checkout, paymentStatus, listPlans, paymentHistory };

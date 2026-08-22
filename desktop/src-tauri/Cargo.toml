@@ -1,6 +1,6 @@
 [package]
 name = "travelorai-crm"
-version = "1.0.0"
+version = "1.0.6"
 description = "TravelorAI CRM — agentlik kabineti"
 authors = ["TravelorAI"]
 edition = "2021"
@@ -10,6 +10,12 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+tauri-plugin-updater = "2"
+# Tashqi havolani tizim brauzeri/ilovasida ochish (open_external buyrug'i).
+# Tauri webview target="_blank" ni ochmaydi — shu sababli kerak.
+open = "5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 # Release build — POC uchun tez kompilyatsiya (LTO'siz), lekin ixcham
 [profile.release]

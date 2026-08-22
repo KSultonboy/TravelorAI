@@ -3,6 +3,7 @@ const agency = require('../controllers/agency.controller');
 const { agencyAuthMiddleware } = require('../middleware/agencyAuth.middleware');
 const { agencyPlan, blockWhenReadOnly, requireCapability, requireOwner } = require('../middleware/agencyPlan.middleware');
 const telegram = require('../controllers/telegram.controller');
+const instagram = require('../controllers/instagram.controller');
 const team = require('../controllers/agencyTeam.controller');
 const presentation = require('../controllers/presentation.controller');
 const geocodeCtrl = require('../controllers/geocode.controller');
@@ -39,6 +40,7 @@ router.put('/profile', blockWhenReadOnly, requireOwner, agency.updateAgencyProfi
 // obunasi tugagan agentlik aynan to'lov qilishi kerak.
 // Diqqat: `/payments/plans` `/payments/:merchantTransId`dan OLDIN turishi shart.
 router.get('/payments/plans', clickPay.listPlans);
+router.get('/payments/history', clickPay.paymentHistory);
 router.post('/payments/checkout', clickPay.checkout);
 router.get('/payments/:merchantTransId', clickPay.paymentStatus);
 
@@ -104,6 +106,15 @@ router.put('/telegram/config', blockWhenReadOnly, telegram.setConfig);
 router.get('/telegram/messages', telegram.listMessages);
 router.post('/telegram/reply', blockWhenReadOnly, telegram.reply);
 router.post('/telegram/broadcast', blockWhenReadOnly, requireCapability('broadcast'), telegram.broadcast);
+
+// Instagram Direct — Telegram bilan bir xil tarif darajasi ('telegram'
+// capability = «xabar kanallari»). Javob yuborish /telegram/reply orqali
+// ketadi: u kanalni lidning o'zidan aniqlaydi.
+router.use('/instagram', requireCapability('telegram'));
+router.get('/instagram', instagram.getInstagram);
+router.get('/instagram/authorize', requireOwner, instagram.authorize);
+router.post('/instagram/disconnect', blockWhenReadOnly, requireOwner, instagram.disconnectInstagram);
+router.put('/instagram/welcome', blockWhenReadOnly, instagram.setWelcome);
 
 // Jamoa (Business tarif) — ko'rish hammaga, boshqarish faqat egasiga (controller ichida tekshiriladi).
 router.get('/team', team.listTeam);

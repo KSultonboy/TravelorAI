@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Instagram, Mail, MapPin, Phone, Send, Youtube } from "lucide-react";
 import Logo from "./Logo";
-import { CONTACT } from "@/lib/legalEntity";
+import { CONTACT, LEGAL_ENTITY } from "@/lib/legalEntity";
 
 const COLS = [
   {
@@ -28,6 +28,7 @@ const COLS = [
       ["Ommaviy oferta", "/offer"],
       ["Maxfiylik siyosati", "/privacy"],
       ["Foydalanish shartlari", "/terms"],
+      ["Ma’lumotlarni o‘chirish", "/data-deletion"],
     ],
   },
 ];
@@ -61,6 +62,16 @@ export default function SiteFooter() {
               </ul>
             </div>
           ))}
+        </div>
+
+        {/* Yuridik nom har sahifada ko'rinishi SHART: Meta biznes tasdig'i
+            2026-07-28 da aynan shu sababdan rad etilgan edi — «your legal
+            business name must be present on the website». Ilgari u faqat
+            /offer sahifasida bor edi, bosh sahifada esa yo'q. */}
+        <div className="mkt-footer__legal">
+          {LEGAL_ENTITY.legalName} · STIR {LEGAL_ENTITY.stir}
+          <br />
+          {LEGAL_ENTITY.address}
         </div>
 
         <div className="mkt-footer__bottom">

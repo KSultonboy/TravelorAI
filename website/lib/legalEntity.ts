@@ -29,6 +29,10 @@ export const CONTACT = {
    *  support@travelorai.com pochtasi KELMAYDI. Cloudflare Email Routing
    *  sozlangach shu yerni domen manziliga qaytarish mumkin. */
   email: "traveloraai@gmail.com",
+  /** TravelorAI qo'llab-quvvatlash raqami — mijozlar shu yerga qo'ng'iroq qiladi.
+   *  ⚠️ Direktor (Aminov A.K.) raqami BOSHQA: +998 97 791 77 62 — davlat
+   *  reyestrida va CLICK/Payme rekvizitlarida aynan o'sha ishlatiladi.
+   *  Ikkalasi ham to'g'ri, bir-birining o'rniga qo'yilmasin. */
   phone: "+998 97 790 77 62",
   /** tel: havolasi uchun (bo'shliqlarsiz) */
   phoneHref: "+998977907762",

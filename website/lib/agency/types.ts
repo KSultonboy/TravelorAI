@@ -69,6 +69,8 @@ export type Tour = {
   days?: number | null;
   hotelIncluded?: boolean;
   flightIncluded?: boolean;
+  transferIncluded?: boolean;
+  insuranceIncluded?: boolean;
   discount?: string | null;
   priceBasisPeople?: number | null;
   priceLockMinutes?: number | null;

@@ -2,7 +2,9 @@ import MarketingShell from "./MarketingShell";
 import PageHero from "./PageHero";
 import Reveal from "./Reveal";
 
-export type LegalSection = { heading: string; body: string[] };
+/** body — matn yoki JSX (havola qo'yish uchun). String ham ReactNode, shuning
+ *  uchun mavjud sahifalar o'zgarishsiz ishlayveradi. */
+export type LegalSection = { heading: string; body: React.ReactNode[] };
 
 const HERO = "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1920&q=70";
 

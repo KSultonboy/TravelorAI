@@ -291,7 +291,18 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   fallthrough: false,
   maxAge: process.env.NODE_ENV === 'production' ? '30d' : 0,
 }));
-app.use(express.json({ limit: '16mb' }));
+app.use(express.json({
+  limit: '16mb',
+  // Instagram webhook imzosi (X-Hub-Signature-256) XOM body ustidan hisoblanadi.
+  // JSON.parse qilib qayta yig'ilgan matn imzoga mos kelmaydi (kalitlar tartibi
+  // va probellar farq qiladi), shuning uchun faqat o'sha yo'l uchun xom nusxani
+  // saqlab qo'yamiz — boshqa marshrutlar uchun ortiqcha xotira ishlatmaymiz.
+  verify: (req, _res, buf) => {
+    if (req.originalUrl && req.originalUrl.startsWith('/api/v1/instagram/webhook')) {
+      req.rawBody = buf;
+    }
+  },
+}));
 app.use(loggerMiddleware);
 
 app.get(['/account-deletion', '/delete-account'], (req, res) => {
@@ -315,6 +326,11 @@ app.use(
   express.urlencoded({ extended: false }),
   require('./src/routes/clickPublic.routes')
 );
+
+// Instagram callback + webhook — rateLimiter'DAN OLDIN. Meta bir vaqtda ko'p
+// xabar yuborishi mumkin; limitga urilsa u qayta-qayta uradi va oxirida
+// obunani o'chirib qo'yadi. Ikkalasi ham o'z imzosi bilan himoyalangan.
+app.use('/api/v1/instagram', require('./src/routes/instagram.routes'));
 
 app.use('/api/v1', rateLimiter, routes);
 

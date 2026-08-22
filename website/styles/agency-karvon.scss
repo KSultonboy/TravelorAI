@@ -12,8 +12,16 @@
   --gold:#CA8A04; --gold-soft:#FBEECB; --gold-ink:#8A5A08;
   --rose:#C0392B; --rose-soft:#FBE9E7;
   --sky:#3E86B0; --sky-soft:#E6F0F6;
+  /* Instagram kanali uchun — brend gradienti CRM'ning yashil palitrasi bilan
+     urishadi, shuning uchun uning pushti-siyohrang oralig'i pasaytirilgan. */
+  --ig-soft:#FBEAF2; --ig-ink:#A63A6B;
   --t1:#14201A; --t2:#566B60; --t3:#93A5A0;
   --border:#E4EDE7; --radius:14px;
+  /* Kiritish maydonlari uchun ALOHIDA token. Nega: --border juda och (#E4EDE7)
+     va karta foni ham oq — chegara kontrasti 1.29 ga teng edi, ustiga 1px
+     chegara 1.5x ekranda 0.67px bo'lib chiqadi. Natijada maydon chegarasi
+     ko'rinmasdi. Maydon foni ham kartadan bir oz farq qiladi. */
+  --field-bg:#FBFDFC; --field-border:#C3D4CA; --field-border-hover:#A9C0B4;
   --shadow:0 1px 2px rgba(11,42,30,.05), 0 4px 16px rgba(11,42,30,.06);
   --disp:"Space Grotesk","Segoe UI",system-ui,sans-serif;
   --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -54,7 +62,7 @@
   .main{ min-width:0; display:flex; flex-direction:column; }
   .topbar{ height:64px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:16px; padding:0 24px; position:sticky; top:0; z-index:20; }
   .topbar h1{ font-family:var(--disp); font-size:19px; font-weight:600; letter-spacing:-.01em; }
-  .search{ margin-left:14px; flex:1; max-width:420px; display:flex; align-items:center; gap:9px; background:var(--canvas); border:1px solid var(--border); border-radius:10px; padding:8px 12px; color:var(--t3); }
+  .search{ margin-left:14px; flex:1; max-width:420px; display:flex; align-items:center; gap:9px; background:var(--field-bg); border:1px solid var(--field-border); border-radius:10px; padding:8px 12px; color:var(--t3); }
   .search input{ border:none; background:none; outline:none; font-family:inherit; font-size:13.5px; color:var(--t1); width:100%; }
   .top-actions{ margin-left:auto; display:flex; align-items:center; gap:10px; }
   .icon-btn{ width:40px; height:40px; border-radius:10px; border:1px solid var(--border); background:var(--surface); display:grid; place-items:center; color:var(--t2); position:relative; }
@@ -79,6 +87,24 @@
   .notif-allread:hover{ text-decoration:underline; }
   .notif-actions{ display:flex; align-items:center; gap:4px; }
   .notif-clear{ color:var(--rose); }
+
+  /* Desktop yangilanish (faqat Tauri qobiqда ko'rinadi) */
+  .dsk-upd{ position:relative; }
+  .dsk-upd__dot{ position:absolute; top:7px; right:8px; width:8px; height:8px; border-radius:50%; background:var(--gold); border:2px solid var(--surface); }
+  .dsk-upd__menu{ position:absolute; top:calc(100% + 10px); right:0; width:290px; z-index:40;
+    background:var(--surface); border:1px solid var(--border); border-radius:14px; box-shadow:0 18px 46px rgba(11,42,30,.20);
+    padding:15px 16px; display:none; }
+  .dsk-upd.open .dsk-upd__menu{ display:block; animation:kvFade .16s ease both; }
+  .dsk-upd__head{ font-family:var(--disp); font-size:14px; font-weight:700; color:var(--t1); }
+  .dsk-upd__status{ font-size:12.5px; color:var(--t2); margin-top:3px; }
+  .dsk-upd__rows{ margin-top:11px; display:grid; gap:6px; border-top:1px solid var(--border); padding-top:11px; }
+  .dsk-upd__rows > div{ display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12.5px; color:var(--t2); }
+  .dsk-upd__rows b{ font-family:var(--disp); color:var(--t1); font-variant-numeric:tabular-nums; }
+  .dsk-upd__notes{ margin:10px 0 0; font-size:12px; color:var(--t2); line-height:1.5; }
+  .dsk-upd__err{ margin:10px 0 0; font-size:12px; color:var(--rose); word-break:break-word; }
+  .dsk-upd__foot{ display:flex; gap:7px; margin-top:13px; }
+  .dsk-upd__foot .btn{ flex:1; }
+  .dsk-upd__hint{ margin:9px 0 0; font-size:11.5px; color:var(--t3); }
   .notif-list{ max-height:344px; overflow-y:auto; padding:6px; }
   .notif-item{ display:flex; align-items:flex-start; gap:9px; padding:9px 10px; border-radius:10px; margin-bottom:2px; }
   .notif-item:not(.read){ background:var(--primary-soft); }
@@ -119,12 +145,13 @@
   .lead-tabs button.on{ background:var(--surface); color:var(--primary); box-shadow:0 1px 2px rgba(11,42,30,.08); }
   /* Arxiv qidiruv + filtrlar */
   .arch-tools{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
-  .arch-search{ flex:1; min-width:220px; display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:9px 12px; color:var(--t3); }
+  .arch-search{ flex:1; min-width:220px; display:flex; align-items:center; gap:8px; background:var(--field-bg); border:1px solid var(--field-border); border-radius:10px; padding:9px 12px; color:var(--t3); }
   .arch-search input{ border:0; background:none; outline:none; font-family:inherit; font-size:13.5px; color:var(--t1); width:100%; }
   .arch-clear{ border:0; background:none; color:var(--t3); font-size:19px; line-height:1; cursor:pointer; padding:0 2px; }
   .arch-clear:hover{ color:var(--t1); }
-  .arch-sel{ border:1px solid var(--border); border-radius:10px; padding:9px 12px; background:var(--surface); color:var(--t1); font-family:inherit; font-size:13.5px; cursor:pointer; }
-  .arch-sel:focus{ outline:none; border-color:var(--primary); }
+  .arch-sel{ border:1px solid var(--field-border); border-radius:10px; padding:9px 12px; background:var(--field-bg); color:var(--t1); font-family:inherit; font-size:13.5px; cursor:pointer; }
+  .arch-sel:focus{ outline:none; border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-soft); }
+  .arch-sel:hover, .arch-search:hover{ border-color:var(--field-border-hover); }
   .section-head .sub{ color:var(--t2); font-size:12.5px; margin-top:2px; }
   .link{ color:var(--primary); font-weight:600; font-size:13px; display:inline-flex; align-items:center; gap:4px; background:none; border:none; }
   .link:hover{ color:var(--primary-ink); }
@@ -286,11 +313,14 @@
   /* input */
   .fld{ display:flex; flex-direction:column; gap:5px; margin-bottom:12px; }
   .fld label{ font-size:12px; font-weight:600; color:var(--t2); }
-  .fld input, .fld textarea, .fld select{ border:1px solid var(--border); border-radius:10px; padding:9px 12px; font-family:inherit; font-size:13.5px; color:var(--t1); background:var(--surface); outline:none; width:100%; }
+  .fld input, .fld textarea, .fld select{ border:1px solid var(--field-border); border-radius:10px; padding:9px 12px; font-family:inherit; font-size:13.5px; color:var(--t1); background:var(--field-bg); outline:none; width:100%; transition:border-color .12s, box-shadow .12s; }
+  .fld input:hover, .fld textarea:hover, .fld select:hover{ border-color:var(--field-border-hover); }
   .fld select{ -webkit-appearance:none; -moz-appearance:none; appearance:none; padding-right:34px; cursor:pointer;
     background-image:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='14'%20height='14'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%230A3D25'%20stroke-width='2.2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M6%209l6%206%206-6'/%3E%3C/svg%3E");
     background-repeat:no-repeat; background-position:right 12px center; }
-  .fld input:focus, .fld textarea:focus, .fld select:focus{ border-color:var(--primary); }
+  /* Fokus — nafaqat rang, halqa ham: qaysi maydonda turganingiz aniq ko'rinadi */
+  .fld input:focus, .fld textarea:focus, .fld select:focus{ border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-soft); }
+  .fld-hint{ font-size:12px; color:var(--t2); line-height:1.45; }
   /* custom file picker */
   .filepick{ display:flex; align-items:center; gap:12px; padding:12px 14px; border:1.5px dashed #cdd8d2; border-radius:11px; cursor:pointer; background:var(--canvas); transition:border-color .15s, background-color .15s; }
   .filepick:hover{ border-color:var(--primary); background:var(--primary-soft); }
@@ -429,6 +459,9 @@
   .tg-cfg-row textarea{ width:100%; border:1px solid var(--border); border-radius:8px; padding:7px 10px; font-family:inherit; font-size:13px; outline:none; resize:vertical; background:var(--surface); }
   .tg-cfg-row textarea:focus{ border-color:var(--primary); }
   .tg-reply{ border-top:1px solid var(--border); }
+  /* Yuborish xatosi (masalan Instagram'ning 24 soatlik oynasi yopilgani) —
+     ilgari jimgina yutilardi va agent xabar ketdi deb o'ylardi. */
+  .tg-senderr{ margin:10px 14px 0; padding:9px 12px; border-radius:9px; background:var(--rose-soft); color:#8f2a20; border:1px solid #f3c9c4; font-size:12.5px; line-height:1.5; }
   .tg-reply .tg-chat-input{ border-top:none; }
   .tg-quick{ display:flex; gap:6px; flex-wrap:wrap; padding:10px 14px 0; }
   .tg-quick-btn{ font-size:12px; font-weight:600; color:var(--primary); background:var(--primary-soft); border:1px solid #CDE3D6; border-radius:999px; padding:5px 12px; cursor:pointer; }
@@ -439,6 +472,13 @@
   .int-card:hover{ border-color:var(--primary); transform:translateY(-1px); box-shadow:0 8px 24px rgba(15,81,50,.09); }
   .int-ic{ width:44px; height:44px; border-radius:12px; display:grid; place-items:center; flex-shrink:0; }
   .int-ic.tg{ background:var(--sky-soft); color:#255d7d; }
+  .int-ic.ig, .tg-ic.ig{ background:var(--ig-soft); color:var(--ig-ink); }
+  .int-ic.wa{ background:rgba(37,167,104,.14); color:#1B7A4B; }
+  /* Hali ochilmagan kanal: bosilmaydi, shuning uchun kursor ham o'zgarmaydi
+     va hover ko'tarilmaydi — aks holda bosiladigandek ko'rinardi. */
+  .int-card--soon{ cursor:default; opacity:.82; }
+  .int-card--soon:hover{ border-color:var(--border); transform:none; box-shadow:var(--shadow); }
+  .int-badge--soon{ color:var(--gold-ink); background:var(--gold-soft); border-color:rgba(202,138,4,.3); }
   .int-main{ flex:1; min-width:0; }
   .int-main b{ display:block; font-family:var(--disp); font-size:14.5px; font-weight:600; }
   .int-main small{ display:block; color:var(--t2); font-size:12.5px; margin-top:1px; }
@@ -520,6 +560,9 @@
   .prof-logo-tx small{ font-size:11.5px; color:var(--t3); }
   .prof-logo-rm{ font-size:12px; color:var(--rose); background:none; border:none; cursor:pointer; padding:0; }
   .prof-logo-rm:hover{ text-decoration:underline; }
+  /* Logotip o'zgardi, lekin hali saqlanmadi — aks holda foydalanuvchi
+     «o'chdi» deb o'ylab sahifani yangilaydi va eski rasm qaytadi. */
+  .prof-logo-warn{ margin:0 0 14px; padding:10px 13px; border-radius:10px; background:var(--gold-soft); color:var(--gold-ink); border:1px solid rgba(202,138,4,.28); font-size:12.5px; line-height:1.55; }
   .prof .fld textarea{ resize:vertical; min-height:66px; line-height:1.45; }
   /* Jamoa (team + rollar) */
   .team-list{ padding:6px; }
@@ -602,10 +645,18 @@
 .kv .sub-pay__m:hover{ border-color:var(--primary); color:var(--primary); }
 .kv .sub-pay__m.on{ border-color:var(--primary); background:var(--primary); color:#fff; }
 .kv .sub-pay__foot{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+/* Ikkita to'lov tugmasi — tor ekranda ustma-ust tushadi */
+.kv .sub-pay__btns{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .kv .sub-pay__total{ font-size:13px; color:var(--t2); }
 .kv .sub-pay__total b{ font-family:var(--disp); font-size:18px; color:var(--gold-ink); font-variant-numeric:tabular-nums; }
 .kv .sub-pay__note{ font-size:11.5px; color:var(--t3); }
 .kv .sub-pay__note a{ color:var(--primary); }
+/* CLICK hali ulanmaganда — oqim ko'rinadi, ogohlantirish beriladi */
+.kv .sub-pay__pending{ font-size:12.5px; color:var(--gold-ink); background:var(--gold-soft); border:1px solid var(--gold); border-radius:10px; padding:9px 12px; line-height:1.5; }
+.kv .sub-pay__pending b{ font-family:var(--disp); }
+/* «Obuna va to'lov» ekrani — pastdagi huquqiy havolalar */
+.kv .bill-legal{ margin-top:16px; font-size:12.5px; color:var(--t3); text-align:center; }
+.kv .bill-legal a{ color:var(--primary); font-weight:600; }
 
 .kv .kv-fieldset{ border:0; padding:0; margin:0; min-inline-size:auto; }
 .kv .kv-fieldset:disabled{ opacity:.6; }
@@ -621,8 +672,12 @@
   --gold:#E3AE39; --gold-soft:rgba(227,174,57,.15); --gold-ink:#EBCB80;
   --rose:#E5675A; --rose-soft:rgba(229,103,90,.15);
   --sky:#5AA8D0; --sky-soft:rgba(90,168,208,.15);
+  --ig-soft:rgba(214,109,158,.16); --ig-ink:#E8A7C6;
   --t1:#E9F1EC; --t2:#9FB4AB; --t3:#6E857C;
   --border:#26382D;
+  /* Tungi rejimda maydon kartadan QUYUQROQ bo'ladi — ichkariga bosilgan
+     ko'rinish beradi, chegara esa ikkalasidan ham yorqin. */
+  --field-bg:#0E1714; --field-border:#3C5A4A; --field-border-hover:#4E7460;
   --shadow:0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.45);
   color-scheme: dark; /* native select ochiluvchi ro'yxati, scrollbar — dark rejim */
 }
@@ -636,6 +691,8 @@
 :root[data-theme="dark"] .kv .kstage2-opt.sel{ background:var(--primary-soft); }
 :root[data-theme="dark"] .kv .search{ background:var(--canvas); }
 :root[data-theme="dark"] .kv .sub-card__warn{ color:#f0b3ab; }
+/* Xato yozuvlari tungi rejimda: #8f2a20 quyuq fonda deyarli o'qilmaydi. */
+:root[data-theme="dark"] .kv .tg-senderr{ color:#f0b3ab; border-color:rgba(229,103,90,.35); }
 :root[data-theme="dark"] .kv .doc-ph code{ color:var(--primary-ink); }
 /* kanban ustuni, jadval header, funnel yo'lakchasi — dark */
 :root[data-theme="dark"] .kv .kcol{ background:#121c17; }
@@ -646,3 +703,96 @@
 :root[data-theme="dark"] .kv .b-sky{ background:rgba(62,134,176,.22); color:#a6d3ea; }
 :root[data-theme="dark"] .kv .b-grey{ background:rgba(255,255,255,.08); color:#c3d3ca; }
 :root[data-theme="dark"] .kv .b-rose{ background:rgba(192,57,43,.22); color:#f0b3ab; }
+
+/* Tur formasidagi belgilash (checkbox) — «kiritilgan» maydonlari uchun */
+.kv .kv-check{ display:inline-flex; align-items:center; gap:8px; font-size:13.5px; color:var(--t1); cursor:pointer; user-select:none; }
+.kv .kv-check input{ width:17px; height:17px; accent-color:var(--primary); cursor:pointer; }
+/* «Narxga nimalar kiritilgan» — 4 ta belgi, torroq ekranda o'ziga o'tadi */
+.kv .kv-checkrow{ display:flex; flex-wrap:wrap; gap:10px 18px; padding:9px 12px; border:1px solid var(--field-border); border-radius:10px; background:var(--field-bg); }
+
+/* ── Shartnoma matni: band-bandga tahrirlash ──
+   Ilgari butun shartnoma bitta katta oynada «## » belgilari bilan turardi. */
+.kv .doc-sec-wrap{ display:grid; gap:10px; }
+.kv .doc-sec-head{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-top:4px; }
+.kv .doc-sec-head b{ font-family:var(--disp); font-size:13.5px; }
+.kv .doc-sec-head small{ font-size:12px; color:var(--t2); }
+.kv .doc-sec{ border:1px solid var(--field-border); border-radius:11px; background:var(--field-bg); padding:10px; display:grid; gap:8px; }
+.kv .doc-sec__bar{ display:flex; align-items:center; gap:8px; }
+.kv .doc-sec__n{ flex-shrink:0; width:24px; height:24px; border-radius:7px; display:grid; place-items:center;
+  background:var(--primary-soft); color:var(--primary); font-family:var(--disp); font-size:12.5px; font-weight:700;
+  font-variant-numeric:tabular-nums; }
+.kv .doc-sec__title{ flex:1; min-width:0; border:1px solid var(--field-border); border-radius:8px; padding:7px 10px;
+  background:var(--surface); color:var(--t1); font-family:var(--disp); font-size:13.5px; font-weight:600; outline:none; }
+.kv .doc-sec__title:focus{ border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-soft); }
+.kv .doc-sec__acts{ display:flex; gap:4px; flex-shrink:0; }
+.kv .doc-sec__acts button{ width:28px; height:28px; border-radius:8px; border:1px solid var(--field-border);
+  background:var(--surface); color:var(--t2); cursor:pointer; display:grid; place-items:center; font-size:13px;
+  font-family:inherit; transition:color .12s, border-color .12s; }
+.kv .doc-sec__acts button:hover:not(:disabled){ color:var(--primary); border-color:var(--primary); }
+.kv .doc-sec__acts button:disabled{ opacity:.35; cursor:default; }
+.kv .doc-sec__acts .doc-sec__del:hover{ color:var(--rose); border-color:var(--rose); }
+.kv .doc-sec textarea{ width:100%; border:1px solid var(--field-border); border-radius:8px; padding:8px 10px;
+  background:var(--surface); color:var(--t1); font-family:inherit; font-size:13px; line-height:1.55; resize:vertical; outline:none; }
+.kv .doc-sec textarea:focus{ border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-soft); }
+.kv .doc-sec-add{ justify-self:start; display:inline-flex; align-items:center; gap:7px; padding:8px 14px;
+  border-radius:10px; border:1px dashed var(--field-border); background:transparent; color:var(--primary);
+  font-family:inherit; font-size:13px; font-weight:600; cursor:pointer; transition:background-color .12s, border-color .12s; }
+.kv .doc-sec-add:hover{ background:var(--primary-soft); border-color:var(--primary); }
+
+/* Belgilar kartasi — bosilsa nusxalanadi */
+.kv .doc-ph-card{ padding:14px; margin-top:16px; }
+.kv .doc-ph-card__head{ display:grid; gap:4px; margin-bottom:10px; }
+.kv .doc-ph-card__head b{ font-family:var(--disp); font-size:13.5px; }
+.kv .doc-ph-card__head small{ font-size:12.5px; color:var(--t2); line-height:1.55; }
+.kv .doc-ph-list{ display:flex; flex-wrap:wrap; gap:6px; }
+.kv button.doc-ph{ display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:20px;
+  border:1px solid var(--field-border); background:var(--field-bg); cursor:pointer; font-family:inherit;
+  font-size:11.5px; color:var(--t2); transition:border-color .12s, background-color .12s; }
+.kv button.doc-ph:hover{ border-color:var(--primary); background:var(--primary-soft); }
+.kv button.doc-ph code{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11px; color:var(--primary-ink); }
+
+/* ── Hujjat oynasi (shartnoma / hisob-faktura) ──
+   Yangi oyna (pop-up) o'rniga CRM ichida ko'rsatiladi: desktop ilovada ham,
+   pop-up bloklangan brauzerda ham ishlaydi. */
+.kv .doc-view{ width:min(980px, 96vw); height:min(94vh, 1100px); padding:0; display:flex;
+  flex-direction:column; overflow:hidden; }
+.kv .doc-view__head{ display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  padding:13px 16px; border-bottom:1px solid var(--border); background:var(--surface); flex-shrink:0; }
+.kv .doc-view__head > b{ font-family:var(--disp); font-size:14.5px; min-width:0; flex:1;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.kv .doc-view__acts{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+/* «Saqlandi: C:\…» — desktopda fayl qayerga tushganini ko'rsatadi */
+.kv .doc-view__saved{ font-size:12px; color:var(--primary); font-weight:600; max-width:260px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* Hujjatning o'zi oq qog'ozda — mavzu (tungi rejim) unga ta'sir qilmaydi */
+.kv .doc-view__frame{ flex:1; width:100%; border:0; background:#fff; min-height:0; }
+@media (max-width:640px){
+  .kv .doc-view{ width:100vw; height:100vh; border-radius:0; }
+  .kv .doc-view__head > b{ flex:1 1 100%; }
+}
+
+/* ── Sozlamalar menyusi: bo'lim tanlanadi → faqat o'sha bo'lim ochiladi ──
+   Ilgari obuna, ma'lumotlar, ulanishlar va jamoa bitta uzun sahifada
+   ustma-ust turardi — kerakli joyni topish qiyin edi. */
+.kv .set-menu{ display:grid; gap:10px; max-width:640px; }
+.kv .set-item{ display:flex; align-items:center; gap:14px; width:100%; text-align:left; padding:15px 16px;
+  background:var(--surface); border:1px solid var(--border); border-radius:12px; cursor:pointer;
+  font-family:inherit; color:var(--t1); box-shadow:var(--shadow);
+  transition:border-color .13s, transform .13s; }
+.kv .set-item:hover{ border-color:var(--primary); transform:translateY(-1px); }
+.kv .set-item:focus-visible{ outline:none; border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-soft); }
+.kv .set-item__ic{ width:40px; height:40px; flex-shrink:0; border-radius:11px; display:grid; place-items:center;
+  background:var(--primary-soft); color:var(--primary); }
+.kv .set-item__tx{ display:flex; flex-direction:column; gap:2px; min-width:0; flex:1; }
+.kv .set-item__tx b{ font-family:var(--disp); font-size:14.5px; font-weight:600; }
+.kv .set-item__tx small{ font-size:12.5px; color:var(--t2); line-height:1.4; }
+.kv .set-item__go{ flex-shrink:0; color:var(--t3); display:grid; place-items:center; }
+.kv .set-item:hover .set-item__go{ color:var(--primary); }
+.kv .set-back{ width:36px; height:36px; flex-shrink:0; border-radius:10px; border:1px solid var(--border);
+  background:var(--surface); color:var(--t1); display:grid; place-items:center; cursor:pointer;
+  transition:border-color .13s, color .13s; }
+.kv .set-back:hover{ border-color:var(--primary); color:var(--primary); }
+@media (max-width:560px){
+  .kv .set-item{ padding:13px 14px; gap:11px; }
+  .kv .set-item__ic{ width:36px; height:36px; }
+}

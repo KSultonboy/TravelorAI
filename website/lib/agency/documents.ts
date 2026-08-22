@@ -210,6 +210,58 @@ export const DEFAULT_DOC_TEMPLATES: DocTemplates = {
   },
 };
 
+/* ------------------------- shablonni bandlarga ajratish -------------------------
+   Saqlanish formati O'ZGARMAYDI: matn baribir «## 1. Sarlavha» ko'rinishida
+   saqlanadi. Bu funksiyalar shu matnni tahrirlash uchun bandlarga bo'ladi va
+   yana bir xil ko'rinishda yig'adi — shuning uchun agent «##» yozishni bilishi
+   shart emas, band raqamlari ham o'zi qo'yiladi.
+--------------------------------------------------------------------------------*/
+
+export type DocSection = { title: string; text: string };
+export type ParsedBody = { intro: string; sections: DocSection[] };
+
+/** «## » sarlavhalari bo'yicha matnni kirish qismi + bandlarga ajratadi. */
+export function parseBody(body: string): ParsedBody {
+  const lines = String(body || "").split("\n");
+  const intro: string[] = [];
+  const sections: DocSection[] = [];
+  let cur: { title: string; text: string[] } | null = null;
+  for (const line of lines) {
+    const h = /^##\s+(.*)$/.exec(line);
+    if (h) {
+      if (cur) sections.push({ title: cur.title, text: cur.text.join("\n").trim() });
+      // Sarlavha oldidagi raqamni olib tashlaymiz — u avtomatik qo'yiladi
+      cur = { title: h[1].replace(/^\s*\d+\s*\.\s*/, "").trim(), text: [] };
+    } else if (cur) {
+      cur.text.push(line);
+    } else {
+      intro.push(line);
+    }
+  }
+  if (cur) sections.push({ title: cur.title, text: cur.text.join("\n").trim() });
+  return { intro: intro.join("\n").trim(), sections };
+}
+
+/** Bandlarni yana bir butun matnga yig'adi: raqamlar tartib bilan qo'yiladi. */
+export function serializeBody(p: ParsedBody): string {
+  const parts: string[] = [];
+  const intro = String(p.intro || "").trim();
+  if (intro) parts.push(intro);
+  p.sections.forEach((s, i) => {
+    const n = i + 1;
+    const title = String(s.title || "").trim();
+    // Band ichidagi «1.1.» kabi raqamlar band tartibiga moslashadi — bandni
+    // ko'chirsangiz yoki yangisini qo'shsangiz qo'lda tuzatish kerak bo'lmaydi.
+    const text = String(s.text || "")
+      .split("\n")
+      .map((l) => l.replace(/^(\s*)\d+\.(\d+\.)/, `$1${n}.$2`))
+      .join("\n")
+      .trim();
+    parts.push(`## ${n}. ${title}${text ? `\n${text}` : ""}`);
+  });
+  return parts.join("\n\n");
+}
+
 /** Foydalanuvchiga ko'rsatiladigan belgilar ro'yxati. */
 export const DOC_PLACEHOLDERS: { key: string; label: string }[] = [
   { key: "{mijoz}", label: "mijoz ismi" },
@@ -314,7 +366,10 @@ function tplCtx(c: Ctx): Record<string, string> {
   };
 }
 
-/* Ekranда tahrirlanadigan, chop etishда oddiy matnга aylanadigan maydon. */
+/* Ekranда tahrirlanadigan, chop etishда oddiy matnга aylanadigan maydon.
+   `placeholder` — maydonga NIMA yozilishini ko'rsatuvchi namuna. U faqat
+   ekranda ko'rinadi: chop etishда `.fill:empty::before{color:transparent}`
+   uni yashiradi, ya'ni to'ldirilmagan maydon bo'sh chiziq bo'lib chiqadi. */
 function fill(value: string, placeholder = "________________"): string {
   const v = String(value || "").trim();
   return `<span class="fill" contenteditable="true" data-ph="${esc(placeholder)}">${esc(v)}</span>`;
@@ -380,7 +435,7 @@ function contractBody(c: Ctx): string {
       <div class="req-col">
         <div class="req-h">IJROCHI</div>
         <div>${esc(c.legal)}</div>
-        ${c.req.address ? `<div>Manzil: ${esc(c.req.address)}</div>` : `<div>Manzil: ${fill("", "____________")}</div>`}
+        ${c.req.address ? `<div>Manzil: ${esc(c.req.address)}</div>` : `<div>Manzil: ${fill("", "yuridik manzil — Rekvizitlarda to'ldiring")}</div>`}
         ${c.req.stir ? `<div>STIR: ${esc(c.req.stir)}</div>` : ""}
         ${c.req.bankName ? `<div>Bank: ${esc(c.req.bankName)}</div>` : ""}
         ${c.req.account ? `<div>h/r: ${esc(c.req.account)}</div>` : ""}
@@ -391,8 +446,8 @@ function contractBody(c: Ctx): string {
         <div class="req-h">BUYURTMACHI</div>
         <div>${esc(c.lead.customerName)}</div>
         <div>Tel: ${esc(c.lead.customerPhone || "—")}</div>
-        <div>Pasport: ${fill("", "________________")}</div>
-        <div>Manzil: ${fill("", "________________")}</div>
+        <div>Pasport: ${fill("", "AB 1234567")}</div>
+        <div>Manzil: ${fill("", "yashash manzili")}</div>
       </div>
     </div>
 
@@ -559,13 +614,24 @@ function styles(): string {
     .toolbar,.hint{display:none !important}
     .page{width:auto; min-height:0; margin:0; padding:0; box-shadow:none}
     .fill{border-bottom:1px solid #333; color:#000}
-    .fill:empty::before{color:transparent}
-    .services:empty::before{color:transparent}
+    /* Namuna matni («AB 1234567» kabi) QOG'OZGA CHIQMAYDI.
+       Ilgari color:transparent edi — ko'zga ko'rinmasdi, LEKIN matn o'chmagan
+       edi: PDF'ning matn qatlamida qolib, nusxa olinganda chiqib ketardi.
+       content:"" uni butunlay olib tashlaydi. */
+    .fill:empty::before, .services:empty::before{content:"" !important}
+    /* Namuna olingach chiziq qisqarib qolmasin — qo'lda yozishga joy qoladi.
+       (.services allaqachon min-height:74px li blok maydon — unga tegilmaydi.) */
+    .fill:empty{min-width:38mm}
     .foot{padding-top:10mm}
   }`;
 }
 
-export function buildDocumentHtml(input: BuildInput): string {
+/**
+ * `inline: true` — hujjat CRM ichidagi oynada (iframe) ko'rsatilganda.
+ * Bunda o'zining «Yopish» tugmasi chiqmaydi (iframe ichida window.close()
+ * ishlamaydi) — yopish/yuklab olish tugmalari tashqi oynada bo'ladi.
+ */
+export function buildDocumentHtml(input: BuildInput & { inline?: boolean }): string {
   const { me, lead, agencyId, type } = input;
   const req = getRequisites(agencyId);
   const agency = me.agency;
@@ -597,13 +663,17 @@ export function buildDocumentHtml(input: BuildInput): string {
 <title>${esc(docName)} — ${esc(lead.customerName)}</title>
 <style>${styles()}</style></head>
 <body>
-  <div class="toolbar">
+  ${input.inline ? "" : `<div class="toolbar">
     <b>Travelor<span>AI</span> · ${esc(docName)}</b>
     <button class="btn btn-print" onclick="window.print()">🖨 Chop etish / PDF saqlash</button>
     <button class="btn btn-close" onclick="window.close()">Yopish</button>
-  </div>
+  </div>`}
   <div class="hint">Sariq chiziqli maydonlarni bosib to'ldiring (pasport, mehmonxona va h.k.), so'ng
-    <b>Chop etish</b> tugmasini bosing. Printer ro'yxatidan <b>«PDF saqlash»</b>ni tanlasangiz — hujjat PDF bo'lib saqlanadi.</div>
+    <b>Chop etish</b> tugmasini bosing. Printer ro'yxatidan <b>«PDF saqlash»</b>ni tanlasangiz — hujjat PDF bo'lib saqlanadi.${
+      type === "shartnoma"
+        ? ` <b>Diqqat:</b> shartnoma ikki nusxada imzolanadi — printer oynasida <b>«Nusxalar: 2»</b> qilib qo'ying (bir bosishda bitta nusxa chiqadi).`
+        : ""
+    }</div>
   <div class="page">
     ${bodyFor(c)}
   </div>
@@ -611,13 +681,32 @@ export function buildDocumentHtml(input: BuildInput): string {
 </body></html>`;
 }
 
-/** Yangi oynada hujjatни ochadi (chop etish/PDF uchun tayyor). */
+/**
+ * Hujjatni CRM ichida ko'rsatish uchun tayyorlaydi.
+ *
+ * NEGA yangi oyna EMAS: ilgari `window.open()` ishlatilgandi va u
+ *   – desktop ilovada (Tauri) umuman ishlamaydi (yangi oyna yopiq),
+ *   – brauzerda pop-up blokirovkasiga tushardi (o'lcham berilgani uchun),
+ * natijada agent shartnomani ocha olmasdi. Endi hujjat CRM ichidagi
+ * oynada (iframe) chiziladi — chop etish va yuklab olish shu yerda.
+ */
+export function buildDocumentFile(input: BuildInput): { html: string; filename: string } {
+  const html = buildDocumentHtml({ ...input, inline: true });
+  const who = (input.lead.customerName || "mijoz").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
+  const prefix = input.type === "invoice" ? "Hisob-faktura" : "Shartnoma";
+  return { html, filename: `${prefix}_${who || "mijoz"}.html` };
+}
+
+/**
+ * Zaxira yo'l: hujjatni yangi oynada ochish. Faqat foydalanuvchi o'zi
+ * so'raganda ishlatiladi — asosiy yo'l CRM ichidagi oyna.
+ */
 export function openDocument(input: BuildInput): boolean {
   if (typeof window === "undefined") return false;
   const html = buildDocumentHtml(input);
   // MUHIM: "noopener" BERILMAYDI — aks holda window.open() null qaytaradi va
   // hujjatni yoza olmaymiz. Oyna bir xil origin, o'zimiz HTML yozamiz.
-  const w = window.open("", "_blank", "width=920,height=1040");
+  const w = window.open("", "_blank");
   if (!w) return false;
   w.document.open();
   w.document.write(html);

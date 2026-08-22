@@ -21,6 +21,8 @@ export type Tour = {
   responseTimeMinutes?: number;
   hotelIncluded?: boolean;
   flightIncluded?: boolean;
+  transferIncluded?: boolean;
+  insuranceIncluded?: boolean;
   priceIncludes?: string[];
   agency?: { name: string; imageUrl?: string | null } | null;
 };

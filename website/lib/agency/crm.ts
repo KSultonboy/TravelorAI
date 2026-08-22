@@ -79,10 +79,35 @@ export type ManualLead = {
   createdAt: string;
 };
 
+/**
+ * Lid manbasi — mijoz qayerdan kelgani. Agent qo'lda ham belgilay oladi.
+ * `manual` — eski lidlar uchun qoldirilgan (yangi ro'yxatda "offline" bor).
+ */
+export const LEAD_SOURCES = ["marketplace", "telegram", "instagram", "whatsapp", "offline", "manual"] as const;
+export type CrmSource = (typeof LEAD_SOURCES)[number];
+
+/** Tanlash uchun ko'rsatiladigan manbalar (eski `manual` ro'yxatda yo'q). */
+export const LEAD_SOURCE_OPTIONS: CrmSource[] = ["offline", "telegram", "instagram", "whatsapp", "marketplace"];
+
+export const LEAD_SOURCE_LABEL: Record<CrmSource, string> = {
+  marketplace: "Marketplace",
+  telegram: "Telegram",
+  instagram: "Instagram",
+  whatsapp: "WhatsApp",
+  offline: "Offline",
+  manual: "Qo'lda",
+};
+
+/** Serverdan kelgan qiymatni kanoniy manbaga keltiradi. */
+export function normalizeSource(value?: string | null): CrmSource {
+  const v = String(value || "").trim().toLowerCase();
+  return (LEAD_SOURCES as readonly string[]).includes(v) ? (v as CrmSource) : "marketplace";
+}
+
 /** Normalized lead used everywhere in the CRM UI. */
 export type CrmLead = {
   id: string;
-  source: "marketplace" | "manual" | "telegram";
+  source: CrmSource;
   customerName: string;
   customerPhone?: string | null;
   customerEmail?: string | null;
@@ -322,7 +347,7 @@ export function buildLeads(agencyId: string, bookings: BookingItem[], serverMeta
       const meta = metaMap[b.id] || { tags: [], activities: [] };
       return {
         id: b.id,
-        source: (b.source === "manual" ? "manual" : b.source === "telegram" ? "telegram" : "marketplace") as CrmLead["source"],
+        source: normalizeSource(b.source),
         customerName: b.customerName,
         customerPhone: b.customerPhone,
         customerEmail: b.customerEmail,

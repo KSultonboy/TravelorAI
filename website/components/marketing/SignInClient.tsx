@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, BadgeCheck, Building2, ChevronRight, Eye, EyeOff, Lock, Mail, MapPinned, ShieldCheck, Sparkles, User } from "lucide-react";
 import Logo from "./Logo";
 import GoogleContinueButton from "../GoogleContinueButton";
+import { CONTACT } from "@/lib/legalEntity";
+import { isDesktopApp, openExternal } from "@/lib/agency/external";
 
 const HERO = "https://images.unsplash.com/photo-1539635278303-d4002c07eae3?auto=format&fit=crop&w=1400&q=70";
 type Role = "traveler" | "partner";
@@ -34,6 +36,11 @@ export default function SignInClient() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [info, setInfo] = useState("");
+  // Admin paneli havolasi FAQAT desktop ilovada ko'rinadi (web mehmonlar ko'rmaydi).
+  // Desktop app URL paneliga ega emas, shuning uchun egaga admin panelга kirish
+  // yo'li kerak; web'da esa oddiy /admin manzili bor.
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => setIsDesktop(isDesktopApp()), []);
 
   const base = role === "partner" ? "/api/agency-proxy/agency/auth" : "/api/backend/auth";
   const dest = role === "partner" ? "/agency" : next || "/my-trips";
@@ -221,11 +228,32 @@ export default function SignInClient() {
                   <div className="mkt-auth__toggle" style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
                     <BadgeCheck size={15} style={{ color: "var(--primary)" }} /> Yangi agentlikmi? <a href="/partners" style={{ color: "var(--primary)", fontWeight: 800 }}>Ariza qoldiring</a>
                   </div>
+                  {/* DIQQAT: bu yerda ilgari support@travelorai.com yozilgan edi —
+                      domenda MX yo'q, ya'ni o'sha pochta KELMAYDI va parolini
+                      unutgan agentlik hech kimga murojaat qila olmasdi. Ishlaydigan
+                      manzillar yagona manbadan (lib/legalEntity CONTACT) olinadi. */}
                   <div className="mkt-auth__toggle" style={{ marginTop: 8, fontSize: "0.85rem", textAlign: "center", lineHeight: 1.6 }}>
-                    Parolni unutdingizmi? <a href="mailto:support@travelorai.com?subject=Agentlik%20parolni%20tiklash" style={{ color: "var(--primary)", fontWeight: 700 }}>Administratorga murojaat qiling</a> — tiklash havolasi emailingizga yuboriladi.
+                    Parolni unutdingizmi? <a href={`mailto:${CONTACT.email}?subject=Agentlik%20parolni%20tiklash`} style={{ color: "var(--primary)", fontWeight: 700 }}>{CONTACT.email}</a> ga yozing
+                    yoki <a href={CONTACT.telegram} target="_blank" rel="noopener noreferrer" style={{ color: "var(--primary)", fontWeight: 700 }}>Telegram</a> orqali murojaat qiling — tiklash havolasi emailingizga yuboriladi.
                   </div>
                 </>
               )}
+
+              {/* Admin paneli — faqat desktop ilovada. Egasi uchun: agentlik
+                  login formasidan tashqari boshqaruv paneliga o'tish yo'li.
+                  Tizim brauzerida ochiladi (katta konsol + orqaga qaytish erkin,
+                  desktop oynasi CRM'da qoladi). */}
+              {isDesktop ? (
+                <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--line)", textAlign: "center" }}>
+                  <button
+                    type="button"
+                    onClick={() => openExternal("https://travelorai.com/admin")}
+                    style={{ background: "none", border: 0, color: "var(--muted)", fontWeight: 600, fontSize: "0.8rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
+                  >
+                    <ShieldCheck size={14} /> Administrator paneli
+                  </button>
+                </div>
+              ) : null}
             </>
           )}
         </div>

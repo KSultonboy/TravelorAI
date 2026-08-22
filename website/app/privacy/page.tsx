@@ -34,15 +34,25 @@ export default function PrivacyPage() {
           "Bizning tizimda faqat to'lov fakti saqlanadi: summa, sana, buyurtma raqami, tanlangan tarif va to'lov holati — bu buxgalteriya hisobi va obunani faollashtirish uchun zarur.",
           "Agentlik obunasi bo'yicha to'lov va pul qaytarish shartlari ommaviy ofertada (travelorai.com/offer) belgilangan.",
         ]},
-        { heading: "5. Ma'lumotlar xavfsizligi", body: [
+        { heading: "5. Ijtimoiy tarmoq ulanishlari (Instagram, Telegram)", body: [
+          "Agentliklar mijozlar bilan yozishish uchun o'z Instagram biznes akkauntini yoki Telegram botini CRM'ga ulashi mumkin. Bu ulanish ixtiyoriy va uni istalgan vaqtda uzish mumkin.",
+          "Ulangan holatda biz quyidagilarni saqlaymiz: akkaunt identifikatori va nomi, kirish tokeni (shifrlangan), hamda o'sha akkauntga kelgan xabarlar matni va yuboruvchining ko'rsatilgan nomi. Bu xabarlar agentlikning CRM'ida lid sifatida ko'rinadi va faqat o'sha agentlikka ochiq bo'ladi.",
+          "Biz ijtimoiy tarmoq parolingizni, obunachilar ro'yxatingizni yoki postlaringiz statistikasini olmaymiz. Xabarlarni reklama maqsadida ishlatmaymiz va uchinchi shaxslarga bermaymiz.",
+          "Ulanish uzilganda kirish tokeni darhol o'chiriladi.",
+        ]},
+        { heading: "6. Ma'lumotlar xavfsizligi", body: [
           "Parollar shifrlanadi, ulanishlar HTTPS orqali himoyalanadi va ma'lumotlarga kirish cheklangan.",
           "Ma'lumotlar himoyalangan serverlarda saqlanadi va muntazam zaxira nusxalanadi.",
         ]},
-        { heading: "6. Sizning huquqlaringiz", body: [
+        { heading: "7. Sizning huquqlaringiz", body: [
           "Siz istalgan vaqtda ma'lumotlaringizni ko'rish, tahrirlash yoki hisobingizni butunlay o'chirish huquqiga egasiz.",
-          "Buning uchun " + CONTACT.email + " manziliga murojaat qiling.",
+          <>
+            O&apos;chirishning bosqichma-bosqich yo&apos;riqnomasi —{" "}
+            <a href="/data-deletion">ma&apos;lumotlarni o&apos;chirish</a> sahifasida. Savollar bo&apos;lsa{" "}
+            <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a> manziliga yozing.
+          </>,
         ]},
-        { heading: "7. Aloqa", body: [
+        { heading: "8. Aloqa", body: [
           "Maxfiylik bo'yicha savollaringiz bo'lsa: " + CONTACT.phone + " · " + CONTACT.email,
         ]},
       ]}

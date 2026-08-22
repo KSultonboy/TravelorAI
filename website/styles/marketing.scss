@@ -213,7 +213,10 @@
 .mkt-footer__socials { display: flex; gap: 10px; }
 .mkt-footer__socials a { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: rgba(255,255,255,0.08); color: #fff; }
 .mkt-footer__socials a:hover { background: var(--gold); color: #2a1d00; }
+/* Yuridik rekvizit qatori — copyright'dan tepada, undan pastroq urg'u bilan. */
+.mkt-footer__legal { border-top: 1px solid rgba(255,255,255,0.12); padding: 18px 0 0; font-size: 0.8rem; line-height: 1.65; opacity: 0.72; }
 .mkt-footer__bottom { border-top: 1px solid rgba(255,255,255,0.12); padding: 22px 0; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; font-size: 0.84rem; }
+.mkt-footer__legal + .mkt-footer__bottom { border-top: 0; padding-top: 16px; }
 
 /* ---------- Page hero (ichki sahifalar) ---------- */
 .mkt-phero { position: relative; isolation: isolate; color: #fff; padding: clamp(96px, 14vw, 150px) 0 clamp(48px, 7vw, 80px); overflow: hidden; margin-top: -72px; background: linear-gradient(120deg, var(--primary), #06231a); }
@@ -254,6 +257,26 @@
 .mkt-prose p, .mkt-prose li { color: var(--muted); line-height: 1.8; font-size: 0.98rem; }
 .mkt-prose ul { padding-left: 20px; }
 .mkt-prose li { margin-bottom: 8px; }
+/* Havolalar matndan ajralib tursin: --muted merosda qolsa, havola atrofidagi
+   matndan OCH bo'lib qolardi va bosiladiganligi bilinmasdi. */
+/* --primary (yorug'da #0f5132) oq fonda 8.9:1 beradi; --primary-3 esa atigi
+   4.5:1 — chegarada. Shuning uchun rang o'zgarmaydi, hover faqat chizig'ini
+   quyuqlashtiradi: ikkala holatda ham kontrast maksimal qoladi. */
+.mkt-prose a {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+  transition: text-decoration-color 0.15s ease;
+}
+.mkt-prose a:hover { text-decoration-color: currentColor; }
+.mkt-prose a:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
 
 /* ---------- About / roadmap / contact ---------- */
 .mkt-values { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
@@ -462,6 +485,12 @@
 .mkt-radio:hover { background: var(--canvas); }
 .mkt-radio.is-active { background: var(--primary-pale); color: var(--primary); font-weight: 800; }
 .mkt-radio input { accent-color: var(--primary); width: 16px; height: 16px; cursor: pointer; }
+.mkt-radio span { flex: 1; min-width: 0; }
+/* Yo'nalish yonidagi tur soni — qaysi yo'nalishda tur borligi darhol ko'rinadi */
+.mkt-radio__n { font-style: normal; font-size: 0.76rem; font-weight: 800; color: var(--muted); background: var(--canvas); border-radius: 999px; padding: 2px 8px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.mkt-radio.is-active .mkt-radio__n { background: var(--white); color: var(--primary); }
+.mkt-more-btn { margin-top: 6px; width: 100%; padding: 9px 12px; border-radius: 11px; border: 1px dashed var(--line); background: transparent; color: var(--primary); font-weight: 800; font-size: 0.85rem; font-family: inherit; cursor: pointer; transition: background 0.15s ease, border-color 0.15s ease; }
+.mkt-more-btn:hover { background: var(--primary-pale); border-color: var(--primary-3); }
 
 .mkt-catalog-main { min-width: 0; }
 .mkt-catalog-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 22px; flex-wrap: wrap; }

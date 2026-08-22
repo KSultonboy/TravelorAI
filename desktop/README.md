@@ -61,3 +61,39 @@ npx @tauri-apps/cli icon icon-source.png
   avtomatik tarqatish mumkin (keyingi bosqich).
 - **macOS/Linux:** shu loyihадан `.dmg` / `.AppImage` ham chiqarish mumkin
   (mos platformada build qilinsa).
+
+---
+
+## Yangilanish (updater) — foydalanuvchi ilova ichidan yangilaydi
+
+CRM headeridagi **yuklab olish ikonkasi** → «Dastur yangilanishi» oynasi.
+U joriy va oxirgi versiyani ko'rsatadi; yangilanish bo'lsa «O'rnatish» tugmasi
+chiqadi, o'rnatilgach ilova o'zi qayta ishga tushadi. Bu tugma **faqat desktop
+ilovada** ko'rinadi (brauzerda yashirin).
+
+### Yangi versiya chiqarish
+
+1. **Versiyani oshirish** — ikkita joyda bir xil bo'lsin:
+   - `src-tauri/tauri.conf.json` → `version`
+   - `src-tauri/Cargo.toml` → `version`
+2. **Build (imzo bilan)** — imzo bo'lmasa updater ishlamaydi:
+   ```bash
+   export TAURI_SIGNING_PRIVATE_KEY_PATH="$HOME/.tauri/travelorai.updater.key"
+   export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
+   npx @tauri-apps/cli build
+   ```
+3. **Chiqarish** — installer + manifestni saytga qo'yadi:
+   ```bash
+   ./publish-update.sh "Nima yangilandi"
+   ```
+4. **Websiteni deploy qilish** — shundan keyin hammaga ko'rinadi.
+
+### Muhim
+
+- **Maxfiy kalit:** `~/.tauri/travelorai.updater.key` — repoda YO'Q va bo'lmasin.
+  **Zaxira nusxasini saqlang:** kalit yo'qolsa, mavjud o'rnatilgan ilovalarga
+  boshqa yangilanish yubora olmaysiz (public key ularga "pishirilgan").
+- **Manifest:** `https://travelorai.com/desktop/latest.json` — ilova shu manzilni
+  tekshiradi (`src-tauri/tauri.conf.json` → `plugins.updater.endpoints`).
+- **Xavfsizlik:** remote sahifaga butun Tauri API berilmaydi — `capabilities`da
+  faqat `travelorai.com` uchun IPC va `core:default`. Fayl tizimi/shell yopiq.

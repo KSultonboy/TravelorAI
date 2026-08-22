@@ -1,6 +1,16 @@
 {
   "identifier": "default",
-  "description": "TravelorAI CRM asosiy oyna ruxsatlari. Remote (travelorai.com) sahifaga Tauri API berilmaydi.",
-  "windows": ["main"],
-  "permissions": ["core:default"]
+  "description": "TravelorAI CRM asosiy oyna. Remote (travelorai.com) sahifaga faqat IPC va o'z buyruqlarimiz (check_update / install_update / open_external / save_download) ochiladi — fayl tizimi, shell va boshqa pluginlar BERILMAYDI.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "allow-update-commands"
+  ],
+  "remote": {
+    "urls": [
+      "https://travelorai.com/*"
+    ]
+  }
 }
