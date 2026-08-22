@@ -419,6 +419,12 @@ model TourAgency {
   instagramTokenExpiresAt DateTime?
   instagramActive         Boolean  @default(false)
   instagramWelcome        String?
+  whatsappPhoneNumberId   String?
+  whatsappWabaId          String?
+  whatsappDisplayPhone    String?
+  whatsappToken           String?
+  whatsappActive          Boolean  @default(false)
+  whatsappWelcome         String?
   birthdayTemplate    String? // tug'ilgan kun tabrigi matni ({name}, {agency})
   notifyChatId        String? // agent xabarnoma oladigan Telegram chat (mijoz lidi EMAS)
   tariffId            String?
@@ -454,6 +460,8 @@ model TourAgency {
   documentTemplates   DocumentTemplate[]
   requisite           AgencyRequisite?
   auditLogs           AuditLog[]
+  crmSettings         AgencyCrmSettings?
+  csvImports          CsvImportBatch[]
 
   @@index([active])
   @@index([tariffId])
@@ -466,6 +474,7 @@ model TourAgency {
   @@index([approvalStatus])
   @@index([instagramUserId])
   @@index([instagramAppScopedId])
+  @@index([whatsappPhoneNumberId])
 }
 
 model Tariff {
@@ -679,6 +688,12 @@ model TourBooking {
   reviewAwaitingText Boolean            @default(false) // baho berildi, keyingi xabar sharh matni
   assignedMemberId   String?
   assignedMember     AgencyMember?      @relation("AssignedLeadManager", fields: [assignedMemberId], references: [id], onDelete: SetNull)
+  firstResponseAt    DateTime?
+  slaBreachedAt      DateTime?
+  slaReminderAt      DateTime?
+  whatsappWaId       String?
+  csvImportBatchId   String?
+  csvImportBatch     CsvImportBatch?    @relation(fields: [csvImportBatchId], references: [id], onDelete: SetNull)
   presentations      TourPresentation[]
   crmTasks           CrmTask[]
   activities         LeadActivity[]
@@ -691,6 +706,45 @@ model TourBooking {
   @@index([customerEmail])
   @@index([agencyId, assignedMemberId])
   @@index([instagramUserId])
+  @@index([whatsappWaId])
+  @@index([agencyId, firstResponseAt, createdAt])
+  @@index([csvImportBatchId])
+}
+
+// SLA va avtomatik biriktirish agentlik kesimida boshqariladi.
+model AgencyCrmSettings {
+  id                   String     @id @default(cuid())
+  agencyId             String     @unique
+  agency               TourAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  firstResponseMinutes Int        @default(30)
+  autoAssignEnabled    Boolean    @default(false)
+  roundRobinCursor     Int        @default(0)
+  reminderEnabled      Boolean    @default(true)
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+}
+
+// CSV import avval preview qilinadi, keyin batch sifatida commit bo'ladi.
+// Batchga bog'langan lidlar keyinchalik xavfsiz rollback qilinadi.
+model CsvImportBatch {
+  id               String        @id @default(cuid())
+  agencyId         String
+  agency           TourAgency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  actorAccountId   String?
+  fileName         String?
+  status           String        @default("committed") // committed | rolled_back
+  totalRows        Int
+  importedRows     Int
+  duplicateRows    Int           @default(0)
+  invalidRows      Int           @default(0)
+  mapping          Json?
+  preview          Json?
+  rolledBackAt     DateTime?
+  createdAt        DateTime      @default(now())
+  bookings         TourBooking[]
+
+  @@index([agencyId, createdAt])
+  @@index([agencyId, status])
 }
 
 // CRM vazifalari — barcha xodimlar uchun serverda sinxron saqlanadi.
@@ -927,13 +981,18 @@ model TelegramMessage {
   id        String   @id @default(cuid())
   agencyId  String
   bookingId String?
-  channel   String   @default("telegram") // telegram | instagram
+  channel   String   @default("telegram") // telegram | instagram | whatsapp
   direction String
   text      String
   fromName  String?
   externalId String?  @unique // Meta message id — webhook retry deduplikatsiyasi
+  status     String?  // sent | delivered | read | failed
+  senderId   String?
+  recipientId String?
+  metadata   Json?
   createdAt DateTime @default(now())
 
   @@index([agencyId])
   @@index([bookingId])
+  @@index([agencyId, channel, createdAt])
 }

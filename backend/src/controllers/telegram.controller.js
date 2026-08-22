@@ -6,8 +6,10 @@ const tg = require('../services/telegram.service');
 // Javob yuborish kanalga qarab bo'linadi (reply funksiyasiga qarang).
 // Sikl yo'q: instagram.controller telegram.controller'ni chaqirmaydi.
 const instagram = require('./instagram.controller');
+const whatsapp = require('./whatsapp.controller');
 const { DEFAULT_BIRTHDAY, fillBirthday } = require('../services/scheduler.service');
 const reviewService = require('../services/review.service');
+const { assignNextMember, markFirstResponse } = require('../services/crmAutomation.service');
 
 const PUBLIC_BASE = process.env.PUBLIC_API_URL || 'https://travelorai.com/api/v1';
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://travelorai.com').replace(/\/$/, '');
@@ -135,6 +137,7 @@ async function listMessages(req, res) {
     if (!bookingId) return error(res, 'bookingId kerak', 400);
     const booking = await prisma.tourBooking.findFirst({ where: { id: bookingId, agencyId: agency.id } });
     if (!booking) return error(res, 'Lid topilmadi', 404);
+    if (!text && !booking.whatsappWaId) return error(res, 'Xabar bosh', 400);
     const messages = await prisma.telegramMessage.findMany({
       where: { agencyId: agency.id, bookingId },
       orderBy: { createdAt: 'asc' },
@@ -142,14 +145,15 @@ async function listMessages(req, res) {
     });
     // Jadval ikkala kanalga xizmat qiladi, shuning uchun lid qaysi kanaldan
     // kelganini ham qaytaramiz — chat oynasi shunga qarab yozuv ko'rsatadi.
-    const channel = booking.telegramChatId ? 'telegram' : (booking.instagramUserId ? 'instagram' : null);
+    const channel = booking.telegramChatId ? 'telegram' : (booking.instagramUserId ? 'instagram' : (booking.whatsappWaId ? 'whatsapp' : null));
     return success(res, {
       messages,
       channel,
       chatId: booking.telegramChatId,
       canReply: Boolean(
         (booking.telegramChatId && agency.telegramBotActive && agency.telegramBotToken) ||
-        (booking.instagramUserId && agency.instagramActive && agency.instagramToken)
+        (booking.instagramUserId && agency.instagramActive && agency.instagramToken) ||
+        (booking.whatsappWaId && agency.whatsappActive && agency.whatsappToken)
       ),
     });
   } catch (err) {
@@ -169,7 +173,8 @@ async function reply(req, res) {
     if (!agency) return;
     const bookingId = String((req.body && req.body.bookingId) || '');
     const text = String((req.body && req.body.text) || '').trim();
-    if (!text) return error(res, 'Xabar bosh', 400);
+    const templateName = String((req.body && req.body.templateName) || '').trim();
+    if (!text && !templateName) return error(res, 'Xabar bosh', 400);
     const booking = await prisma.tourBooking.findFirst({ where: { id: bookingId, agencyId: agency.id } });
     if (!booking) return error(res, 'Lid topilmadi', 404);
 
@@ -185,13 +190,18 @@ async function reply(req, res) {
       const sent = await instagram.sendReply(agency, booking, text);
       externalId = sent && sent.message_id ? String(sent.message_id) : null;
       channel = 'instagram';
+    } else if (booking.whatsappWaId) {
+      const sent = await whatsapp.sendReply(agency, booking, text, templateName, req.body?.language);
+      externalId = sent?.messages?.[0]?.id || null;
+      channel = 'whatsapp';
     } else {
       return error(res, 'Bu lidda yozishma kanali yoq', 400);
     }
 
     const message = await prisma.telegramMessage.create({
-      data: { agencyId: agency.id, bookingId, channel, direction: 'out', text, fromName: 'Agent', externalId },
+      data: { agencyId: agency.id, bookingId, channel, direction: 'out', text: templateName ? `[Shablon] ${templateName}` : text, fromName: 'Agent', externalId },
     });
+    await markFirstResponse(booking.id);
     return success(res, { message });
   } catch (err) {
     return error(res, err.message, 400);
@@ -420,6 +430,7 @@ async function webhook(req, res) {
     let isNew = false;
     if (!booking) {
       isNew = true;
+      const autoMember = await assignNextMember(agency.id);
       booking = await prisma.tourBooking.create({
         data: {
           agencyId: agency.id,
@@ -436,6 +447,7 @@ async function webhook(req, res) {
           utmMedium: startPayload ? 'telegram_link' : null,
           status: 'pending',
           pipelineStage: 'new',
+          assignedMemberId: autoMember?.id || null,
         },
       });
     }

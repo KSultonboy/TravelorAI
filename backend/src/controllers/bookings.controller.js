@@ -3,6 +3,7 @@ const { success, error } = require('../utils/response');
 const { createBookingSchema } = require('../schemas/booking.schema');
 const { sendBookingLeadEmail } = require('../services/email.service');
 const { resolveTourImageUrl } = require('../utils/tourImage');
+const { assignNextMember } = require('../services/crmAutomation.service');
 
 function formatBooking(booking) {
   if (!booking) return null;
@@ -36,6 +37,9 @@ function formatBooking(booking) {
     customerBirthday: booking.customerBirthday || null,
     assignedMemberId: booking.assignedMemberId || null,
     assignedMemberName: booking.assignedMember?.name || null,
+    firstResponseAt: booking.firstResponseAt || null,
+    slaBreachedAt: booking.slaBreachedAt || null,
+    whatsappWaId: booking.whatsappWaId || null,
     agencyNote: booking.agencyNote,
     adminNote: booking.adminNote,
     confirmedAt: booking.confirmedAt,
@@ -107,6 +111,7 @@ async function create(req, res) {
     const responseDeadlineAt = new Date(
       Date.now() + Math.max(5, Number(tour.responseTimeMinutes || 45)) * 60 * 1000
     );
+    const autoMember = tour.agencyId ? await assignNextMember(tour.agencyId) : null;
     const booking = await prisma.tourBooking.create({
       data: {
         tourId: tour.id,
@@ -127,6 +132,7 @@ async function create(req, res) {
         referrer: input.referrer || null,
         status: 'pending',
         responseDeadlineAt,
+        assignedMemberId: autoMember?.id || null,
       },
       include: { tour: true, agency: { include: { ownerAccount: true } } },
     });

@@ -4,6 +4,7 @@
 const { prisma } = require('../config/database');
 const tg = require('./telegram.service');
 const ig = require('./instagram.service');
+const { runSlaMonitor } = require('./crmAutomation.service');
 
 // Standart tabrik matni — agentlik o'zi o'zgartirmasa shu ishlatiladi.
 // {name} = mijoz ismi, {agency} = agentlik nomi.
@@ -204,9 +205,10 @@ function startScheduler() {
     try { await runTripReminders(); } catch { /* ignore */ }
     try { await runAutoArchive(); } catch { /* ignore */ }
     try { await runInstagramTokenRefresh(); } catch { /* ignore */ }
+    try { await runSlaMonitor(); } catch { /* ignore */ }
   };
   setTimeout(tick, 45_000); // boot'дан 45s keyin bir marta
   setInterval(tick, 30 * 60 * 1000); // keyin har 30 daqiqada
 }
 
-module.exports = { startScheduler, runBirthdayGreetings, runTripReminders, runAutoArchive, runInstagramTokenRefresh, DEFAULT_BIRTHDAY, fillBirthday };
+module.exports = { startScheduler, runBirthdayGreetings, runTripReminders, runAutoArchive, runInstagramTokenRefresh, runSlaMonitor, DEFAULT_BIRTHDAY, fillBirthday };

@@ -1,4 +1,4 @@
-const { mapCsv, parseCsv } = require('../src/services/crmCsv.service');
+const { inspectCsv, mapCsv, parseCsv } = require('../src/services/crmCsv.service');
 
 describe('CRM CSV import', () => {
   test('quoted comma va ikki qatorni o‘qiydi', () => {
@@ -18,5 +18,13 @@ describe('CRM CSV import', () => {
     const result = mapCsv('name,phone\n,+99890');
     expect(result.rows).toHaveLength(0);
     expect(result.errors[0]).toContain('2-qator');
+  });
+
+  test('nomaʼlum sarlavhani qo‘lda mapping qilish mumkin', () => {
+    const csv = 'Client title,Mobile contact\nAziza,+998901112233';
+    const inspected = inspectCsv(csv);
+    expect(inspected.headers).toEqual(['Client title', 'Mobile contact']);
+    const result = mapCsv(csv, { customerName: 'Client title', customerPhone: 'Mobile contact' });
+    expect(result.rows[0]).toMatchObject({ customerName: 'Aziza', customerPhone: '+998901112233' });
   });
 });

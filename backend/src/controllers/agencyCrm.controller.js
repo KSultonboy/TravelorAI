@@ -1,7 +1,8 @@
 const crypto = require('crypto');
 const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
-const { mapCsv } = require('../services/crmCsv.service');
+const { inspectCsv, mapCsv } = require('../services/crmCsv.service');
+const { assignNextMember, getSettings, markFirstResponse, OPEN_STAGES } = require('../services/crmAutomation.service');
 
 function agencyOr404(req, res) {
   if (!req.agency?.id) { error(res, 'Agentlik topilmadi', 404); return null; }
@@ -144,6 +145,7 @@ async function addActivity(req, res) {
     const activity = await prisma.leadActivity.create({
       data: { agencyId: agency.id, bookingId: booking.id, actorAccountId: req.agencyAccount.id, type, text },
     });
+    if (['call', 'message', 'stage'].includes(type)) await markFirstResponse(booking.id);
     return success(res, { activity }, 201);
   } catch (err) { return error(res, err.message, 400); }
 }
@@ -270,34 +272,219 @@ async function importLocal(req, res) {
   }
 }
 
-async function importCsv(req, res) {
+function normalizedPhone(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits.length >= 7 ? digits.slice(-12) : '';
+}
+
+function contactKey(row) {
+  const phone = normalizedPhone(row.customerPhone || row.leadWhatsapp);
+  if (phone) return `p:${phone}`;
+  const email = String(row.customerEmail || '').trim().toLowerCase();
+  return email ? `e:${email}` : '';
+}
+
+async function csvAnalysis(agencyId, csv, mapping) {
+  const inspected = inspectCsv(csv);
+  const parsed = mapCsv(csv, mapping);
+  const existing = await prisma.tourBooking.findMany({
+    where: { agencyId },
+    select: { customerPhone: true, leadWhatsapp: true, customerEmail: true },
+    take: 50000,
+  });
+  const existingKeys = new Set(existing.map(contactKey).filter(Boolean));
+  const seen = new Set();
+  const accepted = [];
+  const preview = parsed.rows.map((row, index) => {
+    const key = contactKey(row);
+    let status = 'ready';
+    if (key && existingKeys.has(key)) status = 'duplicate_db';
+    else if (key && seen.has(key)) status = 'duplicate_file';
+    if (key) seen.add(key);
+    if (status === 'ready') accepted.push(row);
+    return { row: index + 2, status, customerName: row.customerName, customerPhone: row.customerPhone, customerEmail: row.customerEmail, leadTour: row.leadTour };
+  });
+  return {
+    inspected,
+    parsed,
+    accepted,
+    preview,
+    duplicateRows: preview.filter((item) => item.status !== 'ready').length,
+  };
+}
+
+async function previewCsv(req, res) {
   try {
     const agency = agencyOr404(req, res); if (!agency) return;
     const csv = String(req.body?.csv || '');
     if (!csv || csv.length > 5 * 1024 * 1024) return error(res, 'CSV fayl bo‘sh yoki 5 MB dan katta', 400);
-    const parsed = mapCsv(csv);
-    if (!parsed.rows.length) return error(res, parsed.errors[0] || 'Import qilinadigan qator topilmadi', 400, { errors: parsed.errors });
+    const analysis = await csvAnalysis(agency.id, csv, req.body?.mapping || {});
+    return success(res, {
+      headers: analysis.inspected.headers,
+      suggestedMapping: analysis.inspected.suggestedMapping,
+      sample: analysis.inspected.sample,
+      preview: analysis.preview.slice(0, 200),
+      totalRows: analysis.parsed.rows.length,
+      readyRows: analysis.accepted.length,
+      duplicateRows: analysis.duplicateRows,
+      invalidRows: analysis.parsed.errors.length,
+      warnings: analysis.parsed.errors.slice(0, 100),
+    });
+  } catch (err) { return error(res, err.message, 400); }
+}
+
+async function commitCsv(req, res) {
+  try {
+    const agency = agencyOr404(req, res); if (!agency) return;
+    const csv = String(req.body?.csv || '');
+    if (!csv || csv.length > 5 * 1024 * 1024) return error(res, 'CSV fayl bo‘sh yoki 5 MB dan katta', 400);
+    const mapping = req.body?.mapping || {};
+    const analysis = await csvAnalysis(agency.id, csv, mapping);
+    if (!analysis.accepted.length) return error(res, 'Yangi import qilinadigan lid topilmadi', 400, { duplicateRows: analysis.duplicateRows, warnings: analysis.parsed.errors });
     const members = await prisma.agencyMember.findMany({ where: { agencyId: agency.id, status: 'active' }, include: { account: { select: { email: true } } } });
     const byEmail = new Map(members.map((m) => [m.account.email.toLowerCase(), m.id]));
-    const records = parsed.rows.map((row) => ({
-      agencyId: agency.id, tourId: null, customerName: row.customerName, customerPhone: row.customerPhone,
-      customerEmail: row.customerEmail, travelers: row.travelers, travelDate: row.travelDate, message: row.message,
-      totalEstimate: row.totalEstimate, currency: row.currency, source: 'csv', status: row.pipelineStage === 'won' ? 'confirmed' : row.pipelineStage === 'completed' ? 'completed' : row.pipelineStage === 'lost' ? 'rejected' : 'pending',
-      pipelineStage: row.pipelineStage, leadTour: row.leadTour, leadCity: row.leadCity, leadTelegram: row.leadTelegram,
-      leadWhatsapp: row.leadWhatsapp, customerBirthday: row.customerBirthday, assignedMemberId: row.assignedEmail ? (byEmail.get(row.assignedEmail) || null) : null,
-    }));
-    const result = await prisma.tourBooking.createMany({ data: records });
-    return success(res, { imported: result.count, skipped: parsed.rows.length - result.count, warnings: parsed.errors.slice(0, 100) }, 201);
+    const result = await prisma.$transaction(async (tx) => {
+      const batch = await tx.csvImportBatch.create({
+        data: {
+          agencyId: agency.id, actorAccountId: req.agencyAccount.id,
+          fileName: String(req.body?.fileName || 'import.csv').slice(0, 255),
+          totalRows: analysis.parsed.rows.length, importedRows: 0,
+          duplicateRows: analysis.duplicateRows, invalidRows: analysis.parsed.errors.length,
+          mapping, preview: analysis.preview.slice(0, 200),
+        },
+      });
+      let imported = 0;
+      for (const row of analysis.accepted) {
+        let assignedMemberId = row.assignedEmail ? (byEmail.get(row.assignedEmail) || null) : null;
+        if (!assignedMemberId) assignedMemberId = (await assignNextMember(agency.id, tx))?.id || null;
+        await tx.tourBooking.create({ data: {
+          agencyId: agency.id, tourId: null, csvImportBatchId: batch.id,
+          customerName: row.customerName, customerPhone: row.customerPhone, customerEmail: row.customerEmail,
+          travelers: row.travelers, travelDate: row.travelDate, message: row.message,
+          totalEstimate: row.totalEstimate, currency: row.currency, source: 'csv',
+          status: row.pipelineStage === 'won' ? 'confirmed' : row.pipelineStage === 'completed' ? 'completed' : row.pipelineStage === 'lost' ? 'rejected' : 'pending',
+          pipelineStage: row.pipelineStage, leadTour: row.leadTour, leadCity: row.leadCity,
+          leadTelegram: row.leadTelegram, leadWhatsapp: row.leadWhatsapp,
+          customerBirthday: row.customerBirthday, assignedMemberId,
+        } });
+        imported += 1;
+      }
+      await tx.csvImportBatch.update({ where: { id: batch.id }, data: { importedRows: imported } });
+      return { batchId: batch.id, imported };
+    });
+    return success(res, {
+      ...result,
+      skipped: analysis.duplicateRows + analysis.parsed.errors.length,
+      duplicateRows: analysis.duplicateRows,
+      warnings: analysis.parsed.errors.slice(0, 100),
+    }, 201);
   } catch (err) { return error(res, err.message, 400); }
+}
+
+async function importCsv(req, res) { return commitCsv(req, res); }
+
+async function listCsvImports(req, res) {
+  try {
+    const agency = agencyOr404(req, res); if (!agency) return;
+    const items = await prisma.csvImportBatch.findMany({
+      where: { agencyId: agency.id }, orderBy: { createdAt: 'desc' }, take: 100,
+      select: { id: true, fileName: true, status: true, totalRows: true, importedRows: true, duplicateRows: true, invalidRows: true, rolledBackAt: true, createdAt: true },
+    });
+    return success(res, { items });
+  } catch (err) { return error(res, err.message, 500); }
+}
+
+async function rollbackCsv(req, res) {
+  try {
+    const agency = agencyOr404(req, res); if (!agency) return;
+    const batch = await prisma.csvImportBatch.findFirst({ where: { id: req.params.id, agencyId: agency.id } });
+    if (!batch) return error(res, 'Import topilmadi', 404);
+    if (batch.status === 'rolled_back') return success(res, { rolledBack: false, alreadyRolledBack: true, deleted: 0 });
+    const result = await prisma.$transaction(async (tx) => {
+      const deleted = await tx.tourBooking.deleteMany({ where: { agencyId: agency.id, csvImportBatchId: batch.id, source: 'csv' } });
+      await tx.csvImportBatch.update({ where: { id: batch.id }, data: { status: 'rolled_back', rolledBackAt: new Date() } });
+      return deleted.count;
+    });
+    return success(res, { rolledBack: true, deleted: result });
+  } catch (err) { return error(res, err.message, 400); }
+}
+
+async function getCrmSettings(req, res) {
+  try {
+    const agency = agencyOr404(req, res); if (!agency) return;
+    return success(res, { settings: await getSettings(agency.id) });
+  } catch (err) { return error(res, err.message, 500); }
+}
+
+async function saveCrmSettings(req, res) {
+  try {
+    const agency = agencyOr404(req, res); if (!agency) return;
+    const minutes = Math.max(5, Math.min(1440, parseInt(req.body?.firstResponseMinutes, 10) || 30));
+    const settings = await prisma.agencyCrmSettings.upsert({
+      where: { agencyId: agency.id },
+      create: { agencyId: agency.id, firstResponseMinutes: minutes, autoAssignEnabled: !!req.body?.autoAssignEnabled, reminderEnabled: req.body?.reminderEnabled !== false },
+      update: { firstResponseMinutes: minutes, autoAssignEnabled: !!req.body?.autoAssignEnabled, reminderEnabled: req.body?.reminderEnabled !== false },
+    });
+    return success(res, { settings });
+  } catch (err) { return error(res, err.message, 400); }
+}
+
+async function insights(req, res) {
+  try {
+    const agency = agencyOr404(req, res); if (!agency) return;
+    const days = Math.max(1, Math.min(365, parseInt(req.query.days, 10) || 30));
+    const since = new Date(Date.now() - days * 86400000);
+    const [settings, rows] = await Promise.all([
+      getSettings(agency.id),
+      prisma.tourBooking.findMany({
+        where: { agencyId: agency.id, createdAt: { gte: since } },
+        select: { id: true, pipelineStage: true, createdAt: true, firstResponseAt: true, slaBreachedAt: true, totalEstimate: true, paidAmount: true, assignedMemberId: true, assignedMember: { select: { name: true } } },
+        take: 50000,
+      }),
+    ]);
+    const now = Date.now();
+    const deadlineMs = settings.firstResponseMinutes * 60000;
+    const unanswered = rows.filter((r) => OPEN_STAGES.includes(r.pipelineStage) && !r.firstResponseAt && now - new Date(r.createdAt).getTime() >= deadlineMs).length;
+    const responseTimes = rows.filter((r) => r.firstResponseAt).map((r) => new Date(r.firstResponseAt).getTime() - new Date(r.createdAt).getTime()).filter((n) => n >= 0);
+    const byManager = new Map();
+    for (const row of rows) {
+      const key = row.assignedMemberId || 'unassigned';
+      const item = byManager.get(key) || { memberId: row.assignedMemberId, name: row.assignedMember?.name || 'Biriktirilmagan', leads: 0, won: 0, completed: 0, lost: 0, revenue: 0, responded: 0, responseMs: 0 };
+      item.leads += 1;
+      if (row.pipelineStage === 'won') item.won += 1;
+      if (row.pipelineStage === 'completed') item.completed += 1;
+      if (row.pipelineStage === 'lost') item.lost += 1;
+      item.revenue += row.paidAmount || (['won', 'completed'].includes(row.pipelineStage) ? row.totalEstimate || 0 : 0);
+      if (row.firstResponseAt) { item.responded += 1; item.responseMs += Math.max(0, new Date(row.firstResponseAt).getTime() - new Date(row.createdAt).getTime()); }
+      byManager.set(key, item);
+    }
+    const managers = Array.from(byManager.values()).map((m) => ({ ...m, conversionPct: m.leads ? Math.round(((m.won + m.completed) / m.leads) * 1000) / 10 : 0, avgResponseMinutes: m.responded ? Math.round(m.responseMs / m.responded / 60000) : null })).sort((a, b) => b.revenue - a.revenue);
+    return success(res, {
+      periodDays: days, settings,
+      totals: { leads: rows.length, won: rows.filter((r) => ['won', 'completed'].includes(r.pipelineStage)).length, lost: rows.filter((r) => r.pipelineStage === 'lost').length, unanswered, slaBreached: rows.filter((r) => r.slaBreachedAt).length, avgResponseMinutes: responseTimes.length ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length / 60000) : null },
+      managers,
+    });
+  } catch (err) { return error(res, err.message, 500); }
 }
 
 async function listAudit(req, res) {
   try {
     const agency = agencyOr404(req, res); if (!agency) return;
-    const limit = Math.max(1, Math.min(500, parseInt(req.query.limit, 10) || 100));
-    const items = await prisma.auditLog.findMany({ where: { agencyId: agency.id }, orderBy: { createdAt: 'desc' }, take: limit });
-    return success(res, { items });
+    const limit = Math.max(1, Math.min(200, parseInt(req.query.limit, 10) || 50));
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const where = { agencyId: agency.id };
+    if (req.query.actor) where.actorEmail = { contains: String(req.query.actor), mode: 'insensitive' };
+    if (req.query.action) where.action = { contains: String(req.query.action), mode: 'insensitive' };
+    if (req.query.entityType) where.entityType = String(req.query.entityType);
+    if (req.query.from || req.query.to) where.createdAt = {};
+    if (req.query.from) where.createdAt.gte = new Date(String(req.query.from));
+    if (req.query.to) { const to = new Date(String(req.query.to)); to.setHours(23, 59, 59, 999); where.createdAt.lte = to; }
+    const [items, total] = await Promise.all([
+      prisma.auditLog.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * limit, take: limit }),
+      prisma.auditLog.count({ where }),
+    ]);
+    return success(res, { items, total, page, pages: Math.max(1, Math.ceil(total / limit)) });
   } catch (err) { return error(res, err.message, 500); }
 }
 
-module.exports = { addActivity, assignLead, bootstrap, createTask, deleteTask, importCsv, importLocal, listAudit, replaceTags, saveDocuments, updateTask };
+module.exports = { addActivity, assignLead, bootstrap, commitCsv, createTask, deleteTask, getCrmSettings, importCsv, importLocal, insights, listAudit, listCsvImports, previewCsv, replaceTags, rollbackCsv, saveCrmSettings, saveDocuments, updateTask };

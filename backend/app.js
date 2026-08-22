@@ -298,7 +298,7 @@ app.use(express.json({
   // va probellar farq qiladi), shuning uchun faqat o'sha yo'l uchun xom nusxani
   // saqlab qo'yamiz — boshqa marshrutlar uchun ortiqcha xotira ishlatmaymiz.
   verify: (req, _res, buf) => {
-    if (req.originalUrl && req.originalUrl.startsWith('/api/v1/instagram/webhook')) {
+    if (req.originalUrl && (req.originalUrl.startsWith('/api/v1/instagram/webhook') || req.originalUrl.startsWith('/api/v1/whatsapp/webhook'))) {
       req.rawBody = buf;
     }
   },

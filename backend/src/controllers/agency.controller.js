@@ -17,6 +17,7 @@ const { resolveTourImageUrl } = require('../utils/tourImage');
 const { bookingStatusSchema } = require('../schemas/booking.schema');
 const { formatBooking } = require('./bookings.controller');
 const reviewService = require('../services/review.service');
+const { assignNextMember } = require('../services/crmAutomation.service');
 const {
   applicationSchema,
   googleAuthSchema,
@@ -1097,6 +1098,7 @@ async function createManualLead(req, res) {
     if (name.length < 2) return error(res, 'Mijoz ismini kiriting', 400);
     const est = b.totalEstimate != null && b.totalEstimate !== ''
       ? Math.max(0, parseInt(String(b.totalEstimate).replace(/[^0-9]/g, ''), 10) || 0) : null;
+    const autoMember = await assignNextMember(agency.id);
     const booking = await prisma.tourBooking.create({
       data: {
         agencyId: agency.id,
@@ -1118,6 +1120,7 @@ async function createManualLead(req, res) {
         })(),
         status: 'pending',
         pipelineStage: 'new',
+        assignedMemberId: autoMember?.id || null,
       },
       include: { tour: true, agency: true },
     });
@@ -1174,6 +1177,7 @@ async function updatePipelineStage(req, res) {
     if (!existing) return error(res, 'Lid topilmadi', 404);
     const now = new Date();
     const data = { pipelineStage: stage };
+    if (stage !== 'new' && !existing.firstResponseAt) data.firstResponseAt = now;
     if (stage === 'won') { data.status = 'confirmed'; if (!existing.confirmedAt) data.confirmedAt = now; }
     else if (stage === 'completed') { data.status = 'completed'; if (!existing.confirmedAt) data.confirmedAt = now; data.completedAt = now; }
     else if (stage === 'lost') { data.status = 'rejected'; data.rejectedAt = now; }

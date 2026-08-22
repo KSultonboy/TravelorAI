@@ -49,15 +49,32 @@ const ALIASES = {
   assignedEmail: ['manager', 'manager email', 'menejer', 'менеджер'],
 };
 
-function mapCsv(text) {
-  const rows = parseCsv(text);
-  if (rows.length < 2) return { rows: [], errors: ['CSV sarlavha va kamida bitta maʼlumot qatoriga ega bo‘lishi kerak'] };
-  const normalized = rows[0].map(headerKey);
+function detectIndexes(headers, mapping = {}) {
+  const normalized = headers.map(headerKey);
   const indexes = {};
   for (const [field, aliases] of Object.entries(ALIASES)) {
-    const index = normalized.findIndex((header) => aliases.includes(header));
-    if (index >= 0) indexes[field] = index;
+    const chosen = mapping && mapping[field];
+    let index = -1;
+    if (Number.isInteger(chosen)) index = chosen;
+    else if (chosen !== undefined && chosen !== null && String(chosen).trim()) index = normalized.indexOf(headerKey(chosen));
+    if (index < 0) index = normalized.findIndex((header) => aliases.includes(header));
+    if (index >= 0 && index < headers.length) indexes[field] = index;
   }
+  return indexes;
+}
+
+function inspectCsv(text) {
+  const rows = parseCsv(text);
+  if (!rows.length) return { headers: [], sample: [], suggestedMapping: {}, errors: ['CSV fayl bo‘sh'] };
+  const indexes = detectIndexes(rows[0]);
+  const suggestedMapping = Object.fromEntries(Object.entries(indexes).map(([field, index]) => [field, rows[0][index]]));
+  return { headers: rows[0], sample: rows.slice(1, 11), suggestedMapping, errors: [] };
+}
+
+function mapCsv(text, mapping = {}) {
+  const rows = parseCsv(text);
+  if (rows.length < 2) return { rows: [], errors: ['CSV sarlavha va kamida bitta maʼlumot qatoriga ega bo‘lishi kerak'] };
+  const indexes = detectIndexes(rows[0], mapping);
   if (indexes.customerName === undefined) return { rows: [], errors: ["CSV'da mijoz ismi ustuni topilmadi"] };
 
   const errors = [];
@@ -96,4 +113,4 @@ function mapCsv(text) {
   return { rows: data, errors };
 }
 
-module.exports = { mapCsv, parseCsv };
+module.exports = { ALIASES, inspectCsv, mapCsv, parseCsv };

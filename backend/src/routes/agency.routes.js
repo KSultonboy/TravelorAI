@@ -4,6 +4,7 @@ const { agencyAuthMiddleware } = require('../middleware/agencyAuth.middleware');
 const { agencyPlan, blockWhenReadOnly, requireCapability, requireOwner } = require('../middleware/agencyPlan.middleware');
 const telegram = require('../controllers/telegram.controller');
 const instagram = require('../controllers/instagram.controller');
+const whatsapp = require('../controllers/whatsapp.controller');
 const team = require('../controllers/agencyTeam.controller');
 const presentation = require('../controllers/presentation.controller');
 const geocodeCtrl = require('../controllers/geocode.controller');
@@ -71,6 +72,13 @@ router.patch('/crm/bookings/:id/assignee', blockWhenReadOnly, crm.assignLead);
 router.put('/crm/documents', blockWhenReadOnly, crm.saveDocuments);
 router.post('/crm/import/local', crm.importLocal); // eski localStorage ma'lumotini yo'qotmaslik uchun readOnly'da ham ochiq
 router.post('/crm/import/csv', blockWhenReadOnly, requireCapability('manualLeads'), crm.importCsv);
+router.post('/crm/import/csv/preview', blockWhenReadOnly, requireCapability('manualLeads'), crm.previewCsv);
+router.post('/crm/import/csv/commit', blockWhenReadOnly, requireCapability('manualLeads'), crm.commitCsv);
+router.get('/crm/imports', crm.listCsvImports);
+router.post('/crm/imports/:id/rollback', blockWhenReadOnly, requireOwner, crm.rollbackCsv);
+router.get('/crm/settings', crm.getCrmSettings);
+router.put('/crm/settings', blockWhenReadOnly, requireOwner, crm.saveCrmSettings);
+router.get('/crm/insights', crm.insights);
 router.get('/crm/audit', requireOwner, crm.listAudit);
 
 // Mijoz sharhlari + reyting (marketplace'да ko'rinadi) — ko'rish hammaga ochiq.
@@ -115,6 +123,15 @@ router.get('/instagram', instagram.getInstagram);
 router.get('/instagram/authorize', requireOwner, instagram.authorize);
 router.post('/instagram/disconnect', blockWhenReadOnly, requireOwner, instagram.disconnectInstagram);
 router.put('/instagram/welcome', blockWhenReadOnly, instagram.setWelcome);
+
+// WhatsApp Cloud API — shu xabar kanallari tarifi ichida.
+router.use('/whatsapp', requireCapability('telegram'));
+router.get('/whatsapp', whatsapp.getWhatsApp);
+router.post('/whatsapp/connect', blockWhenReadOnly, requireOwner, whatsapp.connect);
+router.post('/whatsapp/disconnect', blockWhenReadOnly, requireOwner, whatsapp.disconnect);
+router.put('/whatsapp/welcome', blockWhenReadOnly, whatsapp.setWelcome);
+router.get('/whatsapp/templates', whatsapp.templates);
+router.post('/whatsapp/send', blockWhenReadOnly, whatsapp.send);
 
 // Jamoa (Business tarif) — ko'rish hammaga, boshqarish faqat egasiga (controller ichida tekshiriladi).
 router.get('/team', team.listTeam);

@@ -41,6 +41,7 @@ import {
   type DocRequisites,
   type DocTemplates,
 } from "@/lib/agency/documents";
+import { AuditPage, CsvImportPage, InsightsPage, WhatsAppPage } from "./CrmCompetitionPages";
 
 /* ---- tiny inline icons ---- */
 const I = {
@@ -122,13 +123,17 @@ const NAV: { key: string; label: string; icon: string; group: string; badge?: "l
   { key: "reviews", label: "Sharhlar", icon: I.star, group: "Sotuv" },
   { key: "payments", label: "Mijoz to'lovlari", icon: I.card, group: "Sotuv" },
   { key: "reports", label: "Hisobotlar", icon: I.chart, group: "Boshqa" },
+  { key: "insights", label: "SLA va KPI", icon: I.clock, group: "Boshqa" },
+  { key: "csv-import", label: "CSV import", icon: I.download, group: "Boshqa" },
+  { key: "audit", label: "Audit tarixi", icon: I.eye, group: "Boshqa" },
+  { key: "whatsapp", label: "WhatsApp", icon: I.send, group: "Boshqa" },
   { key: "documents", label: "Hujjatlar", icon: I.doc, group: "Boshqa" },
   // Obuna to'lovi (CLICK) endi Sozlamalar → «Obuna va tarif» ichida.
   // Ilgari alohida band edi, lekin Sozlamalar ham xuddi shu narsani
   // ko'rsatardi — bir xil narsa ikki joyda turardi.
   { key: "settings", label: "Sozlamalar", icon: I.gear, group: "Boshqa" },
 ];
-const TITLES: Record<string, string> = { ...Object.fromEntries(NAV.map((n) => [n.key, n.label])), telegram: "Telegram bot", instagram: "Instagram Direct" };
+const TITLES: Record<string, string> = { ...Object.fromEntries(NAV.map((n) => [n.key, n.label])), telegram: "Telegram bot", instagram: "Instagram Direct", whatsapp: "WhatsApp Cloud API" };
 const OPEN: CrmStage[] = ["new", "contacted", "quoted"];
 const UZ_MONTH = ["Yan", "Fev", "Mar", "Apr", "May", "Iyun", "Iyul", "Avg", "Sen", "Okt", "Noy", "Dek"];
 const PKG_GRADS = [
@@ -575,11 +580,13 @@ export default function KvCabinet() {
     // DIQQAT: «settings» DOIM ochiq bo'lishi SHART — obuna to'lovi endi
     // Sozlamalar ichida, ya'ni muddat tugaganda ham agentlik to'lay olishi
     // kerak (aks holda kabinetda qamalib qoladi va tiklay olmaydi).
-    if (key === "dashboard" || key === "settings" || key === "reviews" || key === "documents") return true; // doim ochiq
+    if (key === "dashboard" || key === "settings" || key === "reviews" || key === "documents" || key === "audit") return true; // doim ochiq
     // «instagram» ham shu yerda: u NAV kaliti emas, shuning uchun quyidagi
     // sections tekshiruviga tushib qolsa Premium agentlik ham paywall ko'rardi.
     // Daraja backend bilan bir xil: /agency/instagram → requireCapability('telegram').
-    if (key === "telegram" || key === "instagram") return caps.telegram !== false;
+    if (key === "telegram" || key === "instagram" || key === "whatsapp") return caps.telegram !== false;
+    if (key === "csv-import") return caps.manualLeads !== false;
+    if (key === "insights") return caps.analytics !== false;
     if (key === "presentations") return caps.presentations !== false;
     if (!allowedSections) return true;
     return allowedSections.includes(key);
@@ -665,10 +672,14 @@ export default function KvCabinet() {
                 <Reviews show={view === "reviews"} readOnly={readOnly} />
                 <Payments show={view === "payments"} leads={leads} move={guardedMove} busyId={busyId} readOnly={readOnly} canExport={canExport} />
                 <Reports show={view === "reports"} leads={leads} />
+                <InsightsPage show={view === "insights"} readOnly={readOnly} />
+                <CsvImportPage show={view === "csv-import"} readOnly={readOnly} onImported={refreshBookings} />
+                <AuditPage show={view === "audit"} />
                 <DocumentsSection show={view === "documents"} agencyId={agencyId} readOnly={readOnly} />
                 <Settings show={view === "settings"} agency={agency} agencyId={agencyId} refresh={refresh} logout={logout} go={setView} access={access} readOnly={readOnly} caps={caps} />
                 <TelegramPage show={view === "telegram"} leads={leads} go={setView} readOnly={readOnly} />
                 <InstagramPage show={view === "instagram"} go={setView} readOnly={readOnly} />
+                <WhatsAppPage show={view === "whatsapp"} readOnly={readOnly} />
               </>
             )}
           </div>
@@ -1432,10 +1443,12 @@ function LeadDetail({ lead, readOnly, busyId, pres, members, onMove, onClose, on
             <div className="ld-tools"><ContactActions lead={lead} /></div>
             <div className="ld-tools2">
               <div style={{ flex: 1, minWidth: 130 }}><DocMenu lead={lead} /></div>
-              {lead.source === "telegram" || lead.source === "instagram" ? (
+              {lead.source === "telegram" || lead.source === "instagram" || lead.source === "whatsapp" ? (
                 <button className="tg-chat-btn" style={{ width: "auto", marginTop: 0, padding: "0 14px" }} onClick={() => onOpenChat(lead)}>
                   {lead.source === "instagram" ? (
                     <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none" /></svg>Instagram suhbat</>
+                  ) : lead.source === "whatsapp" ? (
+                    <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"/></svg>WhatsApp suhbat</>
                   ) : (
                     <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>Telegram suhbat</>
                   )}
@@ -3213,7 +3226,7 @@ function Settings({ show, agency, go, refresh, logout, access, readOnly }: any) 
             <div style={{ display: "grid", gap: 12 }}>
               <TelegramCard go={go} />
               <InstagramCard go={go} />
-              <WhatsappCard />
+              <WhatsappCard go={go} />
             </div>
           ) : null}
           {tab === "team" ? <TeamSection access={access} /> : null}
@@ -3859,12 +3872,21 @@ function TelegramChat({ lead, onClose, onBack, readOnly }: { lead: CrmLead; onCl
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<TgTpl[]>([]);
+  const [waTemplates, setWaTemplates] = useState<{ id: string; name: string; language: string; status: string }[]>([]);
+  const [selectedWaTemplate, setSelectedWaTemplate] = useState("");
   const bodyRef = useRef<HTMLDivElement>(null);
   const isIg = channel === "instagram";
+  const isWa = channel === "whatsapp";
 
   useEffect(() => {
     void agencyApi<{ templates: TgTpl[] }>("/telegram/config").then((r) => { if (r.success) setTemplates(r.data.templates || []); });
   }, []);
+  useEffect(() => {
+    if (!isWa) return;
+    void agencyApi<{ templates: { id: string; name: string; language: string; status: string }[] }>("/whatsapp/templates").then((r) => {
+      if (r.success) setWaTemplates((r.data.templates || []).filter((t) => t.status === "APPROVED"));
+    });
+  }, [isWa]);
 
   const load = async () => {
     const res = await agencyApi<{ messages: any[]; canReply: boolean; channel: string | null }>(`/telegram/messages?bookingId=${encodeURIComponent(lead.id)}`);
@@ -3876,11 +3898,12 @@ function TelegramChat({ lead, onClose, onBack, readOnly }: { lead: CrmLead; onCl
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
-    if (!text.trim()) return;
+    if (!text.trim() && !selectedWaTemplate) return;
     setBusy(true); setSendErr("");
-    const res = await agencyApi("/telegram/reply", { method: "POST", body: JSON.stringify({ bookingId: lead.id, text: text.trim() }) });
+    const selected = waTemplates.find((t) => t.name === selectedWaTemplate);
+    const res = await agencyApi("/telegram/reply", { method: "POST", body: JSON.stringify({ bookingId: lead.id, text: text.trim(), templateName: selectedWaTemplate || undefined, language: selected?.language || undefined }) });
     setBusy(false);
-    if (res.success) { setText(""); await load(); }
+    if (res.success) { setText(""); setSelectedWaTemplate(""); await load(); }
     // Instagram'da eng ko'p uchraydigan holat — 24 soatlik oyna yopilgani.
     // Ilgari xato jimgina yutilardi va agent xabar ketdi deb o'ylardi.
     else setSendErr(res.message || "Yuborib bo'lmadi");
@@ -3891,7 +3914,7 @@ function TelegramChat({ lead, onClose, onBack, readOnly }: { lead: CrmLead; onCl
         <div className="tg-chat-head">
           <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
             {onBack ? <button className="icon-btn" onClick={onBack} aria-label="Orqaga" title="Mijoz ma'lumotiga qaytish"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg></button> : null}
-            <div style={{ minWidth: 0 }}><b>{lead.customerName}</b><small>{isIg ? "Instagram Direct" : "Telegram suhbat"}</small></div>
+            <div style={{ minWidth: 0 }}><b>{lead.customerName}</b><small>{isIg ? "Instagram Direct" : isWa ? "WhatsApp Cloud API" : "Telegram suhbat"}</small></div>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Yopish"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg></button>
         </div>
@@ -3910,16 +3933,18 @@ function TelegramChat({ lead, onClose, onBack, readOnly }: { lead: CrmLead; onCl
         ) : canReply ? (
           <div className="tg-reply">
             {sendErr ? <div className="tg-senderr">{sendErr}</div> : null}
-            {templates.length ? <div className="tg-quick">{templates.map((t) => <button key={t.id} type="button" className="tg-quick-btn" onClick={() => setText(t.text)}>{t.title}</button>)}</div> : null}
+            {isWa && waTemplates.length ? <div className="tg-quick">{waTemplates.map((t) => <button key={t.id} type="button" className={`tg-quick-btn${selectedWaTemplate === t.name ? " active" : ""}`} onClick={() => setSelectedWaTemplate(t.name)}>{t.name}</button>)}</div>
+              : templates.length ? <div className="tg-quick">{templates.map((t) => <button key={t.id} type="button" className="tg-quick-btn" onClick={() => setText(t.text)}>{t.title}</button>)}</div> : null}
             <form className="tg-chat-input" onSubmit={send}>
               <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Javob yozing…" />
-              <button type="submit" className="btn btn-primary" disabled={busy || !text.trim()}>Yuborish</button>
+              <button type="submit" className="btn btn-primary" disabled={busy || (!text.trim() && !selectedWaTemplate)}>Yuborish</button>
             </form>
           </div>
         ) : (
           <div className="tg-noreply">
             {isIg
               ? "Instagram ulanmagan — Sozlamalar → Ulanishlar bo'limidan ulang."
+              : isWa ? "WhatsApp ulanmagan — WhatsApp bo‘limidan Cloud API’ni ulang."
               : "Bu lidda yozishma kanali yo'q"}
           </div>
         )}
@@ -3990,19 +4015,19 @@ function InstagramCard({ go }: { go: (v: string) => void }) {
   );
 }
 
-/* WhatsApp Business — hali ochilmagan. Karta ATAYLAB bosilmaydi (button emas,
-   div): bosilsa bo'sh sahifaga olib borardi. Agentlik nima kelayotganini
-   ko'rsin, lekin ishlamaydigan ekranga tushmasin. */
-function WhatsappCard() {
+function WhatsappCard({ go }: { go: (v: string) => void }) {
+  const [st, setSt] = useState<{ connected: boolean; displayPhone?: string } | null>(null);
+  useEffect(() => { void agencyApi<{ connected: boolean; displayPhone?: string }>("/whatsapp").then((r) => { if (r.success) setSt(r.data); }); }, []);
   return (
-    <div className="int-card int-card--soon" aria-disabled="true">
+    <button className="int-card" onClick={() => go("whatsapp")}>
       <span className="int-ic wa"><Ic d={WA_ICON} s={22} /></span>
       <span className="int-main">
         <b>WhatsApp Business</b>
-        <small>Mijoz xabarlari CRM&apos;ga tushadi — Instagram bilan birga ochiladi</small>
+        <small>{st?.connected ? `Ulangan · ${st.displayPhone || "Cloud API"}` : "Ulash · xabarlar avtomatik lid bo‘ladi"}</small>
       </span>
-      <span className="int-badge int-badge--soon">{SOON_LABEL}</span>
-    </div>
+      {st?.connected ? <span className="int-badge">Faol</span> : null}
+      <svg className="int-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+    </button>
   );
 }
 

@@ -3,6 +3,7 @@ const { logger } = require('../config/logger');
 const { success, error } = require('../utils/response');
 const { ensureApprovedAgency } = require('./agency.controller');
 const ig = require('../services/instagram.service');
+const { assignNextMember } = require('../services/crmAutomation.service');
 
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://travelorai.com').replace(/\/$/, '');
 
@@ -177,6 +178,7 @@ async function handleMessage(agency, event) {
   });
   const isNew = !booking;
   if (!booking) {
+    const autoMember = await assignNextMember(agency.id);
     booking = await prisma.tourBooking.create({
       data: {
         agencyId: agency.id,
@@ -192,6 +194,7 @@ async function handleMessage(agency, event) {
         utmMedium: 'direct',
         status: 'pending',
         pipelineStage: 'new',
+        assignedMemberId: autoMember?.id || null,
       },
     });
   }
