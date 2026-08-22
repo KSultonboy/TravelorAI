@@ -41,7 +41,7 @@ import {
   type DocRequisites,
   type DocTemplates,
 } from "@/lib/agency/documents";
-import { AuditPage, CsvImportPage, InsightsPage, WhatsAppPage } from "./CrmCompetitionPages";
+import { AuditPage, AutomationPage, CsvImportPage, InsightsPage, WhatsAppPage } from "./CrmCompetitionPages";
 
 /* ---- tiny inline icons ---- */
 const I = {
@@ -127,6 +127,7 @@ const NAV: { key: string; label: string; icon: string; group: string; badge?: "l
   { key: "payments", label: "Mijoz to'lovlari", icon: I.card, group: "Sotuv" },
   { key: "reports", label: "Hisobotlar", icon: I.chart, group: "Boshqa" },
   { key: "insights", label: "SLA va KPI", icon: I.clock, group: "Boshqa" },
+  { key: "automation", label: "Avtomatizatsiya", icon: I.bolt, group: "Boshqa" },
   { key: "csv-import", label: "CSV import", icon: I.download, group: "Boshqa" },
   { key: "audit", label: "Audit tarixi", icon: I.eye, group: "Boshqa" },
   { key: "whatsapp", label: "WhatsApp", icon: I.send, group: "Boshqa" },
@@ -589,7 +590,7 @@ export default function KvCabinet() {
     // Daraja backend bilan bir xil: /agency/instagram → requireCapability('telegram').
     if (key === "telegram" || key === "instagram" || key === "whatsapp") return caps.telegram !== false;
     if (key === "csv-import") return caps.manualLeads !== false;
-    if (key === "insights") return caps.analytics !== false;
+    if (key === "insights" || key === "automation") return caps.analytics !== false;
     if (key === "presentations") return caps.presentations !== false;
     if (!allowedSections) return true;
     return allowedSections.includes(key);
@@ -676,6 +677,7 @@ export default function KvCabinet() {
                 <Payments show={view === "payments"} leads={leads} move={guardedMove} busyId={busyId} readOnly={readOnly} canExport={canExport} />
                 <Reports show={view === "reports"} leads={leads} />
                 <InsightsPage show={view === "insights"} readOnly={readOnly} />
+                <AutomationPage show={view === "automation"} readOnly={readOnly} />
                 <CsvImportPage show={view === "csv-import"} readOnly={readOnly} onImported={refreshBookings} />
                 <AuditPage show={view === "audit"} />
                 <DocumentsSection show={view === "documents"} agencyId={agencyId} leads={leads} readOnly={readOnly} />

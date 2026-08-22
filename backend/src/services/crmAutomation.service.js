@@ -10,9 +10,9 @@ async function getSettings(agencyId, client = prisma) {
   });
 }
 
-async function assignNextMember(agencyId, client = prisma) {
+async function assignNextMember(agencyId, client = prisma, force = false) {
   const settings = await getSettings(agencyId, client);
-  if (!settings.autoAssignEnabled) return null;
+  if (!force && !settings.autoAssignEnabled) return null;
   const members = await client.agencyMember.findMany({
     where: { agencyId, status: 'active', role: { in: ['manager', 'agent'] } },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],

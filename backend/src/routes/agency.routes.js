@@ -14,6 +14,7 @@ const clickPay = require('../controllers/clickPayment.controller');
 const crm = require('../controllers/agencyCrm.controller');
 const finance = require('../controllers/agencyFinance.controller');
 const reconciliation = require('../controllers/agencyReconciliation.controller');
+const automation = require('../controllers/agencyAutomation.controller');
 const documents = require('../controllers/agencyDocuments.controller');
 const { agencyAuditMiddleware } = require('../middleware/agencyAudit.middleware');
 
@@ -83,6 +84,14 @@ router.get('/crm/settings', crm.getCrmSettings);
 router.put('/crm/settings', blockWhenReadOnly, requireOwner, crm.saveCrmSettings);
 router.get('/crm/insights', crm.insights);
 router.get('/crm/audit', requireOwner, crm.listAudit);
+
+// No-code trigger -> shart -> amal avtomatizatsiyasi va bajarilish jurnali.
+router.get('/crm/automation', automation.list);
+router.post('/crm/automation/rules', blockWhenReadOnly, requireOwner, automation.create);
+router.put('/crm/automation/rules/:id', blockWhenReadOnly, requireOwner, automation.update);
+router.delete('/crm/automation/rules/:id', blockWhenReadOnly, requireOwner, automation.remove);
+router.post('/crm/automation/rules/:id/run', blockWhenReadOnly, requireOwner, automation.runNow);
+router.post('/crm/automation/runs/:id/retry', blockWhenReadOnly, requireOwner, automation.retry);
 
 // Operatsion moliya: kassa/bank, kirim-chiqim, qarzdorlik va bitim foydasi.
 router.get('/crm/finance', finance.listFinance);

@@ -475,6 +475,8 @@ model TourAgency {
   documentArchives        BusinessDocumentArchive[]
   documentApprovals       DocumentApproval[]
   documentSignatures      DocumentSignature[]
+  automationRules         AutomationRule[]
+  automationRuns          AutomationRun[]
 
   @@index([active])
   @@index([tariffId])
@@ -737,6 +739,71 @@ model AgencyCrmSettings {
   reminderEnabled      Boolean    @default(true)
   createdAt            DateTime   @default(now())
   updatedAt            DateTime   @updatedAt
+}
+
+// Agentlik egasi UI orqali tuzadigan no-code trigger -> shart -> amal qoidasi.
+model AutomationRule {
+  id                 String             @id @default(cuid())
+  agencyId           String
+  agency             TourAgency         @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name               String
+  active             Boolean            @default(true)
+  triggerType        String
+  triggerConfig      Json
+  conditionMode      String             @default("all") // all | any
+  conditions         Json
+  maxAttempts        Int                @default(3)
+  createdByAccountId String?
+  lastRunAt          DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  actions            AutomationAction[]
+  runs               AutomationRun[]
+
+  @@index([agencyId, active, triggerType])
+  @@index([agencyId, createdAt])
+}
+
+// Qoidaning ketma-ket bajariladigan amallari. Config amal turiga qarab farq qiladi.
+model AutomationAction {
+  id        String         @id @default(cuid())
+  ruleId    String
+  rule      AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  type      String
+  config    Json
+  sortOrder Int            @default(0)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([ruleId, sortOrder])
+}
+
+// Har bir entity/event uchun idempotent run, natija va retry holati.
+model AutomationRun {
+  id          String         @id @default(cuid())
+  agencyId    String
+  agency      TourAgency     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  ruleId      String
+  rule        AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  eventKey    String
+  triggerType String
+  entityType  String
+  entityId    String
+  status      String         @default("pending") // pending | running | success | failed | skipped
+  attempt     Int            @default(0)
+  input       Json?
+  output      Json?
+  error       String?
+  nextRetryAt DateTime?
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@unique([ruleId, eventKey])
+  @@index([agencyId, status, createdAt])
+  @@index([status, nextRetryAt])
+  @@index([entityType, entityId])
 }
 
 // CSV import avval preview qilinadi, keyin batch sifatida commit bo'ladi.

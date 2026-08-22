@@ -362,7 +362,20 @@ async function sendEmailChangedNoticeEmail({ oldEmail, newEmail }) {
   return results;
 }
 
+async function sendAutomationEmail({ email, subject, body }) {
+  const safeSubject = String(subject || `${APP_NAME} xabarnomasi`).trim().slice(0, 180);
+  const safeBody = safeText(body || '').slice(0, 5000);
+  return sendMail({
+    to: email,
+    subject: safeSubject,
+    html: `<div style="font-family:Arial,sans-serif;background:#f4f7f5;padding:24px"><div style="max-width:560px;margin:auto;background:#fff;border-radius:20px;padding:32px;border:1px solid #eaf0eb"><p style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#1a6b3c">${APP_NAME}</p><p style="font-size:15px;line-height:1.7;color:#334d3c;white-space:pre-line">${safeBody}</p></div></div>`,
+    text: String(body || '').slice(0, 5000),
+    logMeta: { type: 'automation', email },
+  });
+}
+
 module.exports = {
+  sendAutomationEmail,
   sendEmailChangedNoticeEmail,
   sendVerificationCodeEmail,
   sendEmailChangeCodeEmail,
