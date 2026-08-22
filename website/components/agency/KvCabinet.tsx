@@ -672,7 +672,7 @@ export default function KvCabinet() {
             ) : (
               <>
                 <Dashboard show={view === "dashboard"} leads={leads} tasks={tasks} stats={bookingStats} agencyId={agencyId} go={setView} />
-                <Leads show={view === "leads"} leads={leads} archivedLeads={archivedLeads} move={guardedMove} busyId={busyId} dragId={dragId} setDragId={setDragId} over={over} setOver={setOver} readOnly={readOnly} canExport={canExport} presByLead={presByLead} refresh={refreshBookings} reloadCrm={reloadCrm} members={members} />
+                <Leads show={view === "leads"} leads={leads} archivedLeads={archivedLeads} move={guardedMove} busyId={busyId} dragId={dragId} setDragId={setDragId} over={over} setOver={setOver} readOnly={readOnly} canExport={canExport} presByLead={presByLead} refresh={refreshBookings} reloadCrm={reloadCrm} members={members} createTask={createTask} />
                 <Customers show={view === "customers"} customers={customers} canExport={canExport} readOnly={readOnly} refresh={refreshBookings} />
                 <Tasks show={view === "tasks"} tasks={tasks} leads={leads} members={members} readOnly={readOnly} createTask={createTask} toggleTask={toggleTask} deleteTask={deleteTask} />
                 <Packages show={view === "packages"} tours={tours} agencyId={agencyId} refreshTours={refreshTours} readOnly={readOnly} />
@@ -1142,10 +1142,11 @@ function StageSelect({ value, onChange, disabled }: { value: CrmStage; onChange:
   );
 }
 
-function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, over, setOver, readOnly, canExport, presByLead, refresh, reloadCrm, members }: any) {
+function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, over, setOver, readOnly, canExport, presByLead, refresh, reloadCrm, members, createTask }: any) {
   const [chat, setChat] = useState<CrmLead | null>(null);
   const [detailId, setDetailId] = useState<string>("");
   const [tab, setTab] = useState<"active" | "archive">("active");
+  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [q, setQ] = useState("");
   const [fStage, setFStage] = useState("all");
   const [fSource, setFSource] = useState("all");
@@ -1180,11 +1181,15 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
             <button className={tab === "active" ? "on" : ""} onClick={() => setTab("active")}>Faol</button>
             <button className={tab === "archive" ? "on" : ""} onClick={() => setTab("archive")}>Arxiv{arch.length ? ` (${arch.length})` : ""}</button>
           </div>
+          {tab === "active" ? <div className="lead-tabs lead-view-tabs" aria-label="Lidlar ko‘rinishi">
+            <button className={viewMode === "kanban" ? "on" : ""} onClick={() => setViewMode("kanban")}>Kanban</button>
+            <button className={viewMode === "list" ? "on" : ""} onClick={() => setViewMode("list")}>Ro‘yxat</button>
+          </div> : null}
           <CsvImportBtn disabled={readOnly} onImported={async () => { await refresh?.(); await reloadCrm?.(); }} />
           {canExport ? <ExportBtn rows={tab === "active" ? leads : arch} filename={tab === "active" ? "lidlar" : "arxiv"} columns={LEAD_COLS} /> : null}
         </div>
       </div>
-      {tab === "active" ? (
+      {tab === "active" && viewMode === "kanban" ? (
         <div className="kanban">
           {CRM_STAGES.map((s, i) => (
             <div key={s.key} className={`kcol c${i}${over === s.key ? " over" : ""}`}
@@ -1212,6 +1217,19 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
               {byStage[s.key as CrmStage].length === 0 ? <div style={{ textAlign: "center", color: "#aab6b0", fontSize: 12, padding: "10px 0" }}>Bo&apos;sh</div> : null}
             </div>
           ))}
+        </div>
+      ) : tab === "active" ? (
+        <div className="card tbl-wrap lead-list-view">
+          {leads.length ? <table><thead><tr><th>Mijoz</th><th>Aloqa</th><th>Yo‘nalish</th><th>Bosqich</th><th>Menejer</th><th>Oxirgi faoliyat</th></tr></thead><tbody>
+            {leads.map((l: CrmLead) => <tr key={l.id} onClick={() => setDetailId(l.id)} style={{ cursor: "pointer" }}>
+              <td><div className="cell"><span className="av-sm">{initials(l.customerName)}</span><div><b>{l.customerName}</b><div className="sub"><span className={`badge2 ${SRC_BADGE[l.source] || "b-grey"}`}>{srcLabel(l.source)}</span></div></div></div></td>
+              <td><b>{l.customerPhone || "—"}</b><div className="sub">{l.customerEmail || l.telegramHandle || l.whatsappNumber || "Aloqa kiritilmagan"}</div></td>
+              <td>{l.tourTitle || l.tourCity || "—"}</td>
+              <td onClick={(e) => e.stopPropagation()}><StageSelect value={l.stage} onChange={(stage) => move(l, stage)} disabled={readOnly || busyId === l.id} /></td>
+              <td>{l.assignedMemberName || "Biriktirilmagan"}</td>
+              <td>{l.activities?.[0] ? <><b>{l.activities[0].text}</b><div className="sub">{timeAgo(l.activities[0].at)}</div></> : <span className="sub">Faoliyat yo‘q</span>}</td>
+            </tr>)}
+          </tbody></table> : <Empty icon={I.list} text="Faol lidlar yo‘q." />}
         </div>
       ) : (
         <>
@@ -1259,7 +1277,7 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
         </>
       )}
       {dl ? (
-        <LeadDetail lead={dl} readOnly={readOnly} busyId={busyId} pres={presByLead?.[dl.id]} members={members}
+        <LeadDetail key={dl.id} lead={dl} readOnly={readOnly} busyId={busyId} pres={presByLead?.[dl.id]} members={members} createTask={createTask}
           onMove={move} onClose={() => setDetailId("")} refresh={refresh}
           reloadCrm={reloadCrm}
           onArchive={(val: boolean) => setArchived(dl, val)}
@@ -1271,9 +1289,10 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
 }
 
 /* Lid batafsil oynasi — kartaga bosilганда ochiladi; ko'rish + tahrirlash */
-function LeadDetail({ lead, readOnly, busyId, pres, members, onMove, onClose, onOpenChat, refresh, reloadCrm, onArchive }: {
+function LeadDetail({ lead, readOnly, busyId, pres, members, createTask, onMove, onClose, onOpenChat, refresh, reloadCrm, onArchive }: {
   lead: CrmLead; readOnly?: boolean; busyId?: string; pres?: any;
   members?: any[];
+  createTask?: (task: { title: string; dueAt?: string; leadId?: string; assignedMemberId?: string }) => Promise<boolean>;
   onMove: (l: CrmLead, s: CrmStage) => void; onClose: () => void; onOpenChat: (l: CrmLead) => void; refresh?: () => Promise<void>;
   reloadCrm?: () => Promise<void>;
   onArchive?: (val: boolean) => Promise<void> | void;
@@ -1284,6 +1303,11 @@ function LeadDetail({ lead, readOnly, busyId, pres, members, onMove, onClose, on
   const [err, setErr] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [noteInput, setNoteInput] = useState("");
+  const [detailTab, setDetailTab] = useState<"overview" | "activity" | "documents" | "history">("overview");
+  const [activityMode, setActivityMode] = useState<"note" | "task" | "message">("note");
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDue, setTaskDue] = useState("");
+  const [taskBusy, setTaskBusy] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { if (editing) setEditing(false); else onClose(); } };
     document.addEventListener("keydown", onKey);
@@ -1370,6 +1394,22 @@ function LeadDetail({ lead, readOnly, busyId, pres, members, onMove, onClose, on
     const result = await agencyApi(`/crm/bookings/${lead.id}/activities`, { method: "POST", body: JSON.stringify({ type: "note", text }) });
     if (result.success) { setNoteInput(""); await reloadCrm?.(); } else setErr(result.message);
   }
+  async function addLeadTask() {
+    const title = taskTitle.trim();
+    if (!title || !createTask || readOnly) return;
+    setTaskBusy(true); setErr("");
+    try {
+      const result = await createTask({
+        title,
+        leadId: lead.id,
+        assignedMemberId: lead.assignedMemberId || undefined,
+        dueAt: taskDue ? new Date(taskDue).toISOString() : undefined,
+      });
+      if (!result) setErr("Vazifa yaratilmadi.");
+      else { setTaskTitle(""); setTaskDue(""); await reloadCrm?.(); }
+    } catch { setErr("Vazifa yaratilmadi."); }
+    finally { setTaskBusy(false); }
+  }
   const inp = (k: string, label: string, o?: { type?: string; ph?: string; full?: boolean }) => (
     <div className="fld" style={{ marginBottom: 0, ...(o?.full ? { gridColumn: "1 / -1" } : {}) }}>
       <label>{label}</label>
@@ -1392,9 +1432,14 @@ function LeadDetail({ lead, readOnly, busyId, pres, members, onMove, onClose, on
             <div className="ld-sub"><span className={`badge2 ${SRC_BADGE[lead.source] || "b-grey"}`}>{srcLabel(lead.source)}</span><small>{timeAgo(lead.createdAt)}</small></div>
           </div>
         </div>
-        <div className="ld-stagebar">
-          <span className="ld-k">Bosqich</span>
-          <StageSelect value={lead.stage} onChange={(s) => onMove(lead, s)} disabled={readOnly || busyId === lead.id || editing} />
+        <div className="ld-stageflow" aria-label="Lid bosqichlari">
+          {CRM_STAGES.map((stage, index) => {
+            const currentIndex = CRM_STAGES.findIndex((item) => item.key === lead.stage);
+            return <button key={stage.key} type="button" className={`${stage.key === lead.stage ? "current" : ""}${index < currentIndex && lead.stage !== "lost" ? " passed" : ""}${stage.key === "lost" ? " danger" : ""}`}
+              disabled={readOnly || busyId === lead.id || editing} onClick={() => onMove(lead, stage.key as CrmStage)} title={stage.label}>
+              <span>{index + 1}</span><b>{stage.label}</b>
+            </button>;
+          })}
         </div>
         {!editing ? (
           <div className="ld-stagebar">
@@ -1405,6 +1450,14 @@ function LeadDetail({ lead, readOnly, busyId, pres, members, onMove, onClose, on
             </select>
           </div>
         ) : null}
+        {!editing ? <div className="ld-tabs" role="tablist" aria-label="Lid ish joyi">
+          {([
+            ["overview", "Umumiy"],
+            ["activity", "Faoliyat"],
+            ["documents", "Hujjatlar"],
+            ["history", "Tarix"],
+          ] as const).map(([key, label]) => <button key={key} type="button" role="tab" aria-selected={detailTab === key} className={detailTab === key ? "on" : ""} onClick={() => setDetailTab(key)}>{label}</button>)}
+        </div> : null}
         {editing ? (
           <>
             {err ? <div className="note" style={{ marginBottom: 12, background: "var(--rose-soft)", color: "#8f2a20", borderColor: "#f3c9c4" }}>{err}</div> : null}
@@ -1439,50 +1492,63 @@ function LeadDetail({ lead, readOnly, busyId, pres, members, onMove, onClose, on
           </>
         ) : (
           <>
-            <div className="ld-grid">
-              {fields.map(([k, v]) => (
-                <div className="ld-field" key={k}><span className="ld-k">{k}</span><span className="ld-v">{v}</span></div>
-              ))}
-            </div>
-            {lead.message ? <div className="ld-note"><span className="ld-k">Mijoz xabari</span><p>{lead.message}</p></div> : null}
-            <div className="ld-note">
-              <span className="ld-k">Teglar</span>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-                {(lead.tags || []).map((tag) => <button key={tag} type="button" className="badge2 b-green" disabled={readOnly} onClick={() => void removeTag(tag)} title="Tegni o‘chirish">{tag}{!readOnly ? " ×" : ""}</button>)}
-                {!readOnly ? <><input value={tagInput} onChange={(e) => setTagInput(e.target.value)} placeholder="Yangi teg" style={{ maxWidth: 140 }} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void addTag(); } }} /><button className="btn btn-ghost btn-sm" onClick={() => void addTag()}>Qo&apos;shish</button></> : null}
-              </div>
-            </div>
-            {!readOnly ? (
-              <div className="ld-note">
-                <span className="ld-k">Faoliyatga izoh qo&apos;shish</span>
-                <textarea rows={2} value={noteInput} onChange={(e) => setNoteInput(e.target.value)} placeholder="Qo‘ng‘iroq natijasi yoki keyingi qadam…" />
-                <button className="btn btn-ghost btn-sm" disabled={!noteInput.trim()} onClick={() => void addNote()}>Izohni saqlash</button>
-              </div>
-            ) : null}
-            {pres ? <div style={{ marginTop: 12 }}><PresBadge p={pres} /></div> : null}
-            <div className="ld-tools"><ContactActions lead={lead} /></div>
-            <div className="ld-tools2">
-              <div style={{ flex: 1, minWidth: 130 }}><DocMenu lead={lead} /></div>
-              {lead.source === "telegram" || lead.source === "instagram" || lead.source === "whatsapp" ? (
-                <button className="tg-chat-btn" style={{ width: "auto", marginTop: 0, padding: "0 14px" }} onClick={() => onOpenChat(lead)}>
-                  {lead.source === "instagram" ? (
-                    <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none" /></svg>Instagram suhbat</>
-                  ) : lead.source === "whatsapp" ? (
-                    <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"/></svg>WhatsApp suhbat</>
-                  ) : (
-                    <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>Telegram suhbat</>
-                  )}
-                </button>
-              ) : null}
-            </div>
-            {lead.activities?.length ? (
-              <div className="ld-acts">
-                <span className="ld-k">Faoliyat tarixi</span>
-                {lead.activities.slice(0, 6).map((a) => (
-                  <div className="ld-act" key={a.id}><span className="ld-act-dot" /><span className="ld-act-tx">{a.text}</span><small>{timeAgo(a.at)}</small></div>
+            {detailTab === "overview" ? <>
+              <div className="ld-grid">
+                {fields.map(([k, v]) => (
+                  <div className="ld-field" key={k}><span className="ld-k">{k}</span><span className="ld-v">{v}</span></div>
                 ))}
               </div>
-            ) : null}
+              {lead.message ? <div className="ld-note"><span className="ld-k">Mijoz xabari</span><p>{lead.message}</p></div> : null}
+              <div className="ld-note">
+                <span className="ld-k">Teglar</span>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                  {(lead.tags || []).map((tag) => <button key={tag} type="button" className="badge2 b-green" disabled={readOnly} onClick={() => void removeTag(tag)} title="Tegni o‘chirish">{tag}{!readOnly ? " ×" : ""}</button>)}
+                  {!readOnly ? <><input value={tagInput} onChange={(e) => setTagInput(e.target.value)} placeholder="Yangi teg" style={{ maxWidth: 140 }} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void addTag(); } }} /><button className="btn btn-ghost btn-sm" onClick={() => void addTag()}>Qo&apos;shish</button></> : null}
+                </div>
+              </div>
+              {pres ? <div style={{ marginTop: 12 }}><PresBadge p={pres} /></div> : null}
+              <div className="ld-tools"><ContactActions lead={lead} /></div>
+            </> : null}
+
+            {detailTab === "activity" ? <div className="ld-workspace">
+              <div className="ld-compose-tabs" role="tablist" aria-label="Yangi faoliyat">
+                <button type="button" className={activityMode === "note" ? "on" : ""} onClick={() => setActivityMode("note")}>Izoh</button>
+                <button type="button" className={activityMode === "task" ? "on" : ""} onClick={() => setActivityMode("task")}>Vazifa</button>
+                <button type="button" className={activityMode === "message" ? "on" : ""} onClick={() => setActivityMode("message")}>Xabar</button>
+              </div>
+              {err ? <div className="note" style={{ marginBottom: 10, background: "var(--rose-soft)", color: "#8f2a20", borderColor: "#f3c9c4" }}>{err}</div> : null}
+              {activityMode === "note" ? <div className="ld-composer">
+                <label>Qo‘ng‘iroq natijasi yoki izoh</label>
+                <textarea rows={4} value={noteInput} onChange={(e) => setNoteInput(e.target.value)} placeholder="Nima gaplashildi va keyingi qadam nima?" disabled={readOnly} />
+                <button className="btn btn-primary btn-sm" disabled={readOnly || !noteInput.trim()} onClick={() => void addNote()}>Timeline’ga saqlash</button>
+              </div> : null}
+              {activityMode === "task" ? <div className="ld-composer">
+                <label>Keyingi vazifa</label>
+                <input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Masalan: mijozga tur variantlarini yuborish" disabled={readOnly} />
+                <label>Bajarish muddati</label>
+                <input type="datetime-local" value={taskDue} onChange={(e) => setTaskDue(e.target.value)} disabled={readOnly} />
+                <button className="btn btn-primary btn-sm" disabled={readOnly || taskBusy || !taskTitle.trim()} onClick={() => void addLeadTask()}>{taskBusy ? "Yaratilmoqda…" : "Vazifa yaratish"}</button>
+              </div> : null}
+              {activityMode === "message" ? <div className="ld-composer">
+                <div className="ld-next-step"><b>Mijoz bilan bog‘lanish</b><span>Ulangan kanal orqali suhbatni oching yoki telefon/email’dan foydalaning.</span></div>
+                {lead.source === "telegram" || lead.source === "instagram" || lead.source === "whatsapp" ? <button className="tg-chat-btn" style={{ marginTop: 0 }} onClick={() => onOpenChat(lead)}>{lead.source === "instagram" ? "Instagram suhbatini ochish" : lead.source === "whatsapp" ? "WhatsApp suhbatini ochish" : "Telegram suhbatini ochish"}</button> : <ContactActions lead={lead} />}
+              </div> : null}
+              {!lead.activities?.length ? <div className="ld-next-step"><b>Keyingi qadamni rejalashtiring</b><span>Faoliyat yoki vazifa qo‘shilmagan lidlar tez-tez unutilib qoladi.</span></div> : null}
+            </div> : null}
+
+            {detailTab === "documents" ? <div className="ld-workspace">
+              <div className="ld-next-step"><b>Lid hujjatlari</b><span>Taklif, shartnoma, hisob-faktura va mijoz fayllarini shu yerda boshqaring.</span></div>
+              <div className="ld-tools2"><div style={{ flex: 1, minWidth: 160 }}><DocMenu lead={lead} /></div><FilesButton lead={lead} readOnly={readOnly} /></div>
+              {pres ? <div style={{ marginTop: 12 }}><PresBadge p={pres} /></div> : null}
+            </div> : null}
+
+            {detailTab === "history" ? <div className="ld-acts ld-history">
+              <span className="ld-k">To‘liq faoliyat tarixi</span>
+              {(lead.activities || []).length ? lead.activities.map((a) => (
+                <div className="ld-act" key={a.id}><span className="ld-act-dot" /><span className="ld-act-tx">{a.text}</span><small>{timeAgo(a.at)}</small></div>
+              )) : <div className="ld-next-step"><b>Tarix hali bo‘sh</b><span>Izoh, vazifa, menejer yoki bosqich o‘zgarishlari shu timeline’da paydo bo‘ladi.</span></div>}
+              <div className="ld-act"><span className="ld-act-dot" /><span className="ld-act-tx">Lid yaratildi · {srcLabel(lead.source)}</span><small>{timeAgo(lead.createdAt)}</small></div>
+            </div> : null}
             {!readOnly && onArchive ? (
               <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end" }}>
                 <button className="btn btn-ghost btn-sm" onClick={async () => { await onArchive(!lead.archived); onClose(); }}>

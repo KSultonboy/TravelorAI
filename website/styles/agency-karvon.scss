@@ -377,7 +377,7 @@
 
   /* lid batafsil oynasi */
   .ld-overlay{ position:fixed; inset:0; background:rgba(11,42,30,.42); backdrop-filter:blur(3px); z-index:65; display:grid; place-items:center; padding:16px; }
-  .ld-panel{ width:min(560px,100%); max-height:90vh; overflow-y:auto; padding:22px; position:relative; }
+  .ld-panel{ width:min(760px,100%); max-height:90vh; overflow-y:auto; padding:22px; position:relative; }
   .ld-x{ position:absolute; top:14px; right:14px; width:32px; height:32px; display:grid; place-items:center; border:1px solid var(--border); background:var(--surface); border-radius:9px; color:var(--t2); cursor:pointer; transition:.13s; }
   .ld-x:hover{ background:var(--canvas); color:var(--t1); }
   .ld-head{ display:flex; align-items:center; gap:13px; padding-right:82px; }
@@ -387,6 +387,39 @@
   .ld-sub small{ color:var(--t3); font-size:12px; }
   .ld-stagebar{ display:flex; align-items:center; gap:12px; margin:16px 0; }
   .ld-stagebar .kstage2{ flex:1; margin-top:0; max-width:250px; }
+  .lead-view-tabs{ margin-left:2px; }
+  .lead-list-view table{ min-width:980px; }
+  .lead-list-view .kstage2{ min-width:145px; margin-top:0; }
+  .ld-stageflow{ display:grid; grid-template-columns:repeat(6,minmax(92px,1fr)); gap:5px; overflow-x:auto; margin:16px -22px 0; padding:0 22px 14px; border-bottom:1px solid var(--border); }
+  .ld-stageflow button{ position:relative; min-width:92px; display:flex; align-items:center; gap:6px; border:0; background:transparent; color:var(--t3); padding:4px 2px; font-family:var(--disp); cursor:pointer; text-align:left; }
+  .ld-stageflow button::before{ content:""; position:absolute; left:-9px; width:14px; top:14px; height:2px; background:var(--border); }
+  .ld-stageflow button:first-child::before{ display:none; }
+  .ld-stageflow button span{ position:relative; z-index:1; width:24px; height:24px; flex:none; display:grid; place-items:center; border-radius:50%; border:2px solid var(--border); background:var(--surface); color:var(--t3); font-size:10px; font-weight:700; }
+  .ld-stageflow button b{ min-width:0; font-size:10px; line-height:1.15; font-weight:650; }
+  .ld-stageflow button.passed::before,.ld-stageflow button.current::before{ background:var(--primary); }
+  .ld-stageflow button.passed span{ border-color:var(--primary); background:var(--primary-soft); color:var(--primary); }
+  .ld-stageflow button.current{ color:var(--primary-ink); }
+  .ld-stageflow button.current span{ border-color:var(--primary); background:var(--primary); color:#fff; box-shadow:0 0 0 4px var(--primary-soft); }
+  .ld-stageflow button.danger.current{ color:var(--rose); }
+  .ld-stageflow button.danger.current span{ border-color:var(--rose); background:var(--rose); box-shadow:0 0 0 4px var(--rose-soft); }
+  .ld-stageflow button:disabled{ cursor:default; }
+  .ld-tabs{ display:flex; gap:4px; overflow-x:auto; margin:0 -22px 16px; padding:10px 22px 0; border-bottom:1px solid var(--border); }
+  .ld-tabs button{ flex:none; border:0; border-bottom:2px solid transparent; background:transparent; padding:8px 11px 10px; color:var(--t2); font-family:var(--disp); font-size:12.5px; font-weight:600; cursor:pointer; }
+  .ld-tabs button:hover{ color:var(--primary); }
+  .ld-tabs button.on{ color:var(--primary); border-bottom-color:var(--primary); }
+  .ld-workspace{ display:grid; gap:12px; }
+  .ld-compose-tabs{ display:flex; gap:5px; padding:4px; border:1px solid var(--border); border-radius:11px; background:var(--canvas); }
+  .ld-compose-tabs button{ flex:1; border:0; border-radius:8px; padding:8px 10px; background:transparent; color:var(--t2); font-family:var(--disp); font-size:12px; font-weight:600; cursor:pointer; }
+  .ld-compose-tabs button.on{ background:var(--surface); color:var(--primary); box-shadow:0 1px 4px rgba(15,81,50,.1); }
+  .ld-composer{ display:grid; gap:8px; padding:14px; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
+  .ld-composer label{ font-size:11.5px; font-weight:700; color:var(--t2); }
+  .ld-composer input,.ld-composer textarea{ width:100%; border:1px solid var(--border); border-radius:9px; padding:9px 11px; font:inherit; font-size:13px; color:var(--t1); background:var(--surface); outline:none; resize:vertical; }
+  .ld-composer input:focus,.ld-composer textarea:focus{ border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-soft); }
+  .ld-composer .btn{ justify-self:end; }
+  .ld-next-step{ display:flex; flex-direction:column; gap:3px; padding:12px 14px; border:1px solid #E7D9AE; border-radius:11px; background:var(--gold-soft); color:var(--gold-ink); }
+  .ld-next-step b{ font-family:var(--disp); font-size:12.5px; }
+  .ld-next-step span{ font-size:12px; line-height:1.45; }
+  .ld-history{ margin-top:0; padding-top:0; border-top:0; }
   .ld-k{ font-size:11px; font-weight:700; color:var(--t3); text-transform:uppercase; letter-spacing:.04em; }
   .ld-grid{ display:grid; grid-template-columns:1fr 1fr; gap:13px 16px; padding:15px 0; border-top:1px solid var(--border); }
   .ld-field{ display:flex; flex-direction:column; gap:3px; min-width:0; }
