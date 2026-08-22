@@ -2,6 +2,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { configure, mergeEnv, validateApiKey } = require('../scripts/configureResendSmtp');
+const { loadEnvFile } = require('../scripts/verifyResendSmtp');
 
 describe('Resend SMTP xavfsiz sozlagichi', () => {
   test('faqat Resend formatidagi keyni qabul qiladi', () => {
@@ -27,6 +28,21 @@ describe('Resend SMTP xavfsiz sozlagichi', () => {
       expect(result.backupPath).toBeTruthy();
       expect(fs.readFileSync(result.backupPath, 'utf8')).toContain('DATABASE_URL=postgres://db');
     } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test('SMTP tekshiruvchi /tmp ichida ham ENV faylini dependency siz o‘qiydi', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'travelorai-resend-verify-'));
+    const envPath = path.join(directory, '.env');
+    fs.writeFileSync(envPath, 'SMTP_HOST=smtp.resend.com\nSMTP_PORT="465"\n', 'utf8');
+    try {
+      loadEnvFile(envPath);
+      expect(process.env.SMTP_HOST).toBe('smtp.resend.com');
+      expect(process.env.SMTP_PORT).toBe('465');
+    } finally {
+      delete process.env.SMTP_HOST;
+      delete process.env.SMTP_PORT;
       fs.rmSync(directory, { recursive: true, force: true });
     }
   });
