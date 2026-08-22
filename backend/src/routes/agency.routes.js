@@ -85,6 +85,7 @@ router.get('/crm/audit', requireOwner, crm.listAudit);
 
 // Operatsion moliya: kassa/bank, kirim-chiqim, qarzdorlik va bitim foydasi.
 router.get('/crm/finance', finance.listFinance);
+router.get('/crm/finance/exchange-rates', finance.listExchangeRates);
 router.post('/crm/finance/accounts', blockWhenReadOnly, finance.createAccount);
 router.post('/crm/finance/suppliers', blockWhenReadOnly, finance.createSupplier);
 router.patch('/crm/finance/suppliers/:id', blockWhenReadOnly, finance.updateSupplier);

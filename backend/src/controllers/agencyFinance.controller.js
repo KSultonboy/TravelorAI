@@ -2,6 +2,7 @@ const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { ACCOUNT_TYPES, DIRECTIONS, STATUSES, cleanCurrency, optionalDate, positiveAmount, summarizeTransactions } = require('../services/finance.service');
 const { syncManagerCommission, supplierBalances, commissionSummary, paymentCalendar } = require('../services/financeWorkflow.service');
+const { getExchangeRates } = require('../services/exchangeRate.service');
 
 function agencyOr404(req, res) {
   if (!req.agency?.id) { error(res, 'Agentlik topilmadi', 404); return null; }
@@ -131,6 +132,14 @@ async function deleteTransaction(req, res) {
   } catch (err) { return error(res, err.message, 400); }
 }
 
+async function listExchangeRates(req, res) {
+  try {
+    const agency = agencyOr404(req, res); if (!agency) return;
+    const rates = await getExchangeRates({ date: req.query.date, force: req.query.refresh === '1' });
+    return success(res, rates);
+  } catch (err) { return error(res, err.message, 502); }
+}
+
 async function createSupplier(req, res) {
   try {
     const agency = agencyOr404(req, res); if (!agency) return;
@@ -176,4 +185,4 @@ async function saveCommissionRule(req, res) {
   } catch (err) { return error(res, err.message, 400); }
 }
 
-module.exports = { createAccount, createTransaction, createSupplier, deleteTransaction, listFinance, saveCommissionRule, updateSupplier, updateTransaction };
+module.exports = { createAccount, createTransaction, createSupplier, deleteTransaction, listExchangeRates, listFinance, saveCommissionRule, updateSupplier, updateTransaction };

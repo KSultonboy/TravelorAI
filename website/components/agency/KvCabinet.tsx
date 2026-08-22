@@ -2202,6 +2202,10 @@ type FinanceTransaction = {
 };
 type FinanceSupplier = { id: string; name: string; type: string; currency: string; phone?: string; email?: string; paid?: number; payable?: number; overdue?: number };
 type FinanceTeam = { id: string; name: string; role: string; commissionRule?: { percent: number; fixedAmount: number; currency: string; active: boolean } | null };
+type ExchangeRatePayload = {
+  source: string; baseCurrency: "UZS"; effectiveDate: string; fetchedAt: string; cached: boolean; stale?: boolean;
+  rates: { code: string; name: string; nominal: number; rate: number; unitRateUzs: number; difference: number }[];
+};
 type FinancePayload = {
   accounts: FinanceAccount[]; transactions: FinanceTransaction[];
   suppliers: FinanceSupplier[]; team: FinanceTeam[]; supplierBalances: FinanceSupplier[];
@@ -2255,12 +2259,21 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
   const [payLead, setPayLead] = useState<CrmLead | null>(null);
   const [currency, setCurrency] = useState("USD");
   const [finance, setFinance] = useState<FinancePayload | null>(null);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRatePayload | null>(null);
+  const [ratesBusy, setRatesBusy] = useState(false);
+  const [ratesError, setRatesError] = useState("");
   const [entryKind, setEntryKind] = useState<"income" | "expense" | "account" | null>(null);
   async function loadFinance() {
     const result = await agencyApi<FinancePayload>(`/crm/finance?currency=${currency}`);
     if (result.success) setFinance(result.data);
   }
-  useEffect(() => { if (show) void loadFinance(); }, [show, currency]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function loadExchangeRates(refresh = false) {
+    setRatesBusy(true); setRatesError("");
+    const result = await agencyApi<ExchangeRatePayload>(`/crm/finance/exchange-rates${refresh ? "?refresh=1" : ""}`);
+    setRatesBusy(false);
+    if (result.success) setExchangeRates(result.data); else setRatesError(result.message || "Valyuta kurslarini olib bo‘lmadi");
+  }
+  useEffect(() => { if (show) { void loadFinance(); void loadExchangeRates(); } }, [show, currency]); // eslint-disable-line react-hooks/exhaustive-deps
   async function setFinanceStatus(row: FinanceTransaction, status: "paid" | "cancelled") {
     const result = await agencyApi(`/crm/finance/transactions/${row.id}`, { method: "PATCH", body: JSON.stringify({ status }) });
     if (result.success) await loadFinance();
@@ -2287,6 +2300,8 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
       paidCount: completed.length,
     };
   }, [leads]);
+  const selectedRate = currency === "UZS" ? 1 : exchangeRates?.rates.find((row) => row.code === currency)?.unitRateUzs;
+  const headlineRates = ["USD", "EUR", "RUB"].map((code) => exchangeRates?.rates.find((row) => row.code === code)).filter(Boolean) as ExchangeRatePayload["rates"];
   return (
     <section className={`view${show ? " active" : ""}`}>
       <div className="section-head"><div><h2>Moliya</h2><div className="sub">Kassa, bank, kirim-chiqim, supplier qarzi va menejer komissiyasi</div></div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><select value={currency} onChange={(e) => setCurrency(e.target.value)} style={{ width: 90 }}><option>USD</option><option>UZS</option><option>EUR</option></select>{!readOnly ? <><button className="btn btn-ghost btn-sm" onClick={() => void addSupplier()}>+ Hamkor</button><button className="btn btn-ghost btn-sm" onClick={() => setEntryKind("account")}>+ Hisob</button><button className="btn btn-ghost btn-sm" onClick={() => setEntryKind("expense")}>− Chiqim</button><button className="btn btn-primary btn-sm" onClick={() => setEntryKind("income")}>+ Kirim</button></> : null}</div></div>
@@ -2294,6 +2309,18 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
         <div className="card kpi gold"><div className="top"><div className="ico"><Ic d={I.check} s={19} /></div></div><div className="val">{formatCurrencyAmount(finance?.summary.received ?? m.received, currency)}</div><div className="lbl">Jami kirim</div></div>
         <div className="card kpi"><div className="top"><div className="ico"><Ic d={I.clock} s={19} /></div></div><div className="val">{formatCurrencyAmount(finance?.summary.receivable ?? m.pending, currency)}</div><div className="lbl">Mijozlardan olinadi</div></div>
         <div className="card kpi"><div className="top"><div className="ico"><Ic d={I.card} s={19} /></div></div><div className="val">{formatCurrencyAmount(finance?.summary.profit ?? 0, currency)}</div><div className="lbl">Sof pul oqimi</div></div>
+      </div>
+      <div className="card" style={{ padding: 16, marginTop: 12 }}>
+        <div className="section-head" style={{ margin: 0 }}>
+          <div><b>Markaziy bank valyuta kurslari</b><div className="sub">Moliyaviy hisob-kitoblar uchun rasmiy UZS kursi{exchangeRates?.effectiveDate ? ` · ${exchangeRates.effectiveDate}` : ""}</div></div>
+          <button className="btn btn-ghost btn-sm" disabled={ratesBusy} onClick={() => void loadExchangeRates(true)}>{ratesBusy ? "Yangilanmoqda…" : "Kursni yangilash"}</button>
+        </div>
+        {ratesError ? <div className="note" style={{ marginTop: 10, color: "#8f2a20" }}>{ratesError}</div> : null}
+        {headlineRates.length ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+          {headlineRates.map((row) => <span className="badge2 b-grey" key={row.code}>1 {row.code} = <b>{Math.round(row.unitRateUzs).toLocaleString("uz-UZ")} UZS</b> <small style={{ color: row.difference < 0 ? "#b42318" : "var(--primary)" }}>{row.difference > 0 ? "+" : ""}{row.difference.toLocaleString("uz-UZ")}</small></span>)}
+          {selectedRate ? <span className="badge2 b-green">Tanlangan: 1 {currency} = <b>{Math.round(selectedRate).toLocaleString("uz-UZ")} UZS</b></span> : null}
+          {exchangeRates?.stale ? <span className="badge2 b-amber">Oxirgi saqlangan kurs ko‘rsatildi</span> : null}
+        </div> : ratesBusy ? <div className="sub" style={{ marginTop: 10 }}>Kurslar yuklanmoqda…</div> : null}
       </div>
       {finance ? <>
         <div className="grid g3" style={{ marginTop: 12 }}>
