@@ -158,7 +158,7 @@ async function assignLead(req, res) {
     const memberId = req.body?.memberId ? String(req.body.memberId) : null;
     const member = memberId ? await validMember(agency.id, memberId) : null;
     if (memberId && !member) return error(res, 'Xodim topilmadi', 404);
-    const updated = await prisma.tourBooking.update({ where: { id: booking.id }, data: { assignedMemberId: memberId } });
+    const updated = await prisma.tourBooking.update({ where: { id: booking.id }, data: { assignedMemberId: memberId, branchId: member?.branchId || null } });
     await prisma.leadActivity.create({
       data: {
         agencyId: agency.id, bookingId: booking.id, actorAccountId: req.agencyAccount.id,

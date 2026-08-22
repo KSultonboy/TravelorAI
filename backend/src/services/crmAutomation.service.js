@@ -16,7 +16,7 @@ async function assignNextMember(agencyId, client = prisma, force = false) {
   const members = await client.agencyMember.findMany({
     where: { agencyId, status: 'active', role: { in: ['manager', 'agent'] } },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-    select: { id: true, name: true },
+    select: { id: true, name: true, branchId: true },
   });
   if (!members.length) return null;
   const index = Math.abs(settings.roundRobinCursor || 0) % members.length;

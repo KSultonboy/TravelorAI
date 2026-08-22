@@ -16,7 +16,7 @@ async function listFinance(req, res) {
     const from = optionalDate(req.query.from); const to = optionalDate(req.query.to);
     if (from === undefined || to === undefined) return error(res, 'Sana filtri noto‘g‘ri', 400);
     const dateWhere = from || to ? { createdAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {};
-    const [accounts, transactions, suppliers, team] = await Promise.all([
+    const [accounts, transactions, suppliers, team, branches] = await Promise.all([
       prisma.financeAccount.findMany({ where: { agencyId: agency.id, active: true }, orderBy: [{ currency: 'asc' }, { name: 'asc' }] }),
       prisma.financeTransaction.findMany({
         where: { agencyId: agency.id, currency, ...dateWhere },
@@ -31,9 +31,10 @@ async function listFinance(req, res) {
       }),
       prisma.agencySupplier.findMany({ where: { agencyId: agency.id, active: true }, orderBy: { name: 'asc' } }),
       prisma.agencyMember.findMany({ where: { agencyId: agency.id, status: 'active' }, include: { commissionRule: true }, orderBy: { name: 'asc' } }),
+      prisma.agencyBranch.findMany({ where: { agencyId: agency.id, active: true }, orderBy: { name: 'asc' } }),
     ]);
     return success(res, {
-      accounts, transactions, suppliers, team,
+      accounts, transactions, suppliers, team, branches,
       supplierBalances: supplierBalances(suppliers, transactions, currency),
       commissions: commissionSummary(team, transactions, currency),
       calendar: paymentCalendar(transactions),
@@ -49,7 +50,9 @@ async function createAccount(req, res) {
     if (!name) return error(res, 'Hisob nomini kiriting', 400);
     const type = ACCOUNT_TYPES.has(req.body?.type) ? req.body.type : 'cash';
     const openingBalance = Math.max(0, Number.parseInt(req.body?.openingBalance, 10) || 0);
-    const account = await prisma.financeAccount.create({ data: { agencyId: agency.id, name, type, currency: cleanCurrency(req.body?.currency), openingBalance } });
+    const branchId = req.body?.branchId ? String(req.body.branchId) : null;
+    if (branchId && !(await prisma.agencyBranch.findFirst({ where: { id: branchId, agencyId: agency.id, active: true } }))) return error(res, 'Filial topilmadi', 404);
+    const account = await prisma.financeAccount.create({ data: { agencyId: agency.id, branchId, name, type, currency: cleanCurrency(req.body?.currency), openingBalance } });
     return success(res, { account }, 201);
   } catch (err) { return error(res, err.code === 'P2002' ? 'Bu nom va valyutadagi hisob mavjud' : err.message, 400); }
 }
@@ -60,19 +63,23 @@ async function assertRelations(agencyId, body) {
   const businessDocumentId = body.businessDocumentId ? String(body.businessDocumentId) : null;
   const supplierId = body.supplierId ? String(body.supplierId) : null;
   const managerMemberId = body.managerMemberId ? String(body.managerMemberId) : null;
-  const [account, booking, document, supplier, manager] = await Promise.all([
+  const requestedBranchId = body.branchId ? String(body.branchId) : null;
+  const [account, booking, document, supplier, manager, branch] = await Promise.all([
     accountId ? prisma.financeAccount.findFirst({ where: { id: accountId, agencyId, active: true } }) : null,
-    bookingId ? prisma.tourBooking.findFirst({ where: { id: bookingId, agencyId } }) : null,
+    bookingId ? prisma.tourBooking.findFirst({ where: { id: bookingId, agencyId }, include: { assignedMember: { select: { branchId: true } } } }) : null,
     businessDocumentId ? prisma.businessDocument.findFirst({ where: { id: businessDocumentId, agencyId } }) : null,
     supplierId ? prisma.agencySupplier.findFirst({ where: { id: supplierId, agencyId, active: true } }) : null,
     managerMemberId ? prisma.agencyMember.findFirst({ where: { id: managerMemberId, agencyId, status: 'active' } }) : null,
+    requestedBranchId ? prisma.agencyBranch.findFirst({ where: { id: requestedBranchId, agencyId, active: true } }) : null,
   ]);
   if (accountId && !account) throw new Error('Hisob topilmadi');
   if (bookingId && !booking) throw new Error('Lid topilmadi');
   if (businessDocumentId && !document) throw new Error('Hujjat topilmadi');
   if (supplierId && !supplier) throw new Error('Hamkor topilmadi');
   if (managerMemberId && !manager) throw new Error('Menejer topilmadi');
-  return { accountId, bookingId, businessDocumentId, supplierId, managerMemberId };
+  if (requestedBranchId && !branch) throw new Error('Filial topilmadi');
+  const branchId = requestedBranchId || booking?.branchId || booking?.assignedMember?.branchId || manager?.branchId || account?.branchId || null;
+  return { accountId, bookingId, businessDocumentId, supplierId, managerMemberId, branchId };
 }
 
 async function createTransaction(req, res) {

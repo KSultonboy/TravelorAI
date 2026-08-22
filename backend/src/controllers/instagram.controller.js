@@ -195,6 +195,7 @@ async function handleMessage(agency, event) {
         status: 'pending',
         pipelineStage: 'new',
         assignedMemberId: autoMember?.id || null,
+        branchId: autoMember?.branchId || null,
       },
     });
   }

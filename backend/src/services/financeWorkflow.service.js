@@ -10,7 +10,7 @@ async function syncManagerCommission(db, source) {
 
   const booking = await db.tourBooking.findFirst({
     where: { id: source.bookingId, agencyId: source.agencyId },
-    select: { assignedMemberId: true, assignedMember: { select: { name: true, commissionRule: true } } },
+    select: { branchId: true, assignedMemberId: true, assignedMember: { select: { name: true, branchId: true, commissionRule: true } } },
   });
   const rule = booking?.assignedMember?.commissionRule;
   if (!booking?.assignedMemberId || !rule?.active || rule.currency !== source.currency) return null;
@@ -18,6 +18,7 @@ async function syncManagerCommission(db, source) {
   if (!amount) return null;
   const data = {
     agencyId: source.agencyId,
+    branchId: source.branchId || booking.branchId || booking.assignedMember.branchId || null,
     bookingId: source.bookingId,
     managerMemberId: booking.assignedMemberId,
     commissionSourceId: source.id,

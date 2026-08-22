@@ -13,6 +13,7 @@ const leadFiles = require('../controllers/leadFiles.controller');
 const clickPay = require('../controllers/clickPayment.controller');
 const crm = require('../controllers/agencyCrm.controller');
 const finance = require('../controllers/agencyFinance.controller');
+const executive = require('../controllers/agencyExecutive.controller');
 const reconciliation = require('../controllers/agencyReconciliation.controller');
 const automation = require('../controllers/agencyAutomation.controller');
 const integrations = require('../controllers/agencyIntegration.controller');
@@ -121,6 +122,13 @@ router.put('/crm/finance/commission-rules/:memberId', blockWhenReadOnly, require
 router.post('/crm/finance/transactions', blockWhenReadOnly, finance.createTransaction);
 router.patch('/crm/finance/transactions/:id', blockWhenReadOnly, finance.updateTransaction);
 router.delete('/crm/finance/transactions/:id', blockWhenReadOnly, requireOwner, finance.deleteTransaction);
+
+// Rahbar paneli: real P&L, 12 haftalik cashflow, payroll va filiallar kesimi.
+router.get('/crm/executive-report', requireOwner, executive.executiveReport);
+router.post('/crm/branches', blockWhenReadOnly, requireOwner, executive.createBranch);
+router.patch('/crm/branches/:id', blockWhenReadOnly, requireOwner, executive.updateBranch);
+router.put('/crm/branches/members/:memberId', blockWhenReadOnly, requireOwner, executive.assignMemberBranch);
+router.put('/crm/payroll/:memberId', blockWhenReadOnly, requireOwner, executive.savePayrollProfile);
 
 // Hujjat reyestri: status, versiya tarixi va invoice-to'lov bog'lanishi.
 router.get('/crm/business-documents', documents.listDocuments);

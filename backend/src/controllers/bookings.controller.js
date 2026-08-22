@@ -133,6 +133,7 @@ async function create(req, res) {
         status: 'pending',
         responseDeadlineAt,
         assignedMemberId: autoMember?.id || null,
+        branchId: autoMember?.branchId || null,
       },
       include: { tour: true, agency: { include: { ownerAccount: true } } },
     });

@@ -42,6 +42,7 @@ import {
   type DocTemplates,
 } from "@/lib/agency/documents";
 import { AuditPage, AutomationPage, CsvImportPage, InsightsPage, IntegrationPage, WhatsAppPage } from "./CrmCompetitionPages";
+import { ExecutiveReportsPage } from "./ExecutiveReportsPage";
 
 /* ---- tiny inline icons ---- */
 const I = {
@@ -678,7 +679,7 @@ export default function KvCabinet() {
                 <Presentations show={view === "presentations"} items={presentations} leads={leads} tours={tours} reload={reloadPresentations} readOnly={readOnly} />
                 <Reviews show={view === "reviews"} readOnly={readOnly} />
                 <Payments show={view === "payments"} leads={leads} move={guardedMove} busyId={busyId} readOnly={readOnly} canExport={canExport} />
-                <Reports show={view === "reports"} leads={leads} />
+                <ExecutiveReportsPage show={view === "reports"} readOnly={readOnly} />
                 <InsightsPage show={view === "insights"} readOnly={readOnly} />
                 <AutomationPage show={view === "automation"} readOnly={readOnly} />
                 <IntegrationPage show={view === "api-webhooks"} readOnly={readOnly} />
@@ -2223,25 +2224,27 @@ type ReconciliationPayload = { imports: BankStatementImport[]; activeImport?: Ba
 type BankCsvInspect = { headers: string[]; sample: string[][]; suggestedMapping: Record<string, string>; delimiter: string; errors: string[] };
 type FinancePayload = {
   accounts: FinanceAccount[]; transactions: FinanceTransaction[];
+  branches: { id: string; name: string; city?: string | null }[];
   suppliers: FinanceSupplier[]; team: FinanceTeam[]; supplierBalances: FinanceSupplier[];
   commissions: { memberId: string; name: string; role: string; accrued: number; paid: number; payable: number; rule?: FinanceTeam["commissionRule"] }[];
   calendar: { id: string; dueAt: string; direction: "income" | "expense"; amount: number; currency: string; category: string; counterparty?: string }[];
   summary: { currency: string; received: number; spent: number; profit: number; receivable: number; payable: number; overdue: number; accountBalances: { id: string; name: string; type: string; currency: string; balance: number }[] };
 };
 
-function FinanceEntryModal({ kind, currency, accounts, leads, suppliers, team, onClose, onSaved }: {
-  kind: "income" | "expense" | "account"; currency: string; accounts: FinanceAccount[]; leads: CrmLead[]; suppliers: FinanceSupplier[]; team: FinanceTeam[];
+function FinanceEntryModal({ kind, currency, accounts, leads, suppliers, team, branches, onClose, onSaved }: {
+  kind: "income" | "expense" | "account"; currency: string; accounts: FinanceAccount[]; leads: CrmLead[]; suppliers: FinanceSupplier[]; team: FinanceTeam[]; branches: { id: string; name: string }[];
   onClose: () => void; onSaved: () => Promise<void>;
 }) {
   const [amount, setAmount] = useState(""); const [name, setName] = useState(""); const [category, setCategory] = useState(kind === "income" ? "Mijoz to'lovi" : "Operatsion xarajat");
   const [status, setStatus] = useState("paid"); const [accountId, setAccountId] = useState(""); const [bookingId, setBookingId] = useState("");
   const [supplierId, setSupplierId] = useState(""); const [managerMemberId, setManagerMemberId] = useState("");
+  const [branchId, setBranchId] = useState("");
   const [dueAt, setDueAt] = useState(""); const [note, setNote] = useState(""); const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
   async function save(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setErr("");
     const result = kind === "account"
-      ? await agencyApi("/crm/finance/accounts", { method: "POST", body: JSON.stringify({ name, type: "cash", currency, openingBalance: amount || 0 }) })
-      : await agencyApi("/crm/finance/transactions", { method: "POST", body: JSON.stringify({ direction: kind, status, amount, currency, category, accountId: accountId || null, bookingId: bookingId || null, supplierId: supplierId || null, managerMemberId: managerMemberId || null, counterparty: name || null, dueAt: dueAt || null, note }) });
+      ? await agencyApi("/crm/finance/accounts", { method: "POST", body: JSON.stringify({ name, type: "cash", currency, openingBalance: amount || 0, branchId: branchId || null }) })
+      : await agencyApi("/crm/finance/transactions", { method: "POST", body: JSON.stringify({ direction: kind, status, amount, currency, category, accountId: accountId || null, bookingId: bookingId || null, supplierId: supplierId || null, managerMemberId: managerMemberId || null, branchId: branchId || null, counterparty: name || null, dueAt: dueAt || null, note }) });
     setBusy(false);
     if (!result.success) { setErr(result.message || "Saqlab bo'lmadi"); return; }
     await onSaved(); onClose();
@@ -2254,6 +2257,7 @@ function FinanceEntryModal({ kind, currency, accounts, leads, suppliers, team, o
         <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div className="fld" style={{ gridColumn: kind === "account" ? "1 / -1" : undefined }}><label>{kind === "account" ? "Hisob nomi" : "Kontragent"}</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder={kind === "account" ? "Masalan: Asosiy kassa" : "Mijoz yoki hamkor nomi"} required={kind === "account"} /></div>
           <div className="fld"><label>{kind === "account" ? "Boshlang'ich qoldiq" : "Summa"} ({currency})</label><input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))} required={kind !== "account"} /></div>
+          <div className="fld"><label>Filial</label><select value={branchId} onChange={(e) => setBranchId(e.target.value)}><option value="">Biriktirilmagan</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
           {kind !== "account" ? <>
             <div className="fld"><label>Kategoriya</label><input value={category} onChange={(e) => setCategory(e.target.value)} required /></div>
             <div className="fld"><label>Holat</label><select value={status} onChange={(e) => setStatus(e.target.value)}><option value="paid">To'langan</option><option value="planned">Rejalashtirilgan</option></select></div>
@@ -2425,7 +2429,7 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
         <PayConfirm lead={payLead} onClose={() => setPayLead(null)}
           onConfirm={async (amount) => { await agencyApi(`/bookings/${payLead.id}`, { method: "PATCH", body: JSON.stringify({ paidAmount: amount === "" ? null : amount }) }); await move(payLead, "completed"); }} />
       ) : null}
-      {entryKind ? <FinanceEntryModal kind={entryKind} currency={currency} accounts={finance?.accounts || []} leads={leads} suppliers={finance?.suppliers || []} team={finance?.team || []} onClose={() => setEntryKind(null)} onSaved={loadFinance} /> : null}
+      {entryKind ? <FinanceEntryModal kind={entryKind} currency={currency} accounts={finance?.accounts || []} leads={leads} suppliers={finance?.suppliers || []} team={finance?.team || []} branches={finance?.branches || []} onClose={() => setEntryKind(null)} onSaved={loadFinance} /> : null}
       {statementOpen ? <BankStatementImportModal currency={currency} accounts={finance?.accounts || []} onClose={() => setStatementOpen(false)} onImported={async () => { await Promise.all([loadFinance(), loadReconciliation()]); }} /> : null}
     </section>
   );

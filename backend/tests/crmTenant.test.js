@@ -47,7 +47,7 @@ test('shu agentlik xodimini biriktiradi va faoliyatga yozadi', async () => {
   };
   const res = response();
   await assignLead(req, res);
-  expect(mockPrisma.tourBooking.update).toHaveBeenCalledWith({ where: { id: 'lead-a' }, data: { assignedMemberId: 'member-a' } });
+  expect(mockPrisma.tourBooking.update).toHaveBeenCalledWith({ where: { id: 'lead-a' }, data: { assignedMemberId: 'member-a', branchId: null } });
   expect(mockPrisma.leadActivity.create).toHaveBeenCalled();
   expect(res.body.success).toBe(true);
 });

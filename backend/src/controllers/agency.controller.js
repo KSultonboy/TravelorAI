@@ -1121,6 +1121,7 @@ async function createManualLead(req, res) {
         status: 'pending',
         pipelineStage: 'new',
         assignedMemberId: autoMember?.id || null,
+        branchId: autoMember?.branchId || null,
       },
       include: { tour: true, agency: true },
     });

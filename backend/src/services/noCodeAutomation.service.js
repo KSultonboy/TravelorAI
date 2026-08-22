@@ -122,7 +122,7 @@ async function executeAction(run, action, entity, context) {
     const member = await assignNextMember(run.agencyId, prisma, true);
     if (!member) throw new Error('Faol menejer topilmadi');
     await prisma.$transaction([
-      prisma.tourBooking.update({ where: { id: lead.id }, data: { assignedMemberId: member.id } }),
+      prisma.tourBooking.update({ where: { id: lead.id }, data: { assignedMemberId: member.id, branchId: member.branchId || null } }),
       prisma.leadActivity.create({ data: { agencyId: run.agencyId, bookingId: lead.id, type: 'assignment', text: `Avtomatizatsiya menejer biriktirdi: ${member.name}`, externalId: `automation:${run.id}:${action.id}` } }),
     ]);
     return { actionId: action.id, type: action.type, memberId: member.id, memberName: member.name };

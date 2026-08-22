@@ -115,16 +115,20 @@ model AgencyMember {
   name                String
   role                String                 @default("agent") // manager | agent | accountant (owner emas — u ownerAccountId)
   status              String                 @default("active")
+  branchId            String?
+  branch              AgencyBranch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
   assignedBookings    TourBooking[]          @relation("AssignedLeadManager")
   assignedTasks       CrmTask[]              @relation("AssignedTaskManager")
   commissionRule      ManagerCommissionRule?
+  payrollProfile      ManagerPayrollProfile?
   financeTransactions FinanceTransaction[]
 
   @@unique([agencyId, accountId])
   @@index([agencyId])
   @@index([accountId])
+  @@index([agencyId, branchId])
 }
 
 model AgencyAuthCode {
@@ -480,6 +484,8 @@ model TourAgency {
   publicApiKeys           PublicApiKey[]
   webhookEndpoints        WebhookEndpoint[]
   webhookEvents           WebhookEvent[]
+  branches                AgencyBranch[]
+  managerPayrollProfiles  ManagerPayrollProfile[]
 
   @@index([active])
   @@index([tariffId])
@@ -706,6 +712,8 @@ model TourBooking {
   reviewAwaitingText  Boolean              @default(false) // baho berildi, keyingi xabar sharh matni
   assignedMemberId    String?
   assignedMember      AgencyMember?        @relation("AssignedLeadManager", fields: [assignedMemberId], references: [id], onDelete: SetNull)
+  branchId            String?
+  branch              AgencyBranch?        @relation(fields: [branchId], references: [id], onDelete: SetNull)
   firstResponseAt     DateTime?
   slaBreachedAt       DateTime?
   slaReminderAt       DateTime?
@@ -725,6 +733,7 @@ model TourBooking {
   @@index([status, createdAt])
   @@index([customerEmail])
   @@index([agencyId, assignedMemberId])
+  @@index([agencyId, branchId])
   @@index([instagramUserId])
   @@index([whatsappWaId])
   @@index([agencyId, firstResponseAt, createdAt])
@@ -1035,6 +1044,8 @@ model FinanceAccount {
   id               String                @id @default(cuid())
   agencyId         String
   agency           TourAgency            @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  branchId         String?
+  branch           AgencyBranch?         @relation(fields: [branchId], references: [id], onDelete: SetNull)
   name             String
   type             String                @default("cash") // cash | bank | card | wallet
   currency         String                @default("USD")
@@ -1047,6 +1058,7 @@ model FinanceAccount {
 
   @@unique([agencyId, name, currency])
   @@index([agencyId, active])
+  @@index([agencyId, branchId])
 }
 
 // Agentlikning operatsion moliyasi. direction kirim/chiqimni, status esa
@@ -1055,6 +1067,8 @@ model FinanceTransaction {
   id                     String                   @id @default(cuid())
   agencyId               String
   agency                 TourAgency               @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  branchId               String?
+  branch                 AgencyBranch?            @relation(fields: [branchId], references: [id], onDelete: SetNull)
   accountId              String?
   account                FinanceAccount?          @relation(fields: [accountId], references: [id], onDelete: SetNull)
   bookingId              String?
@@ -1090,6 +1104,28 @@ model FinanceTransaction {
   @@index([businessDocumentId])
   @@index([supplierId])
   @@index([managerMemberId])
+  @@index([agencyId, branchId])
+}
+
+// Agentlikning bir yoki bir nechta savdo nuqtasi. Asosiy filial ham oddiy
+// yozuv bo'lib qoladi, shuning uchun dashboarddagi hisob tarixiy va aniq.
+model AgencyBranch {
+  id                  String               @id @default(cuid())
+  agencyId            String
+  agency              TourAgency           @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name                String
+  city                String?
+  address             String?
+  active              Boolean              @default(true)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  members             AgencyMember[]
+  bookings            TourBooking[]
+  financeAccounts     FinanceAccount[]
+  financeTransactions FinanceTransaction[]
+
+  @@unique([agencyId, name])
+  @@index([agencyId, active])
 }
 
 // Bank CSV ko‘chirmasi importi. Mapping va sarlavhalar saqlanadi, shuning uchun
@@ -1183,6 +1219,25 @@ model ManagerCommissionRule {
   percent     Float        @default(0)
   fixedAmount Int          @default(0)
   currency    String       @default("USD")
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([agencyId, active])
+}
+
+// Menejer oyligi: bazaviy maosh va har bir yopilgan bitim uchun bonus.
+// Foiz/fixed komissiya alohida ManagerCommissionRule orqali hisoblanadi.
+model ManagerPayrollProfile {
+  id          String       @id @default(cuid())
+  agencyId    String
+  agency      TourAgency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  memberId    String       @unique
+  member      AgencyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  baseSalary  Int          @default(0)
+  bonusPerWon Int          @default(0)
+  currency    String       @default("USD")
+  payoutDay   Int          @default(5)
   active      Boolean      @default(true)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
