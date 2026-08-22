@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useAgencySession } from "@/lib/agency/session";
 import { useCrm } from "@/lib/agency/useCrm";
 import { onExternalClick, openExternal, saveFile } from "@/lib/agency/external";
@@ -1300,19 +1300,29 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
 }
 
 function PipelineStageManager({ stages, leads, reloadCrm, onClose }: { stages: PipelineStageDefinition[]; leads: CrmLead[]; reloadCrm?: () => Promise<void>; onClose: () => void }) {
+  const [orderOverride, setOrderOverride] = useState<string[] | null>(null);
   const [drafts, setDrafts] = useState<Record<string, { name: string; color: string }>>(() => Object.fromEntries(stages.map((stage) => [stage.id, { name: stage.name, color: stage.color }])));
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState("#7C3AED");
   const [deleteId, setDeleteId] = useState("");
   const [targetStageId, setTargetStageId] = useState("");
+  const [dragId, setDragId] = useState("");
+  const [dropTarget, setDropTarget] = useState<{ id: string; side: "before" | "after" } | null>(null);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  const orderedStages = useMemo(() => {
+    if (!orderOverride) return stages;
+    const byId = new Map(stages.map((stage) => [stage.id, stage]));
+    const ordered = orderOverride.map((id) => byId.get(id)).filter((stage): stage is PipelineStageDefinition => !!stage);
+    const included = new Set(ordered.map((stage) => stage.id));
+    return [...ordered, ...stages.filter((stage) => !included.has(stage.id))];
+  }, [orderOverride, stages]);
   const leadCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const lead of leads) counts[lead.stage] = (counts[lead.stage] || 0) + 1;
     return counts;
   }, [leads]);
-  const deleting = stages.find((stage) => stage.id === deleteId);
+  const deleting = orderedStages.find((stage) => stage.id === deleteId);
 
   function draft(stage: PipelineStageDefinition) { return drafts[stage.id] || { name: stage.name, color: stage.color }; }
   function setDraft(stage: PipelineStageDefinition, patch: Partial<{ name: string; color: string }>) {
@@ -1334,18 +1344,61 @@ function PipelineStageManager({ stages, leads, reloadCrm, onClose }: { stages: P
     if (!result.success) setErr(result.message || "Ustun saqlanmadi."); else await changed();
     setBusy("");
   }
-  async function moveStage(index: number, delta: number) {
-    const next = index + delta;
-    if (next < 0 || next >= stages.length) return;
-    const ids = stages.map((stage) => stage.id);
-    [ids[index], ids[next]] = [ids[next], ids[index]];
+  async function persistOrder(nextStages: PipelineStageDefinition[], previousStages: PipelineStageDefinition[]) {
+    setOrderOverride(nextStages.map((stage) => stage.id));
     setBusy("reorder"); setErr("");
-    const result = await agencyApi("/crm/pipeline-stages/reorder", { method: "PUT", body: JSON.stringify({ ids }) });
-    if (!result.success) setErr(result.message || "Tartib saqlanmadi."); else await changed();
+    const result = await agencyApi("/crm/pipeline-stages/reorder", { method: "PUT", body: JSON.stringify({ ids: nextStages.map((stage) => stage.id) }) });
+    if (!result.success) {
+      setOrderOverride(previousStages.map((stage) => stage.id));
+      setErr(result.message || "Tartib saqlanmadi.");
+    } else {
+      await changed();
+      setOrderOverride(null);
+    }
     setBusy("");
   }
+  async function moveStage(index: number, delta: number) {
+    const next = index + delta;
+    if (next < 0 || next >= orderedStages.length || busy) return;
+    const reordered = [...orderedStages];
+    [reordered[index], reordered[next]] = [reordered[next], reordered[index]];
+    await persistOrder(reordered, orderedStages);
+  }
+  function startDrag(event: DragEvent<HTMLButtonElement>, stageId: string) {
+    if (busy) { event.preventDefault(); return; }
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", stageId);
+    setDragId(stageId);
+    setDropTarget(null);
+  }
+  function dragOver(event: DragEvent<HTMLDivElement>, stageId: string) {
+    if (!dragId || dragId === stageId || busy) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setDropTarget({ id: stageId, side: event.clientY < bounds.top + bounds.height / 2 ? "before" : "after" });
+  }
+  async function dropStage(event: DragEvent<HTMLDivElement>, targetId: string) {
+    event.preventDefault();
+    const sourceId = dragId || event.dataTransfer.getData("text/plain");
+    const side = dropTarget?.id === targetId ? dropTarget.side : "before";
+    setDragId(""); setDropTarget(null);
+    if (!sourceId || sourceId === targetId || busy) return;
+    const source = orderedStages.find((stage) => stage.id === sourceId);
+    if (!source) return;
+    const reordered = orderedStages.filter((stage) => stage.id !== sourceId);
+    const targetIndex = reordered.findIndex((stage) => stage.id === targetId);
+    if (targetIndex < 0) return;
+    reordered.splice(targetIndex + (side === "after" ? 1 : 0), 0, source);
+    if (reordered.every((stage, index) => stage.id === orderedStages[index]?.id)) return;
+    await persistOrder(reordered, orderedStages);
+  }
+  function endDrag() {
+    setDragId("");
+    setDropTarget(null);
+  }
   function askDelete(stage: PipelineStageDefinition) {
-    const target = stages.find((item) => item.id !== stage.id);
+    const target = orderedStages.find((item) => item.id !== stage.id);
     setDeleteId(stage.id); setTargetStageId(target?.id || ""); setErr("");
   }
   async function removeStage() {
@@ -1360,17 +1413,22 @@ function PipelineStageManager({ stages, leads, reloadCrm, onClose }: { stages: P
   return <div className="ld-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <div className="card pipeline-manager" role="dialog" aria-modal="true" aria-label="Kanban ustunlari">
       <button className="ld-x" onClick={onClose} aria-label="Yopish">×</button>
-      <div className="section-head"><div><h2>Kanban ustunlari</h2><div className="sub">Nom, rang va tartibni agentlik ish jarayoniga moslang.</div></div><span className="badge2 b-grey">{stages.length}/12</span></div>
+      <div className="section-head"><div><h2>Kanban ustunlari</h2><div className="sub">Ustunni tutib suring yoki strelkalar bilan tartiblang. Nom va rangni ham shu yerda o‘zgartiring.</div></div><span className="badge2 b-grey">{orderedStages.length}/12</span></div>
       {err ? <div className="note note-err">{err}</div> : null}
       <div className="pipeline-stage-list">
-        {stages.map((stage, index) => {
+        {orderedStages.map((stage, index) => {
           const value = draft(stage);
-          return <div className="pipeline-stage-row" key={stage.id}>
+          const dropClass = dropTarget?.id === stage.id ? ` drop-${dropTarget.side}` : "";
+          return <div className={`pipeline-stage-row${dragId === stage.id ? " is-dragging" : ""}${dropClass}`} key={stage.id}
+            onDragOver={(event) => dragOver(event, stage.id)} onDrop={(event) => void dropStage(event, stage.id)}>
+            <button className="pipeline-drag-handle" type="button" draggable={!busy} disabled={!!busy}
+              onDragStart={(event) => startDrag(event, stage.id)} onDragEnd={endDrag}
+              aria-label={`${stage.name} ustunini tutib ko‘chirish`} title="Tutib yuqoriga yoki pastga suring"><span aria-hidden="true">⋮⋮</span></button>
             <input className="pipeline-color" type="color" value={value.color} onChange={(event) => setDraft(stage, { color: event.target.value.toUpperCase() })} aria-label={`${stage.name} rangi`} />
             <div className="pipeline-stage-main"><input value={value.name} maxLength={50} onChange={(event) => setDraft(stage, { name: event.target.value })} aria-label="Ustun nomi" /><small>{leadCounts[stage.key] || 0} ta lid{stage.isSystem ? " · asosiy ustun" : ""}</small></div>
             <div className="pipeline-stage-actions">
               <button className="btn btn-ghost btn-sm" disabled={!!busy || index === 0} onClick={() => void moveStage(index, -1)} aria-label="Chapga surish">←</button>
-              <button className="btn btn-ghost btn-sm" disabled={!!busy || index === stages.length - 1} onClick={() => void moveStage(index, 1)} aria-label="O‘ngga surish">→</button>
+              <button className="btn btn-ghost btn-sm" disabled={!!busy || index === orderedStages.length - 1} onClick={() => void moveStage(index, 1)} aria-label="O‘ngga surish">→</button>
               <button className="btn btn-ghost btn-sm" disabled={!!busy || !value.name.trim()} onClick={() => void saveStage(stage)}>{busy === stage.id ? "…" : "Saqlash"}</button>
               {!stage.isSystem ? <button className="btn btn-ghost btn-sm pipeline-delete" disabled={!!busy} onClick={() => askDelete(stage)}>O‘chirish</button> : null}
             </div>
@@ -1380,12 +1438,12 @@ function PipelineStageManager({ stages, leads, reloadCrm, onClose }: { stages: P
       {deleting ? <div className="pipeline-delete-box">
         <b>“{deleting.name}” ustunini o‘chirish</b>
         <span>Undagi {leadCounts[deleting.key] || 0} ta lid qaysi ustunga ko‘chirilsin?</span>
-        <div><select value={targetStageId} onChange={(event) => setTargetStageId(event.target.value)}>{stages.filter((stage) => stage.id !== deleting.id).map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select><button className="btn btn-ghost btn-sm" onClick={() => setDeleteId("")}>Bekor qilish</button><button className="btn btn-primary btn-sm" disabled={!targetStageId || !!busy} onClick={() => void removeStage()}>{busy === `delete:${deleting.id}` ? "Ko‘chirilmoqda…" : "Ko‘chirish va o‘chirish"}</button></div>
+        <div><select value={targetStageId} onChange={(event) => setTargetStageId(event.target.value)}>{orderedStages.filter((stage) => stage.id !== deleting.id).map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select><button className="btn btn-ghost btn-sm" onClick={() => setDeleteId("")}>Bekor qilish</button><button className="btn btn-primary btn-sm" disabled={!targetStageId || !!busy} onClick={() => void removeStage()}>{busy === `delete:${deleting.id}` ? "Ko‘chirilmoqda…" : "Ko‘chirish va o‘chirish"}</button></div>
       </div> : null}
       <div className="pipeline-add">
         <input type="color" value={newColor} onChange={(event) => setNewColor(event.target.value.toUpperCase())} aria-label="Yangi ustun rangi" />
         <input value={newName} maxLength={50} onChange={(event) => setNewName(event.target.value)} placeholder="Yangi ustun nomi, masalan: Shartnoma" onKeyDown={(event) => { if (event.key === "Enter") void createStage(); }} />
-        <button className="btn btn-primary btn-sm" disabled={!!busy || !newName.trim() || stages.length >= 12} onClick={() => void createStage()}>{busy === "create" ? "Yaratilmoqda…" : "Ustun qo‘shish"}</button>
+        <button className="btn btn-primary btn-sm" disabled={!!busy || !newName.trim() || orderedStages.length >= 12} onClick={() => void createStage()}>{busy === "create" ? "Yaratilmoqda…" : "Ustun qo‘shish"}</button>
       </div>
     </div>
   </div>;
