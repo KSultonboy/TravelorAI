@@ -82,6 +82,9 @@ function Ic({ d, s = 18 }: { d: string; s?: number }) {
 function initials(name: string) {
   return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 }
+function formatCurrencyAmount(value: number | null | undefined, currency = "USD") {
+  return new Intl.NumberFormat("uz-UZ", { style: "currency", currency, maximumFractionDigits: 0 }).format(value || 0);
+}
 type DueKind = "overdue" | "today" | "soon" | "far" | "none";
 function dueInfo(dueAt?: string): { kind: DueKind; label: string; cls: string } {
   if (!dueAt) return { kind: "none", label: "Muddatsiz", cls: "b-grey" };
@@ -675,7 +678,7 @@ export default function KvCabinet() {
                 <InsightsPage show={view === "insights"} readOnly={readOnly} />
                 <CsvImportPage show={view === "csv-import"} readOnly={readOnly} onImported={refreshBookings} />
                 <AuditPage show={view === "audit"} />
-                <DocumentsSection show={view === "documents"} agencyId={agencyId} readOnly={readOnly} />
+                <DocumentsSection show={view === "documents"} agencyId={agencyId} leads={leads} readOnly={readOnly} />
                 <Settings show={view === "settings"} agency={agency} agencyId={agencyId} refresh={refresh} logout={logout} go={setView} access={access} readOnly={readOnly} caps={caps} />
                 <TelegramPage show={view === "telegram"} leads={leads} go={setView} readOnly={readOnly} />
                 <InstagramPage show={view === "instagram"} go={setView} readOnly={readOnly} />
@@ -2177,8 +2180,71 @@ function PayConfirm({ lead, onClose, onConfirm }: { lead: CrmLead; onClose: () =
     </div>
   );
 }
+
+type FinanceAccount = { id: string; name: string; type: string; currency: string; openingBalance: number };
+type FinanceTransaction = {
+  id: string; direction: "income" | "expense"; status: "planned" | "paid" | "cancelled"; category: string;
+  amount: number; currency: string; counterparty?: string; dueAt?: string; paidAt?: string; note?: string;
+  account?: { id: string; name: string } | null; booking?: { id: string; customerName: string } | null;
+  businessDocument?: { id: string; number: string } | null;
+};
+type FinancePayload = {
+  accounts: FinanceAccount[]; transactions: FinanceTransaction[];
+  summary: { currency: string; received: number; spent: number; profit: number; receivable: number; payable: number; overdue: number; accountBalances: { id: string; name: string; type: string; currency: string; balance: number }[] };
+};
+
+function FinanceEntryModal({ kind, currency, accounts, leads, onClose, onSaved }: {
+  kind: "income" | "expense" | "account"; currency: string; accounts: FinanceAccount[]; leads: CrmLead[];
+  onClose: () => void; onSaved: () => Promise<void>;
+}) {
+  const [amount, setAmount] = useState(""); const [name, setName] = useState(""); const [category, setCategory] = useState(kind === "income" ? "Mijoz to'lovi" : "Operatsion xarajat");
+  const [status, setStatus] = useState("paid"); const [accountId, setAccountId] = useState(""); const [bookingId, setBookingId] = useState("");
+  const [dueAt, setDueAt] = useState(""); const [note, setNote] = useState(""); const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  async function save(e: React.FormEvent) {
+    e.preventDefault(); setBusy(true); setErr("");
+    const result = kind === "account"
+      ? await agencyApi("/crm/finance/accounts", { method: "POST", body: JSON.stringify({ name, type: "cash", currency, openingBalance: amount || 0 }) })
+      : await agencyApi("/crm/finance/transactions", { method: "POST", body: JSON.stringify({ direction: kind, status, amount, currency, category, accountId: accountId || null, bookingId: bookingId || null, counterparty: name || null, dueAt: dueAt || null, note }) });
+    setBusy(false);
+    if (!result.success) { setErr(result.message || "Saqlab bo'lmadi"); return; }
+    await onSaved(); onClose();
+  }
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(11,42,30,.42)", backdropFilter: "blur(3px)", zIndex: 70, display: "grid", placeItems: "center", padding: 16 }} onClick={onClose}>
+      <form className="card" style={{ width: "min(520px,100%)", padding: 22 }} onSubmit={save} onClick={(e) => e.stopPropagation()}>
+        <div className="section-head" style={{ margin: "0 0 14px" }}><div><h2>{kind === "account" ? "Yangi kassa yoki hisob" : kind === "income" ? "Kirim qo'shish" : "Chiqim qo'shish"}</h2></div></div>
+        {err ? <div className="note" style={{ marginBottom: 12, color: "#8f2a20" }}>{err}</div> : null}
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div className="fld" style={{ gridColumn: kind === "account" ? "1 / -1" : undefined }}><label>{kind === "account" ? "Hisob nomi" : "Kontragent"}</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder={kind === "account" ? "Masalan: Asosiy kassa" : "Mijoz yoki hamkor nomi"} required={kind === "account"} /></div>
+          <div className="fld"><label>{kind === "account" ? "Boshlang'ich qoldiq" : "Summa"} ({currency})</label><input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))} required={kind !== "account"} /></div>
+          {kind !== "account" ? <>
+            <div className="fld"><label>Kategoriya</label><input value={category} onChange={(e) => setCategory(e.target.value)} required /></div>
+            <div className="fld"><label>Holat</label><select value={status} onChange={(e) => setStatus(e.target.value)}><option value="paid">To'langan</option><option value="planned">Rejalashtirilgan</option></select></div>
+            <div className="fld"><label>Kassa / hisob</label><select value={accountId} onChange={(e) => setAccountId(e.target.value)}><option value="">Biriktirilmagan</option>{accounts.filter((a) => a.currency === currency).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+            <div className="fld"><label>Lid / bitim</label><select value={bookingId} onChange={(e) => setBookingId(e.target.value)}><option value="">Biriktirilmagan</option>{leads.map((l) => <option key={l.id} value={l.id}>{l.customerName} — {l.tourTitle || "tur"}</option>)}</select></div>
+            {status === "planned" ? <div className="fld"><label>To'lov muddati</label><input type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} /></div> : null}
+            <div className="fld" style={{ gridColumn: "1 / -1" }}><label>Izoh</label><textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} /></div>
+          </> : null}
+        </div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}><button type="button" className="btn btn-ghost" onClick={onClose}>Bekor</button><button className="btn btn-primary" disabled={busy}>{busy ? "Saqlanmoqda…" : "Saqlash"}</button></div>
+      </form>
+    </div>
+  );
+}
 function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
   const [payLead, setPayLead] = useState<CrmLead | null>(null);
+  const [currency, setCurrency] = useState("USD");
+  const [finance, setFinance] = useState<FinancePayload | null>(null);
+  const [entryKind, setEntryKind] = useState<"income" | "expense" | "account" | null>(null);
+  async function loadFinance() {
+    const result = await agencyApi<FinancePayload>(`/crm/finance?currency=${currency}`);
+    if (result.success) setFinance(result.data);
+  }
+  useEffect(() => { if (show) void loadFinance(); }, [show, currency]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function setFinanceStatus(row: FinanceTransaction, status: "paid" | "cancelled") {
+    const result = await agencyApi(`/crm/finance/transactions/${row.id}`, { method: "PATCH", body: JSON.stringify({ status }) });
+    if (result.success) await loadFinance();
+  }
   const m = useMemo(() => {
     const paid = leads.filter((l: CrmLead) => l.stage === "won" || l.stage === "completed");
     const completed = leads.filter((l: CrmLead) => l.stage === "completed");
@@ -2192,12 +2258,25 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
   }, [leads]);
   return (
     <section className={`view${show ? " active" : ""}`}>
-      <div className="section-head"><div><h2>To&apos;lovlar</h2></div>{canExport ? <ExportBtn rows={m.rows} filename="tolovlar" columns={PAY_COLS} /> : null}</div>
+      <div className="section-head"><div><h2>Moliya</h2><div className="sub">Kassa, bank, kirim-chiqim va qarzdorlik</div></div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><select value={currency} onChange={(e) => setCurrency(e.target.value)} style={{ width: 90 }}><option>USD</option><option>UZS</option><option>EUR</option></select>{!readOnly ? <><button className="btn btn-ghost btn-sm" onClick={() => setEntryKind("account")}>+ Hisob</button><button className="btn btn-ghost btn-sm" onClick={() => setEntryKind("expense")}>− Chiqim</button><button className="btn btn-primary btn-sm" onClick={() => setEntryKind("income")}>+ Kirim</button></> : null}</div></div>
       <div className="grid g3">
-        <div className="card kpi gold"><div className="top"><div className="ico"><Ic d={I.check} s={19} /></div></div><div className="val">{formatMoney(m.received)}</div><div className="lbl">Olingan to&apos;lov</div></div>
-        <div className="card kpi"><div className="top"><div className="ico"><Ic d={I.clock} s={19} /></div></div><div className="val">{formatMoney(m.pending)}</div><div className="lbl">Kutilayotgan (taklifda)</div></div>
-        <div className="card kpi"><div className="top"><div className="ico"><Ic d={I.card} s={19} /></div></div><div className="val">{m.paidCount}</div><div className="lbl">To&apos;langan bronlar</div></div>
+        <div className="card kpi gold"><div className="top"><div className="ico"><Ic d={I.check} s={19} /></div></div><div className="val">{formatCurrencyAmount(finance?.summary.received ?? m.received, currency)}</div><div className="lbl">Jami kirim</div></div>
+        <div className="card kpi"><div className="top"><div className="ico"><Ic d={I.clock} s={19} /></div></div><div className="val">{formatCurrencyAmount(finance?.summary.receivable ?? m.pending, currency)}</div><div className="lbl">Mijozlardan olinadi</div></div>
+        <div className="card kpi"><div className="top"><div className="ico"><Ic d={I.card} s={19} /></div></div><div className="val">{formatCurrencyAmount(finance?.summary.profit ?? 0, currency)}</div><div className="lbl">Sof pul oqimi</div></div>
       </div>
+      {finance ? <>
+        <div className="grid g3" style={{ marginTop: 12 }}>
+          <div className="card" style={{ padding: 16 }}><div className="sub">Jami chiqim</div><b className="money" style={{ fontSize: 20 }}>{formatCurrencyAmount(finance.summary.spent, currency)}</b></div>
+          <div className="card" style={{ padding: 16 }}><div className="sub">Hamkorlarga to&apos;lanadi</div><b className="money" style={{ fontSize: 20 }}>{formatCurrencyAmount(finance.summary.payable, currency)}</b></div>
+          <div className="card" style={{ padding: 16 }}><div className="sub">Muddati o&apos;tgan</div><b className="money" style={{ fontSize: 20, color: finance.summary.overdue ? "#b42318" : undefined }}>{formatCurrencyAmount(finance.summary.overdue, currency)}</b></div>
+        </div>
+        {finance.summary.accountBalances.length ? <div className="card" style={{ padding: 14, marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>{finance.summary.accountBalances.map((a) => <span className="badge2 b-grey" key={a.id}>{a.name}: <b>{formatCurrencyAmount(a.balance, currency)}</b></span>)}</div> : null}
+        <div className="section-head" style={{ marginTop: 20 }}><div><h2>Moliya jurnali</h2><div className="sub">Barcha reja va haqiqiy to&apos;lovlar</div></div>{canExport ? <ExportBtn rows={finance.transactions} filename="moliya-jurnali" columns={[{ label: "Kategoriya", get: (r) => r.category }, { label: "Kontragent", get: (r) => r.counterparty || r.booking?.customerName || "" }, { label: "Tur", get: (r) => r.direction }, { label: "Holat", get: (r) => r.status }, { label: "Summa", get: (r) => r.amount }, { label: "Valyuta", get: (r) => r.currency }]} /> : null}</div>
+        <div className="card tbl-wrap">
+          {finance.transactions.length ? <table><thead><tr><th>To&apos;lov</th><th>Kontragent</th><th>Hisob / hujjat</th><th>Muddat</th><th className="r">Summa</th><th>Holat</th><th>Amal</th></tr></thead><tbody>{finance.transactions.map((row) => <tr key={row.id}><td><b>{row.category}</b><div className="sub">{row.direction === "income" ? "Kirim" : "Chiqim"}</div></td><td>{row.counterparty || row.booking?.customerName || "—"}</td><td>{row.account?.name || row.businessDocument?.number || "—"}</td><td>{row.dueAt ? formatDate(row.dueAt) : row.paidAt ? formatDate(row.paidAt) : "—"}</td><td className="r money" style={{ color: row.direction === "income" ? "var(--primary)" : "#b42318" }}>{row.direction === "income" ? "+" : "−"}{formatCurrencyAmount(row.amount, row.currency)}</td><td><span className={`badge2 ${row.status === "paid" ? "b-green" : row.status === "planned" ? "b-amber" : "b-grey"}`}>{row.status === "paid" ? "To'langan" : row.status === "planned" ? "Rejada" : "Bekor"}</span></td><td>{!readOnly && row.status === "planned" ? <div className="row-act"><button className="act-btn done-btn" onClick={() => void setFinanceStatus(row, "paid")}>To&apos;landi</button><button className="act-btn no" onClick={() => void setFinanceStatus(row, "cancelled")}>×</button></div> : "—"}</td></tr>)}</tbody></table> : <Empty icon={I.money} text="Hali moliyaviy operatsiya yo'q." />}
+        </div>
+      </> : null}
+      <div className="section-head" style={{ marginTop: 20 }}><div><h2>Bitim to&apos;lovlari</h2><div className="sub">CRM voronkasidan kelgan to&apos;lovlar</div></div></div>
       <div className="card tbl-wrap" style={{ marginTop: 16 }}>
         {m.rows.length ? (
           <table>
@@ -2230,6 +2309,7 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
         <PayConfirm lead={payLead} onClose={() => setPayLead(null)}
           onConfirm={async (amount) => { await agencyApi(`/bookings/${payLead.id}`, { method: "PATCH", body: JSON.stringify({ paidAmount: amount === "" ? null : amount }) }); await move(payLead, "completed"); }} />
       ) : null}
+      {entryKind ? <FinanceEntryModal kind={entryKind} currency={currency} accounts={finance?.accounts || []} leads={leads} onClose={() => setEntryKind(null)} onSaved={loadFinance} /> : null}
     </section>
   );
 }
@@ -3048,13 +3128,67 @@ function BodySections({ value, onChange, readOnly }: { value: string; onChange: 
   );
 }
 
-function DocumentsSection({ show, agencyId, readOnly }: { show: boolean; agencyId: string; readOnly?: boolean }) {
+type BusinessDocumentRow = {
+  id: string; number: string; type: string; status: string; title: string; customerName?: string; amount?: number; currency: string;
+  issuedAt: string; dueAt?: string; signedAt?: string; paidAt?: string; currentVersion: number;
+  booking?: { id: string; customerName: string; leadTour?: string } | null; _count?: { versions: number; transactions: number };
+};
+type BusinessDocumentsPayload = { documents: BusinessDocumentRow[]; totals: Record<string, number> };
+
+function NewBusinessDocument({ leads, onClose, onSaved }: { leads: CrmLead[]; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [type, setType] = useState("contract"); const [bookingId, setBookingId] = useState(""); const [title, setTitle] = useState("Sayohat xizmatlari shartnomasi");
+  const [amount, setAmount] = useState(""); const [currency, setCurrency] = useState("USD"); const [dueAt, setDueAt] = useState(""); const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  function changeType(value: string) {
+    setType(value); setTitle(({ contract: "Sayohat xizmatlari shartnomasi", invoice: "Hisob-faktura", voucher: "Turistik voucher", act: "Bajarilgan ishlar dalolatnomasi", other: "Hujjat" } as Record<string, string>)[value] || "Hujjat");
+  }
+  function chooseLead(id: string) {
+    setBookingId(id); const lead = leads.find((item) => item.id === id); if (lead) { setAmount(lead.totalEstimate ? String(lead.totalEstimate) : ""); setCurrency(lead.currency || "USD"); }
+  }
+  async function save(e: React.FormEvent) {
+    e.preventDefault(); setBusy(true); setErr("");
+    const lead = leads.find((item) => item.id === bookingId);
+    const result = await agencyApi("/crm/business-documents", { method: "POST", body: JSON.stringify({
+      type, bookingId: bookingId || null, title, amount: amount || null, currency, dueAt: dueAt || null, notes,
+      customerName: lead?.customerName, content: { title, customerName: lead?.customerName || null, tour: lead?.tourTitle || null, amount: amount || null, currency, notes },
+    }) });
+    setBusy(false); if (!result.success) { setErr(result.message || "Hujjatni yaratib bo'lmadi"); return; }
+    await onSaved(); onClose();
+  }
+  return <div style={{ position: "fixed", inset: 0, background: "rgba(11,42,30,.42)", backdropFilter: "blur(3px)", zIndex: 70, display: "grid", placeItems: "center", padding: 16 }} onClick={onClose}>
+    <form className="card" style={{ width: "min(620px,100%)", padding: 22 }} onSubmit={save} onClick={(e) => e.stopPropagation()}>
+      <div className="section-head" style={{ margin: "0 0 14px" }}><div><h2>Yangi hujjat</h2><div className="sub">Hujjat raqami va birinchi versiya avtomatik yaratiladi</div></div></div>
+      {err ? <div className="note" style={{ color: "#8f2a20", marginBottom: 12 }}>{err}</div> : null}
+      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div className="fld"><label>Hujjat turi</label><select value={type} onChange={(e) => changeType(e.target.value)}><option value="contract">Shartnoma</option><option value="invoice">Hisob-faktura</option><option value="voucher">Voucher</option><option value="act">Dalolatnoma</option><option value="other">Boshqa</option></select></div>
+        <div className="fld"><label>Lid / mijoz</label><select value={bookingId} onChange={(e) => chooseLead(e.target.value)}><option value="">Biriktirilmagan</option>{leads.map((lead) => <option value={lead.id} key={lead.id}>{lead.customerName} — {lead.tourTitle || "tur"}</option>)}</select></div>
+        <div className="fld" style={{ gridColumn: "1 / -1" }}><label>Sarlavha</label><input value={title} onChange={(e) => setTitle(e.target.value)} required /></div>
+        <div className="fld"><label>Summa</label><input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))} /></div>
+        <div className="fld"><label>Valyuta</label><select value={currency} onChange={(e) => setCurrency(e.target.value)}><option>USD</option><option>UZS</option><option>EUR</option></select></div>
+        <div className="fld"><label>To&apos;lov / amal muddati</label><input type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} /></div>
+        <div className="fld" style={{ gridColumn: "1 / -1" }}><label>Izoh</label><textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
+      </div>
+      {type === "invoice" ? <div className="note" style={{ marginTop: 8 }}>Hisob-faktura saqlanganda moliyada mijozdan olinadigan rejalashtirilgan kirim avtomatik yaratiladi.</div> : null}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}><button type="button" className="btn btn-ghost" onClick={onClose}>Bekor</button><button className="btn btn-primary" disabled={busy}>{busy ? "Yaratilmoqda…" : "Hujjat yaratish"}</button></div>
+    </form>
+  </div>;
+}
+
+function DocumentsSection({ show, agencyId, leads, readOnly }: { show: boolean; agencyId: string; leads: CrmLead[]; readOnly?: boolean }) {
   const { me } = useAgencySession();
   const [tpl, setTpl] = useState<DocTemplates>(DEFAULT_DOC_TEMPLATES);
   const [msg, setMsg] = useState("");
   const [doc, setDoc] = useState<{ html: string; filename: string; title: string } | null>(null);
   const [copiedPh, setCopiedPh] = useState("");
+  const [registry, setRegistry] = useState<BusinessDocumentsPayload>({ documents: [], totals: {} });
+  const [newDocument, setNewDocument] = useState(false);
   useEffect(() => { setTpl(getTemplates(agencyId)); }, [agencyId]);
+  async function loadRegistry() { const result = await agencyApi<BusinessDocumentsPayload>("/crm/business-documents"); if (result.success) setRegistry(result.data); }
+  useEffect(() => { if (show) void loadRegistry(); }, [show, agencyId]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function setDocumentStatus(row: BusinessDocumentRow, status: string) {
+    const result = await agencyApi(`/crm/business-documents/${row.id}`, { method: "PATCH", body: JSON.stringify({ status }) });
+    if (result.success) await loadRegistry(); else alert(result.message);
+  }
   function setField(type: DocType, key: string, val: string) {
     setTpl((p) => ({ ...p, [type]: { ...(p as Record<string, Record<string, string>>)[type], [key]: val } }) as DocTemplates);
     setMsg("");
@@ -3080,9 +3214,18 @@ function DocumentsSection({ show, agencyId, readOnly }: { show: boolean; agencyI
   }
   return (
     <section className={`view${show ? " active" : ""}`}>
-      <div className="section-head"><div><h2>Hujjatlar</h2><div className="sub">Shartnoma va hisob-faktura matnini o&apos;zingizga moslang — belgilar lid ma&apos;lumotidan avtomatik to&apos;ladi</div></div></div>
+      <div className="section-head"><div><h2>Hujjatlar</h2><div className="sub">Reyestr, status va versiyalar — shartnoma va invoice bitta joyda</div></div>{!readOnly ? <button className="btn btn-primary" onClick={() => setNewDocument(true)}><Ic d={I.plus} s={16} /> Yangi hujjat</button> : null}</div>
 
-      <div className="section-head"><div><h2>Rekvizitlar</h2><div className="sub">STIR, bank, direktor, manzil — barcha hujjatga qo&apos;yiladi</div></div></div>
+      <div className="grid g3">
+        <div className="card kpi"><div className="val">{registry.documents.length}</div><div className="lbl">Jami hujjat</div></div>
+        <div className="card kpi"><div className="val">{registry.totals.signed || 0}</div><div className="lbl">Imzolangan</div></div>
+        <div className="card kpi gold"><div className="val">{registry.totals.paid || 0}</div><div className="lbl">To&apos;langan invoice</div></div>
+      </div>
+      <div className="card tbl-wrap" style={{ marginTop: 16 }}>
+        {registry.documents.length ? <table><thead><tr><th>Raqam</th><th>Hujjat / mijoz</th><th>Sana</th><th className="r">Summa</th><th>Versiya</th><th>Holat</th><th>Amal</th></tr></thead><tbody>{registry.documents.map((row) => <tr key={row.id}><td><b>{row.number}</b></td><td><b>{row.title}</b><div className="sub">{row.customerName || row.booking?.customerName || "Mijoz biriktirilmagan"}</div></td><td>{formatDate(row.issuedAt)}</td><td className="r money">{row.amount ? formatCurrencyAmount(row.amount, row.currency) : "—"}</td><td>v{row.currentVersion} <span className="sub">({row._count?.versions || 1})</span></td><td><span className={`badge2 ${row.status === "paid" || row.status === "signed" ? "b-green" : row.status === "sent" ? "b-amber" : "b-grey"}`}>{({ draft: "Qoralama", sent: "Yuborilgan", signed: "Imzolangan", paid: "To'langan", cancelled: "Bekor" } as Record<string, string>)[row.status] || row.status}</span></td><td>{!readOnly && row.status !== "cancelled" ? <select value={row.status} onChange={(e) => void setDocumentStatus(row, e.target.value)} style={{ minWidth: 130 }}><option value="draft">Qoralama</option><option value="sent">Yuborildi</option><option value="signed">Imzolandi</option>{row.type === "invoice" ? <option value="paid">To&apos;landi</option> : null}<option value="cancelled">Bekor qilindi</option></select> : "—"}</td></tr>)}</tbody></table> : <Empty icon={I.doc} text="Hali hujjat yaratilmagan." />}
+      </div>
+
+      <div className="section-head" style={{ marginTop: 22 }}><div><h2>Rekvizitlar</h2><div className="sub">STIR, bank, direktor, manzil — barcha hujjatga qo&apos;yiladi</div></div></div>
       <DocRequisitesCard agencyId={agencyId} readOnly={readOnly} />
 
       {/* Belgilar — bosilsa nusxalanadi, keyin matnga qo'yish mumkin.
@@ -3123,6 +3266,7 @@ function DocumentsSection({ show, agencyId, readOnly }: { show: boolean; agencyI
         </div>
       ) : null}
       {doc ? <DocViewer {...doc} onClose={() => setDoc(null)} /> : null}
+      {newDocument ? <NewBusinessDocument leads={leads} onClose={() => setNewDocument(false)} onSaved={loadRegistry} /> : null}
     </section>
   );
 }

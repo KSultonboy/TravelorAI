@@ -388,24 +388,24 @@ model TravelerStory {
 }
 
 model TourAgency {
-  id                  String              @id @default(cuid())
-  slug                String              @unique
-  ownerAccountId      String?
-  ownerAccount        AgencyAccount?      @relation(fields: [ownerAccountId], references: [id], onDelete: SetNull)
-  name                String
-  city                String
-  description         String?
-  specialty           String
-  rating              Float               @default(0)
-  reviews             Int                 @default(0)
-  toursCount          Int                 @default(0)
-  phone               String?
-  telegram            String?
-  telegramBotToken    String?
-  telegramBotUsername String?
-  telegramBotActive   Boolean             @default(false)
-  telegramWelcome     String?
-  telegramConfig      String?
+  id                      String               @id @default(cuid())
+  slug                    String               @unique
+  ownerAccountId          String?
+  ownerAccount            AgencyAccount?       @relation(fields: [ownerAccountId], references: [id], onDelete: SetNull)
+  name                    String
+  city                    String
+  description             String?
+  specialty               String
+  rating                  Float                @default(0)
+  reviews                 Int                  @default(0)
+  toursCount              Int                  @default(0)
+  phone                   String?
+  telegram                String?
+  telegramBotToken        String?
+  telegramBotUsername     String?
+  telegramBotActive       Boolean              @default(false)
+  telegramWelcome         String?
+  telegramConfig          String?
   // Instagram Direct → lid. OAuth bilan ulanadi, token 60 kunlik —
   // shuning uchun Telegram'dan farqli o'laroq muddat ustuni bor.
   instagramUserId         String?
@@ -417,51 +417,54 @@ model TourAgency {
   instagramUsername       String?
   instagramToken          String?
   instagramTokenExpiresAt DateTime?
-  instagramActive         Boolean  @default(false)
+  instagramActive         Boolean              @default(false)
   instagramWelcome        String?
   whatsappPhoneNumberId   String?
   whatsappWabaId          String?
   whatsappDisplayPhone    String?
   whatsappToken           String?
-  whatsappActive          Boolean  @default(false)
+  whatsappActive          Boolean              @default(false)
   whatsappWelcome         String?
-  birthdayTemplate    String? // tug'ilgan kun tabrigi matni ({name}, {agency})
-  notifyChatId        String? // agent xabarnoma oladigan Telegram chat (mijoz lidi EMAS)
-  tariffId            String?
-  subscriptionStatus  String              @default("none")
-  subscriptionUntil   DateTime?
-  website             String?
-  imageUrl            String?
-  active              Boolean             @default(true)
-  source              String              @default("admin")
-  sourceUrl           String?
-  lastVerifiedAt      DateTime?
-  confidenceScore     Float               @default(0.7)
-  featured            Boolean             @default(false)
-  manualBoost         Float               @default(0)
-  qualityScore        Float               @default(0.7)
-  landingSortOrder    Int                 @default(0)
-  approvalStatus      String              @default("approved")
-  approvedAt          DateTime?
-  rejectedAt          DateTime?
-  adminNote           String?
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
-  tours               Tour[]
-  applications        AgencyApplication[]
-  bookings            TourBooking[]
-  tariff              Tariff?             @relation(fields: [tariffId], references: [id], onDelete: SetNull)
-  payments            AgencyPayment[]
-  members             AgencyMember[]
-  presentations       TourPresentation[]
-  crmTasks            CrmTask[]
-  leadActivities      LeadActivity[]
-  leadTags            LeadTag[]
-  documentTemplates   DocumentTemplate[]
-  requisite           AgencyRequisite?
-  auditLogs           AuditLog[]
-  crmSettings         AgencyCrmSettings?
-  csvImports          CsvImportBatch[]
+  birthdayTemplate        String? // tug'ilgan kun tabrigi matni ({name}, {agency})
+  notifyChatId            String? // agent xabarnoma oladigan Telegram chat (mijoz lidi EMAS)
+  tariffId                String?
+  subscriptionStatus      String               @default("none")
+  subscriptionUntil       DateTime?
+  website                 String?
+  imageUrl                String?
+  active                  Boolean              @default(true)
+  source                  String               @default("admin")
+  sourceUrl               String?
+  lastVerifiedAt          DateTime?
+  confidenceScore         Float                @default(0.7)
+  featured                Boolean              @default(false)
+  manualBoost             Float                @default(0)
+  qualityScore            Float                @default(0.7)
+  landingSortOrder        Int                  @default(0)
+  approvalStatus          String               @default("approved")
+  approvedAt              DateTime?
+  rejectedAt              DateTime?
+  adminNote               String?
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  tours                   Tour[]
+  applications            AgencyApplication[]
+  bookings                TourBooking[]
+  tariff                  Tariff?              @relation(fields: [tariffId], references: [id], onDelete: SetNull)
+  payments                AgencyPayment[]
+  members                 AgencyMember[]
+  presentations           TourPresentation[]
+  crmTasks                CrmTask[]
+  leadActivities          LeadActivity[]
+  leadTags                LeadTag[]
+  documentTemplates       DocumentTemplate[]
+  requisite               AgencyRequisite?
+  auditLogs               AuditLog[]
+  crmSettings             AgencyCrmSettings?
+  csvImports              CsvImportBatch[]
+  financeAccounts         FinanceAccount[]
+  financeTransactions     FinanceTransaction[]
+  businessDocuments       BusinessDocument[]
 
   @@index([active])
   @@index([tariffId])
@@ -666,38 +669,40 @@ model TourBooking {
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
 
-  pipelineStage      String             @default("new")
-  leadTour           String?
-  leadCity           String? // qo'lda kiritilgan shahar (bog'langan tur bo'lmasa)
-  leadTelegram       String? // mijoz Telegram: @username yoki link
-  leadWhatsapp       String? // mijoz WhatsApp raqami (telefondan farqli bo'lishi mumkin)
-  paidAmount         Int? // haqiqatda olingan to'lov (to'lovni tasdiqlashda kiritiladi)
-  archived           Boolean            @default(false) // arxivlangan — kanbandan chiqadi
-  archivedAt         DateTime?
-  telegramChatId     String?
-  instagramUserId    String? // IGSID — app+akkaunt juftligiga bog'liq, ochiq profil id'si EMAS
-  instagramUsername  String?
-  utmSource          String? // qayerdan keldi: instagram, telegram, google...
-  utmMedium          String? // cpc, post, story, bio...
-  utmCampaign        String? // kampaniya nomi
-  referrer           String? // qaysi saytdan o'tdi
-  customerBirthday   DateTime? // mijoz tug'ilgan kuni (tabrik uchun)
-  birthdayGreetedOn  String? // oxirgi tabrik sanasi (YYYY-MM-DD) — takror bo'lmasin
-  tripReminderSentAt DateTime? // sayohat eslatmasi yuborilgan vaqt
-  reviewRequestedAt  DateTime? // baho so'rovi yuborilgan vaqt (takror bo'lmasin)
-  reviewAwaitingText Boolean            @default(false) // baho berildi, keyingi xabar sharh matni
-  assignedMemberId   String?
-  assignedMember     AgencyMember?      @relation("AssignedLeadManager", fields: [assignedMemberId], references: [id], onDelete: SetNull)
-  firstResponseAt    DateTime?
-  slaBreachedAt      DateTime?
-  slaReminderAt      DateTime?
-  whatsappWaId       String?
-  csvImportBatchId   String?
-  csvImportBatch     CsvImportBatch?    @relation(fields: [csvImportBatchId], references: [id], onDelete: SetNull)
-  presentations      TourPresentation[]
-  crmTasks           CrmTask[]
-  activities         LeadActivity[]
-  leadTags           LeadTag[]
+  pipelineStage       String               @default("new")
+  leadTour            String?
+  leadCity            String? // qo'lda kiritilgan shahar (bog'langan tur bo'lmasa)
+  leadTelegram        String? // mijoz Telegram: @username yoki link
+  leadWhatsapp        String? // mijoz WhatsApp raqami (telefondan farqli bo'lishi mumkin)
+  paidAmount          Int? // haqiqatda olingan to'lov (to'lovni tasdiqlashda kiritiladi)
+  archived            Boolean              @default(false) // arxivlangan — kanbandan chiqadi
+  archivedAt          DateTime?
+  telegramChatId      String?
+  instagramUserId     String? // IGSID — app+akkaunt juftligiga bog'liq, ochiq profil id'si EMAS
+  instagramUsername   String?
+  utmSource           String? // qayerdan keldi: instagram, telegram, google...
+  utmMedium           String? // cpc, post, story, bio...
+  utmCampaign         String? // kampaniya nomi
+  referrer            String? // qaysi saytdan o'tdi
+  customerBirthday    DateTime? // mijoz tug'ilgan kuni (tabrik uchun)
+  birthdayGreetedOn   String? // oxirgi tabrik sanasi (YYYY-MM-DD) — takror bo'lmasin
+  tripReminderSentAt  DateTime? // sayohat eslatmasi yuborilgan vaqt
+  reviewRequestedAt   DateTime? // baho so'rovi yuborilgan vaqt (takror bo'lmasin)
+  reviewAwaitingText  Boolean              @default(false) // baho berildi, keyingi xabar sharh matni
+  assignedMemberId    String?
+  assignedMember      AgencyMember?        @relation("AssignedLeadManager", fields: [assignedMemberId], references: [id], onDelete: SetNull)
+  firstResponseAt     DateTime?
+  slaBreachedAt       DateTime?
+  slaReminderAt       DateTime?
+  whatsappWaId        String?
+  csvImportBatchId    String?
+  csvImportBatch      CsvImportBatch?      @relation(fields: [csvImportBatchId], references: [id], onDelete: SetNull)
+  presentations       TourPresentation[]
+  crmTasks            CrmTask[]
+  activities          LeadActivity[]
+  leadTags            LeadTag[]
+  financeTransactions FinanceTransaction[]
+  businessDocuments   BusinessDocument[]
 
   @@index([tourId])
   @@index([agencyId, status])
@@ -727,21 +732,21 @@ model AgencyCrmSettings {
 // CSV import avval preview qilinadi, keyin batch sifatida commit bo'ladi.
 // Batchga bog'langan lidlar keyinchalik xavfsiz rollback qilinadi.
 model CsvImportBatch {
-  id               String        @id @default(cuid())
-  agencyId         String
-  agency           TourAgency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  actorAccountId   String?
-  fileName         String?
-  status           String        @default("committed") // committed | rolled_back
-  totalRows        Int
-  importedRows     Int
-  duplicateRows    Int           @default(0)
-  invalidRows      Int           @default(0)
-  mapping          Json?
-  preview          Json?
-  rolledBackAt     DateTime?
-  createdAt        DateTime      @default(now())
-  bookings         TourBooking[]
+  id             String        @id @default(cuid())
+  agencyId       String
+  agency         TourAgency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  actorAccountId String?
+  fileName       String?
+  status         String        @default("committed") // committed | rolled_back
+  totalRows      Int
+  importedRows   Int
+  duplicateRows  Int           @default(0)
+  invalidRows    Int           @default(0)
+  mapping        Json?
+  preview        Json?
+  rolledBackAt   DateTime?
+  createdAt      DateTime      @default(now())
+  bookings       TourBooking[]
 
   @@index([agencyId, createdAt])
   @@index([agencyId, status])
@@ -858,6 +863,104 @@ model AuditLog {
   @@index([agencyId, createdAt])
   @@index([agencyId, entityType, entityId])
   @@index([actorAccountId, createdAt])
+}
+
+// Agentlikning kassa, bank va elektron hamyonlari. openingBalance bir xil
+// valyutadagi tranzaksiyalar bilan birga hisoblanadi.
+model FinanceAccount {
+  id             String               @id @default(cuid())
+  agencyId       String
+  agency         TourAgency           @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name           String
+  type           String               @default("cash") // cash | bank | card | wallet
+  currency       String               @default("USD")
+  openingBalance Int                  @default(0)
+  active         Boolean              @default(true)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  transactions   FinanceTransaction[]
+
+  @@unique([agencyId, name, currency])
+  @@index([agencyId, active])
+}
+
+// Agentlikning operatsion moliyasi. direction kirim/chiqimni, status esa
+// rejalashtirilgan yoki amalda to'langanligini ifodalaydi.
+model FinanceTransaction {
+  id                 String            @id @default(cuid())
+  agencyId           String
+  agency             TourAgency        @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  accountId          String?
+  account            FinanceAccount?   @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  bookingId          String?
+  booking            TourBooking?      @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  businessDocumentId String?
+  businessDocument   BusinessDocument? @relation(fields: [businessDocumentId], references: [id], onDelete: SetNull)
+  direction          String // income | expense
+  status             String            @default("planned") // planned | paid | cancelled
+  category           String
+  amount             Int
+  currency           String            @default("USD")
+  counterparty       String?
+  paymentMethod      String?
+  note               String?
+  dueAt              DateTime?
+  paidAt             DateTime?
+  createdByAccountId String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([agencyId, currency, status, dueAt])
+  @@index([agencyId, paidAt])
+  @@index([bookingId])
+  @@index([accountId])
+  @@index([businessDocumentId])
+}
+
+// Yaratilgan shartnoma, hisob-faktura, voucher va dalolatnomalar reyestri.
+// Har bir o'zgarish BusinessDocumentVersion orqali qayta tiklanadigan iz qoldiradi.
+model BusinessDocument {
+  id                 String                    @id @default(cuid())
+  agencyId           String
+  agency             TourAgency                @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  bookingId          String?
+  booking            TourBooking?              @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  number             String
+  type               String // contract | invoice | voucher | act | other
+  status             String                    @default("draft") // draft | sent | signed | paid | cancelled
+  title              String
+  customerName       String?
+  amount             Int?
+  currency           String                    @default("USD")
+  issuedAt           DateTime                  @default(now())
+  dueAt              DateTime?
+  sentAt             DateTime?
+  signedAt           DateTime?
+  paidAt             DateTime?
+  notes              String?
+  currentVersion     Int                       @default(1)
+  createdByAccountId String?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  versions           BusinessDocumentVersion[]
+  transactions       FinanceTransaction[]
+
+  @@unique([agencyId, number])
+  @@index([agencyId, type, status, issuedAt])
+  @@index([bookingId])
+}
+
+model BusinessDocumentVersion {
+  id                 String           @id @default(cuid())
+  businessDocumentId String
+  businessDocument   BusinessDocument @relation(fields: [businessDocumentId], references: [id], onDelete: Cascade)
+  version            Int
+  content            Json
+  createdByAccountId String?
+  createdAt          DateTime         @default(now())
+
+  @@unique([businessDocumentId, version])
+  @@index([businessDocumentId, createdAt])
 }
 
 // Mijoz sharhi + reyting — sayohat "yakunlandi"ga o'tgach Telegram orqali yig'iladi.
@@ -978,19 +1081,19 @@ model TripReview {
 // Prod bazasi divergent, jadvalni qayta nomlash xavfli bo'lgani uchun nom qoldi;
 // kanal `channel` ustuni bilan ajratiladi.
 model TelegramMessage {
-  id        String   @id @default(cuid())
-  agencyId  String
-  bookingId String?
-  channel   String   @default("telegram") // telegram | instagram | whatsapp
-  direction String
-  text      String
-  fromName  String?
-  externalId String?  @unique // Meta message id — webhook retry deduplikatsiyasi
-  status     String?  // sent | delivered | read | failed
-  senderId   String?
+  id          String   @id @default(cuid())
+  agencyId    String
+  bookingId   String?
+  channel     String   @default("telegram") // telegram | instagram | whatsapp
+  direction   String
+  text        String
+  fromName    String?
+  externalId  String?  @unique // Meta message id — webhook retry deduplikatsiyasi
+  status      String? // sent | delivered | read | failed
+  senderId    String?
   recipientId String?
-  metadata   Json?
-  createdAt DateTime @default(now())
+  metadata    Json?
+  createdAt   DateTime @default(now())
 
   @@index([agencyId])
   @@index([bookingId])

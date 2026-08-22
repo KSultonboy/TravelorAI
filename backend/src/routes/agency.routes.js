@@ -12,6 +12,8 @@ const aiCtrl = require('../controllers/ai.controller');
 const leadFiles = require('../controllers/leadFiles.controller');
 const clickPay = require('../controllers/clickPayment.controller');
 const crm = require('../controllers/agencyCrm.controller');
+const finance = require('../controllers/agencyFinance.controller');
+const documents = require('../controllers/agencyDocuments.controller');
 const { agencyAuditMiddleware } = require('../middleware/agencyAudit.middleware');
 
 router.post('/auth/register', agency.register);
@@ -80,6 +82,19 @@ router.get('/crm/settings', crm.getCrmSettings);
 router.put('/crm/settings', blockWhenReadOnly, requireOwner, crm.saveCrmSettings);
 router.get('/crm/insights', crm.insights);
 router.get('/crm/audit', requireOwner, crm.listAudit);
+
+// Operatsion moliya: kassa/bank, kirim-chiqim, qarzdorlik va bitim foydasi.
+router.get('/crm/finance', finance.listFinance);
+router.post('/crm/finance/accounts', blockWhenReadOnly, finance.createAccount);
+router.post('/crm/finance/transactions', blockWhenReadOnly, finance.createTransaction);
+router.patch('/crm/finance/transactions/:id', blockWhenReadOnly, finance.updateTransaction);
+router.delete('/crm/finance/transactions/:id', blockWhenReadOnly, requireOwner, finance.deleteTransaction);
+
+// Hujjat reyestri: status, versiya tarixi va invoice-to'lov bog'lanishi.
+router.get('/crm/business-documents', documents.listDocuments);
+router.get('/crm/business-documents/:id', documents.getDocument);
+router.post('/crm/business-documents', blockWhenReadOnly, documents.createDocument);
+router.patch('/crm/business-documents/:id', blockWhenReadOnly, documents.updateDocument);
 
 // Mijoz sharhlari + reyting (marketplace'да ko'rinadi) — ko'rish hammaga ochiq.
 router.get('/reviews', agency.listReviews);

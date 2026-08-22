@@ -23,7 +23,7 @@ function sanitizeForAudit(value, depth = 0) {
 function inferEntity(path = '') {
   const clean = String(path).split('?')[0];
   const parts = clean.split('/').filter(Boolean);
-  const known = ['bookings', 'leads', 'tasks', 'documents', 'requisites', 'team', 'tours', 'reviews', 'presentations', 'telegram', 'profile', 'application', 'payments'];
+  const known = ['bookings', 'leads', 'tasks', 'documents', 'business-documents', 'finance', 'requisites', 'team', 'tours', 'reviews', 'presentations', 'telegram', 'profile', 'application', 'payments'];
   const index = parts.findIndex((part) => known.includes(part));
   if (index < 0) return { entityType: parts[0] || 'agency', entityId: null };
   return {
