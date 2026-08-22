@@ -4,7 +4,8 @@
 const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { ensureApprovedAgency } = require('./agency.controller');
-const { generateVision } = require('../services/ai.service');
+const { generateVision, isConfigured: isAiConfigured } = require('../services/ai.service');
+const { extractPassportLocal } = require('../services/passportOcr.service');
 
 const MAX_FILE_BYTES = 6 * 1024 * 1024; // 6 MB
 const MAX_FILES_PER_LEAD = 15;
@@ -126,12 +127,18 @@ async function ocrPassport(req, res) {
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimeType)) return error(res, 'OCR uchun pasportning JPG, PNG yoki WEBP rasmi kerak', 400);
     await prisma.leadFile.update({ where: { id: file.id }, data: { ocrStatus: 'processing', ocrError: null } });
     try {
-      const result = await generateVision({
-        system: 'You are a passport OCR engine. Extract only clearly visible data. Never guess. Return strict JSON and no prose.',
-        prompt: 'Extract this passport or identity document. Return JSON with: documentType, countryCode, passportNumber, surname, givenNames, nationality, birthDate (YYYY-MM-DD), sex, issueDate (YYYY-MM-DD), expiryDate (YYYY-MM-DD), personalNumber, mrz, confidence (0..1), warnings (array). Use null for unreadable fields.',
-        mediaType: file.mimeType, data: Buffer.from(file.data).toString('base64'), maxTokens: 900,
-      });
-      const ocrData = parseOcrJson(result.text);
+      let ocrData;
+      try {
+        ocrData = await extractPassportLocal(Buffer.from(file.data));
+      } catch (localErr) {
+        if (!isAiConfigured()) throw localErr;
+        const result = await generateVision({
+          system: 'You are a passport OCR engine. Extract only clearly visible data. Never guess. Return strict JSON and no prose.',
+          prompt: 'Extract this passport or identity document. Return JSON with: documentType, countryCode, passportNumber, surname, givenNames, nationality, birthDate (YYYY-MM-DD), sex, issueDate (YYYY-MM-DD), expiryDate (YYYY-MM-DD), personalNumber, mrz, confidence (0..1), warnings (array). Use null for unreadable fields.',
+          mediaType: file.mimeType, data: Buffer.from(file.data).toString('base64'), maxTokens: 900,
+        });
+        ocrData = { ...parseOcrJson(result.text), engine: 'anthropic-vision' };
+      }
       const updated = await prisma.leadFile.update({ where: { id: file.id }, data: { ocrStatus: 'done', ocrData, ocrAt: new Date(), ocrError: null }, select: { id: true, ocrStatus: true, ocrData: true, ocrAt: true } });
       return success(res, { file: updated });
     } catch (ocrErr) {

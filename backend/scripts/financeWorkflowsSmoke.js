@@ -60,7 +60,7 @@ async function main() {
     const verified = await api(token, `/agency/crm/business-documents/signatures/${requested.signature.id}/verify`, { method: 'POST', body: JSON.stringify({ code: '123456' }) });
     assert(verified.signature.status === 'verified', 'OTP e-imzo tasdiqlanmadi');
 
-    const ocrReady = Boolean(process.env.ANTHROPIC_API_KEY && (() => { try { require('@anthropic-ai/sdk'); return true; } catch { return false; } })());
+    const ocrReady = (() => { try { require('tesseract.js'); require('@tesseract.js-data/eng'); return true; } catch { return false; } })();
     finance = await api(token, '/agency/crm/finance?currency=USD');
     console.log(JSON.stringify({ ok: true, uonParity: 80, ocrReady, checks: ['supplier_debt', 'manager_commission', 'payment_calendar', 'partial_payment', 'invoice_close', 'pdf_archive', 'approval', 'otp_signature', 'ocr_runtime'] }));
   } finally { await cleanup(); await prisma.$disconnect(); }
