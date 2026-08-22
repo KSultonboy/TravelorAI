@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent } from "
 import { useAgencySession } from "@/lib/agency/session";
 import { useCrm } from "@/lib/agency/useCrm";
 import { onExternalClick, openExternal, saveFile } from "@/lib/agency/external";
+import { serializeCsv, type CsvColumn } from "@/lib/agency/csv";
 import { agencyApi, formatMoney, formatDate, statusLabel, readImage } from "@/lib/agency/api";
 import { REGIONS, REGION_GROUPS, regionByKey } from "@/lib/travelData";
 import { getNotifs, markRead, markAllRead, clearNotifs, pushNotif, seedNotifs, type KvNotif } from "@/lib/agency/notify";
@@ -42,7 +43,7 @@ import {
   type DocRequisites,
   type DocTemplates,
 } from "@/lib/agency/documents";
-import { AuditPage, AutomationPage, CsvImportPage, InsightsPage, IntegrationPage, WhatsAppPage } from "./CrmCompetitionPages";
+import { AuditPage, AutomationPage, InsightsPage, IntegrationPage, WhatsAppPage } from "./CrmCompetitionPages";
 import { ExecutiveReportsPage } from "./ExecutiveReportsPage";
 
 /* ---- tiny inline icons ---- */
@@ -121,18 +122,16 @@ function browserNotify(title: string, body: string) {
 
 const NAV: { key: string; label: string; icon: string; group: string; badge?: "leads" | "tasks" }[] = [
   { key: "dashboard", label: "Boshqaruv paneli", icon: I.grid, group: "Asosiy" },
-  { key: "leads", label: "Lidlar / Voronka", icon: I.list, group: "Asosiy", badge: "leads" },
+  { key: "leads", label: "Lidlar", icon: I.list, group: "Asosiy", badge: "leads" },
   { key: "customers", label: "Mijozlar", icon: I.users, group: "Asosiy" },
   { key: "tasks", label: "Vazifalar", icon: I.check, group: "Asosiy", badge: "tasks" },
   { key: "packages", label: "Turlar / Paketlar", icon: I.box, group: "Sotuv" },
   { key: "presentations", label: "Takliflar", icon: I.send, group: "Sotuv" },
   { key: "reviews", label: "Sharhlar", icon: I.star, group: "Sotuv" },
   { key: "payments", label: "Mijoz to'lovlari", icon: I.card, group: "Sotuv" },
-  { key: "reports", label: "Hisobotlar", icon: I.chart, group: "Boshqa" },
   { key: "insights", label: "SLA va KPI", icon: I.clock, group: "Boshqa" },
   { key: "automation", label: "Avtomatizatsiya", icon: I.bolt, group: "Boshqa" },
   { key: "api-webhooks", label: "API va Webhook", icon: I.link, group: "Boshqa" },
-  { key: "csv-import", label: "CSV import", icon: I.download, group: "Boshqa" },
   { key: "audit", label: "Audit tarixi", icon: I.eye, group: "Boshqa" },
   { key: "whatsapp", label: "WhatsApp", icon: I.send, group: "Boshqa" },
   { key: "documents", label: "Hujjatlar", icon: I.doc, group: "Boshqa" },
@@ -464,6 +463,7 @@ export default function KvCabinet() {
   const [over, setOver] = useState<CrmStage | "">("");
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [isFs, setIsFs] = useState(false);
+  const [openGroup, setOpenGroup] = useState("Asosiy");
 
   // Tema: saqlangan tanlov -> tizim sozlamasi -> yorug'. <html data-theme> ga qo'yiladi.
   useEffect(() => {
@@ -593,7 +593,6 @@ export default function KvCabinet() {
     // sections tekshiruviga tushib qolsa Premium agentlik ham paywall ko'rardi.
     // Daraja backend bilan bir xil: /agency/instagram → requireCapability('telegram').
     if (key === "telegram" || key === "instagram" || key === "whatsapp") return caps.telegram !== false;
-    if (key === "csv-import") return caps.manualLeads !== false;
     if (key === "insights" || key === "automation") return caps.analytics !== false;
     if (key === "api-webhooks") return caps.integrations !== false;
     if (key === "presentations") return caps.presentations !== false;
@@ -603,6 +602,11 @@ export default function KvCabinet() {
   // Muddat o'tган bo'lsa pipeline ko'chirishni bloklaymiz (backend ham 402 qaytaradi)
   const guardedMove = (readOnly ? ((async () => {}) as typeof move) : move);
   const curAllowed = sectionAllowed(view);
+  const goToView = (key: string) => {
+    const group = NAV.find((item) => item.key === key)?.group;
+    if (group) setOpenGroup(group);
+    setView(key);
+  };
 
   return (
     <div className="kv">
@@ -618,11 +622,14 @@ export default function KvCabinet() {
           </div>
           {["Asosiy", "Sotuv", "Boshqa"].map((g) => (
             <div className="nav-group" key={g}>
-              <div className="lbl">{g}</div>
+              <button type="button" className="nav-group-toggle" aria-expanded={openGroup === g} onClick={() => setOpenGroup((current) => current === g ? "" : g)}>
+                <span>{g}</span><span className="nav-group-chevron" aria-hidden="true">⌄</span>
+              </button>
+              <div className={`nav-group-items${openGroup === g ? " open" : ""}`}>
               {NAV.filter((n) => n.group === g).map((n) => {
                 const locked = !sectionAllowed(n.key);
                 return (
-                  <button key={n.key} className={`nav-item${view === n.key ? " active" : ""}${locked ? " locked" : ""}`} onClick={() => setView(n.key)} title={locked ? "Yuqoriroq tarifda ochiladi" : undefined}>
+                  <button key={n.key} className={`nav-item${view === n.key ? " active" : ""}${locked ? " locked" : ""}`} onClick={() => goToView(n.key)} title={locked ? "Yuqoriroq tarifda ochiladi" : undefined}>
                     <Ic d={n.icon} />{n.label}
                     {locked ? <span className="nav-lock"><Ic d={I.lock} s={13} /></span>
                       : (n.badge === "leads" && openLeads > 0 ? <span className="badge">{openLeads}</span>
@@ -631,6 +638,7 @@ export default function KvCabinet() {
                   </button>
                 );
               })}
+              </div>
             </div>
           ))}
           <div className="side-foot">
@@ -652,7 +660,7 @@ export default function KvCabinet() {
                 <Ic d={theme === "dark" ? I.sun : I.moon} s={18} />
               </button>
               <DesktopUpdate />
-              <NotificationBell agencyId={agencyId} leads={leads} go={setView} />
+              <NotificationBell agencyId={agencyId} leads={leads} go={goToView} />
               <button className="btn btn-primary" onClick={() => setShowAdd(true)} disabled={readOnly} title={readOnly ? "Obuna tugagan — faqat o'qish rejimi" : undefined}><Ic d={I.plus} s={16} /> Yangi lid</button>
             </div>
           </header>
@@ -665,14 +673,14 @@ export default function KvCabinet() {
                   <b>Obuna muddati tugagan — faqat o&apos;qish rejimi.</b>
                   <span>Ma&apos;lumotlaringiz saqlanib turibdi. Yangi tur qo&apos;shish, lidlarni boshqarish va Telegram uchun to&apos;lovni yangilang.</span>
                 </div>
-                <button className="btn btn-primary" onClick={() => setView("settings")}>Batafsil</button>
+                <button className="btn btn-primary" onClick={() => goToView("settings")}>Batafsil</button>
               </div>
             ) : null}
             {!curAllowed ? (
-              <UpgradeNotice section={view} planName={access?.planName} go={setView} />
+              <UpgradeNotice section={view} planName={access?.planName} go={goToView} />
             ) : (
               <>
-                <Dashboard show={view === "dashboard"} leads={leads} tasks={tasks} stats={bookingStats} agencyId={agencyId} go={setView} />
+                <Dashboard show={view === "dashboard"} leads={leads} tasks={tasks} stats={bookingStats} agencyId={agencyId} go={goToView} readOnly={readOnly} />
                 <Leads show={view === "leads"} leads={leads} archivedLeads={archivedLeads} move={guardedMove} busyId={busyId} dragId={dragId} setDragId={setDragId} over={over} setOver={setOver} readOnly={readOnly} canExport={canExport} presByLead={presByLead} refresh={refreshBookings} reloadCrm={reloadCrm} members={members} createTask={createTask} stages={pipelineStages} />
                 <Customers show={view === "customers"} customers={customers} canExport={canExport} readOnly={readOnly} refresh={refreshBookings} />
                 <Tasks show={view === "tasks"} tasks={tasks} leads={leads} members={members} readOnly={readOnly} createTask={createTask} toggleTask={toggleTask} deleteTask={deleteTask} />
@@ -680,16 +688,14 @@ export default function KvCabinet() {
                 <Presentations show={view === "presentations"} items={presentations} leads={leads} tours={tours} reload={reloadPresentations} readOnly={readOnly} />
                 <Reviews show={view === "reviews"} readOnly={readOnly} />
                 <Payments show={view === "payments"} leads={leads} move={guardedMove} busyId={busyId} readOnly={readOnly} canExport={canExport} />
-                <ExecutiveReportsPage show={view === "reports"} readOnly={readOnly} />
                 <InsightsPage show={view === "insights"} readOnly={readOnly} />
                 <AutomationPage show={view === "automation"} readOnly={readOnly} />
                 <IntegrationPage show={view === "api-webhooks"} readOnly={readOnly} />
-                <CsvImportPage show={view === "csv-import"} readOnly={readOnly} onImported={refreshBookings} />
                 <AuditPage show={view === "audit"} />
                 <DocumentsSection show={view === "documents"} agencyId={agencyId} leads={leads} readOnly={readOnly} />
-                <Settings show={view === "settings"} agency={agency} agencyId={agencyId} refresh={refresh} logout={logout} go={setView} access={access} readOnly={readOnly} caps={caps} />
-                <TelegramPage show={view === "telegram"} leads={leads} go={setView} readOnly={readOnly} />
-                <InstagramPage show={view === "instagram"} go={setView} readOnly={readOnly} />
+                <Settings show={view === "settings"} agency={agency} agencyId={agencyId} refresh={refresh} logout={logout} go={goToView} access={access} readOnly={readOnly} caps={caps} />
+                <TelegramPage show={view === "telegram"} leads={leads} go={goToView} readOnly={readOnly} />
+                <InstagramPage show={view === "instagram"} go={goToView} readOnly={readOnly} />
                 <WhatsAppPage show={view === "whatsapp"} readOnly={readOnly} />
               </>
             )}
@@ -703,7 +709,7 @@ export default function KvCabinet() {
 }
 
 /* ================= DASHBOARD ================= */
-function Dashboard({ show, leads, stats, go }: any) {
+function Dashboard({ show, leads, stats, go, readOnly }: any) {
   const m = useMemo(() => {
     const c = (s: CrmStage) => leads.filter((l: CrmLead) => l.stage === s).length;
     const counts = { new: c("new"), contacted: c("contacted"), quoted: c("quoted"), won: c("won"), completed: c("completed") };
@@ -730,7 +736,7 @@ function Dashboard({ show, leads, stats, go }: any) {
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
-        <div className="section-head" style={{ margin: "16px 20px 4px" }}><div><h2>Sotuv voronkasi</h2></div><button className="link" onClick={() => go("leads")}>Ochish →</button></div>
+        <div className="section-head" style={{ margin: "16px 20px 4px" }}><div><h2>Lidlar holati</h2></div><button className="link" onClick={() => go("leads")}>Ochish →</button></div>
         <div className="funnel">
           {FUN.map((f) => (
             <div className={`row${f.key === "won" ? " won" : ""}`} key={f.key}>
@@ -759,6 +765,9 @@ function Dashboard({ show, leads, stats, go }: any) {
           </div>
         </div>
       </div>
+      <div className="dashboard-reports">
+        <ExecutiveReportsPage show={show} readOnly={readOnly} />
+      </div>
     </section>
   );
 }
@@ -770,36 +779,37 @@ function Empty({ icon, text }: any) {
 }
 
 /* ================= CSV EKSPORT ================= */
-type CsvCol = { label: string; get: (r: any) => any };
-function downloadCsv(filename: string, columns: CsvCol[], rows: any[]) {
-  const esc = (v: any) => {
-    const s = v === null || v === undefined ? "" : String(v);
-    return /[",\r\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const lines = [columns.map((c) => esc(c.label)).join(",")];
-  for (const r of rows) lines.push(columns.map((c) => esc(c.get(r))).join(","));
-  const csv = "﻿" + lines.join("\r\n"); // BOM — Excel'да o'zbek harflari to'g'ri ochilishi uchun
+type CsvCol = CsvColumn<any>;
+async function downloadCsv(filename: string, columns: CsvCol[], rows: any[]) {
+  const csv = serializeCsv(columns, rows);
   const stamp = new Date().toISOString().slice(0, 10);
   // saveFile — desktopda «Yuklanmalar»ga yozadi, brauzerda odatdagi yuklab olish.
   // (Ilgari bu yerda to'g'ridan-to'g'ri <a download> edi — desktopda ishlamasdi.)
-  void saveFile(`${filename}-${stamp}.csv`, csv, "text/csv;charset=utf-8;")
-    .catch((e) => alert(e instanceof Error ? e.message : "Faylni saqlab bo'lmadi"));
+  await saveFile(`${filename}-${stamp}.csv`, csv, "text/csv;charset=utf-8;");
 }
 function ExportBtn({ rows, filename, columns }: { rows: any[]; filename: string; columns: CsvCol[] }) {
   const empty = !rows || rows.length === 0;
   return (
     <button type="button" className="btn btn-ghost btn-sm" disabled={empty}
       style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-      title={empty ? "Eksport uchun ma'lumot yo'q" : "CSV faylга yuklab olish"}
-      onClick={() => downloadCsv(filename, columns, rows)}>
+      title={empty ? "Eksport uchun ma'lumot yo'q" : "CSV faylga yuklab olish"}
+      onClick={() => void downloadCsv(filename, columns, rows).catch((e) => alert(e instanceof Error ? e.message : "Faylni saqlab bo'lmadi"))}>
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
       CSV
     </button>
   );
 }
-function CsvImportBtn({ disabled, onImported }: { disabled?: boolean; onImported?: () => Promise<void> | void }) {
+function CsvActionsMenu({ importDisabled, canExport, rows, filename, columns, onImported }: { importDisabled?: boolean; canExport: boolean; rows: any[]; filename: string; columns: CsvCol[]; onImported?: () => Promise<void> | void }) {
   const input = useRef<HTMLInputElement>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
   async function pick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; e.target.value = "";
     if (!file) return;
@@ -810,15 +820,25 @@ function CsvImportBtn({ disabled, onImported }: { disabled?: boolean; onImported
     setBusy(false);
     if (!result.success) { alert(result.message || "CSV import qilinmadi."); return; }
     await onImported?.();
+    setOpen(false);
     alert(`${result.data.imported} ta lid serverga import qilindi${result.data.warnings?.length ? `. ${result.data.warnings.length} ta qator ogohlantirish bilan o'tkazib yuborildi.` : "."}`);
   }
+  const empty = !rows?.length;
   return (
-    <>
+    <div className={`csv-actions${open ? " open" : ""}`} ref={root}>
       <input ref={input} type="file" accept=".csv,text/csv" hidden onChange={(e) => void pick(e)} />
-      <button type="button" className="btn btn-ghost btn-sm" disabled={disabled || busy} onClick={() => input.current?.click()}>
-        <Ic d={I.plus} s={14} /> {busy ? "Import…" : "CSV import"}
+      <button type="button" className="btn btn-ghost btn-sm csv-actions-trigger" aria-haspopup="menu" aria-expanded={open}
+        disabled={(importDisabled || busy) && (!canExport || empty)} onClick={() => setOpen((value) => !value)}>
+        <Ic d={I.download} s={14} /> {busy ? "Import…" : "CSV"}<span className="csv-chevron" aria-hidden="true">⌄</span>
       </button>
-    </>
+      <div className="csv-actions-menu" role="menu">
+        <button type="button" role="menuitem" disabled={importDisabled || busy} onClick={() => input.current?.click()}><Ic d={I.plus} s={15} /><span><b>CSV import qilish</b><small>Lidlarni serverga yuklash</small></span></button>
+        <button type="button" role="menuitem" disabled={!canExport || empty} onClick={() => {
+          setOpen(false);
+          void downloadCsv(filename, columns, rows).catch((e) => alert(e instanceof Error ? e.message : "Faylni saqlab bo'lmadi"));
+        }}><Ic d={I.download} s={15} /><span><b>CSV yuklab olish</b><small>{empty ? "Eksport uchun ma’lumot yo‘q" : `${rows.length} ta yozuv`}</small></span></button>
+      </div>
+    </div>
   );
 }
 const CUST_COLS: CsvCol[] = [
@@ -1183,20 +1203,23 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
   }
   return (
     <section className={`view${show ? " active" : ""}`}>
-      <div className="section-head">
-        <div><h2>Sotuv voronkasi</h2><div className="sub">{tab === "active" ? `Jami ${leads.length} ta faol lid — kartani suring yoki bosing` : `Arxivda ${arch.length} ta lid`}</div></div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <div className="lead-tabs">
-            <button className={tab === "active" ? "on" : ""} onClick={() => setTab("active")}>Faol</button>
-            <button className={tab === "archive" ? "on" : ""} onClick={() => setTab("archive")}>Arxiv{arch.length ? ` (${arch.length})` : ""}</button>
-          </div>
+      <div className="leads-toolbar">
+        <div className="leads-toolbar-primary">
           {tab === "active" ? <div className="lead-tabs lead-view-tabs" aria-label="Lidlar ko‘rinishi">
             <button className={viewMode === "kanban" ? "on" : ""} onClick={() => setViewMode("kanban")}>Kanban</button>
             <button className={viewMode === "list" ? "on" : ""} onClick={() => setViewMode("list")}>Ro‘yxat</button>
           </div> : null}
+          <span className="leads-toolbar-count">{tab === "active" ? `${leads.length} ta faol lid` : `Arxivda ${arch.length} ta lid`}</span>
+        </div>
+        <div className="leads-toolbar-actions">
+          <div className="lead-tabs">
+            <button className={tab === "active" ? "on" : ""} onClick={() => setTab("active")}>Faol</button>
+            <button className={tab === "archive" ? "on" : ""} onClick={() => setTab("archive")}>Arxiv{arch.length ? ` (${arch.length})` : ""}</button>
+          </div>
           {tab === "active" ? <button className="btn btn-ghost btn-sm" disabled={readOnly} onClick={() => setManageStages(true)}>Ustunlar</button> : null}
-          <CsvImportBtn disabled={readOnly} onImported={async () => { await refresh?.(); await reloadCrm?.(); }} />
-          {canExport ? <ExportBtn rows={tab === "active" ? leads : arch} filename={tab === "active" ? "lidlar" : "arxiv"} columns={LEAD_COLS} /> : null}
+          <CsvActionsMenu importDisabled={readOnly} canExport={canExport} rows={tab === "active" ? leads : arch}
+            filename={tab === "active" ? "lidlar" : "arxiv"} columns={LEAD_COLS}
+            onImported={async () => { await refresh?.(); await reloadCrm?.(); }} />
         </div>
       </div>
       {tab === "active" && viewMode === "kanban" ? (
