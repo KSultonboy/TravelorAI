@@ -3,6 +3,7 @@ const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { inspectCsv, mapCsv } = require('../services/crmCsv.service');
 const { assignNextMember, getSettings, markFirstResponse, OPEN_STAGES } = require('../services/crmAutomation.service');
+const { customStageKey, ensurePipelineStages, stageDto, stageTransitionData } = require('../services/crmPipeline.service');
 
 function agencyOr404(req, res) {
   if (!req.agency?.id) { error(res, 'Agentlik topilmadi', 404); return null; }
@@ -36,7 +37,7 @@ function taskDto(task) {
 async function bootstrap(req, res) {
   try {
     const agency = agencyOr404(req, res); if (!agency) return;
-    const [tasks, tags, activities, templates, requisite, members] = await Promise.all([
+    const [tasks, tags, activities, templates, requisite, members, pipelineStages] = await Promise.all([
       prisma.crmTask.findMany({
         where: { agencyId: agency.id },
         include: { booking: { select: { customerName: true } }, assignedMember: { select: { name: true } } },
@@ -52,12 +53,88 @@ async function bootstrap(req, res) {
         include: { account: { select: { email: true } } },
         orderBy: { name: 'asc' },
       }),
+      ensurePipelineStages(agency.id),
     ]);
     return success(res, {
-      tasks: tasks.map(taskDto), tags, activities, templates, requisite,
+      tasks: tasks.map(taskDto), tags, activities, templates, requisite, pipelineStages,
       members: members.map((m) => ({ id: m.id, name: m.name, role: m.role, email: m.account.email })),
     });
   } catch (err) { return error(res, err.message, 500); }
+}
+
+function pipelineName(value) { return String(value || '').trim().replace(/\s+/g, ' ').slice(0, 50); }
+function pipelineColor(value) {
+  const color = String(value || '').trim().toUpperCase();
+  return /^#[0-9A-F]{6}$/.test(color) ? color : '#0F5132';
+}
+
+async function createPipelineStage(req, res) {
+  try {
+    const agency = agencyOr404(req, res); if (!agency) return;
+    const name = pipelineName(req.body?.name);
+    if (name.length < 2) return error(res, 'Ustun nomi kamida 2 ta belgidan iborat bo‘lsin', 400);
+    const existing = await ensurePipelineStages(agency.id);
+    if (existing.length >= 12) return error(res, 'Kanbanda ko‘pi bilan 12 ta ustun bo‘lishi mumkin', 400);
+    if (existing.some((stage) => stage.name.toLocaleLowerCase('uz').localeCompare(name.toLocaleLowerCase('uz')) === 0)) return error(res, 'Bu nomli ustun mavjud', 409);
+    const maxPosition = existing.reduce((max, stage) => Math.max(max, stage.position), 0);
+    const stage = await prisma.crmPipelineStage.create({
+      data: { agencyId: agency.id, key: customStageKey(), name, hint: pipelineName(req.body?.hint) || null, color: pipelineColor(req.body?.color), position: maxPosition + 10 },
+    });
+    return success(res, { stage: stageDto(stage), stages: await ensurePipelineStages(agency.id) }, 201);
+  } catch (err) { return error(res, err.message, 400); }
+}
+
+async function updatePipelineStage(req, res) {
+  try {
+    const agency = agencyOr404(req, res); if (!agency) return;
+    const existing = await prisma.crmPipelineStage.findFirst({ where: { id: String(req.params.id), agencyId: agency.id } });
+    if (!existing) return error(res, 'Kanban ustuni topilmadi', 404);
+    const data = {};
+    if (req.body?.name !== undefined) {
+      const name = pipelineName(req.body.name);
+      if (name.length < 2) return error(res, 'Ustun nomi kamida 2 ta belgidan iborat bo‘lsin', 400);
+      const duplicate = await prisma.crmPipelineStage.findFirst({ where: { agencyId: agency.id, id: { not: existing.id }, name: { equals: name, mode: 'insensitive' } } });
+      if (duplicate) return error(res, 'Bu nomli ustun mavjud', 409);
+      data.name = name;
+    }
+    if (req.body?.hint !== undefined) data.hint = pipelineName(req.body.hint) || null;
+    if (req.body?.color !== undefined) data.color = pipelineColor(req.body.color);
+    if (!Object.keys(data).length) return error(res, 'O‘zgartirish topilmadi', 400);
+    const stage = await prisma.crmPipelineStage.update({ where: { id: existing.id }, data });
+    return success(res, { stage: stageDto(stage), stages: await ensurePipelineStages(agency.id) });
+  } catch (err) { return error(res, err.message, 400); }
+}
+
+async function reorderPipelineStages(req, res) {
+  try {
+    const agency = agencyOr404(req, res); if (!agency) return;
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : [];
+    const existing = await prisma.crmPipelineStage.findMany({ where: { agencyId: agency.id }, orderBy: { position: 'asc' } });
+    if (ids.length !== existing.length || new Set(ids).size !== existing.length || existing.some((stage) => !ids.includes(stage.id))) return error(res, 'Ustunlar tartibi to‘liq yuborilishi kerak', 400);
+    await prisma.$transaction(ids.map((id, index) => prisma.crmPipelineStage.update({ where: { id }, data: { position: (index + 1) * 10 } })));
+    return success(res, { stages: await ensurePipelineStages(agency.id) });
+  } catch (err) { return error(res, err.message, 400); }
+}
+
+async function deletePipelineStage(req, res) {
+  try {
+    const agency = agencyOr404(req, res); if (!agency) return;
+    const existing = await prisma.crmPipelineStage.findFirst({ where: { id: String(req.params.id), agencyId: agency.id } });
+    if (!existing) return error(res, 'Kanban ustuni topilmadi', 404);
+    if (existing.isSystem) return error(res, 'Asosiy tizim ustunini o‘chirib bo‘lmaydi; uning nomi va rangini o‘zgartiring', 400);
+    const targetStageId = String(req.body?.targetStageId || '');
+    const target = await prisma.crmPipelineStage.findFirst({ where: { id: targetStageId, agencyId: agency.id } });
+    if (!target || target.id === existing.id) return error(res, 'Lidlarni ko‘chirish uchun boshqa ustunni tanlang', 400);
+    const leads = await prisma.tourBooking.findMany({ where: { agencyId: agency.id, pipelineStage: existing.key }, select: { id: true, firstResponseAt: true, confirmedAt: true } });
+    await prisma.$transaction(async (tx) => {
+      if (leads.length) {
+        for (const lead of leads) await tx.tourBooking.update({ where: { id: lead.id }, data: stageTransitionData(lead, target) });
+        await tx.leadActivity.createMany({ data: leads.map((lead) => ({ agencyId: agency.id, bookingId: lead.id, actorAccountId: req.agencyAccount.id, type: 'stage', text: `Ustun o‘chirildi: ${existing.name} → ${target.name}` })) });
+      }
+      await tx.crmPipelineStage.delete({ where: { id: existing.id } });
+    });
+    return success(res, { deleted: true, movedLeads: leads.length, stages: await ensurePipelineStages(agency.id) });
+  } catch (err) { return error(res, err.message, 400); }
 }
 
 async function createTask(req, res) {
@@ -487,4 +564,4 @@ async function listAudit(req, res) {
   } catch (err) { return error(res, err.message, 500); }
 }
 
-module.exports = { addActivity, assignLead, bootstrap, commitCsv, createTask, deleteTask, getCrmSettings, importCsv, importLocal, insights, listAudit, listCsvImports, previewCsv, replaceTags, rollbackCsv, saveCrmSettings, saveDocuments, updateTask };
+module.exports = { addActivity, assignLead, bootstrap, commitCsv, createPipelineStage, createTask, deletePipelineStage, deleteTask, getCrmSettings, importCsv, importLocal, insights, listAudit, listCsvImports, previewCsv, reorderPipelineStages, replaceTags, rollbackCsv, saveCrmSettings, saveDocuments, updatePipelineStage, updateTask };

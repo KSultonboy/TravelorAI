@@ -22,6 +22,7 @@ import {
   LEAD_SOURCES,
   type CrmLead,
   type CrmStage,
+  type PipelineStageDefinition,
 } from "@/lib/agency/crm";
 import {
   DOC_LIST,
@@ -141,7 +142,7 @@ const NAV: { key: string; label: string; icon: string; group: string; badge?: "l
   { key: "settings", label: "Sozlamalar", icon: I.gear, group: "Boshqa" },
 ];
 const TITLES: Record<string, string> = { ...Object.fromEntries(NAV.map((n) => [n.key, n.label])), telegram: "Telegram bot", instagram: "Instagram Direct", whatsapp: "WhatsApp Cloud API" };
-const OPEN: CrmStage[] = ["new", "contacted", "quoted"];
+const isOpenStage = (stage: CrmStage) => !["won", "completed", "lost"].includes(stage);
 const UZ_MONTH = ["Yan", "Fev", "Mar", "Apr", "May", "Iyun", "Iyul", "Avg", "Sen", "Okt", "Noy", "Dek"];
 const PKG_GRADS = [
   "linear-gradient(135deg,#0F5132,#0a3d25)",
@@ -456,7 +457,7 @@ function ChangePasswordGate({ email, onDone, logout }: { email: string; onDone: 
 
 export default function KvCabinet() {
   const { phase, me, tours, bookings, bookingStats, logout, refresh, refreshBookings, refreshTours } = useAgencySession();
-  const { agencyId, leads, archivedLeads, tasks, customers, members, move, busyId, reloadCrm, createTask, toggleTask, deleteTask } = useCrm();
+  const { agencyId, leads, archivedLeads, tasks, customers, members, pipelineStages, move, busyId, reloadCrm, createTask, toggleTask, deleteTask } = useCrm();
   const [view, setView] = useState("dashboard");
   const [showAdd, setShowAdd] = useState(false);
   const [dragId, setDragId] = useState("");
@@ -565,7 +566,7 @@ export default function KvCabinet() {
   }
 
   const agency = me?.agency;
-  const openLeads = leads.filter((l) => OPEN.includes(l.stage)).length;
+  const openLeads = leads.filter((l) => isOpenStage(l.stage)).length;
   const overdueCount = tasks.filter((t: any) => isOverdue(t)).length;
 
   // Lid → eng "kuchli" taklif holati (qiziqdi > ko'rildi > yuborildi) — kanban kartasi uchun.
@@ -672,7 +673,7 @@ export default function KvCabinet() {
             ) : (
               <>
                 <Dashboard show={view === "dashboard"} leads={leads} tasks={tasks} stats={bookingStats} agencyId={agencyId} go={setView} />
-                <Leads show={view === "leads"} leads={leads} archivedLeads={archivedLeads} move={guardedMove} busyId={busyId} dragId={dragId} setDragId={setDragId} over={over} setOver={setOver} readOnly={readOnly} canExport={canExport} presByLead={presByLead} refresh={refreshBookings} reloadCrm={reloadCrm} members={members} createTask={createTask} />
+                <Leads show={view === "leads"} leads={leads} archivedLeads={archivedLeads} move={guardedMove} busyId={busyId} dragId={dragId} setDragId={setDragId} over={over} setOver={setOver} readOnly={readOnly} canExport={canExport} presByLead={presByLead} refresh={refreshBookings} reloadCrm={reloadCrm} members={members} createTask={createTask} stages={pipelineStages} />
                 <Customers show={view === "customers"} customers={customers} canExport={canExport} readOnly={readOnly} refresh={refreshBookings} />
                 <Tasks show={view === "tasks"} tasks={tasks} leads={leads} members={members} readOnly={readOnly} createTask={createTask} toggleTask={toggleTask} deleteTask={deleteTask} />
                 <Packages show={view === "packages"} tours={tours} agencyId={agencyId} refreshTours={refreshTours} readOnly={readOnly} />
@@ -707,7 +708,7 @@ function Dashboard({ show, leads, stats, go }: any) {
     const c = (s: CrmStage) => leads.filter((l: CrmLead) => l.stage === s).length;
     const counts = { new: c("new"), contacted: c("contacted"), quoted: c("quoted"), won: c("won"), completed: c("completed") };
     const maxF = Math.max(1, ...Object.values(counts));
-    const open = counts.new + counts.contacted + counts.quoted;
+    const open = leads.filter((lead: CrmLead) => isOpenStage(lead.stage)).length;
     const won = counts.won + counts.completed;
     const revenue = leads.filter((l: CrmLead) => l.stage === "won" || l.stage === "completed").reduce((a: number, l: CrmLead) => a + (l.totalEstimate || 0), 0);
     const decided = won + leads.filter((l: CrmLead) => l.stage === "lost").length;
@@ -1110,7 +1111,7 @@ function FilesModal({ lead, readOnly, onClose }: { lead: CrmLead; readOnly?: boo
     </div>
   );
 }
-function StageSelect({ value, onChange, disabled }: { value: CrmStage; onChange: (s: CrmStage) => void; disabled?: boolean }) {
+function StageSelect({ value, onChange, disabled, stages = CRM_STAGES }: { value: CrmStage; onChange: (s: CrmStage) => void; disabled?: boolean; stages?: PipelineStageDefinition[] }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -1121,18 +1122,18 @@ function StageSelect({ value, onChange, disabled }: { value: CrmStage; onChange:
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("pointerdown", onDoc); document.removeEventListener("keydown", onKey); };
   }, [open]);
-  const current = CRM_STAGES.find((s) => s.key === value);
+  const current = stages.find((s) => s.key === value);
   return (
     <div className={`kstage2${open ? " open" : ""}`} ref={ref} onPointerDown={(e) => e.stopPropagation()}>
       <button type="button" className="kstage2-btn" disabled={disabled} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <span className={`kdot s-${value}`} />
-        <span className="kstage2-lbl">{current?.label}</span>
+        <span className="kdot" style={{ background: current?.color }} />
+        <span className="kstage2-lbl">{current?.label || value}</span>
         <svg className="kstage2-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
       </button>
       <div className="kstage2-menu" role="listbox">
-        {CRM_STAGES.map((s) => (
+        {stages.map((s) => (
           <button type="button" key={s.key} role="option" aria-selected={s.key === value} className={`kstage2-opt${s.key === value ? " sel" : ""}`} onClick={() => { onChange(s.key as CrmStage); setOpen(false); }}>
-            <span className={`kdot s-${s.key}`} />
+            <span className="kdot" style={{ background: s.color }} />
             <span className="kstage2-optl">{s.label}</span>
             {s.key === value ? <svg className="kcheck" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg> : null}
           </button>
@@ -1142,7 +1143,7 @@ function StageSelect({ value, onChange, disabled }: { value: CrmStage; onChange:
   );
 }
 
-function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, over, setOver, readOnly, canExport, presByLead, refresh, reloadCrm, members, createTask }: any) {
+function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, over, setOver, readOnly, canExport, presByLead, refresh, reloadCrm, members, createTask, stages }: any) {
   const [chat, setChat] = useState<CrmLead | null>(null);
   const [detailId, setDetailId] = useState<string>("");
   const [tab, setTab] = useState<"active" | "archive">("active");
@@ -1150,13 +1151,21 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
   const [q, setQ] = useState("");
   const [fStage, setFStage] = useState("all");
   const [fSource, setFSource] = useState("all");
+  const [manageStages, setManageStages] = useState(false);
   // Bosish (batafsil) va surish (drag) ni ajratish: agar kursor siljigan bo'lsa — bu drag, modal ochmaymiz.
   const downPt = useRef<{ x: number; y: number } | null>(null);
+  const configuredStages: PipelineStageDefinition[] = Array.isArray(stages) && stages.length ? stages : CRM_STAGES;
+  const stageList = useMemo<PipelineStageDefinition[]>(() => {
+    const known = new Set(configuredStages.map((stage) => stage.key));
+    const missing = (leads as CrmLead[]).filter((lead, index, all) => !known.has(lead.stage) && all.findIndex((item) => item.stage === lead.stage) === index)
+      .map((lead, index) => ({ id: lead.stage, key: lead.stage, name: lead.stage, label: lead.stage, hint: "Oldingi bosqich", color: "#64748B", position: 1000 + index, isSystem: false }));
+    return [...configuredStages, ...missing];
+  }, [configuredStages, leads]);
   const byStage = useMemo(() => {
-    const map: Record<CrmStage, CrmLead[]> = { new: [], contacted: [], quoted: [], won: [], completed: [], lost: [] };
-    for (const l of leads) map[(l as CrmLead).stage].push(l);
+    const map: Record<string, CrmLead[]> = Object.fromEntries(stageList.map((stage) => [stage.key, []]));
+    for (const l of leads) (map[(l as CrmLead).stage] ||= []).push(l);
     return map;
-  }, [leads]);
+  }, [leads, stageList]);
   const arch: CrmLead[] = archivedLeads || [];
   const archFiltered = useMemo(() => {
     let a: CrmLead[] = archivedLeads || [];
@@ -1185,19 +1194,20 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
             <button className={viewMode === "kanban" ? "on" : ""} onClick={() => setViewMode("kanban")}>Kanban</button>
             <button className={viewMode === "list" ? "on" : ""} onClick={() => setViewMode("list")}>Ro‘yxat</button>
           </div> : null}
+          {tab === "active" ? <button className="btn btn-ghost btn-sm" disabled={readOnly} onClick={() => setManageStages(true)}>Ustunlar</button> : null}
           <CsvImportBtn disabled={readOnly} onImported={async () => { await refresh?.(); await reloadCrm?.(); }} />
           {canExport ? <ExportBtn rows={tab === "active" ? leads : arch} filename={tab === "active" ? "lidlar" : "arxiv"} columns={LEAD_COLS} /> : null}
         </div>
       </div>
       {tab === "active" && viewMode === "kanban" ? (
         <div className="kanban">
-          {CRM_STAGES.map((s, i) => (
+          {stageList.map((s, i) => (
             <div key={s.key} className={`kcol c${i}${over === s.key ? " over" : ""}`}
               onDragOver={(e) => { e.preventDefault(); setOver(s.key); }}
               onDragLeave={() => setOver((c: string) => (c === s.key ? "" : c))}
               onDrop={() => { const l = leads.find((x: CrmLead) => x.id === dragId); setOver(""); setDragId(""); if (l) void move(l, s.key); }}>
-              <div className="khead"><span className="acc" /><b>{s.label}</b><span className="n">{byStage[s.key as CrmStage].length}</span></div>
-              {byStage[s.key as CrmStage].map((l) => (
+              <div className="khead"><span className="acc" style={{ background: s.color }} /><b>{s.label}</b><span className="n">{byStage[s.key]?.length || 0}</span></div>
+              {(byStage[s.key] || []).map((l) => (
                 <article key={l.id} className="kcard kcard-min" draggable={!readOnly}
                   onDragStart={() => setDragId(l.id)} onDragEnd={() => setDragId("")}
                   onMouseDown={(e) => { downPt.current = { x: e.clientX, y: e.clientY }; }}
@@ -1214,7 +1224,7 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
                   </div>
                 </article>
               ))}
-              {byStage[s.key as CrmStage].length === 0 ? <div style={{ textAlign: "center", color: "#aab6b0", fontSize: 12, padding: "10px 0" }}>Bo&apos;sh</div> : null}
+              {(byStage[s.key] || []).length === 0 ? <div style={{ textAlign: "center", color: "#aab6b0", fontSize: 12, padding: "10px 0" }}>Bo&apos;sh</div> : null}
             </div>
           ))}
         </div>
@@ -1225,7 +1235,7 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
               <td><div className="cell"><span className="av-sm">{initials(l.customerName)}</span><div><b>{l.customerName}</b><div className="sub"><span className={`badge2 ${SRC_BADGE[l.source] || "b-grey"}`}>{srcLabel(l.source)}</span></div></div></div></td>
               <td><b>{l.customerPhone || "—"}</b><div className="sub">{l.customerEmail || l.telegramHandle || l.whatsappNumber || "Aloqa kiritilmagan"}</div></td>
               <td>{l.tourTitle || l.tourCity || "—"}</td>
-              <td onClick={(e) => e.stopPropagation()}><StageSelect value={l.stage} onChange={(stage) => move(l, stage)} disabled={readOnly || busyId === l.id} /></td>
+              <td onClick={(e) => e.stopPropagation()}><StageSelect value={l.stage} stages={stageList} onChange={(stage) => move(l, stage)} disabled={readOnly || busyId === l.id} /></td>
               <td>{l.assignedMemberName || "Biriktirilmagan"}</td>
               <td>{l.activities?.[0] ? <><b>{l.activities[0].text}</b><div className="sub">{timeAgo(l.activities[0].at)}</div></> : <span className="sub">Faoliyat yo‘q</span>}</td>
             </tr>)}
@@ -1241,7 +1251,7 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
             </div>
             <select className="arch-sel" value={fStage} onChange={(e) => setFStage(e.target.value)}>
               <option value="all">Barcha bosqich</option>
-              {CRM_STAGES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+              {stageList.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
             </select>
             <select className="arch-sel" value={fSource} onChange={(e) => setFSource(e.target.value)}>
               <option value="all">Barcha manba</option>
@@ -1262,7 +1272,7 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
                       <td><div className="cell"><span className="av-sm">{initials(l.customerName)}</span><b>{l.customerName}</b></div></td>
                       <td>{l.customerPhone || "—"}</td>
                       <td>{l.tourTitle || "—"}</td>
-                      <td><span className={`badge2 ${l.stage === "completed" ? "b-green" : l.stage === "lost" ? "b-rose" : "b-grey"}`}>{STAGE_LABEL[l.stage]}</span></td>
+                      <td><span className={`badge2 ${l.stage === "completed" ? "b-green" : l.stage === "lost" ? "b-rose" : "b-grey"}`}>{stageList.find((stage) => stage.key === l.stage)?.label || l.stage}</span></td>
                       <td><span className="badge2 b-grey">{srcLabel(l.source)}</span></td>
                       <td>{timeAgo(l.createdAt)}</td>
                       <td className="r" onClick={(e) => e.stopPropagation()}>
@@ -1277,21 +1287,115 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
         </>
       )}
       {dl ? (
-        <LeadDetail key={dl.id} lead={dl} readOnly={readOnly} busyId={busyId} pres={presByLead?.[dl.id]} members={members} createTask={createTask}
+        <LeadDetail key={dl.id} lead={dl} readOnly={readOnly} busyId={busyId} pres={presByLead?.[dl.id]} members={members} createTask={createTask} stages={stageList}
           onMove={move} onClose={() => setDetailId("")} refresh={refresh}
           reloadCrm={reloadCrm}
           onArchive={(val: boolean) => setArchived(dl, val)}
           onOpenChat={(l: CrmLead) => { setDetailId(""); setChat(l); }} />
       ) : null}
       {chat ? <TelegramChat lead={chat} onClose={() => setChat(null)} onBack={() => { setDetailId(chat.id); setChat(null); }} readOnly={readOnly} /> : null}
+      {manageStages ? <PipelineStageManager stages={configuredStages} leads={leads} reloadCrm={reloadCrm} onClose={() => setManageStages(false)} /> : null}
     </section>
   );
 }
 
+function PipelineStageManager({ stages, leads, reloadCrm, onClose }: { stages: PipelineStageDefinition[]; leads: CrmLead[]; reloadCrm?: () => Promise<void>; onClose: () => void }) {
+  const [drafts, setDrafts] = useState<Record<string, { name: string; color: string }>>(() => Object.fromEntries(stages.map((stage) => [stage.id, { name: stage.name, color: stage.color }])));
+  const [newName, setNewName] = useState("");
+  const [newColor, setNewColor] = useState("#7C3AED");
+  const [deleteId, setDeleteId] = useState("");
+  const [targetStageId, setTargetStageId] = useState("");
+  const [busy, setBusy] = useState("");
+  const [err, setErr] = useState("");
+  const leadCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const lead of leads) counts[lead.stage] = (counts[lead.stage] || 0) + 1;
+    return counts;
+  }, [leads]);
+  const deleting = stages.find((stage) => stage.id === deleteId);
+
+  function draft(stage: PipelineStageDefinition) { return drafts[stage.id] || { name: stage.name, color: stage.color }; }
+  function setDraft(stage: PipelineStageDefinition, patch: Partial<{ name: string; color: string }>) {
+    setDrafts((current) => ({ ...current, [stage.id]: { ...(current[stage.id] || { name: stage.name, color: stage.color }), ...patch } }));
+  }
+  async function changed() { await reloadCrm?.(); }
+  async function createStage() {
+    if (!newName.trim()) return;
+    setBusy("create"); setErr("");
+    const result = await agencyApi("/crm/pipeline-stages", { method: "POST", body: JSON.stringify({ name: newName, color: newColor }) });
+    if (!result.success) setErr(result.message || "Ustun yaratilmadi.");
+    else { setNewName(""); await changed(); }
+    setBusy("");
+  }
+  async function saveStage(stage: PipelineStageDefinition) {
+    const value = draft(stage);
+    setBusy(stage.id); setErr("");
+    const result = await agencyApi(`/crm/pipeline-stages/${stage.id}`, { method: "PUT", body: JSON.stringify(value) });
+    if (!result.success) setErr(result.message || "Ustun saqlanmadi."); else await changed();
+    setBusy("");
+  }
+  async function moveStage(index: number, delta: number) {
+    const next = index + delta;
+    if (next < 0 || next >= stages.length) return;
+    const ids = stages.map((stage) => stage.id);
+    [ids[index], ids[next]] = [ids[next], ids[index]];
+    setBusy("reorder"); setErr("");
+    const result = await agencyApi("/crm/pipeline-stages/reorder", { method: "PUT", body: JSON.stringify({ ids }) });
+    if (!result.success) setErr(result.message || "Tartib saqlanmadi."); else await changed();
+    setBusy("");
+  }
+  function askDelete(stage: PipelineStageDefinition) {
+    const target = stages.find((item) => item.id !== stage.id);
+    setDeleteId(stage.id); setTargetStageId(target?.id || ""); setErr("");
+  }
+  async function removeStage() {
+    if (!deleting || !targetStageId) return;
+    setBusy(`delete:${deleting.id}`); setErr("");
+    const result = await agencyApi(`/crm/pipeline-stages/${deleting.id}`, { method: "DELETE", body: JSON.stringify({ targetStageId }) });
+    if (!result.success) setErr(result.message || "Ustun o‘chirilmadi.");
+    else { setDeleteId(""); setTargetStageId(""); await changed(); }
+    setBusy("");
+  }
+
+  return <div className="ld-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="card pipeline-manager" role="dialog" aria-modal="true" aria-label="Kanban ustunlari">
+      <button className="ld-x" onClick={onClose} aria-label="Yopish">×</button>
+      <div className="section-head"><div><h2>Kanban ustunlari</h2><div className="sub">Nom, rang va tartibni agentlik ish jarayoniga moslang.</div></div><span className="badge2 b-grey">{stages.length}/12</span></div>
+      {err ? <div className="note note-err">{err}</div> : null}
+      <div className="pipeline-stage-list">
+        {stages.map((stage, index) => {
+          const value = draft(stage);
+          return <div className="pipeline-stage-row" key={stage.id}>
+            <input className="pipeline-color" type="color" value={value.color} onChange={(event) => setDraft(stage, { color: event.target.value.toUpperCase() })} aria-label={`${stage.name} rangi`} />
+            <div className="pipeline-stage-main"><input value={value.name} maxLength={50} onChange={(event) => setDraft(stage, { name: event.target.value })} aria-label="Ustun nomi" /><small>{leadCounts[stage.key] || 0} ta lid{stage.isSystem ? " · asosiy ustun" : ""}</small></div>
+            <div className="pipeline-stage-actions">
+              <button className="btn btn-ghost btn-sm" disabled={!!busy || index === 0} onClick={() => void moveStage(index, -1)} aria-label="Chapga surish">←</button>
+              <button className="btn btn-ghost btn-sm" disabled={!!busy || index === stages.length - 1} onClick={() => void moveStage(index, 1)} aria-label="O‘ngga surish">→</button>
+              <button className="btn btn-ghost btn-sm" disabled={!!busy || !value.name.trim()} onClick={() => void saveStage(stage)}>{busy === stage.id ? "…" : "Saqlash"}</button>
+              {!stage.isSystem ? <button className="btn btn-ghost btn-sm pipeline-delete" disabled={!!busy} onClick={() => askDelete(stage)}>O‘chirish</button> : null}
+            </div>
+          </div>;
+        })}
+      </div>
+      {deleting ? <div className="pipeline-delete-box">
+        <b>“{deleting.name}” ustunini o‘chirish</b>
+        <span>Undagi {leadCounts[deleting.key] || 0} ta lid qaysi ustunga ko‘chirilsin?</span>
+        <div><select value={targetStageId} onChange={(event) => setTargetStageId(event.target.value)}>{stages.filter((stage) => stage.id !== deleting.id).map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select><button className="btn btn-ghost btn-sm" onClick={() => setDeleteId("")}>Bekor qilish</button><button className="btn btn-primary btn-sm" disabled={!targetStageId || !!busy} onClick={() => void removeStage()}>{busy === `delete:${deleting.id}` ? "Ko‘chirilmoqda…" : "Ko‘chirish va o‘chirish"}</button></div>
+      </div> : null}
+      <div className="pipeline-add">
+        <input type="color" value={newColor} onChange={(event) => setNewColor(event.target.value.toUpperCase())} aria-label="Yangi ustun rangi" />
+        <input value={newName} maxLength={50} onChange={(event) => setNewName(event.target.value)} placeholder="Yangi ustun nomi, masalan: Shartnoma" onKeyDown={(event) => { if (event.key === "Enter") void createStage(); }} />
+        <button className="btn btn-primary btn-sm" disabled={!!busy || !newName.trim() || stages.length >= 12} onClick={() => void createStage()}>{busy === "create" ? "Yaratilmoqda…" : "Ustun qo‘shish"}</button>
+      </div>
+    </div>
+  </div>;
+}
+
 /* Lid batafsil oynasi — kartaga bosilганда ochiladi; ko'rish + tahrirlash */
-function LeadDetail({ lead, readOnly, busyId, pres, members, createTask, onMove, onClose, onOpenChat, refresh, reloadCrm, onArchive }: {
+function LeadDetail({ lead, readOnly, busyId, pres, members, createTask, stages = CRM_STAGES, onMove, onClose, onOpenChat, refresh, reloadCrm, onArchive }: {
   lead: CrmLead; readOnly?: boolean; busyId?: string; pres?: any;
   members?: any[];
+  stages?: PipelineStageDefinition[];
   createTask?: (task: { title: string; dueAt?: string; leadId?: string; assignedMemberId?: string }) => Promise<boolean>;
   onMove: (l: CrmLead, s: CrmStage) => void; onClose: () => void; onOpenChat: (l: CrmLead) => void; refresh?: () => Promise<void>;
   reloadCrm?: () => Promise<void>;
@@ -1433,11 +1537,13 @@ function LeadDetail({ lead, readOnly, busyId, pres, members, createTask, onMove,
           </div>
         </div>
         <div className="ld-stageflow" aria-label="Lid bosqichlari">
-          {CRM_STAGES.map((stage, index) => {
-            const currentIndex = CRM_STAGES.findIndex((item) => item.key === lead.stage);
-            return <button key={stage.key} type="button" className={`${stage.key === lead.stage ? "current" : ""}${index < currentIndex && lead.stage !== "lost" ? " passed" : ""}${stage.key === "lost" ? " danger" : ""}`}
+          {stages.map((stage, index) => {
+            const currentIndex = stages.findIndex((item) => item.key === lead.stage);
+            const currentSemantic = stages[currentIndex]?.systemType || lead.stage;
+            const semantic = stage.systemType || stage.key;
+            return <button key={stage.key} type="button" className={`${stage.key === lead.stage ? "current" : ""}${index < currentIndex && currentSemantic !== "lost" ? " passed" : ""}${semantic === "lost" ? " danger" : ""}`}
               disabled={readOnly || busyId === lead.id || editing} onClick={() => onMove(lead, stage.key as CrmStage)} title={stage.label}>
-              <span>{index + 1}</span><b>{stage.label}</b>
+              <span style={stage.key === lead.stage ? { background: stage.color, borderColor: stage.color } : undefined}>{index + 1}</span><b>{stage.label}</b>
             </button>;
           })}
         </div>
@@ -1640,7 +1746,7 @@ function Tasks({ show, tasks, leads, members, readOnly, createTask, toggleTask, 
   const [due, setDue] = useState("");
   const [leadId, setLeadId] = useState("");
   const [assignedMemberId, setAssignedMemberId] = useState("");
-  const openLeadOpts: CrmLead[] = useMemo(() => leads.filter((l: CrmLead) => OPEN.includes(l.stage)), [leads]);
+  const openLeadOpts: CrmLead[] = useMemo(() => leads.filter((l: CrmLead) => isOpenStage(l.stage)), [leads]);
 
   const g = useMemo(() => {
     const byDue = (a: any, b: any) => new Date(a.dueAt || "2999-01-01").getTime() - new Date(b.dueAt || "2999-01-01").getTime();

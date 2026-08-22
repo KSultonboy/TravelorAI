@@ -69,6 +69,10 @@ router.patch('/bookings/:id', blockWhenReadOnly, agency.updateLead); // lid mayd
 
 // Server CRM: vazifa, teg, faoliyat, hujjat, menejer va migratsiya/import.
 router.get('/crm/bootstrap', crm.bootstrap);
+router.post('/crm/pipeline-stages', blockWhenReadOnly, requireOwner, crm.createPipelineStage);
+router.put('/crm/pipeline-stages/reorder', blockWhenReadOnly, requireOwner, crm.reorderPipelineStages);
+router.put('/crm/pipeline-stages/:id', blockWhenReadOnly, requireOwner, crm.updatePipelineStage);
+router.delete('/crm/pipeline-stages/:id', blockWhenReadOnly, requireOwner, crm.deletePipelineStage);
 router.post('/crm/tasks', blockWhenReadOnly, crm.createTask);
 router.patch('/crm/tasks/:id', blockWhenReadOnly, crm.updateTask);
 router.delete('/crm/tasks/:id', blockWhenReadOnly, crm.deleteTask);

@@ -2,8 +2,8 @@ const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { recordAudit } = require('../services/audit.service');
 const { enqueueWebhookEvent } = require('../services/webhookDelivery.service');
+const { ensurePipelineStages, findPipelineStage, stageTransitionData } = require('../services/crmPipeline.service');
 
-const STAGES = ['new', 'contacted', 'quoted', 'won', 'completed', 'lost'];
 const LEAD_SELECT = {
   id: true, customerName: true, customerEmail: true, customerPhone: true, travelers: true,
   travelDate: true, message: true, status: true, totalEstimate: true, currency: true,
@@ -18,10 +18,16 @@ function paging(query) {
 async function listLeads(req, res) {
   try {
     const { page, limit } = paging(req.query);
+    let requestedStage = null;
+    if (req.query.stage) {
+      await ensurePipelineStages(req.agency.id);
+      requestedStage = await findPipelineStage(req.agency.id, String(req.query.stage));
+      if (!requestedStage) return error(res, 'stage yaroqsiz', 400);
+    }
     const where = {
       agencyId: req.agency.id,
       archived: req.query.archived === 'true',
-      ...(req.query.stage && STAGES.includes(req.query.stage) ? { pipelineStage: req.query.stage } : {}),
+      ...(requestedStage ? { pipelineStage: requestedStage.key } : {}),
       ...(req.query.updatedAfter ? { updatedAt: { gt: new Date(req.query.updatedAfter) } } : {}),
     };
     const [items, total] = await Promise.all([
@@ -86,13 +92,10 @@ async function updateLead(req, res) {
     }
     let eventType = 'lead.updated';
     if (req.body?.pipelineStage !== undefined) {
-      if (!STAGES.includes(req.body.pipelineStage)) return error(res, 'pipelineStage yaroqsiz', 400);
-      data.pipelineStage = req.body.pipelineStage; eventType = 'lead.stage_changed';
-      const now = new Date();
-      if (data.pipelineStage !== 'new' && !current.firstResponseAt) data.firstResponseAt = now;
-      if (data.pipelineStage === 'won') { data.status = 'confirmed'; data.confirmedAt = current.confirmedAt || now; }
-      if (data.pipelineStage === 'completed') { data.status = 'completed'; data.completedAt = now; }
-      if (data.pipelineStage === 'lost') { data.status = 'rejected'; data.rejectedAt = now; }
+      await ensurePipelineStages(req.agency.id);
+      const stage = await findPipelineStage(req.agency.id, String(req.body.pipelineStage));
+      if (!stage) return error(res, 'pipelineStage yaroqsiz', 400);
+      Object.assign(data, stageTransitionData(current, stage)); eventType = 'lead.stage_changed';
     }
     if (!Object.keys(data).length) return error(res, 'O‘zgartiriladigan maydon topilmadi', 400);
     const lead = await prisma.tourBooking.update({ where: { id: current.id }, data, select: LEAD_SELECT });

@@ -6,6 +6,10 @@ const mockPrisma = {
   leadTag: { findMany: jest.fn() },
   documentTemplate: { findMany: jest.fn() },
   agencyRequisite: { findUnique: jest.fn() },
+  crmPipelineStage: {
+    findMany: jest.fn().mockResolvedValue([{ id: 'stage-new', agencyId: 'agency-a', key: 'new', name: 'Yangi', hint: '', color: '#2563EB', position: 10, systemType: 'new', isSystem: true }]),
+    createMany: jest.fn(),
+  },
 };
 jest.mock('../src/config/database', () => ({ prisma: mockPrisma }));
 
@@ -63,6 +67,7 @@ test('egasi va boshqa xodim bir agentlikning bir xil server CRM ma ºlumotini ko‚
   await bootstrap({ agency: { id: 'agency-a' }, agencyAccount: { id: 'owner-account' } }, ownerRes);
   await bootstrap({ agency: { id: 'agency-a' }, agencyAccount: { id: 'employee-account' } }, employeeRes);
   expect(ownerRes.body.data).toEqual(employeeRes.body.data);
+  expect(ownerRes.body.data.pipelineStages[0]).toMatchObject({ key: 'new', label: 'Yangi' });
   expect(mockPrisma.crmTask.findMany).toHaveBeenNthCalledWith(1, expect.objectContaining({ where: { agencyId: 'agency-a' } }));
   expect(mockPrisma.crmTask.findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({ where: { agencyId: 'agency-a' } }));
 });

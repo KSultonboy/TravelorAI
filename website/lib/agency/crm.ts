@@ -13,20 +13,32 @@ import type { BookingItem } from "./types";
  * a future server sync is a drop-in replacement.
  * ========================================================================== */
 
-export type CrmStage = "new" | "contacted" | "quoted" | "won" | "completed" | "lost";
+export type CrmStage = string;
 
-export const CRM_STAGES: { key: CrmStage; label: string; hint: string }[] = [
-  { key: "new", label: "Yangi", hint: "Endi kelgan, hali bog'lanilmagan" },
-  { key: "contacted", label: "Bog'lanildi", hint: "Mijoz bilan aloqaga chiqildi" },
-  { key: "quoted", label: "Taklif berildi", hint: "Narx / paket taklifi yuborildi" },
-  { key: "won", label: "Kelishildi", hint: "Mijoz rozi — bandlov tasdiqlandi" },
-  { key: "completed", label: "Yakunlandi", hint: "Sayohat bo'lib o'tdi" },
-  { key: "lost", label: "Yo'qotilgan", hint: "Rad etildi yoki bekor bo'ldi" },
+export type PipelineStageDefinition = {
+  id: string;
+  key: CrmStage;
+  name: string;
+  label: string;
+  hint: string;
+  color: string;
+  position: number;
+  systemType?: string | null;
+  isSystem: boolean;
+};
+
+export const CRM_STAGES: PipelineStageDefinition[] = [
+  { id: "new", key: "new", name: "Yangi", label: "Yangi", hint: "Endi kelgan, hali bog'lanilmagan", color: "#2563EB", position: 10, systemType: "new", isSystem: true },
+  { id: "contacted", key: "contacted", name: "Bog'lanildi", label: "Bog'lanildi", hint: "Mijoz bilan aloqaga chiqildi", color: "#0891B2", position: 20, systemType: "contacted", isSystem: true },
+  { id: "quoted", key: "quoted", name: "Taklif berildi", label: "Taklif berildi", hint: "Narx / paket taklifi yuborildi", color: "#CA8A04", position: 30, systemType: "quoted", isSystem: true },
+  { id: "won", key: "won", name: "Kelishildi", label: "Kelishildi", hint: "Mijoz rozi — bandlov tasdiqlandi", color: "#16A34A", position: 40, systemType: "won", isSystem: true },
+  { id: "completed", key: "completed", name: "Yakunlandi", label: "Yakunlandi", hint: "Sayohat bo'lib o'tdi", color: "#0F766E", position: 50, systemType: "completed", isSystem: true },
+  { id: "lost", key: "lost", name: "Yo'qotilgan", label: "Yo'qotilgan", hint: "Rad etildi yoki bekor bo'ldi", color: "#DC2626", position: 60, systemType: "lost", isSystem: true },
 ];
 
-export const STAGE_LABEL: Record<CrmStage, string> = CRM_STAGES.reduce(
+export const STAGE_LABEL: Record<string, string> = CRM_STAGES.reduce(
   (acc, s) => ({ ...acc, [s.key]: s.label }),
-  {} as Record<CrmStage, string>
+  {} as Record<string, string>
 );
 
 export type Activity = {
@@ -191,7 +203,7 @@ export function setLocalStage(agencyId: string, leadId: string, stage: CrmStage)
   mutateMeta(agencyId, leadId, (m) => {
     m.stage = stage;
     m.activities = [
-      { id: uid("act"), at: new Date().toISOString(), type: "stage", text: `Bosqich: ${STAGE_LABEL[stage]}` },
+      { id: uid("act"), at: new Date().toISOString(), type: "stage", text: `Bosqich: ${STAGE_LABEL[stage] || stage}` },
       ...m.activities,
     ];
     return m;
@@ -326,8 +338,8 @@ export function removeLead(agencyId: string, lead: CrmLead) {
 /* --------------------------- booking → stage map -------------------------- */
 
 export function stageFromBooking(booking: BookingItem): CrmStage {
-  const s = booking.pipelineStage;
-  if (s && ["new", "contacted", "quoted", "won", "completed", "lost"].includes(s)) return s as CrmStage;
+  const s = String(booking.pipelineStage || "").trim();
+  if (s) return s;
   // fallback (eski qatorlar): status'dan
   if (booking.status === "confirmed") return "won";
   if (booking.status === "completed") return "completed";

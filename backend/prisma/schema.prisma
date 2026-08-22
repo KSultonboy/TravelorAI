@@ -486,6 +486,7 @@ model TourAgency {
   webhookEvents           WebhookEvent[]
   branches                AgencyBranch[]
   managerPayrollProfiles  ManagerPayrollProfile[]
+  crmPipelineStages       CrmPipelineStage[]
 
   @@index([active])
   @@index([tariffId])
@@ -499,6 +500,27 @@ model TourAgency {
   @@index([instagramUserId])
   @@index([instagramAppScopedId])
   @@index([whatsappPhoneNumberId])
+}
+
+/// Agentlik o'zi sozlaydigan CRM Kanban ustunlari. `key` lid yozuvlaridagi
+/// TourBooking.pipelineStage bilan bog'lanadi; systemType biznes semantikasini
+/// saqlaydi, shuning uchun ustun nomi o'zgarsa status logikasi buzilmaydi.
+model CrmPipelineStage {
+  id         String     @id @default(cuid())
+  agencyId   String
+  agency     TourAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  key        String
+  name       String
+  hint       String?
+  color      String     @default("#0F5132")
+  position   Int        @default(0)
+  systemType String?
+  isSystem   Boolean    @default(false)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@unique([agencyId, key])
+  @@index([agencyId, position])
 }
 
 model Tariff {

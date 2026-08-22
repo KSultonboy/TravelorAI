@@ -6,14 +6,14 @@ import { useAgencySession } from "./session";
 import { pushNotif } from "./notify";
 import { saveRequisites, saveTemplates, type DocRequisites, type DocTemplates } from "./documents";
 import type { BookingStats } from "./types";
-import { buildCustomers, buildLeads, type Activity, type CrmLead, type CrmStage, type LeadMeta, type MetaMap, type Task } from "./crm";
+import { buildCustomers, buildLeads, CRM_STAGES, type Activity, type CrmLead, type CrmStage, type LeadMeta, type MetaMap, type PipelineStageDefinition, type Task } from "./crm";
 
 export type CrmMember = { id: string; name: string; email: string; role: string };
 type ServerTag = { id: string; bookingId: string; name: string; createdAt: string };
 type ServerActivity = { id: string; bookingId: string; type: Activity["type"]; text: string; createdAt: string };
 type ServerTemplate = { type: "shartnoma" | "invoice"; name: string; content: string };
 type ServerRequisite = Partial<{ legalName: string; director: string; address: string; taxId: string; bankName: string; bankAccount: string; mfo: string; phone: string; email: string }>;
-type Bootstrap = { tasks: Task[]; tags: ServerTag[]; activities: ServerActivity[]; templates: ServerTemplate[]; requisite: ServerRequisite | null; members: CrmMember[] };
+type Bootstrap = { tasks: Task[]; tags: ServerTag[]; activities: ServerActivity[]; templates: ServerTemplate[]; requisite: ServerRequisite | null; members: CrmMember[]; pipelineStages: PipelineStageDefinition[] };
 
 function readJson(key: string) {
   try { const raw = window.localStorage.getItem(key); return raw ? JSON.parse(raw) : undefined; } catch { return undefined; }
@@ -50,7 +50,7 @@ function cacheDocuments(agencyId: string, data: Bootstrap) {
 export function useCrm() {
   const { me, bookings, refreshBookings, refresh } = useAgencySession();
   const agencyId = me?.agency?.id || me?.account.id || "anon";
-  const [data, setData] = useState<Bootstrap>({ tasks: [], tags: [], activities: [], templates: [], requisite: null, members: [] });
+  const [data, setData] = useState<Bootstrap>({ tasks: [], tags: [], activities: [], templates: [], requisite: null, members: [], pipelineStages: CRM_STAGES });
   const [busyId, setBusyId] = useState<string>("");
 
   const reloadCrm = useCallback(async () => {
@@ -131,5 +131,5 @@ export function useCrm() {
     if (result.success) await reloadCrm();
   }, [reloadCrm]);
 
-  return { agencyId, leads, hiddenLeads, archivedLeads, tasks: data.tasks, customers, members: data.members, documents: data, move, busyId, reloadCrm, createTask, toggleTask, deleteTask };
+  return { agencyId, leads, hiddenLeads, archivedLeads, tasks: data.tasks, customers, members: data.members, pipelineStages: data.pipelineStages?.length ? data.pipelineStages : CRM_STAGES, documents: data, move, busyId, reloadCrm, createTask, toggleTask, deleteTask };
 }

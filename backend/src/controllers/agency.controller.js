@@ -18,6 +18,7 @@ const { bookingStatusSchema } = require('../schemas/booking.schema');
 const { formatBooking } = require('./bookings.controller');
 const reviewService = require('../services/review.service');
 const { assignNextMember } = require('../services/crmAutomation.service');
+const { ensurePipelineStages, findPipelineStage, stageTransitionData } = require('../services/crmPipeline.service');
 const {
   applicationSchema,
   googleAuthSchema,
@@ -1171,23 +1172,19 @@ async function updatePipelineStage(req, res) {
   try {
     const agency = await ensureApprovedAgency(req, res);
     if (!agency) return;
-    const STAGES = ['new', 'contacted', 'quoted', 'won', 'completed', 'lost'];
-    const stage = String(req.body && req.body.stage || '').trim();
-    if (!STAGES.includes(stage)) return error(res, 'Notogri bosqich', 400);
+    await ensurePipelineStages(agency.id);
+    const stageKey = String(req.body && req.body.stage || '').trim();
+    const stage = await findPipelineStage(agency.id, stageKey);
+    if (!stage) return error(res, 'Notogri bosqich', 400);
     const existing = await prisma.tourBooking.findFirst({ where: { id: req.params.id, agencyId: agency.id } });
     if (!existing) return error(res, 'Lid topilmadi', 404);
-    const now = new Date();
-    const data = { pipelineStage: stage };
-    if (stage !== 'new' && !existing.firstResponseAt) data.firstResponseAt = now;
-    if (stage === 'won') { data.status = 'confirmed'; if (!existing.confirmedAt) data.confirmedAt = now; }
-    else if (stage === 'completed') { data.status = 'completed'; if (!existing.confirmedAt) data.confirmedAt = now; data.completedAt = now; }
-    else if (stage === 'lost') { data.status = 'rejected'; data.rejectedAt = now; }
+    const data = stageTransitionData(existing, stage);
     const updated = await prisma.tourBooking.update({ where: { id: existing.id }, data, include: { tour: true, agency: true } });
     await prisma.leadActivity.create({
-      data: { agencyId: agency.id, bookingId: existing.id, actorAccountId: req.agencyAccount.id, type: 'stage', text: `Bosqich: ${stage}` },
+      data: { agencyId: agency.id, bookingId: existing.id, actorAccountId: req.agencyAccount.id, type: 'stage', text: `Bosqich: ${stage.name}` },
     });
     // Sayohat "yakunlandi"ga o'tdi — mijozdan Telegram orqali baho so'raymiz (fire-and-forget).
-    if (stage === 'completed' && existing.pipelineStage !== 'completed') {
+    if ((stage.systemType || stage.key) === 'completed' && existing.pipelineStage !== stage.key) {
       reviewService.sendReviewRequest(updated.agency, updated).catch(() => {});
     }
     return success(res, { booking: formatBooking(updated), stats: await getBookingStats(agency.id) });
