@@ -111,6 +111,8 @@ export type BookingItem = {
   utmCampaign?: string | null;
   referrer?: string | null;
   customerBirthday?: string | null;
+  assignedMemberId?: string | null;
+  assignedMemberName?: string | null;
   leadTour?: string | null;
   leadCity?: string | null;
   leadTelegram?: string | null;

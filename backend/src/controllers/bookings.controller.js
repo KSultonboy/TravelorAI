@@ -34,6 +34,8 @@ function formatBooking(booking) {
     archived: booking.archived || false,
     archivedAt: booking.archivedAt || null,
     customerBirthday: booking.customerBirthday || null,
+    assignedMemberId: booking.assignedMemberId || null,
+    assignedMemberName: booking.assignedMember?.name || null,
     agencyNote: booking.agencyNote,
     adminNote: booking.adminNote,
     confirmedAt: booking.confirmedAt,

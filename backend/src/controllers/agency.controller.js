@@ -980,7 +980,7 @@ async function listBookings(req, res) {
     const [items, total, stats] = await Promise.all([
       prisma.tourBooking.findMany({
         where,
-        include: { tour: true, agency: true },
+        include: { tour: true, agency: true, assignedMember: { select: { name: true } } },
         orderBy: { createdAt: 'desc' },
         take: 200,
       }),
@@ -1088,6 +1088,9 @@ async function createManualLead(req, res) {
       },
       include: { tour: true, agency: true },
     });
+    await prisma.leadActivity.create({
+      data: { agencyId: agency.id, bookingId: booking.id, actorAccountId: req.agencyAccount.id, type: 'created', text: "Lid qo'lda yaratildi" },
+    });
     return success(res, { booking: formatBooking(booking) }, 201);
   } catch (err) {
     return error(res, err.message, 400);
@@ -1142,6 +1145,9 @@ async function updatePipelineStage(req, res) {
     else if (stage === 'completed') { data.status = 'completed'; if (!existing.confirmedAt) data.confirmedAt = now; data.completedAt = now; }
     else if (stage === 'lost') { data.status = 'rejected'; data.rejectedAt = now; }
     const updated = await prisma.tourBooking.update({ where: { id: existing.id }, data, include: { tour: true, agency: true } });
+    await prisma.leadActivity.create({
+      data: { agencyId: agency.id, bookingId: existing.id, actorAccountId: req.agencyAccount.id, type: 'stage', text: `Bosqich: ${stage}` },
+    });
     // Sayohat "yakunlandi"ga o'tdi — mijozdan Telegram orqali baho so'raymiz (fire-and-forget).
     if (stage === 'completed' && existing.pipelineStage !== 'completed') {
       reviewService.sendReviewRequest(updated.agency, updated).catch(() => {});
@@ -1234,6 +1240,11 @@ async function updateLead(req, res) {
       if (b.customerBirthday) data.birthdayGreetedOn = null; // sana o'zgardi — qayta tabriklansin
     }
     const updated = await prisma.tourBooking.update({ where: { id: existing.id }, data, include: { tour: true, agency: true } });
+    if (Object.keys(data).length) {
+      await prisma.leadActivity.create({
+        data: { agencyId: agency.id, bookingId: existing.id, actorAccountId: req.agencyAccount.id, type: 'note', text: "Lid ma'lumotlari tahrirlandi", metadata: { fields: Object.keys(data) } },
+      });
+    }
     return success(res, { booking: formatBooking(updated) });
   } catch (err) {
     return error(res, (err.errors && err.errors[0] && err.errors[0].message) || err.message, 400);

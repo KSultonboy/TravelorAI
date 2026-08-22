@@ -5,7 +5,7 @@
 //   • Tarif darajasi                          → sections/caps cheklaydi.
 //   • Tarifsiz eski agentlik (grandfather)    → "unlimited" (hech narsa cheklanmaydi).
 
-const ALL_SECTIONS = ['dashboard', 'leads', 'customers', 'packages', 'bookings', 'payments', 'reports', 'settings'];
+const ALL_SECTIONS = ['dashboard', 'leads', 'customers', 'tasks', 'packages', 'bookings', 'payments', 'reports', 'documents', 'settings'];
 
 const ALL_CAPS = {
   telegram: true, broadcast: true, csvExport: true, analytics: true, manualLeads: true, team: true, integrations: true,
@@ -22,7 +22,7 @@ const PLANS = {
 
   // $9 — asosiy CRM: lidlar (qo'lda ham qo'shish mumkin), mijozlar, turlar, bronlar, to'lovlar, CSV eksport. Telegram/Hisobot/Broadcast YO'Q.
   starter: {
-    sections: ['dashboard', 'leads', 'customers', 'packages', 'bookings', 'payments', 'settings'],
+    sections: ['dashboard', 'leads', 'customers', 'tasks', 'packages', 'bookings', 'payments', 'documents', 'settings'],
     caps: { ...NO_CAPS, manualLeads: true, csvExport: true },
   },
 
@@ -46,8 +46,8 @@ const PLANS = {
 const ROLE_SECTIONS = {
   owner: ALL_SECTIONS,
   manager: ALL_SECTIONS,
-  agent: ['dashboard', 'leads', 'customers', 'packages', 'bookings', 'settings'],
-  accountant: ['dashboard', 'bookings', 'payments', 'reports', 'settings'],
+  agent: ['dashboard', 'leads', 'customers', 'tasks', 'packages', 'bookings', 'documents', 'settings'],
+  accountant: ['dashboard', 'tasks', 'bookings', 'payments', 'reports', 'documents', 'settings'],
 };
 
 const DEFAULT_TARIFF_PLAN = 'starter'; // tarifi bor, lekin slug noma'lum bo'lsa

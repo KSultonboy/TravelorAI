@@ -8,9 +8,6 @@ import { getNotifs, markRead, markAllRead, clearNotifs, pushNotif, seedNotifs, t
 import {
   CRM_STAGES,
   STAGE_LABEL,
-  addTask,
-  toggleTask,
-  deleteTask,
   timeAgo,
   whatsappLink,
   telegramLink,
@@ -108,6 +105,7 @@ const NAV: { key: string; label: string; icon: string; group: string; badge?: "l
   { key: "dashboard", label: "Boshqaruv paneli", icon: I.grid, group: "Asosiy" },
   { key: "leads", label: "Lidlar / Voronka", icon: I.list, group: "Asosiy", badge: "leads" },
   { key: "customers", label: "Mijozlar", icon: I.users, group: "Asosiy" },
+  { key: "tasks", label: "Vazifalar", icon: I.check, group: "Asosiy", badge: "tasks" },
   { key: "packages", label: "Turlar / Paketlar", icon: I.box, group: "Sotuv" },
   { key: "presentations", label: "Takliflar", icon: I.send, group: "Sotuv" },
   { key: "reviews", label: "Sharhlar", icon: I.star, group: "Sotuv" },
@@ -319,7 +317,7 @@ function ChangePasswordGate({ email, onDone, logout }: { email: string; onDone: 
 
 export default function KvCabinet() {
   const { phase, me, tours, bookings, bookingStats, logout, refresh, refreshBookings, refreshTours } = useAgencySession();
-  const { agencyId, leads, archivedLeads, tasks, customers, move, busyId } = useCrm();
+  const { agencyId, leads, archivedLeads, tasks, customers, members, move, busyId, reloadCrm, createTask, toggleTask, deleteTask } = useCrm();
   const [view, setView] = useState("dashboard");
   const [showAdd, setShowAdd] = useState(false);
   const [dragId, setDragId] = useState("");
@@ -525,8 +523,9 @@ export default function KvCabinet() {
             ) : (
               <>
                 <Dashboard show={view === "dashboard"} leads={leads} tasks={tasks} stats={bookingStats} agencyId={agencyId} go={setView} />
-                <Leads show={view === "leads"} leads={leads} archivedLeads={archivedLeads} move={guardedMove} busyId={busyId} dragId={dragId} setDragId={setDragId} over={over} setOver={setOver} readOnly={readOnly} canExport={canExport} presByLead={presByLead} refresh={refreshBookings} />
+                <Leads show={view === "leads"} leads={leads} archivedLeads={archivedLeads} move={guardedMove} busyId={busyId} dragId={dragId} setDragId={setDragId} over={over} setOver={setOver} readOnly={readOnly} canExport={canExport} presByLead={presByLead} refresh={refreshBookings} reloadCrm={reloadCrm} members={members} />
                 <Customers show={view === "customers"} customers={customers} canExport={canExport} readOnly={readOnly} refresh={refreshBookings} />
+                <Tasks show={view === "tasks"} tasks={tasks} leads={leads} members={members} readOnly={readOnly} createTask={createTask} toggleTask={toggleTask} deleteTask={deleteTask} />
                 <Packages show={view === "packages"} tours={tours} agencyId={agencyId} refreshTours={refreshTours} readOnly={readOnly} />
                 <Presentations show={view === "presentations"} items={presentations} leads={leads} tours={tours} reload={reloadPresentations} readOnly={readOnly} />
                 <Reviews show={view === "reviews"} readOnly={readOnly} />
@@ -641,6 +640,30 @@ function ExportBtn({ rows, filename, columns }: { rows: any[]; filename: string;
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
       CSV
     </button>
+  );
+}
+function CsvImportBtn({ disabled, onImported }: { disabled?: boolean; onImported?: () => Promise<void> | void }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  async function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; e.target.value = "";
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { alert("CSV fayl 5 MB dan oshmasligi kerak."); return; }
+    setBusy(true);
+    const csv = await file.text();
+    const result = await agencyApi<{ imported: number; warnings?: string[] }>("/crm/import/csv", { method: "POST", body: JSON.stringify({ csv }) });
+    setBusy(false);
+    if (!result.success) { alert(result.message || "CSV import qilinmadi."); return; }
+    await onImported?.();
+    alert(`${result.data.imported} ta lid serverga import qilindi${result.data.warnings?.length ? `. ${result.data.warnings.length} ta qator ogohlantirish bilan o'tkazib yuborildi.` : "."}`);
+  }
+  return (
+    <>
+      <input ref={input} type="file" accept=".csv,text/csv" hidden onChange={(e) => void pick(e)} />
+      <button type="button" className="btn btn-ghost btn-sm" disabled={disabled || busy} onClick={() => input.current?.click()}>
+        <Ic d={I.plus} s={14} /> {busy ? "Import…" : "CSV import"}
+      </button>
+    </>
   );
 }
 const CUST_COLS: CsvCol[] = [
@@ -887,7 +910,7 @@ function StageSelect({ value, onChange, disabled }: { value: CrmStage; onChange:
   );
 }
 
-function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, over, setOver, readOnly, canExport, presByLead, refresh }: any) {
+function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, over, setOver, readOnly, canExport, presByLead, refresh, reloadCrm, members }: any) {
   const [chat, setChat] = useState<CrmLead | null>(null);
   const [detailId, setDetailId] = useState<string>("");
   const [tab, setTab] = useState<"active" | "archive">("active");
@@ -924,6 +947,7 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
             <button className={tab === "active" ? "on" : ""} onClick={() => setTab("active")}>Faol</button>
             <button className={tab === "archive" ? "on" : ""} onClick={() => setTab("archive")}>Arxiv{arch.length ? ` (${arch.length})` : ""}</button>
           </div>
+          <CsvImportBtn disabled={readOnly} onImported={async () => { await refresh?.(); await reloadCrm?.(); }} />
           {canExport ? <ExportBtn rows={tab === "active" ? leads : arch} filename={tab === "active" ? "lidlar" : "arxiv"} columns={LEAD_COLS} /> : null}
         </div>
       </div>
@@ -1000,8 +1024,9 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
         </>
       )}
       {dl ? (
-        <LeadDetail lead={dl} readOnly={readOnly} busyId={busyId} pres={presByLead?.[dl.id]}
+        <LeadDetail lead={dl} readOnly={readOnly} busyId={busyId} pres={presByLead?.[dl.id]} members={members}
           onMove={move} onClose={() => setDetailId("")} refresh={refresh}
+          reloadCrm={reloadCrm}
           onArchive={(val: boolean) => setArchived(dl, val)}
           onOpenChat={(l: CrmLead) => { setDetailId(""); setChat(l); }} />
       ) : null}
@@ -1011,15 +1036,19 @@ function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, ov
 }
 
 /* Lid batafsil oynasi — kartaga bosilганда ochiladi; ko'rish + tahrirlash */
-function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat, refresh, onArchive }: {
+function LeadDetail({ lead, readOnly, busyId, pres, members, onMove, onClose, onOpenChat, refresh, reloadCrm, onArchive }: {
   lead: CrmLead; readOnly?: boolean; busyId?: string; pres?: any;
+  members?: any[];
   onMove: (l: CrmLead, s: CrmStage) => void; onClose: () => void; onOpenChat: (l: CrmLead) => void; refresh?: () => Promise<void>;
+  reloadCrm?: () => Promise<void>;
   onArchive?: (val: boolean) => Promise<void> | void;
 }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [tagInput, setTagInput] = useState("");
+  const [noteInput, setNoteInput] = useState("");
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { if (editing) setEditing(false); else onClose(); } };
     document.addEventListener("keydown", onKey);
@@ -1066,6 +1095,7 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat,
     else setErr(res.message || "Saqlab bo'lmadi.");
   }
   const fields: [string, React.ReactNode][] = [
+    ["Menejer", lead.assignedMemberName || "Biriktirilmagan"],
     ["Telefon", lead.customerPhone || "—"],
     ["Email", lead.customerEmail || "—"],
     ["Telegram", lead.telegramHandle || "—"],
@@ -1078,6 +1108,27 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat,
     ["Tug'ilgan kun", lead.customerBirthday ? formatDate(lead.customerBirthday) : "—"],
   ];
   if (lead.utmSource) fields.push(["Manba (UTM)", lead.utmSource]);
+  async function assign(memberId: string) {
+    setBusy(true);
+    const result = await agencyApi(`/crm/bookings/${lead.id}/assignee`, { method: "PATCH", body: JSON.stringify({ memberId: memberId || null }) });
+    if (result.success) { await refresh?.(); await reloadCrm?.(); } else setErr(result.message);
+    setBusy(false);
+  }
+  async function addTag() {
+    const value = tagInput.trim(); if (!value || readOnly) return;
+    const tags = Array.from(new Set([...(lead.tags || []), value]));
+    const result = await agencyApi(`/crm/bookings/${lead.id}/tags`, { method: "PUT", body: JSON.stringify({ tags }) });
+    if (result.success) { setTagInput(""); await reloadCrm?.(); } else setErr(result.message);
+  }
+  async function removeTag(name: string) {
+    const result = await agencyApi(`/crm/bookings/${lead.id}/tags`, { method: "PUT", body: JSON.stringify({ tags: (lead.tags || []).filter((tag) => tag !== name) }) });
+    if (result.success) await reloadCrm?.(); else setErr(result.message);
+  }
+  async function addNote() {
+    const text = noteInput.trim(); if (!text || readOnly) return;
+    const result = await agencyApi(`/crm/bookings/${lead.id}/activities`, { method: "POST", body: JSON.stringify({ type: "note", text }) });
+    if (result.success) { setNoteInput(""); await reloadCrm?.(); } else setErr(result.message);
+  }
   const inp = (k: string, label: string, o?: { type?: string; ph?: string; full?: boolean }) => (
     <div className="fld" style={{ marginBottom: 0, ...(o?.full ? { gridColumn: "1 / -1" } : {}) }}>
       <label>{label}</label>
@@ -1104,6 +1155,15 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat,
           <span className="ld-k">Bosqich</span>
           <StageSelect value={lead.stage} onChange={(s) => onMove(lead, s)} disabled={readOnly || busyId === lead.id || editing} />
         </div>
+        {!editing ? (
+          <div className="ld-stagebar">
+            <span className="ld-k">Mas&apos;ul menejer</span>
+            <select value={lead.assignedMemberId || ""} disabled={readOnly || busy} onChange={(e) => void assign(e.target.value)} style={{ marginLeft: "auto", minWidth: 190 }}>
+              <option value="">Biriktirilmagan</option>
+              {(members || []).map((m: any) => <option key={m.id} value={m.id}>{m.name} · {m.role}</option>)}
+            </select>
+          </div>
+        ) : null}
         {editing ? (
           <>
             {err ? <div className="note" style={{ marginBottom: 12, background: "var(--rose-soft)", color: "#8f2a20", borderColor: "#f3c9c4" }}>{err}</div> : null}
@@ -1133,6 +1193,20 @@ function LeadDetail({ lead, readOnly, busyId, pres, onMove, onClose, onOpenChat,
               ))}
             </div>
             {lead.message ? <div className="ld-note"><span className="ld-k">Mijoz xabari</span><p>{lead.message}</p></div> : null}
+            <div className="ld-note">
+              <span className="ld-k">Teglar</span>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                {(lead.tags || []).map((tag) => <button key={tag} type="button" className="badge2 b-green" disabled={readOnly} onClick={() => void removeTag(tag)} title="Tegni o‘chirish">{tag}{!readOnly ? " ×" : ""}</button>)}
+                {!readOnly ? <><input value={tagInput} onChange={(e) => setTagInput(e.target.value)} placeholder="Yangi teg" style={{ maxWidth: 140 }} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void addTag(); } }} /><button className="btn btn-ghost btn-sm" onClick={() => void addTag()}>Qo&apos;shish</button></> : null}
+              </div>
+            </div>
+            {!readOnly ? (
+              <div className="ld-note">
+                <span className="ld-k">Faoliyatga izoh qo&apos;shish</span>
+                <textarea rows={2} value={noteInput} onChange={(e) => setNoteInput(e.target.value)} placeholder="Qo‘ng‘iroq natijasi yoki keyingi qadam…" />
+                <button className="btn btn-ghost btn-sm" disabled={!noteInput.trim()} onClick={() => void addNote()}>Izohni saqlash</button>
+              </div>
+            ) : null}
             {pres ? <div style={{ marginTop: 12 }}><PresBadge p={pres} /></div> : null}
             <div className="ld-tools"><ContactActions lead={lead} /></div>
             <div className="ld-tools2">
@@ -1221,10 +1295,11 @@ function Customers({ show, customers, canExport, readOnly, refresh }: any) {
 }
 
 /* ================= VAZIFALAR / ESLATMALAR ================= */
-function Tasks({ show, agencyId, tasks, leads, readOnly }: any) {
+function Tasks({ show, tasks, leads, members, readOnly, createTask, toggleTask, deleteTask }: any) {
   const [title, setTitle] = useState("");
   const [due, setDue] = useState("");
   const [leadId, setLeadId] = useState("");
+  const [assignedMemberId, setAssignedMemberId] = useState("");
   const openLeadOpts: CrmLead[] = useMemo(() => leads.filter((l: CrmLead) => OPEN.includes(l.stage)), [leads]);
 
   const g = useMemo(() => {
@@ -1245,27 +1320,26 @@ function Tasks({ show, agencyId, tasks, leads, readOnly }: any) {
   const activeCount = g.overdue.length + g.today.length + g.upcoming.length + g.noDue.length;
   const inp: any = { padding: "10px 12px", border: "1px solid rgba(255,255,255,.15)", background: "rgba(255,255,255,.04)", color: "inherit", borderRadius: 10, fontSize: 14, minWidth: 0 };
 
-  function submit(e?: any) {
+  async function submit(e?: any) {
     e?.preventDefault?.();
     const t = title.trim();
     if (!t || readOnly) return;
-    const lead = leads.find((x: CrmLead) => x.id === leadId);
-    addTask(agencyId, { title: t, dueAt: due ? new Date(due).toISOString() : undefined, leadId: leadId || undefined, leadName: lead?.customerName });
-    setTitle(""); setDue(""); setLeadId("");
+    const ok = await createTask({ title: t, dueAt: due ? new Date(due).toISOString() : undefined, leadId: leadId || undefined, assignedMemberId: assignedMemberId || undefined });
+    if (ok) { setTitle(""); setDue(""); setLeadId(""); setAssignedMemberId(""); }
   }
-  function quickForLead(l: CrmLead) {
+  async function quickForLead(l: CrmLead) {
     if (readOnly) return;
-    addTask(agencyId, { title: `${l.customerName} bilan bog'lanish`, leadId: l.id, leadName: l.customerName, dueAt: new Date(Date.now() + 86400000).toISOString() });
+    await createTask({ title: `${l.customerName} bilan bog'lanish`, leadId: l.id, dueAt: new Date(Date.now() + 86400000).toISOString(), assignedMemberId: l.assignedMemberId || undefined });
   }
 
   const renderRow = (t: any) => {
     const info = dueInfo(t.dueAt);
     return (
       <div className={`task${t.done ? " done" : ""}`} key={t.id}>
-        <button className="box" disabled={readOnly} onClick={() => toggleTask(agencyId, t.id)} aria-label="Bajarildi"><Ic d={I.check} s={13} /></button>
-        <span className="tx">{t.title}{t.leadName ? <small style={{ color: "#8aa398", marginLeft: 6 }}>· {t.leadName}</small> : null}</span>
+        <button className="box" disabled={readOnly} onClick={() => void toggleTask(t)} aria-label="Bajarildi"><Ic d={I.check} s={13} /></button>
+        <span className="tx">{t.title}{t.leadName ? <small style={{ color: "#8aa398", marginLeft: 6 }}>· {t.leadName}</small> : null}{t.assignedMemberName ? <small style={{ color: "#8aa398", marginLeft: 6 }}>· {t.assignedMemberName}</small> : null}</span>
         <span className={`badge2 ${t.done ? "b-grey" : info.cls}`}>{t.done ? "Bajarildi" : info.label}</span>
-        {!readOnly ? <button onClick={() => deleteTask(agencyId, t.id)} title="O'chirish" aria-label="O'chirish" style={{ background: "transparent", border: "none", color: "inherit", opacity: 0.45, cursor: "pointer", padding: 4, display: "inline-flex" }}><Ic d={I.trash} s={14} /></button> : null}
+        {!readOnly ? <button onClick={() => void deleteTask(t.id)} title="O'chirish" aria-label="O'chirish" style={{ background: "transparent", border: "none", color: "inherit", opacity: 0.45, cursor: "pointer", padding: 4, display: "inline-flex" }}><Ic d={I.trash} s={14} /></button> : null}
       </div>
     );
   };
@@ -1289,6 +1363,10 @@ function Tasks({ show, agencyId, tasks, leads, readOnly }: any) {
             <option value="">Lidga bog'lash (ixtiyoriy)</option>
             {openLeadOpts.map((l) => <option key={l.id} value={l.id}>{l.customerName}</option>)}
           </select>
+          <select value={assignedMemberId} onChange={(e) => setAssignedMemberId(e.target.value)} style={{ ...inp, flex: "1 1 170px" }}>
+            <option value="">Menejer (ixtiyoriy)</option>
+            {(members || []).map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
           <button type="submit" className="btn btn-primary btn-sm" disabled={!title.trim()}><Ic d={I.plus} s={15} /> Qo&apos;shish</button>
         </form>
       ) : null}
@@ -1301,7 +1379,7 @@ function Tasks({ show, agencyId, tasks, leads, readOnly }: any) {
               <div className="task" key={l.id}>
                 <span className="av-sm">{initials(l.customerName)}</span>
                 <span className="tx">{l.customerName}<small style={{ marginLeft: 6, color: "#8aa398" }}>· {STAGE_LABEL[l.stage as CrmStage]}</small></span>
-                {!readOnly ? <button className="btn btn-ghost btn-sm" onClick={() => quickForLead(l)}><Ic d={I.plus} s={14} /> Eslatma</button> : null}
+                {!readOnly ? <button className="btn btn-ghost btn-sm" onClick={() => void quickForLead(l)}><Ic d={I.plus} s={14} /> Eslatma</button> : null}
               </div>
             ))}
           </div>
@@ -2351,7 +2429,11 @@ function DocumentsSection({ show, agencyId, readOnly }: { show: boolean; agencyI
     setTpl((p) => ({ ...p, [type]: { ...(p as Record<string, Record<string, string>>)[type], [key]: val } }) as DocTemplates);
     setMsg("");
   }
-  function save() { saveTemplates(agencyId, tpl); setMsg("Saqlandi ✓"); setTimeout(() => setMsg(""), 1800); }
+  async function save() {
+    const result = await agencyApi("/crm/documents", { method: "PUT", body: JSON.stringify({ templates: tpl }) });
+    if (!result.success) { setMsg(result.message); return; }
+    saveTemplates(agencyId, tpl); setMsg("Serverga saqlandi ✓"); setTimeout(() => setMsg(""), 1800);
+  }
   function resetType(type: DocType) {
     setTpl((p) => ({ ...p, [type]: JSON.parse(JSON.stringify((DEFAULT_DOC_TEMPLATES as Record<string, unknown>)[type])) }) as DocTemplates);
     setMsg("");
@@ -2391,7 +2473,7 @@ function DocumentsSection({ show, agencyId, readOnly }: { show: boolean; agencyI
 
       {!readOnly ? (
         <div style={{ position: "sticky", bottom: 0, background: "var(--canvas)", padding: "12px 0 4px", display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
-          <button className="btn btn-primary" onClick={save}>Barchasini saqlash</button>
+          <button className="btn btn-primary" onClick={() => void save()}>Barchasini saqlash</button>
           {msg ? <span style={{ color: "var(--primary)", fontSize: 13, fontWeight: 600 }}>{msg}</span> : null}
           <span style={{ color: "var(--t3)", fontSize: 12, marginLeft: "auto" }}>«Namuna ochish» — o&apos;zgarishlarni saqlab, chop etish oynasini ko&apos;rsatadi</span>
         </div>
@@ -2406,7 +2488,11 @@ function DocRequisitesCard({ agencyId, readOnly }: { agencyId: string; readOnly?
   const [saved, setSaved] = useState(false);
   useEffect(() => { setR(getRequisites(agencyId)); }, [agencyId]);
   function set(k: keyof DocRequisites, v: string) { setR((p) => ({ ...p, [k]: v })); setSaved(false); }
-  function save() { saveRequisites(agencyId, r); setSaved(true); setTimeout(() => setSaved(false), 1800); }
+  async function save() {
+    const result = await agencyApi("/crm/documents", { method: "PUT", body: JSON.stringify({ requisite: r }) });
+    if (!result.success) { alert(result.message); return; }
+    saveRequisites(agencyId, r); setSaved(true); setTimeout(() => setSaved(false), 1800);
+  }
   const F: { k: keyof DocRequisites; label: string; ph: string; full?: boolean }[] = [
     { k: "legalName", label: "To'liq huquqiy nom", ph: "«Guli Travel» MChJ", full: true },
     { k: "director", label: "Direktor F.I.Sh.", ph: "Abdullayev Aziz" },
@@ -2428,7 +2514,7 @@ function DocRequisitesCard({ agencyId, readOnly }: { agencyId: string; readOnly?
         ))}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
-        <button className="btn btn-primary" onClick={save} disabled={readOnly}>Saqlash</button>
+        <button className="btn btn-primary" onClick={() => void save()} disabled={readOnly}>Saqlash</button>
         {saved ? <span style={{ color: "var(--primary)", fontSize: 13, fontWeight: 600 }}>Saqlandi ✓</span> : null}
         <span style={{ color: "var(--t3)", fontSize: 12, marginLeft: "auto" }}>To&apos;ldirilmagan maydonlar hujjatда bo&apos;sh chiziq bo&apos;lib qoladi</span>
       </div>

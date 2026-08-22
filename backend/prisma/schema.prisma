@@ -29,39 +29,39 @@ enum FeedbackCategory {
 }
 
 model User {
-  id              String          @id @default(cuid())
-  name            String
-  lastName        String?
-  bio             String?
-  avatarUrl       String?
-  email           String          @unique
-  pendingEmail    String?         @unique
-  password        String?
-  googleId        String?         @unique
-  authProvider    AuthProvider    @default(LOCAL)
-  emailVerified   Boolean         @default(false)
-  emailVerifiedAt DateTime?
-  lastLoginAt     DateTime?
-  blocked         Boolean         @default(false)
-  failedLoginAttempts Int         @default(0)
-  lastFailedLoginAt   DateTime?
-  lockoutUntil        DateTime?
-  lockoutLevel        Int         @default(0)
-  role            String          @default("traveler")
-  expoPushToken   String?
-  emailChangeResendCount   Int      @default(0)
+  id                       String          @id @default(cuid())
+  name                     String
+  lastName                 String?
+  bio                      String?
+  avatarUrl                String?
+  email                    String          @unique
+  pendingEmail             String?         @unique
+  password                 String?
+  googleId                 String?         @unique
+  authProvider             AuthProvider    @default(LOCAL)
+  emailVerified            Boolean         @default(false)
+  emailVerifiedAt          DateTime?
+  lastLoginAt              DateTime?
+  blocked                  Boolean         @default(false)
+  failedLoginAttempts      Int             @default(0)
+  lastFailedLoginAt        DateTime?
+  lockoutUntil             DateTime?
+  lockoutLevel             Int             @default(0)
+  role                     String          @default("traveler")
+  expoPushToken            String?
+  emailChangeResendCount   Int             @default(0)
   emailChangeRequestedAt   DateTime?
-  accountDeleteResendCount Int      @default(0)
+  accountDeleteResendCount Int             @default(0)
   accountDeleteRequestedAt DateTime?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  trips           Trip[]
-  authCodes       AuthCode[]
-  preference      UserPreference?
-  wishlistItems   WishlistItem[]
-  feedback        Feedback[]
-  tripReviews     TripReview[]
-  tourBookings    TourBooking[]
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+  trips                    Trip[]
+  authCodes                AuthCode[]
+  preference               UserPreference?
+  wishlistItems            WishlistItem[]
+  feedback                 Feedback[]
+  tripReviews              TripReview[]
+  tourBookings             TourBooking[]
 }
 
 model AuthCode {
@@ -107,16 +107,18 @@ model AgencyAccount {
 }
 
 model AgencyMember {
-  id        String        @id @default(cuid())
-  agencyId  String
-  agency    TourAgency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  accountId String
-  account   AgencyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  name      String
-  role      String        @default("agent") // manager | agent | accountant (owner emas — u ownerAccountId)
-  status    String        @default("active")
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id               String        @id @default(cuid())
+  agencyId         String
+  agency           TourAgency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  accountId        String
+  account          AgencyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  name             String
+  role             String        @default("agent") // manager | agent | accountant (owner emas — u ownerAccountId)
+  status           String        @default("active")
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  assignedBookings TourBooking[] @relation("AssignedLeadManager")
+  assignedTasks    CrmTask[]     @relation("AssignedTaskManager")
 
   @@unique([agencyId, accountId])
   @@index([agencyId])
@@ -386,22 +388,22 @@ model TravelerStory {
 }
 
 model TourAgency {
-  id               String              @id @default(cuid())
-  slug             String              @unique
-  ownerAccountId   String?
-  ownerAccount     AgencyAccount?      @relation(fields: [ownerAccountId], references: [id], onDelete: SetNull)
-  name             String
-  city             String
-  description      String?
-  specialty        String
-  rating           Float               @default(0)
-  reviews          Int                 @default(0)
-  toursCount       Int                 @default(0)
-  phone            String?
-  telegram         String?
+  id                  String              @id @default(cuid())
+  slug                String              @unique
+  ownerAccountId      String?
+  ownerAccount        AgencyAccount?      @relation(fields: [ownerAccountId], references: [id], onDelete: SetNull)
+  name                String
+  city                String
+  description         String?
+  specialty           String
+  rating              Float               @default(0)
+  reviews             Int                 @default(0)
+  toursCount          Int                 @default(0)
+  phone               String?
+  telegram            String?
   telegramBotToken    String?
   telegramBotUsername String?
-  telegramBotActive   Boolean  @default(false)
+  telegramBotActive   Boolean             @default(false)
   telegramWelcome     String?
   telegramConfig      String?
   birthdayTemplate    String? // tug'ilgan kun tabrigi matni ({name}, {agency})
@@ -409,30 +411,36 @@ model TourAgency {
   tariffId            String?
   subscriptionStatus  String              @default("none")
   subscriptionUntil   DateTime?
-  website          String?
-  imageUrl         String?
-  active           Boolean             @default(true)
-  source           String              @default("admin")
-  sourceUrl        String?
-  lastVerifiedAt   DateTime?
-  confidenceScore  Float               @default(0.7)
-  featured         Boolean             @default(false)
-  manualBoost      Float               @default(0)
-  qualityScore     Float               @default(0.7)
-  landingSortOrder Int                 @default(0)
-  approvalStatus   String              @default("approved")
-  approvedAt       DateTime?
-  rejectedAt       DateTime?
-  adminNote        String?
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-  tours            Tour[]
-  applications     AgencyApplication[]
-  bookings         TourBooking[]
-  tariff           Tariff?             @relation(fields: [tariffId], references: [id], onDelete: SetNull)
-  payments         AgencyPayment[]
-  members          AgencyMember[]
-  presentations    TourPresentation[]
+  website             String?
+  imageUrl            String?
+  active              Boolean             @default(true)
+  source              String              @default("admin")
+  sourceUrl           String?
+  lastVerifiedAt      DateTime?
+  confidenceScore     Float               @default(0.7)
+  featured            Boolean             @default(false)
+  manualBoost         Float               @default(0)
+  qualityScore        Float               @default(0.7)
+  landingSortOrder    Int                 @default(0)
+  approvalStatus      String              @default("approved")
+  approvedAt          DateTime?
+  rejectedAt          DateTime?
+  adminNote           String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  tours               Tour[]
+  applications        AgencyApplication[]
+  bookings            TourBooking[]
+  tariff              Tariff?             @relation(fields: [tariffId], references: [id], onDelete: SetNull)
+  payments            AgencyPayment[]
+  members             AgencyMember[]
+  presentations       TourPresentation[]
+  crmTasks            CrmTask[]
+  leadActivities      LeadActivity[]
+  leadTags            LeadTag[]
+  documentTemplates   DocumentTemplate[]
+  requisite           AgencyRequisite?
+  auditLogs           AuditLog[]
 
   @@index([active])
   @@index([tariffId])
@@ -446,20 +454,20 @@ model TourAgency {
 }
 
 model Tariff {
-  id            String          @id @default(cuid())
-  name          String
-  slug          String          @unique
-  priceMonthly  Int             @default(0)
+  id              String          @id @default(cuid())
+  name            String
+  slug            String          @unique
+  priceMonthly    Int             @default(0)
   /// Oylik narx O'zbekiston so'mida — CLICK/Payme to'lovlari faqat so'mda.
-  priceMonthlyUzs Int           @default(0)
-  commissionPct Float           @default(15)
-  features      String?
-  sortOrder     Int             @default(0)
-  active        Boolean         @default(true)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  agencies      TourAgency[]
-  payments      AgencyPayment[]
+  priceMonthlyUzs Int             @default(0)
+  commissionPct   Float           @default(15)
+  features        String?
+  sortOrder       Int             @default(0)
+  active          Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  agencies        TourAgency[]
+  payments        AgencyPayment[]
 
   @@index([active])
   @@index([sortOrder])
@@ -487,28 +495,28 @@ model AgencyPayment {
 /// CLICK (SHOP API) to'lov tranzaksiyalari — Prepare/Complete oqimi.
 /// Relation YO'Q (prod DB divergent) — agencyId/tariffId oddiy String.
 model ClickTransaction {
-  id               String    @id @default(cuid())
-  provider         String    @default("click")
+  id              String    @id @default(cuid())
+  provider        String    @default("click")
   /// Bizning buyurtma raqami — CLICK'ga transaction_param sifatida ketadi
-  merchantTransId  String    @unique
-  agencyId         String
-  tariffId         String?
-  tariffSlug       String?
+  merchantTransId String    @unique
+  agencyId        String
+  tariffId        String?
+  tariffSlug      String?
   /// Summa so'mda (butun son)
-  amount           Int
-  months           Int       @default(1)
+  amount          Int
+  months          Int       @default(1)
   /// created | prepared | paid | cancelled
-  state            String    @default("created")
-  clickTransId     String?
-  clickPaydocId    String?
+  state           String    @default("created")
+  clickTransId    String?
+  clickPaydocId   String?
   /// Prepare bosqichida biz qaytargan merchant_prepare_id (int)
-  prepareId        Int?
-  confirmId        Int?
-  errorNote        String?
-  createdAt        DateTime  @default(now())
-  preparedAt       DateTime?
-  paidAt           DateTime?
-  cancelledAt      DateTime?
+  prepareId       Int?
+  confirmId       Int?
+  errorNote       String?
+  createdAt       DateTime  @default(now())
+  preparedAt      DateTime?
+  paidAt          DateTime?
+  cancelledAt     DateTime?
 
   @@index([agencyId])
   @@index([state])
@@ -533,28 +541,28 @@ model LandingInteraction {
 }
 
 model Tour {
-  id                  String        @id @default(cuid())
-  slug                String        @unique
+  id                  String             @id @default(cuid())
+  slug                String             @unique
   title               String
   city                String
   subtitle            String
   description         String?
   duration            String
-  responseTimeMinutes Int           @default(45)
+  responseTimeMinutes Int                @default(45)
   price               String?
   priceMin            Int?
   priceCurrency       String?
   priceBasis          String?
-  rating              Float         @default(0)
-  badge               String        @default("Latest")
+  rating              Float              @default(0)
+  badge               String             @default("Latest")
   imageUrl            String?
   itinerary           Json?
-  highlights          String[]      @default([])
+  highlights          String[]           @default([])
   departureCity       String?
   destinationCountry  String?
   tourGroup           String?
   nights              Int?
-  hotelIncluded       Boolean       @default(false)
+  hotelIncluded       Boolean            @default(false)
   hotelName           String?
   hotelCategory       String?
   hotelLocation       String?
@@ -564,28 +572,28 @@ model Tour {
   childPolicy         String?
   flightSeatStatus    String?
   availabilityStatus  String?
-  instantConfirmation Boolean       @default(false)
-  stopSale            Boolean       @default(false)
-  promo               Boolean       @default(false)
-  priceIncludes       String[]      @default([])
-  priceExcludes       String[]      @default([])
-  images              String[]      @default([]) // galereya (asosiy rasmdan tashqari)
-  mapAddress          String?                    // xarita uchun matn manzil (geokodlash shart emas)
-  routeStops          Json?                      // marshrut nuqtalari: [{name, lat, lng}] — chiziq bilan bog'lanadi
-  active              Boolean       @default(true)
+  instantConfirmation Boolean            @default(false)
+  stopSale            Boolean            @default(false)
+  promo               Boolean            @default(false)
+  priceIncludes       String[]           @default([])
+  priceExcludes       String[]           @default([])
+  images              String[]           @default([]) // galereya (asosiy rasmdan tashqari)
+  mapAddress          String? // xarita uchun matn manzil (geokodlash shart emas)
+  routeStops          Json? // marshrut nuqtalari: [{name, lat, lng}] — chiziq bilan bog'lanadi
+  active              Boolean            @default(true)
   agencyId            String?
-  agency              TourAgency?   @relation(fields: [agencyId], references: [id], onDelete: SetNull)
-  approvalStatus      String        @default("approved")
+  agency              TourAgency?        @relation(fields: [agencyId], references: [id], onDelete: SetNull)
+  approvalStatus      String             @default("approved")
   submittedAt         DateTime?
   approvedAt          DateTime?
   rejectedAt          DateTime?
   adminNote           String?
-  source              String        @default("admin")
+  source              String             @default("admin")
   sourceUrl           String?
   lastVerifiedAt      DateTime?
-  confidenceScore     Float         @default(0.7)
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  confidenceScore     Float              @default(0.7)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
   bookings            TourBooking[]
   presentations       TourPresentation[]
 
@@ -626,31 +634,150 @@ model TourBooking {
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
 
-  pipelineStage      String      @default("new")
+  pipelineStage      String             @default("new")
   leadTour           String?
-  leadCity           String?     // qo'lda kiritilgan shahar (bog'langan tur bo'lmasa)
-  leadTelegram       String?     // mijoz Telegram: @username yoki link
-  leadWhatsapp       String?     // mijoz WhatsApp raqami (telefondan farqli bo'lishi mumkin)
-  paidAmount         Int?        // haqiqatda olingan to'lov (to'lovni tasdiqlashda kiritiladi)
-  archived           Boolean     @default(false) // arxivlangan — kanbandan chiqadi
+  leadCity           String? // qo'lda kiritilgan shahar (bog'langan tur bo'lmasa)
+  leadTelegram       String? // mijoz Telegram: @username yoki link
+  leadWhatsapp       String? // mijoz WhatsApp raqami (telefondan farqli bo'lishi mumkin)
+  paidAmount         Int? // haqiqatda olingan to'lov (to'lovni tasdiqlashda kiritiladi)
+  archived           Boolean            @default(false) // arxivlangan — kanbandan chiqadi
   archivedAt         DateTime?
   telegramChatId     String?
-  utmSource          String?     // qayerdan keldi: instagram, telegram, google...
-  utmMedium          String?     // cpc, post, story, bio...
-  utmCampaign        String?     // kampaniya nomi
-  referrer           String?     // qaysi saytdan o'tdi
-  customerBirthday   DateTime?   // mijoz tug'ilgan kuni (tabrik uchun)
-  birthdayGreetedOn  String?     // oxirgi tabrik sanasi (YYYY-MM-DD) — takror bo'lmasin
-  tripReminderSentAt DateTime?   // sayohat eslatmasi yuborilgan vaqt
-  reviewRequestedAt  DateTime?   // baho so'rovi yuborilgan vaqt (takror bo'lmasin)
-  reviewAwaitingText Boolean     @default(false) // baho berildi, keyingi xabar sharh matni
+  utmSource          String? // qayerdan keldi: instagram, telegram, google...
+  utmMedium          String? // cpc, post, story, bio...
+  utmCampaign        String? // kampaniya nomi
+  referrer           String? // qaysi saytdan o'tdi
+  customerBirthday   DateTime? // mijoz tug'ilgan kuni (tabrik uchun)
+  birthdayGreetedOn  String? // oxirgi tabrik sanasi (YYYY-MM-DD) — takror bo'lmasin
+  tripReminderSentAt DateTime? // sayohat eslatmasi yuborilgan vaqt
+  reviewRequestedAt  DateTime? // baho so'rovi yuborilgan vaqt (takror bo'lmasin)
+  reviewAwaitingText Boolean            @default(false) // baho berildi, keyingi xabar sharh matni
+  assignedMemberId   String?
+  assignedMember     AgencyMember?      @relation("AssignedLeadManager", fields: [assignedMemberId], references: [id], onDelete: SetNull)
   presentations      TourPresentation[]
+  crmTasks           CrmTask[]
+  activities         LeadActivity[]
+  leadTags           LeadTag[]
 
   @@index([tourId])
   @@index([agencyId, status])
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@index([customerEmail])
+  @@index([agencyId, assignedMemberId])
+}
+
+// CRM vazifalari — barcha xodimlar uchun serverda sinxron saqlanadi.
+model CrmTask {
+  id                 String        @id @default(cuid())
+  agencyId           String
+  agency             TourAgency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  bookingId          String?
+  booking            TourBooking?  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  assignedMemberId   String?
+  assignedMember     AgencyMember? @relation("AssignedTaskManager", fields: [assignedMemberId], references: [id], onDelete: SetNull)
+  createdByAccountId String?
+  title              String
+  dueAt              DateTime?
+  completedAt        DateTime?
+  externalId         String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@unique([agencyId, externalId])
+  @@index([agencyId, completedAt, dueAt])
+  @@index([bookingId])
+  @@index([assignedMemberId])
+}
+
+// Lid tarixi: izoh, qo'ng'iroq, bosqich o'zgarishi va import hodisalari.
+model LeadActivity {
+  id             String      @id @default(cuid())
+  agencyId       String
+  agency         TourAgency  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  bookingId      String
+  booking        TourBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  actorAccountId String?
+  type           String      @default("note")
+  text           String
+  metadata       Json?
+  externalId     String?
+  createdAt      DateTime    @default(now())
+
+  @@unique([agencyId, externalId])
+  @@index([agencyId, bookingId, createdAt])
+}
+
+// Har bir lidga biriktirilgan teglar. Bir lidda bir xil teg takrorlanmaydi.
+model LeadTag {
+  id        String      @id @default(cuid())
+  agencyId  String
+  agency    TourAgency  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  bookingId String
+  booking   TourBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime    @default(now())
+
+  @@unique([bookingId, name])
+  @@index([agencyId, name])
+}
+
+// Shartnoma, invoice va boshqa hujjatlar uchun agentlik shablonlari.
+model DocumentTemplate {
+  id        String     @id @default(cuid())
+  agencyId  String
+  agency    TourAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  type      String
+  name      String
+  content   String
+  metadata  Json?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([agencyId, type])
+  @@index([agencyId])
+}
+
+// Agentlikning hujjatlarda ishlatiladigan yuridik va bank rekvizitlari.
+model AgencyRequisite {
+  id          String     @id @default(cuid())
+  agencyId    String     @unique
+  agency      TourAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  legalName   String?
+  director    String?
+  address     String?
+  taxId       String?
+  bankName    String?
+  bankAccount String?
+  mfo         String?
+  phone       String?
+  email       String?
+  extra       Json?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+// Agentlik portalidagi barcha muvaffaqiyatli yozuv amallari uchun audit izi.
+model AuditLog {
+  id             String     @id @default(cuid())
+  agencyId       String
+  agency         TourAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  actorAccountId String?
+  actorEmail     String?
+  action         String
+  entityType     String?
+  entityId       String?
+  requestPath    String?
+  requestMethod  String?
+  changes        Json?
+  ipAddress      String?
+  userAgent      String?
+  dedupeKey      String?    @unique
+  createdAt      DateTime   @default(now())
+
+  @@index([agencyId, createdAt])
+  @@index([agencyId, entityType, entityId])
+  @@index([actorAccountId, createdAt])
 }
 
 // Mijoz sharhi + reyting — sayohat "yakunlandi"ga o'tgach Telegram orqali yig'iladi.

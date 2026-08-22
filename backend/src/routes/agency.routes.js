@@ -9,6 +9,8 @@ const geocodeCtrl = require('../controllers/geocode.controller');
 const aiCtrl = require('../controllers/ai.controller');
 const leadFiles = require('../controllers/leadFiles.controller');
 const clickPay = require('../controllers/clickPayment.controller');
+const crm = require('../controllers/agencyCrm.controller');
+const { agencyAuditMiddleware } = require('../middleware/agencyAudit.middleware');
 
 router.post('/auth/register', agency.register);
 router.post('/auth/verify-email', agency.verifyEmail);
@@ -18,6 +20,7 @@ router.post('/auth/reset-password', agency.resetPassword);
 
 router.use(agencyAuthMiddleware);
 router.use(agencyPlan); // req.agency + req.access (tarif/obuna) — barcha authed route'lar uchun
+router.use(agencyAuditMiddleware); // barcha muvaffaqiyatli POST/PUT/PATCH/DELETE amallarini AuditLog'ga yozadi
 
 // Hisob boshqaruvi — readOnly'да ham ochiq (onboarding + email o'zgartirish bloklanmaydi).
 router.get('/auth/me', agency.me);
@@ -54,6 +57,19 @@ router.post('/leads', blockWhenReadOnly, requireCapability('manualLeads'), agenc
 router.patch('/bookings/:id/stage', blockWhenReadOnly, agency.updatePipelineStage);
 router.patch('/bookings/:id/birthday', blockWhenReadOnly, agency.setCustomerBirthday);
 router.patch('/bookings/:id', blockWhenReadOnly, agency.updateLead); // lid maydonlarini tahrirlash
+
+// Server CRM: vazifa, teg, faoliyat, hujjat, menejer va migratsiya/import.
+router.get('/crm/bootstrap', crm.bootstrap);
+router.post('/crm/tasks', blockWhenReadOnly, crm.createTask);
+router.patch('/crm/tasks/:id', blockWhenReadOnly, crm.updateTask);
+router.delete('/crm/tasks/:id', blockWhenReadOnly, crm.deleteTask);
+router.put('/crm/bookings/:id/tags', blockWhenReadOnly, crm.replaceTags);
+router.post('/crm/bookings/:id/activities', blockWhenReadOnly, crm.addActivity);
+router.patch('/crm/bookings/:id/assignee', blockWhenReadOnly, crm.assignLead);
+router.put('/crm/documents', blockWhenReadOnly, crm.saveDocuments);
+router.post('/crm/import/local', crm.importLocal); // eski localStorage ma'lumotini yo'qotmaslik uchun readOnly'da ham ochiq
+router.post('/crm/import/csv', blockWhenReadOnly, requireCapability('manualLeads'), crm.importCsv);
+router.get('/crm/audit', requireOwner, crm.listAudit);
 
 // Mijoz sharhlari + reyting (marketplace'да ko'rinadi) — ko'rish hammaga ochiq.
 router.get('/reviews', agency.listReviews);

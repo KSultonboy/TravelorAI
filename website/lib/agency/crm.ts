@@ -110,6 +110,8 @@ export type CrmLead = {
   whatsappNumber?: string | null;
   paidAmount?: number | null;
   archived?: boolean;
+  assignedMemberId?: string | null;
+  assignedMemberName?: string | null;
 };
 
 /* ----------------------------------- keys --------------------------------- */
@@ -142,7 +144,7 @@ export function uid(prefix = "id"): string {
 
 /* --------------------------------- lead meta ------------------------------ */
 
-type MetaMap = Record<string, LeadMeta>;
+export type MetaMap = Record<string, LeadMeta>;
 
 export function getMetaMap(agencyId: string): MetaMap {
   return read<MetaMap>(key(agencyId, "meta"), {});
@@ -313,8 +315,8 @@ export function stageFromBooking(booking: BookingItem): CrmStage {
  * Bosqich (pipelineStage) va manba (source) serverda saqlanadi.
  * Teglar/izohlar/vazifalar hozircha localStorage'da (meta) — kelajakda serverga.
  */
-export function buildLeads(agencyId: string, bookings: BookingItem[]): CrmLead[] {
-  const metaMap = getMetaMap(agencyId);
+export function buildLeads(agencyId: string, bookings: BookingItem[], serverMeta?: MetaMap): CrmLead[] {
+  const metaMap = serverMeta || getMetaMap(agencyId);
   return bookings
     .map((b) => {
       const meta = metaMap[b.id] || { tags: [], activities: [] };
@@ -347,6 +349,8 @@ export function buildLeads(agencyId: string, bookings: BookingItem[]): CrmLead[]
         whatsappNumber: b.leadWhatsapp,
         paidAmount: b.paidAmount,
         archived: !!b.archived,
+        assignedMemberId: b.assignedMemberId,
+        assignedMemberName: b.assignedMemberName,
       };
     })
     .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
