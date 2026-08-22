@@ -16,9 +16,14 @@ export function AuditPage({ show }: { show: boolean }) {
     if (r.success) { setItems(r.data.items); setTotal(r.data.total); setErr(""); } else setErr(r.message || "Audit tarixini olib bo‘lmadi");
   }
   useEffect(() => { if (show) void load(); }, [show]);
-  return <section className={`view${show ? " active" : ""}`}>
+  return <section className={`view crm-competition${show ? " active" : ""}`}>
     <div style={box}><h3>O‘zgarishlar tarixi</h3><p className="muted">Kim, qachon va qaysi ma’lumotni o‘zgartirganini tekshiring. Faqat agentlik egasi ko‘ra oladi.</p>
-      <div style={grid}><input value={actor} onChange={(e) => setActor(e.target.value)} placeholder="Xodim emaili"/><input value={action} onChange={(e) => setAction(e.target.value)} placeholder="Amal: PATCH, POST..."/><select value={entityType} onChange={(e) => setEntityType(e.target.value)}><option value="">Barcha bo‘limlar</option>{["bookings","leads","tasks","documents","team","telegram","instagram","whatsapp","crm"].map((x)=><option key={x}>{x}</option>)}</select><button className="btn btn-primary" onClick={() => void load()}>Filtrlash</button></div>
+      <div className="crm-filter-grid">
+        <label className="crm-filter-field"><span>Xodim</span><input value={actor} onChange={(e) => setActor(e.target.value)} placeholder="Xodim emaili" /></label>
+        <label className="crm-filter-field"><span>Amal</span><input value={action} onChange={(e) => setAction(e.target.value)} placeholder="PATCH, POST..." /></label>
+        <label className="crm-filter-field"><span>Bo‘lim</span><select value={entityType} onChange={(e) => setEntityType(e.target.value)}><option value="">Barcha bo‘limlar</option>{["bookings","leads","tasks","documents","team","telegram","instagram","whatsapp","crm"].map((x)=><option key={x}>{x}</option>)}</select></label>
+        <button className="btn btn-primary crm-filter-submit" onClick={() => void load()}>Filtrlash</button>
+      </div>
     </div>
     {err ? <div className="note">{err}</div> : <div style={box}><b>{total} ta yozuv</b><div style={{overflowX:"auto",marginTop:12}}><table className="tbl"><thead><tr><th>Vaqt</th><th>Xodim</th><th>Amal</th><th>Bo‘lim</th><th>Manzil</th></tr></thead><tbody>{items.map((x)=><tr key={x.id}><td>{formatDate(x.createdAt)}</td><td>{x.actorEmail || "Tizim"}</td><td><b>{x.action}</b></td><td>{x.entityType || "—"}</td><td><small>{x.requestPath || "—"}</small></td></tr>)}</tbody></table></div></div>}
   </section>;

@@ -341,6 +341,23 @@
   /* Fokus — nafaqat rang, halqa ham: qaysi maydonda turganingiz aniq ko'rinadi */
   .fld input:focus, .fld textarea:focus, .fld select:focus{ border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-soft); }
   .fld-hint{ font-size:12px; color:var(--t2); line-height:1.45; }
+  /* Audit va boshqa CRM filterlari native brauzer ko‘rinishida qolmasin. */
+  .crm-filter-grid{ display:grid; grid-template-columns:repeat(3,minmax(160px,1fr)) auto; gap:10px; align-items:end; }
+  .crm-filter-field{ display:grid; gap:5px; min-width:0; }
+  .crm-filter-field > span{ color:var(--t2); font-size:11.5px; font-weight:600; }
+  .crm-filter-field input,.crm-filter-field select{
+    width:100%; min-width:0; height:38px; border:1px solid var(--field-border); border-radius:9px;
+    padding:0 11px; background:var(--field-bg); color:var(--t1); font:inherit; font-size:12.5px;
+    outline:none; transition:border-color .12s,box-shadow .12s,background-color .12s;
+  }
+  .crm-filter-field input::placeholder{ color:var(--t3); opacity:1; }
+  .crm-filter-field input:hover,.crm-filter-field select:hover{ border-color:var(--field-border-hover); }
+  .crm-filter-field input:focus,.crm-filter-field select:focus{ border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-soft); }
+  .crm-filter-field select{ appearance:none; padding-right:34px; cursor:pointer;
+    background-image:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='14'%20height='14'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%230A3D25'%20stroke-width='2.2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M6%209l6%206%206-6'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 11px center;
+  }
+  .crm-filter-submit{ height:38px; justify-content:center; }
   /* custom file picker */
   .filepick{ display:flex; align-items:center; gap:12px; padding:12px 14px; border:1.5px dashed #cdd8d2; border-radius:11px; cursor:pointer; background:var(--canvas); transition:border-color .15s, background-color .15s; }
   .filepick:hover{ border-color:var(--primary); background:var(--primary-soft); }
@@ -678,6 +695,8 @@
     .leads-toolbar-primary,.leads-toolbar-actions{ width:100%; justify-content:space-between; }
     .leads-toolbar-actions{ flex-wrap:wrap; }
     .csv-actions-menu{ right:auto; left:0; }
+    .crm-filter-grid{ grid-template-columns:1fr; }
+    .crm-filter-submit{ width:100%; }
     .pipeline-manager{ max-height:100vh; border-radius:0; }
     .pipeline-stage-row{ grid-template-columns:28px 36px minmax(0,1fr); }
     .pipeline-stage-actions{ grid-column:1 / -1; justify-content:flex-end; flex-wrap:wrap; }
