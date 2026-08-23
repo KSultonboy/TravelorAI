@@ -377,6 +377,12 @@
   .finance-panel-actions{ display:flex; align-items:flex-end; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
   .finance-panel-actions .finance-control select{ min-width:220px; max-width:330px; }
   .finance-rate-list{ display:flex; gap:7px; flex-wrap:wrap; margin-top:11px; }
+  .finance-modal-overlay{ position:fixed; inset:0; z-index:75; display:grid; place-items:center; padding:16px; background:rgba(11,42,30,.42); backdrop-filter:blur(3px); }
+  .finance-modal{ width:min(520px,100%); padding:20px; }
+  .finance-modal-head{ margin:0 0 14px; }
+  .finance-modal-error{ margin-bottom:12px; color:#8f2a20; }
+  .finance-modal-grid{ gap:12px; }
+  .finance-modal-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
   /* Audit va boshqa CRM filterlari native brauzer ko‘rinishida qolmasin. */
   .crm-filter-grid{ display:grid; grid-template-columns:repeat(3,minmax(160px,1fr)) auto; gap:10px; align-items:end; }
   .crm-filter-field{ display:grid; gap:5px; min-width:0; }

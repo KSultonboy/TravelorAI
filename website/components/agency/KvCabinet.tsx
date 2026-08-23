@@ -2531,6 +2531,49 @@ function FinanceEntryModal({ kind, currency, accounts, leads, suppliers, team, b
     </div>
   );
 }
+
+function FinanceSupplierModal({ currency, onClose, onSaved }: { currency: string; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [name, setName] = useState(""); const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  async function save(event: React.FormEvent) {
+    event.preventDefault(); setBusy(true); setErr("");
+    const result = await agencyApi("/crm/finance/suppliers", { method: "POST", body: JSON.stringify({ name: name.trim(), type: "tour_operator", currency }) });
+    setBusy(false); if (!result.success) { setErr(result.message || "Hamkorni saqlab bo‘lmadi"); return; }
+    await onSaved(); onClose();
+  }
+  return <div className="finance-modal-overlay" onClick={onClose}>
+    <form className="card finance-modal" onSubmit={save} onClick={(event) => event.stopPropagation()}>
+      <div className="section-head finance-modal-head"><div><h2>Yangi hamkor</h2><div className="sub">Turoperator yoki xizmat yetkazib beruvchini kiriting</div></div><button type="button" className="act-btn no" onClick={onClose}>×</button></div>
+      {err ? <div className="note finance-modal-error">{err}</div> : null}
+      <div className="fld"><label>Hamkor nomi</label><input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Masalan: Silk Road Tours" required /></div>
+      <div className="fld"><label>Hisob valyutasi</label><input value={currency} disabled /></div>
+      <div className="finance-modal-actions"><button type="button" className="btn btn-ghost" onClick={onClose}>Bekor</button><button className="btn btn-primary" disabled={busy || !name.trim()}>{busy ? "Saqlanmoqda…" : "Hamkor qo‘shish"}</button></div>
+    </form>
+  </div>;
+}
+
+function FinanceCommissionModal({ member, currency, onClose, onSaved }: { member: FinanceTeam; currency: string; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [percent, setPercent] = useState(String(member.commissionRule?.percent ?? 0));
+  const [fixedAmount, setFixedAmount] = useState(String(member.commissionRule?.fixedAmount ?? 0));
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  async function save(event: React.FormEvent) {
+    event.preventDefault(); setBusy(true); setErr("");
+    const result = await agencyApi(`/crm/finance/commission-rules/${member.id}`, { method: "PUT", body: JSON.stringify({ percent, fixedAmount, currency, active: true }) });
+    setBusy(false); if (!result.success) { setErr(result.message || "Komissiya qoidasini saqlab bo‘lmadi"); return; }
+    await onSaved(); onClose();
+  }
+  return <div className="finance-modal-overlay" onClick={onClose}>
+    <form className="card finance-modal" onSubmit={save} onClick={(event) => event.stopPropagation()}>
+      <div className="section-head finance-modal-head"><div><h2>Menejer komissiyasi</h2><div className="sub">{member.name} uchun hisoblash qoidasini belgilang</div></div><button type="button" className="act-btn no" onClick={onClose}>×</button></div>
+      {err ? <div className="note finance-modal-error">{err}</div> : null}
+      <div className="grid g2 finance-modal-grid">
+        <div className="fld"><label>Bitimdan foiz (%)</label><input inputMode="decimal" value={percent} onChange={(event) => setPercent(event.target.value.replace(/[^0-9.]/g, ""))} required /></div>
+        <div className="fld"><label>Qo‘shimcha summa ({currency})</label><input inputMode="numeric" value={fixedAmount} onChange={(event) => setFixedAmount(event.target.value.replace(/[^0-9]/g, ""))} required /></div>
+      </div>
+      <div className="finance-modal-actions"><button type="button" className="btn btn-ghost" onClick={onClose}>Bekor</button><button className="btn btn-primary" disabled={busy}>{busy ? "Saqlanmoqda…" : "Qoidani saqlash"}</button></div>
+    </form>
+  </div>;
+}
+
 function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
   const [payLead, setPayLead] = useState<CrmLead | null>(null);
   const [currency, setCurrency] = useState("USD");
@@ -2542,6 +2585,8 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
   const [statementOpen, setStatementOpen] = useState(false);
   const [reconciliationBusyId, setReconciliationBusyId] = useState("");
   const [entryKind, setEntryKind] = useState<"income" | "expense" | "account" | null>(null);
+  const [supplierOpen, setSupplierOpen] = useState(false);
+  const [commissionMember, setCommissionMember] = useState<FinanceTeam | null>(null);
   async function loadFinance() {
     const result = await agencyApi<FinancePayload>(`/crm/finance?currency=${currency}`);
     if (result.success) setFinance(result.data);
@@ -2569,17 +2614,6 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
     const result = await agencyApi(`/crm/finance/transactions/${row.id}`, { method: "PATCH", body: JSON.stringify({ status }) });
     if (result.success) await loadFinance();
   }
-  async function addSupplier() {
-    const name = window.prompt("Turoperator yoki hamkor nomi:"); if (!name?.trim()) return;
-    const result = await agencyApi("/crm/finance/suppliers", { method: "POST", body: JSON.stringify({ name: name.trim(), type: "tour_operator", currency }) });
-    if (result.success) await loadFinance(); else alert(result.message);
-  }
-  async function setCommission(member: FinanceTeam) {
-    const percent = window.prompt(`${member.name} uchun komissiya foizi:`, String(member.commissionRule?.percent ?? 0)); if (percent === null) return;
-    const fixedAmount = window.prompt(`Qo'shimcha qat'iy summa (${currency}):`, String(member.commissionRule?.fixedAmount ?? 0)); if (fixedAmount === null) return;
-    const result = await agencyApi(`/crm/finance/commission-rules/${member.id}`, { method: "PUT", body: JSON.stringify({ percent, fixedAmount, currency, active: true }) });
-    if (result.success) await loadFinance(); else alert(result.message);
-  }
   const m = useMemo(() => {
     const paid = leads.filter((l: CrmLead) => l.stage === "won" || l.stage === "completed");
     const completed = leads.filter((l: CrmLead) => l.stage === "completed");
@@ -2601,7 +2635,7 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
           <label className="finance-control finance-currency"><span>Hisob valyutasi</span><select value={currency} onChange={(e) => setCurrency(e.target.value)}><option>USD</option><option>UZS</option><option>EUR</option></select></label>
           {!readOnly ? <>
             <div className="finance-action-group"><span>Tezkor amallar</span><div><button className="btn btn-primary btn-sm" onClick={() => setEntryKind("income")}>+ Kirim</button><button className="btn btn-ghost btn-sm" onClick={() => setEntryKind("expense")}>− Chiqim</button></div></div>
-            <div className="finance-action-group finance-action-settings"><span>Sozlash</span><div><button className="btn btn-ghost btn-sm" onClick={() => setEntryKind("account")}>+ Hisob</button><button className="btn btn-ghost btn-sm" onClick={() => void addSupplier()}>+ Hamkor</button></div></div>
+            <div className="finance-action-group finance-action-settings"><span>Sozlash</span><div><button className="btn btn-ghost btn-sm" onClick={() => setEntryKind("account")}>+ Hisob</button><button className="btn btn-ghost btn-sm" onClick={() => setSupplierOpen(true)}>+ Hamkor</button></div></div>
           </> : null}
         </div>
       </div>
@@ -2659,7 +2693,7 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
         {finance.summary.accountBalances.length ? <div className="card" style={{ padding: 14, marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>{finance.summary.accountBalances.map((a) => <span className="badge2 b-grey" key={a.id}>{a.name}: <b>{formatCurrencyAmount(a.balance, currency)}</b></span>)}</div> : null}
         <div className="grid g2" style={{ marginTop: 12 }}>
           <div className="card" style={{ padding: 16 }}><b>Turoperator va hamkorlar</b><div className="sub" style={{ margin: "4px 0 10px" }}>Qancha to&apos;landi va qancha qarz qoldi</div>{finance.supplierBalances.length ? finance.supplierBalances.map((s) => <div key={s.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "7px 0", borderTop: "1px solid var(--border)" }}><span>{s.name}</span><span className="money">Qarz: {formatCurrencyAmount(s.payable || 0, currency)}{s.overdue ? <small style={{ color: "#b42318" }}> · kechikkan {formatCurrencyAmount(s.overdue, currency)}</small> : null}</span></div>) : <span className="sub">Hamkor qo&apos;shilmagan</span>}</div>
-          <div className="card" style={{ padding: 16 }}><b>Menejer komissiyasi</b><div className="sub" style={{ margin: "4px 0 10px" }}>To&apos;langan bitimdan avtomatik hisoblanadi</div>{finance.commissions.length ? finance.commissions.map((m) => <div key={m.memberId} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "7px 0", borderTop: "1px solid var(--border)" }}><span>{m.name} <small className="sub">{m.rule ? `${m.rule.percent}% + ${m.rule.fixedAmount}` : "qoida yo'q"}</small></span><span><b>{formatCurrencyAmount(m.payable, currency)}</b>{!readOnly ? <button className="act-btn" style={{ marginLeft: 6 }} onClick={() => void setCommission(finance.team.find((x) => x.id === m.memberId) || m as unknown as FinanceTeam)}>Sozlash</button> : null}</span></div>) : <span className="sub">Faol xodim yo&apos;q</span>}</div>
+          <div className="card" style={{ padding: 16 }}><b>Menejer komissiyasi</b><div className="sub" style={{ margin: "4px 0 10px" }}>To&apos;langan bitimdan avtomatik hisoblanadi</div>{finance.commissions.length ? finance.commissions.map((m) => <div key={m.memberId} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "7px 0", borderTop: "1px solid var(--border)" }}><span>{m.name} <small className="sub">{m.rule ? `${m.rule.percent}% + ${m.rule.fixedAmount}` : "qoida yo'q"}</small></span><span><b>{formatCurrencyAmount(m.payable, currency)}</b>{!readOnly ? <button className="act-btn" style={{ marginLeft: 6 }} onClick={() => setCommissionMember(finance.team.find((x) => x.id === m.memberId) || m as unknown as FinanceTeam)}>Sozlash</button> : null}</span></div>) : <span className="sub">Faol xodim yo&apos;q</span>}</div>
         </div>
         <div className="card" style={{ padding: 16, marginTop: 12 }}><b>To&apos;lov kalendari</b><div className="sub" style={{ margin: "4px 0 10px" }}>Kelgusi va muddati o&apos;tgan reja to&apos;lovlari</div>{finance.calendar.length ? <div className="tbl-wrap"><table><thead><tr><th>Sana</th><th>To&apos;lov</th><th>Kontragent</th><th className="r">Summa</th></tr></thead><tbody>{finance.calendar.slice(0, 20).map((row) => <tr key={row.id}><td style={{ color: new Date(row.dueAt) < new Date() ? "#b42318" : undefined }}>{formatDate(row.dueAt)}</td><td>{row.category}</td><td>{row.counterparty || "—"}</td><td className="r money">{row.direction === "income" ? "+" : "−"}{formatCurrencyAmount(row.amount, row.currency)}</td></tr>)}</tbody></table></div> : <span className="sub">Rejalashtirilgan to&apos;lov yo&apos;q</span>}</div>
         <div className="section-head" style={{ marginTop: 20 }}><div><h2>Moliya jurnali</h2><div className="sub">Barcha reja va haqiqiy to&apos;lovlar</div></div>{canExport ? <ExportBtn rows={finance.transactions} filename="moliya-jurnali" columns={[{ label: "Kategoriya", get: (r) => r.category }, { label: "Kontragent", get: (r) => r.counterparty || r.booking?.customerName || "" }, { label: "Tur", get: (r) => r.direction }, { label: "Holat", get: (r) => r.status }, { label: "Summa", get: (r) => r.amount }, { label: "Valyuta", get: (r) => r.currency }]} /> : null}</div>
@@ -2701,6 +2735,8 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
           onConfirm={async (amount) => { await agencyApi(`/bookings/${payLead.id}`, { method: "PATCH", body: JSON.stringify({ paidAmount: amount === "" ? null : amount }) }); await move(payLead, "completed"); }} />
       ) : null}
       {entryKind ? <FinanceEntryModal kind={entryKind} currency={currency} accounts={finance?.accounts || []} leads={leads} suppliers={finance?.suppliers || []} team={finance?.team || []} branches={finance?.branches || []} onClose={() => setEntryKind(null)} onSaved={loadFinance} /> : null}
+      {supplierOpen ? <FinanceSupplierModal currency={currency} onClose={() => setSupplierOpen(false)} onSaved={loadFinance} /> : null}
+      {commissionMember ? <FinanceCommissionModal member={commissionMember} currency={currency} onClose={() => setCommissionMember(null)} onSaved={loadFinance} /> : null}
       {statementOpen ? <BankStatementImportModal currency={currency} accounts={finance?.accounts || []} onClose={() => setStatementOpen(false)} onImported={async () => { await Promise.all([loadFinance(), loadReconciliation()]); }} /> : null}
     </section>
   );
