@@ -623,7 +623,11 @@ export default function KvCabinet() {
           {["Asosiy", "Sotuv", "Boshqa"].map((g) => (
             <div className="nav-group" key={g}>
               <button type="button" className="nav-group-toggle" aria-expanded={openGroup === g} onClick={() => setOpenGroup((current) => current === g ? "" : g)}>
-                <span>{g}</span><span className="nav-group-chevron" aria-hidden="true">⌄</span>
+                <span className="nav-group-copy">
+                  <span>{g}</span>
+                  <small>{g === "Asosiy" ? "Kundalik ishlar" : g === "Sotuv" ? "Savdo va mijozlar" : "Tizim va integratsiyalar"}</small>
+                </span>
+                <span className="nav-group-chevron" aria-hidden="true">⌄</span>
               </button>
               <div className={`nav-group-items${openGroup === g ? " open" : ""}`}>
               {NAV.filter((n) => n.group === g).map((n) => {
@@ -2590,35 +2594,49 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
   const selectedRate = currency === "UZS" ? 1 : exchangeRates?.rates.find((row) => row.code === currency)?.unitRateUzs;
   const headlineRates = ["USD", "EUR", "RUB"].map((code) => exchangeRates?.rates.find((row) => row.code === code)).filter(Boolean) as ExchangeRatePayload["rates"];
   return (
-    <section className={`view${show ? " active" : ""}`}>
-      <div className="section-head"><div><h2>Moliya</h2><div className="sub">Kassa, bank, kirim-chiqim, supplier qarzi va menejer komissiyasi</div></div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><select value={currency} onChange={(e) => setCurrency(e.target.value)} style={{ width: 90 }}><option>USD</option><option>UZS</option><option>EUR</option></select>{!readOnly ? <><button className="btn btn-ghost btn-sm" onClick={() => void addSupplier()}>+ Hamkor</button><button className="btn btn-ghost btn-sm" onClick={() => setEntryKind("account")}>+ Hisob</button><button className="btn btn-ghost btn-sm" onClick={() => setEntryKind("expense")}>− Chiqim</button><button className="btn btn-primary btn-sm" onClick={() => setEntryKind("income")}>+ Kirim</button></> : null}</div></div>
-      <div className="grid g3">
+    <section className={`view finance-view${show ? " active" : ""}`}>
+      <div className="section-head finance-page-head">
+        <div><h2>Moliya</h2><div className="sub">Pul oqimi, hisoblar, hamkor qarzlari va menejer komissiyasini bir joyda boshqaring</div></div>
+        <div className="finance-toolbar">
+          <label className="finance-control finance-currency"><span>Hisob valyutasi</span><select value={currency} onChange={(e) => setCurrency(e.target.value)}><option>USD</option><option>UZS</option><option>EUR</option></select></label>
+          {!readOnly ? <>
+            <div className="finance-action-group"><span>Tezkor amallar</span><div><button className="btn btn-primary btn-sm" onClick={() => setEntryKind("income")}>+ Kirim</button><button className="btn btn-ghost btn-sm" onClick={() => setEntryKind("expense")}>− Chiqim</button></div></div>
+            <div className="finance-action-group finance-action-settings"><span>Sozlash</span><div><button className="btn btn-ghost btn-sm" onClick={() => setEntryKind("account")}>+ Hisob</button><button className="btn btn-ghost btn-sm" onClick={() => void addSupplier()}>+ Hamkor</button></div></div>
+          </> : null}
+        </div>
+      </div>
+      <div className="finance-guide" aria-label="Moliya sahifasi bo‘limlari">
+        <div><b>1. Natija</b><span>Kirim, olinadigan pul va sof oqim</span></div>
+        <div><b>2. Nazorat</b><span>Bank CSV, qarz va muddatlar</span></div>
+        <div><b>3. Tarix</b><span>Barcha moliyaviy operatsiyalar</span></div>
+      </div>
+      <div className="grid g3 finance-kpis">
         <div className="card kpi gold"><div className="top"><div className="ico"><Ic d={I.check} s={19} /></div></div><div className="val">{formatCurrencyAmount(finance?.summary.received ?? m.received, currency)}</div><div className="lbl">Jami kirim</div></div>
         <div className="card kpi"><div className="top"><div className="ico"><Ic d={I.clock} s={19} /></div></div><div className="val">{formatCurrencyAmount(finance?.summary.receivable ?? m.pending, currency)}</div><div className="lbl">Mijozlardan olinadi</div></div>
         <div className="card kpi"><div className="top"><div className="ico"><Ic d={I.card} s={19} /></div></div><div className="val">{formatCurrencyAmount(finance?.summary.profit ?? 0, currency)}</div><div className="lbl">Sof pul oqimi</div></div>
       </div>
-      <div className="card" style={{ padding: 16, marginTop: 12 }}>
-        <div className="section-head" style={{ margin: 0 }}>
+      <div className="card finance-panel">
+        <div className="section-head finance-panel-head">
           <div><b>Markaziy bank valyuta kurslari</b><div className="sub">Moliyaviy hisob-kitoblar uchun rasmiy UZS kursi{exchangeRates?.effectiveDate ? ` · ${exchangeRates.effectiveDate}` : ""}</div></div>
           <button className="btn btn-ghost btn-sm" disabled={ratesBusy} onClick={() => void loadExchangeRates(true)}>{ratesBusy ? "Yangilanmoqda…" : "Kursni yangilash"}</button>
         </div>
         {ratesError ? <div className="note" style={{ marginTop: 10, color: "#8f2a20" }}>{ratesError}</div> : null}
-        {headlineRates.length ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+        {headlineRates.length ? <div className="finance-rate-list">
           {headlineRates.map((row) => <span className="badge2 b-grey" key={row.code}>1 {row.code} = <b>{Math.round(row.unitRateUzs).toLocaleString("uz-UZ")} UZS</b> <small style={{ color: row.difference < 0 ? "#b42318" : "var(--primary)" }}>{row.difference > 0 ? "+" : ""}{row.difference.toLocaleString("uz-UZ")}</small></span>)}
           {selectedRate ? <span className="badge2 b-green">Tanlangan: 1 {currency} = <b>{Math.round(selectedRate).toLocaleString("uz-UZ")} UZS</b></span> : null}
           {exchangeRates?.stale ? <span className="badge2 b-amber">Oxirgi saqlangan kurs ko‘rsatildi</span> : null}
         </div> : ratesBusy ? <div className="sub" style={{ marginTop: 10 }}>Kurslar yuklanmoqda…</div> : null}
       </div>
-      <div className="card" style={{ padding: 16, marginTop: 12 }}>
-        <div className="section-head" style={{ margin: 0 }}>
-          <div><b>Bank ko‘chirmasi va reconciliation</b><div className="sub">CSV operatsiyalarini CRM kirim-chiqimlari bilan avtomatik solishtirish</div></div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {reconciliation?.imports.length ? <select value={reconciliation.activeImport?.id || ""} onChange={(event) => void loadReconciliation(event.target.value)} style={{ minWidth: 180 }}>{reconciliation.imports.map((item) => <option value={item.id} key={item.id}>{item.fileName} · {formatDate(item.createdAt)}</option>)}</select> : null}
+      <div className="card finance-panel">
+        <div className="section-head finance-panel-head">
+          <div><b>Bank ko‘chirmasini solishtirish</b><div className="sub">Bank CSV operatsiyalarini CRM kirim-chiqimlari bilan avtomatik tekshirish</div></div>
+          <div className="finance-panel-actions">
+            {reconciliation?.imports.length ? <label className="finance-control"><span>Yuklangan fayl</span><select value={reconciliation.activeImport?.id || ""} onChange={(event) => void loadReconciliation(event.target.value)}>{reconciliation.imports.map((item) => <option value={item.id} key={item.id}>{item.fileName} · {formatDate(item.createdAt)}</option>)}</select></label> : null}
             {!readOnly ? <button className="btn btn-primary btn-sm" onClick={() => setStatementOpen(true)}>CSV yuklash</button> : null}
           </div>
         </div>
         {reconciliation?.activeImport ? <>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+          <div className="finance-rate-list">
             <span className="badge2 b-grey">Jami: <b>{reconciliation.activeImport.totalRows}</b></span>
             <span className="badge2 b-amber">Tavsiya: <b>{reconciliation.activeImport.suggestedRows}</b></span>
             <span className="badge2 b-green">Moslashtirildi: <b>{reconciliation.activeImport.matchedRows}</b></span>
