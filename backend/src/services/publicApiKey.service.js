@@ -39,7 +39,10 @@ async function authenticateApiKey(raw) {
   });
   if (!apiKey || apiKey.revokedAt || (apiKey.expiresAt && apiKey.expiresAt <= new Date())) return null;
   const access = resolveAccess(apiKey.agency, 'owner');
-  if (!apiKey.agency?.active || access.readOnly || access.caps.integrations === false) return { blocked: true, apiKey };
+  // API-only hamkorning TravelorAI kabineti va tarifi bo'lmaydi. Uni admin
+  // alohida yaratadi va boshqaradi; faol API kalitining o'zi ruxsat hisoblanadi.
+  const apiOnly = apiKey.agency?.accessMode === 'api_only';
+  if (!apiKey.agency?.active || (!apiOnly && (access.readOnly || access.caps.integrations === false))) return { blocked: true, apiKey };
   prisma.publicApiKey.update({ where: { id: apiKey.id }, data: { lastUsedAt: new Date() } }).catch(() => {});
   return { blocked: false, apiKey };
 }

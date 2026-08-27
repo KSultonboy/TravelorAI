@@ -37,4 +37,24 @@ describe('public API key and webhook security', () => {
     expect(inferWebhookEvent('/api/v1/agency/bookings/lead-1/stage', 'PATCH')).toBe('lead.stage_changed');
     expect(inferWebhookEvent('/api/v1/agency/crm/tasks', 'POST')).toBe('task.created');
   });
+
+  test('API-only hamkor tarif yoki kabinet bo‘lmasa ham faol kalit bilan ishlaydi', async () => {
+    jest.doMock('../src/config/database', () => ({
+      prisma: {
+        publicApiKey: {
+          findUnique: jest.fn().mockResolvedValue({
+            id: 'key-1', keyHash: 'hash', keyPrefix: 'tai_live_demo', scopes: ['leads:read'],
+            revokedAt: null, expiresAt: null,
+            agency: { id: 'agency-1', active: true, accessMode: 'api_only', tariff: null },
+          }),
+          update: jest.fn().mockResolvedValue({}),
+        },
+      },
+    }));
+    jest.doMock('../src/config/agencyPlans', () => ({ resolveAccess: jest.fn(() => ({ readOnly: true, caps: { integrations: false } })) }));
+    const { authenticateApiKey } = require('../src/services/publicApiKey.service');
+    const result = await authenticateApiKey('tai_live_demo');
+    expect(result.blocked).toBe(false);
+    expect(result.apiKey.agency.accessMode).toBe('api_only');
+  });
 });

@@ -398,6 +398,8 @@ model TourAgency {
   slug                    String                    @unique
   ownerAccountId          String?
   ownerAccount            AgencyAccount?            @relation(fields: [ownerAccountId], references: [id], onDelete: SetNull)
+  /// portal — TravelorAI CRM kabineti bor; api_only — tashqi CRM ulanadi, login/kabinet yaratilmaydi.
+  accessMode              String                    @default("portal")
   name                    String
   city                    String
   description             String?
@@ -497,6 +499,7 @@ model TourAgency {
   @@index([landingSortOrder])
   @@index([ownerAccountId])
   @@index([approvalStatus])
+  @@index([accessMode, active])
   @@index([instagramUserId])
   @@index([instagramAppScopedId])
   @@index([whatsappPhoneNumberId])

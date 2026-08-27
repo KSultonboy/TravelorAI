@@ -3,6 +3,7 @@ const { adminAuthMiddleware } = require('../middleware/adminAuth.middleware');
 const admin = require('../controllers/admin.controller');
 const billing = require('../controllers/adminBilling.controller');
 const agency = require('../controllers/agency.controller');
+const integrations = require('../controllers/adminIntegration.controller');
 
 router.use(adminAuthMiddleware);
 
@@ -23,6 +24,15 @@ router.delete('/payments/:id', billing.deletePayment);
 
 router.get('/billing/stats', billing.getBillingStats);
 router.get('/reports', billing.getReports);
+
+// Tashqi CRM hamkorlari: login/kabinet yaratilmaydi, kirish faqat admin bergan API kalit orqali.
+router.get('/integrations', integrations.list);
+router.post('/integrations', integrations.create);
+router.post('/integrations/:agencyId/api-keys', integrations.createKey);
+router.delete('/integrations/:agencyId/api-keys/:id', integrations.revokeKey);
+router.post('/integrations/:agencyId/webhooks', integrations.createEndpoint);
+router.post('/integrations/:agencyId/webhooks/:id/test', integrations.testEndpoint);
+router.post('/integrations/:agencyId/deliveries/:id/retry', integrations.retryDelivery);
 
 router.get('/users', admin.getUsers);
 router.get('/users/:id', admin.getUser);

@@ -53,7 +53,7 @@
   .nav-group-copy > span{ font-size:11.5px; line-height:1.15; text-transform:uppercase; letter-spacing:.09em; }
   .nav-group-copy small{ color:#739B88; font-size:9.5px; line-height:1.15; font-weight:500; letter-spacing:.02em; text-transform:none; }
   .nav-group-toggle[aria-expanded="true"] .nav-group-copy small{ color:#A9C6B7; }
-  .nav-group-chevron{ width:24px; height:24px; display:grid; place-items:center; border-radius:7px; background:rgba(255,255,255,.06); font-size:16px; line-height:.7; flex:none; transition:transform .16s ease,background .15s; }
+  .nav-group-chevron{ width:24px; height:24px; display:grid; place-items:center; border-radius:7px; background:rgba(255,255,255,.06); line-height:1; flex:none; transition:transform .16s ease,background .15s; }
   .nav-group-toggle[aria-expanded="true"] .nav-group-chevron{ transform:rotate(180deg); }
   .nav-group-items{ display:grid; gap:1px; max-height:0; opacity:0; overflow:hidden; margin:0 5px; padding-left:6px; border-left:1px solid transparent; transition:max-height .2s ease,opacity .16s ease,margin .16s ease; }
   .nav-group-items.open{ max-height:560px; opacity:1; margin-top:4px; margin-bottom:3px; border-left-color:rgba(159,190,175,.18); }
@@ -158,7 +158,7 @@
   .leads-toolbar-count{ color:var(--t2); font-size:11.5px; white-space:nowrap; }
   .csv-actions{ position:relative; }
   .csv-actions-trigger{ min-width:70px; justify-content:center; }
-  .csv-chevron{ font-size:14px; line-height:.7; transition:transform .14s ease; }
+  .csv-chevron{ display:inline-grid; place-items:center; line-height:1; transition:transform .14s ease; }
   .csv-actions.open .csv-chevron{ transform:rotate(180deg); }
   .csv-actions-menu{ position:absolute; top:calc(100% + 6px); right:0; z-index:45; width:220px; display:none; padding:5px; border:1px solid var(--border); border-radius:11px; background:var(--surface); box-shadow:0 14px 36px rgba(11,42,30,.18); }
   .csv-actions.open .csv-actions-menu{ display:grid; animation:kvFade .14s ease both; }

@@ -79,6 +79,7 @@ const I = {
   info: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 16v-4 M12 8h.01",
   download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3",
   link: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71 M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71",
+  chevronDown: "M6 9l6 6 6-6",
 };
 function Ic({ d, s = 18 }: { d: string; s?: number }) {
   return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
@@ -133,7 +134,6 @@ const NAV: { key: string; label: string; icon: string; group: string; badge?: "l
   { key: "automation", label: "Avtomatizatsiya", icon: I.bolt, group: "Boshqa" },
   { key: "api-webhooks", label: "API va Webhook", icon: I.link, group: "Boshqa" },
   { key: "audit", label: "Audit tarixi", icon: I.eye, group: "Boshqa" },
-  { key: "whatsapp", label: "WhatsApp", icon: I.send, group: "Boshqa" },
   { key: "documents", label: "Hujjatlar", icon: I.doc, group: "Boshqa" },
   // Obuna to'lovi (CLICK) endi Sozlamalar → «Obuna va tarif» ichida.
   // Ilgari alohida band edi, lekin Sozlamalar ham xuddi shu narsani
@@ -627,7 +627,7 @@ export default function KvCabinet() {
                   <span>{g}</span>
                   <small>{g === "Asosiy" ? "Kundalik ishlar" : g === "Sotuv" ? "Savdo va mijozlar" : "Tizim va integratsiyalar"}</small>
                 </span>
-                <span className="nav-group-chevron" aria-hidden="true">⌄</span>
+                <span className="nav-group-chevron" aria-hidden="true"><Ic d={I.chevronDown} s={15} /></span>
               </button>
               <div className={`nav-group-items${openGroup === g ? " open" : ""}`}>
               {NAV.filter((n) => n.group === g).map((n) => {
@@ -833,7 +833,7 @@ function CsvActionsMenu({ importDisabled, canExport, rows, filename, columns, on
       <input ref={input} type="file" accept=".csv,text/csv" hidden onChange={(e) => void pick(e)} />
       <button type="button" className="btn btn-ghost btn-sm csv-actions-trigger" aria-haspopup="menu" aria-expanded={open}
         disabled={(importDisabled || busy) && (!canExport || empty)} onClick={() => setOpen((value) => !value)}>
-        <Ic d={I.download} s={14} /> {busy ? "Import…" : "CSV"}<span className="csv-chevron" aria-hidden="true">⌄</span>
+        <Ic d={I.download} s={14} /> {busy ? "Import…" : "CSV"}<span className="csv-chevron" aria-hidden="true"><Ic d={I.chevronDown} s={13} /></span>
       </button>
       <div className="csv-actions-menu" role="menu">
         <button type="button" role="menuitem" disabled={importDisabled || busy} onClick={() => input.current?.click()}><Ic d={I.plus} s={15} /><span><b>CSV import qilish</b><small>Lidlarni serverga yuklash</small></span></button>
@@ -3828,7 +3828,7 @@ function DocRequisitesCard({ agencyId, readOnly }: { agencyId: string; readOnly?
 const SETTINGS_MENU: { key: string; icon: string; label: string; desc: string }[] = [
   { key: "plan", icon: I.money, label: "Obuna va to'lov", desc: "Joriy tarif, amal muddati, hisobni to'ldirish va to'lov tarixi" },
   { key: "profile", icon: I.box, label: "Agentlik ma'lumotlari", desc: "Nomi, logotipi, telefoni va tavsifi" },
-  { key: "links", icon: I.send, label: "Ulanishlar", desc: "Telegram bot va Instagram Direct" },
+  { key: "links", icon: I.send, label: "Ulanishlar", desc: "Telegram, Instagram Direct va WhatsApp Business" },
   { key: "team", icon: I.users, label: "Jamoa va rollar", desc: "Xodimlarni qo'shish, huquqlarni belgilash" },
   { key: "account", icon: I.lock, label: "Hisob", desc: "Tizimdan chiqish" },
 ];
@@ -4600,7 +4600,7 @@ function TelegramChat({ lead, onClose, onBack, readOnly }: { lead: CrmLead; onCl
           <div className="tg-noreply">
             {isIg
               ? "Instagram ulanmagan — Sozlamalar → Ulanishlar bo'limidan ulang."
-              : isWa ? "WhatsApp ulanmagan — WhatsApp bo‘limidan Cloud API’ni ulang."
+              : isWa ? "WhatsApp ulanmagan — Sozlamalar → Ulanishlar bo‘limidan ulang."
               : "Bu lidda yozishma kanali yo'q"}
           </div>
         )}
