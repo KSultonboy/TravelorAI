@@ -43,7 +43,7 @@ import {
   type DocRequisites,
   type DocTemplates,
 } from "@/lib/agency/documents";
-import { AuditPage, AutomationPage, InsightsPage, IntegrationPage, WhatsAppPage } from "./CrmCompetitionPages";
+import { AuditPage, InsightsPage, WhatsAppPage } from "./CrmCompetitionPages";
 import { ExecutiveReportsPage } from "./ExecutiveReportsPage";
 
 /* ---- tiny inline icons ---- */
@@ -131,8 +131,6 @@ const NAV: { key: string; label: string; icon: string; group: string; badge?: "l
   { key: "reviews", label: "Sharhlar", icon: I.star, group: "Sotuv" },
   { key: "payments", label: "Mijoz to'lovlari", icon: I.card, group: "Sotuv" },
   { key: "insights", label: "SLA va KPI", icon: I.clock, group: "Boshqa" },
-  { key: "automation", label: "Avtomatizatsiya", icon: I.bolt, group: "Boshqa" },
-  { key: "api-webhooks", label: "API va Webhook", icon: I.link, group: "Boshqa" },
   { key: "audit", label: "Audit tarixi", icon: I.eye, group: "Boshqa" },
   { key: "documents", label: "Hujjatlar", icon: I.doc, group: "Boshqa" },
   // Obuna to'lovi (CLICK) endi Sozlamalar → «Obuna va tarif» ichida.
@@ -593,8 +591,7 @@ export default function KvCabinet() {
     // sections tekshiruviga tushib qolsa Premium agentlik ham paywall ko'rardi.
     // Daraja backend bilan bir xil: /agency/instagram → requireCapability('telegram').
     if (key === "telegram" || key === "instagram" || key === "whatsapp") return caps.telegram !== false;
-    if (key === "insights" || key === "automation") return caps.analytics !== false;
-    if (key === "api-webhooks") return caps.integrations !== false;
+    if (key === "insights") return caps.analytics !== false;
     if (key === "presentations") return caps.presentations !== false;
     if (!allowedSections) return true;
     return allowedSections.includes(key);
@@ -693,8 +690,6 @@ export default function KvCabinet() {
                 <Reviews show={view === "reviews"} readOnly={readOnly} />
                 <Payments show={view === "payments"} leads={leads} move={guardedMove} busyId={busyId} readOnly={readOnly} canExport={canExport} />
                 <InsightsPage show={view === "insights"} readOnly={readOnly} />
-                <AutomationPage show={view === "automation"} readOnly={readOnly} />
-                <IntegrationPage show={view === "api-webhooks"} readOnly={readOnly} />
                 <AuditPage show={view === "audit"} />
                 <DocumentsSection show={view === "documents"} agencyId={agencyId} leads={leads} readOnly={readOnly} />
                 <Settings show={view === "settings"} agency={agency} agencyId={agencyId} refresh={refresh} logout={logout} go={goToView} access={access} readOnly={readOnly} caps={caps} />
