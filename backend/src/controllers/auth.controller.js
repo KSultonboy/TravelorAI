@@ -124,27 +124,35 @@ async function verifyEmail(req, res) {
       return error(res, 'Bu akkaunt Google orqali yaratilgan.', 400, { authProvider: 'google' });
     }
 
-    if (!user.emailVerified) {
-      try {
-        await consumeAuthCode({ userId: user.id, type: AuthCodeType.EMAIL_VERIFICATION, code });
-      } catch (err) {
-        return mapCodeError(res, err);
-      }
-
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          emailVerified: true,
-          emailVerifiedAt: new Date(),
-          lastLoginAt: new Date(),
-        },
-      });
-    } else {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { lastLoginAt: new Date() },
+    // Tasdiqlangan akkauntga bu yerda token berilmaydi: kod tekshirilmagan holda
+    // token qaytarish faqat emailni bilgan odamga kirish imkonini berardi.
+    if (user.emailVerified) {
+      return error(res, 'Email allaqachon tasdiqlangan. Kirish bo‘limidan foydalaning.', 409, {
+        alreadyVerified: true,
       });
     }
+
+    if (user.blocked) {
+      return error(res, 'Hisobingiz bloklangan. Qo\'llab-quvvatlashga murojaat qiling.', 403, {
+        blocked: true,
+        supportEmail: SUPPORT_EMAIL,
+      });
+    }
+
+    try {
+      await consumeAuthCode({ userId: user.id, type: AuthCodeType.EMAIL_VERIFICATION, code });
+    } catch (err) {
+      return mapCodeError(res, err);
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+        lastLoginAt: new Date(),
+      },
+    });
 
     const refreshedUser = await prisma.user.findUnique({ where: { id: user.id } });
     return success(res, {

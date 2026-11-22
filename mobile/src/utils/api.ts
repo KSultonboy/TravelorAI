@@ -379,7 +379,7 @@ export const homeAPI = {
 
 export const bookingsAPI = {
   create: (body: TourBookingPayload) => api.post('/bookings', body),
-  getMine: (params?: { email?: string }) => api.get('/bookings/mine', { params }),
+  getMine: () => api.get('/bookings/mine'),
 };
 
 export const plannerAPI = {

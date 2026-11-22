@@ -162,15 +162,18 @@ async function create(req, res) {
 
 async function listMine(req, res) {
   try {
-    const email = String(req.query.email || '').trim().toLowerCase();
-    let where = email ? { customerEmail: email } : null;
-    if (req.user?.id) {
-      const user = await prisma.user.findUnique({
-        where: { id: req.user.id },
-        select: { email: true },
-      });
-      if (!user) return error(res, 'Foydalanuvchi topilmadi', 404);
+    // Bronlar faqat token egasiga ko'rsatiladi. Email so'rov parametri bo'yicha
+    // qidirish olib tashlandi: u login'siz begona bronlarni ochib berardi.
+    if (!req.user?.id) return error(res, 'Token talab qilinadi', 401);
 
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { email: true, emailVerified: true },
+    });
+    if (!user) return error(res, 'Foydalanuvchi topilmadi', 404);
+
+    // Mehmon sifatida qoldirilgan bronlar faqat tasdiqlangan emailga biriktiriladi.
+    if (user.emailVerified) {
       await prisma.tourBooking.updateMany({
         where: {
           userId: null,
@@ -178,12 +181,10 @@ async function listMine(req, res) {
         },
         data: { userId: req.user.id },
       });
-      where = { userId: req.user.id };
     }
-    if (!where) return error(res, 'Token yoki email talab qilinadi', 401);
 
     const items = await prisma.tourBooking.findMany({
-      where,
+      where: { userId: req.user.id },
       include: { tour: true, agency: true },
       orderBy: { createdAt: 'desc' },
       take: 100,
