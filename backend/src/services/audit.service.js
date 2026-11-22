@@ -5,17 +5,31 @@ const SENSITIVE_KEYS = new Set([
   'telegramBotToken', 'appSecret', 'secret', 'authorization', 'code',
 ]);
 
+// Fayl tanalari (pasport skani, rasm, PDF) audit jurnali va outbound webhook
+// payload'iga HECH QACHON tushmasligi kerak — faqat hajmi haqida belgi qoladi.
+const FILE_BODY_KEYS = /^(dataurl|data_url|filedata|file_data|base64|content(base64)?|data|buffer|file|csv)$/i;
+const DATA_URL_RE = /^data:[^;,]{0,100};base64,/i;
+
+function omittedFile(value) {
+  const size = typeof value === 'string' ? value.length : (value && value.length) || 0;
+  return `[fayl olib tashlandi: ${size} belgi]`;
+}
+
 function sanitizeForAudit(value, depth = 0) {
   if (depth > 4) return '[truncated]';
   if (value === null || value === undefined) return value;
-  if (typeof value === 'string') return value.length > 1000 ? `${value.slice(0, 1000)}…` : value;
+  if (Buffer.isBuffer(value) || value instanceof Uint8Array) return omittedFile(value);
+  if (typeof value === 'string') {
+    if (DATA_URL_RE.test(value)) return omittedFile(value);
+    return value.length > 1000 ? `${value.slice(0, 1000)}…` : value;
+  }
   if (typeof value !== 'object') return value;
   if (Array.isArray(value)) return value.slice(0, 100).map((item) => sanitizeForAudit(item, depth + 1));
   const out = {};
   for (const [key, item] of Object.entries(value)) {
-    out[key] = SENSITIVE_KEYS.has(key) || /password|secret|token/i.test(key)
-      ? '[redacted]'
-      : sanitizeForAudit(item, depth + 1);
+    if (SENSITIVE_KEYS.has(key) || /password|secret|token/i.test(key)) out[key] = '[redacted]';
+    else if (FILE_BODY_KEYS.test(key) && (typeof item === 'string' ? item.length > 200 : Buffer.isBuffer(item))) out[key] = omittedFile(item);
+    else out[key] = sanitizeForAudit(item, depth + 1);
   }
   return out;
 }

@@ -1,14 +1,17 @@
 const bcrypt = require('bcryptjs');
 const { prisma } = require('../config/database');
+const { logger } = require('../config/logger');
 const {
   AuthCodeType,
   AuthProvider,
   buildPublicUser,
   consumeAuthCode,
+  internalError,
   issueAuthCode,
   normalizeEmail,
   verifyGoogleIdToken,
 } = require('../services/auth.service');
+const { sendEmailChangedNoticeEmail } = require('../services/email.service');
 const { signToken } = require('../utils/jwt');
 const { success, error } = require('../utils/response');
 const {
@@ -27,6 +30,10 @@ const DEFAULT_PREFERENCES = {
   updatedAt: null,
 };
 const MAX_SECURITY_CODE_REQUESTS = 3;
+const MAX_NAME_LENGTH = 50;
+// Paroli yo'q (faqat Google) akkauntda emailni almashtirish uchun yaqinda kirgan
+// bo'lish talab qilinadi — o'g'irlangan eski token bilan emailni almashtirib bo'lmaydi.
+const RECENT_LOGIN_SECONDS = 15 * 60;
 
 function mapPreferences(pref) {
   if (!pref) return DEFAULT_PREFERENCES;
@@ -40,7 +47,8 @@ function mapPreferences(pref) {
 function createAuthPayload(user) {
   const publicUser = buildPublicUser(user);
   return {
-    token: signToken({ id: user.id, email: user.email }),
+    // tv — tokenVersion: parol tiklanganda oshadi va eski tokenlar bekor bo'ladi.
+    token: signToken({ id: user.id, email: user.email, tv: user.tokenVersion || 0 }),
     user: publicUser,
   };
 }
@@ -49,15 +57,43 @@ function mapCodeError(res, err) {
   if (err.message === 'CODE_EXPIRED') {
     return error(res, 'Kod muddati tugagan. Yangisini yuboring.', 400);
   }
-  if (err.message === 'CODE_INVALID' || err.message === 'CODE_NOT_FOUND') {
-    return error(res, 'Kod noto\'g\'ri yoki yaroqsiz.', 400);
+  if (err.message === 'CODE_TOO_MANY_ATTEMPTS') {
+    return error(res, 'Juda ko‘p noto‘g‘ri urinish. Kod bekor qilindi — yangisini so‘rang.', 400, {
+      attemptsRemaining: 0,
+      requiresNewCode: true,
+    });
   }
-  return error(res, err.message, 500);
+  if (err.message === 'CODE_INVALID' || err.message === 'CODE_NOT_FOUND') {
+    return error(res, 'Kod noto\'g\'ri yoki yaroqsiz.', 400, {
+      ...(typeof err.attemptsRemaining === 'number' ? { attemptsRemaining: err.attemptsRemaining } : {}),
+    });
+  }
+  return internalError(res, err, 'auth.code');
+}
+
+// Boshqaruv belgilarini olib tashlaydi (email shablonlari va UI uchun xavfsiz ism).
+function cleanName(value) {
+  return String(value || '').replace(/[\u0000-\u001F\u007F]+/g, ' ').trim();
+}
+
+function notifyEmailChanged(oldEmail, newEmail) {
+  // Ikkala manzilga ham xabar: eski egasi o'zgarishdan bexabar qolmasin.
+  Promise.resolve()
+    .then(() => sendEmailChangedNoticeEmail({ oldEmail, newEmail, accountLabel: 'TravelorAI akkauntingiz' }))
+    .catch((err) => logger.error('Email-changed notice failed', { message: err.message }));
 }
 
 async function register(req, res) {
   try {
-    const { name, email, password } = req.body;
+    const { email, password } = req.body;
+    const name = cleanName(req.body.name);
+    // Sxema faqat min uzunlikni tekshiradi — max shu yerda (schemas papkasi boshqa egada).
+    if (name.length < 2) {
+      return error(res, 'name: Ism kamida 2 harf', 422);
+    }
+    if (name.length > MAX_NAME_LENGTH) {
+      return error(res, `name: Ism ${MAX_NAME_LENGTH} belgidan oshmasin`, 422);
+    }
     const normalizedEmail = normalizeEmail(email);
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
 
@@ -106,7 +142,7 @@ async function register(req, res) {
     if (err.code === 'P2002') {
       return error(res, 'Bu Gmail bilan avval ro‘yxatdan o‘tilgan. Kirish bo‘limidan foydalaning.', 409);
     }
-    return error(res, err.message, 500);
+    return internalError(res, err, 'auth.register');
   }
 }
 
@@ -145,7 +181,7 @@ async function verifyEmail(req, res) {
       return mapCodeError(res, err);
     }
 
-    await prisma.user.update({
+    const refreshedUser = await prisma.user.update({
       where: { id: user.id },
       data: {
         emailVerified: true,
@@ -154,13 +190,12 @@ async function verifyEmail(req, res) {
       },
     });
 
-    const refreshedUser = await prisma.user.findUnique({ where: { id: user.id } });
     return success(res, {
       message: 'Email muvaffaqiyatli tasdiqlandi.',
       ...createAuthPayload(refreshedUser),
     });
   } catch (err) {
-    return error(res, err.message, 500);
+    return internalError(res, err, 'auth.verifyEmail');
   }
 }
 
@@ -189,7 +224,7 @@ async function resendVerification(req, res) {
       ...(codeResult.devCode ? { devCode: codeResult.devCode } : {}),
     });
   } catch (err) {
-    return error(res, err.message, 500);
+    return internalError(res, err, 'auth.resendVerification');
   }
 }
 
@@ -249,7 +284,7 @@ async function login(req, res) {
 
     return success(res, createAuthPayload(updatedUser));
   } catch (err) {
-    return error(res, err.message, 500);
+    return internalError(res, err, 'auth.login');
   }
 }
 
@@ -274,7 +309,7 @@ async function forgotPassword(req, res) {
       ...(codeResult.devCode ? { devCode: codeResult.devCode } : {}),
     });
   } catch (err) {
-    return error(res, err.message, 500);
+    return internalError(res, err, 'auth.forgotPassword');
   }
 }
 
@@ -284,8 +319,16 @@ async function resetPassword(req, res) {
     const normalizedEmail = normalizeEmail(email);
     const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
 
+    // Mavjud bo'lmagan email uchun ham kod xatosi bilan bir xil javob (enumeratsiya yo'q).
     if (!user) {
-      return error(res, 'Foydalanuvchi topilmadi.', 404);
+      return error(res, 'Kod noto\'g\'ri yoki yaroqsiz.', 400);
+    }
+
+    if (user.blocked) {
+      return error(res, 'Hisobingiz bloklangan. Qo\'llab-quvvatlashga murojaat qiling.', 403, {
+        blocked: true,
+        supportEmail: SUPPORT_EMAIL,
+      });
     }
 
     // Note: a Google-only account (no password) can set one here — the code was
@@ -305,17 +348,21 @@ async function resetPassword(req, res) {
         emailVerified: true,
         emailVerifiedAt: user.emailVerifiedAt || new Date(),
         lastLoginAt: new Date(),
+        // Barcha eski sessiyalar (boshqa qurilmalardagi tokenlar) bekor qilinadi.
+        tokenVersion: { increment: 1 },
         // A successful reset also lifts any brute-force lockout.
         ...RESET_ON_SUCCESS,
       },
     });
 
+    // Mobil ilova (mobile/app/reset-password.tsx) shu javobdagi tokenni saqlab,
+    // to'g'ridan-to'g'ri kiradi — shuning uchun yangi (tokenVersion'li) token qaytariladi.
     return success(res, {
       message: 'Parol muvaffaqiyatli yangilandi.',
       ...createAuthPayload(updatedUser),
     });
   } catch (err) {
-    return error(res, err.message, 500);
+    return internalError(res, err, 'auth.resetPassword');
   }
 }
 
@@ -341,7 +388,7 @@ async function googleAuth(req, res) {
     if (!user) {
       user = await prisma.user.create({
         data: {
-          name: googleProfile.name,
+          name: cleanName(googleProfile.name).slice(0, MAX_NAME_LENGTH) || 'Sayohatchi',
           email: googleProfile.email,
           avatarUrl: googleProfile.avatarUrl,
           googleId: googleProfile.googleId,
@@ -352,22 +399,45 @@ async function googleAuth(req, res) {
         },
       });
     } else {
+      // Pre-hijack himoyasi: kimdir bu emailga parol bilan akkaunt ochib, emailni
+      // tasdiqlamagan bo'lsa, haqiqiy egasi Google bilan kirganda o'sha parol
+      // o'chiriladi — aks holda hujumchi o'z paroli bilan kirib qolardi.
+      const unverifiedLocalTakeover =
+        !user.emailVerified && Boolean(user.password) && user.email === googleProfile.email;
+
       user = await prisma.user.update({
         where: { id: user.id },
-        data: {
-          name: user.name || googleProfile.name,
-          avatarUrl: user.avatarUrl || googleProfile.avatarUrl,
-          googleId: user.googleId || googleProfile.googleId,
-          authProvider: user.password ? user.authProvider : AuthProvider.GOOGLE,
-          emailVerified: true,
-          emailVerifiedAt: user.emailVerifiedAt || new Date(),
-          lastLoginAt: new Date(),
-        },
+        data: unverifiedLocalTakeover
+          ? {
+              name: cleanName(googleProfile.name).slice(0, MAX_NAME_LENGTH) || user.name,
+              avatarUrl: googleProfile.avatarUrl,
+              googleId: user.googleId || googleProfile.googleId,
+              password: null,
+              authProvider: AuthProvider.GOOGLE,
+              emailVerified: true,
+              emailVerifiedAt: new Date(),
+              lastLoginAt: new Date(),
+              tokenVersion: { increment: 1 },
+              ...RESET_ON_SUCCESS,
+            }
+          : {
+              name: user.name || googleProfile.name,
+              avatarUrl: user.avatarUrl || googleProfile.avatarUrl,
+              googleId: user.googleId || googleProfile.googleId,
+              authProvider: user.password ? user.authProvider : AuthProvider.GOOGLE,
+              emailVerified: true,
+              emailVerifiedAt: user.emailVerifiedAt || new Date(),
+              lastLoginAt: new Date(),
+            },
       });
     }
 
     return success(res, createAuthPayload(user));
   } catch (err) {
+    if (err.message === 'GOOGLE_NOT_CONFIGURED') {
+      return error(res, 'Google orqali kirish hozircha sozlanmagan. Email va parol bilan kiring.', 503);
+    }
+
     if (err.response?.status === 400) {
       return error(res, 'Google token yaroqsiz yoki muddati tugagan.', 401);
     }
@@ -380,7 +450,7 @@ async function googleAuth(req, res) {
       return error(res, 'Google akkauntdagi email tasdiqlanmagan.', 401);
     }
 
-    return error(res, err.message, 500);
+    return internalError(res, err, 'auth.google');
   }
 }
 
@@ -395,7 +465,7 @@ async function getSession(req, res) {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     return success(res, { user: user ? buildPublicUser(user) : null });
   } catch (err) {
-    return error(res, err.message, 500);
+    return internalError(res, err, 'auth.session');
   }
 }
 
@@ -423,7 +493,7 @@ async function updateProfile(req, res) {
       user: buildPublicUser(updatedUser),
     });
   } catch (err) {
-    return error(res, err.message, 500);
+    return internalError(res, err, 'auth.updateProfile');
   }
 }
 
@@ -436,7 +506,7 @@ async function getMe(req, res) {
 
     return success(res, { user: buildPublicUser(user) });
   } catch (err) {
-    return error(res, err.message, 500);
+    return internalError(res, err, 'auth.me');
   }
 }
 
@@ -445,7 +515,7 @@ async function getPreferences(req, res) {
     const pref = await prisma.userPreference.findUnique({ where: { userId: req.user.id } });
     return success(res, { preferences: mapPreferences(pref) });
   } catch (err) {
-    return error(res, err.message, 500);
+    return internalError(res, err, 'auth.getPreferences');
   }
 }
 
@@ -478,7 +548,7 @@ async function updatePreferences(req, res) {
       preferences: mapPreferences(next),
     });
   } catch (err) {
-    return error(res, err.message, 500);
+    return internalError(res, err, 'auth.updatePreferences');
   }
 }
 
@@ -493,6 +563,11 @@ function securityRequestLimit(res, message) {
     contactAdmin: true,
     attemptsRemaining: 0,
   });
+}
+
+function isRecentLogin(tokenPayload) {
+  const issuedAt = Number(tokenPayload?.iat || 0);
+  return issuedAt > 0 && Date.now() / 1000 - issuedAt <= RECENT_LOGIN_SECONDS;
 }
 
 async function requestEmailChange(req, res) {
@@ -516,12 +591,20 @@ async function requestEmailChange(req, res) {
       });
     }
 
+    // Parolsiz (Google) akkaunt: joriy egalikni faqat yaqinda kirganlik bilan tasdiqlaymiz.
+    if (!user.password && !isRecentLogin(req.user)) {
+      return error(res, 'Xavfsizlik uchun hisobdan chiqib, Google bilan qayta kiring va keyin emailni almashtiring.', 401, {
+        requiresReauth: true,
+      });
+    }
+
     const sameRequest = user.pendingEmail === newEmail;
     const requestCount = sameRequest ? user.emailChangeResendCount : 0;
     if (requestCount >= MAX_SECURITY_CODE_REQUESTS) {
       return securityRequestLimit(res, 'Kod 3 marta so‘raldi. Emailni almashtirish uchun adminga murojaat qiling.');
     }
 
+    // Kod YANGI manzilga yuboriladi — shu bilan yangi email egasi ekanligi isbotlanadi.
     const codeResult = await issueAuthCode({ user, type: AuthCodeType.EMAIL_CHANGE, newEmail });
     const nextCount = requestCount + 1;
     await prisma.user.update({
@@ -534,15 +617,17 @@ async function requestEmailChange(req, res) {
     });
 
     return success(res, {
-      message: `Tasdiqlash kodi eski emailingizga yuborildi: ${user.email}`,
+      message: `Tasdiqlash kodi yangi emailingizga yuborildi: ${newEmail}`,
       currentEmail: user.email,
       pendingEmail: newEmail,
+      codeSentTo: newEmail,
       attemptsRemaining: MAX_SECURITY_CODE_REQUESTS - nextCount,
       delivery: codeResult.delivery,
       ...(codeResult.devCode ? { devCode: codeResult.devCode } : {}),
     });
   } catch (err) {
-    return error(res, err.message, 500);
+    if (err.code === 'P2002') return error(res, 'Bu Gmail boshqa akkauntda ishlatilgan.', 409);
+    return internalError(res, err, 'auth.requestEmailChange');
   }
 }
 
@@ -552,12 +637,15 @@ async function verifyEmailChange(req, res) {
     if (!user) return error(res, 'Foydalanuvchi topilmadi.', 404);
     if (!user.pendingEmail) return error(res, 'Email almashtirish so‘rovi topilmadi.', 400);
 
+    // Kod faqat pendingEmail manziliga yuborilgan — uni kiritish yangi emailga
+    // egalikni isbotlaydi, shundan keyingina u "tasdiqlangan" deb belgilanadi.
     try {
       await consumeAuthCode({ userId: user.id, type: AuthCodeType.EMAIL_CHANGE, code: req.body.code });
     } catch (err) {
       return mapCodeError(res, err);
     }
 
+    const oldEmail = user.email;
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -570,13 +658,15 @@ async function verifyEmailChange(req, res) {
       },
     });
 
+    notifyEmailChanged(oldEmail, updatedUser.email);
+
     return success(res, {
       message: 'Email muvaffaqiyatli almashtirildi.',
       ...createAuthPayload(updatedUser),
     });
   } catch (err) {
     if (err.code === 'P2002') return error(res, 'Bu Gmail boshqa akkauntda ishlatilgan.', 409);
-    return error(res, err.message, 500);
+    return internalError(res, err, 'auth.verifyEmailChange');
   }
 }
 
@@ -614,7 +704,7 @@ async function requestAccountDeletion(req, res) {
       ...(codeResult.devCode ? { devCode: codeResult.devCode } : {}),
     });
   } catch (err) {
-    return error(res, err.message, 500);
+    return internalError(res, err, 'auth.requestAccountDeletion');
   }
 }
 
@@ -641,7 +731,7 @@ async function deleteAccount(req, res) {
       message: 'Hisob muvaffaqiyatli o\'chirildi.',
     });
   } catch (err) {
-    return error(res, err.message, 500);
+    return internalError(res, err, 'auth.deleteAccount');
   }
 }
 

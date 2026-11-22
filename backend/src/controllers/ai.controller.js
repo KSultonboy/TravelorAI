@@ -30,7 +30,7 @@ async function status(req, res) {
   try {
     const agency = await ensureApprovedAgency(req, res);
     if (!agency) return;
-    return success(res, { configured: ai.isConfigured() });
+    return success(res, { configured: ai.isConfigured(), quota: ai.getAgencyUsage(agency.id) });
   } catch (err) {
     return error(res, err.message, 500);
   }
@@ -105,12 +105,13 @@ async function presentationNote(req, res) {
       `Agar yozishma berilgan bo'lsa — mijoz aynan nimaga e'tibor berganini ilg'ab, shunga javob ber.\n\n` +
       context;
 
-    const out = await ai.generate({ system: SYSTEM, prompt, maxTokens: 500 });
+    const out = await ai.generate({ system: SYSTEM, prompt, maxTokens: 1500, agencyId: agency.id });
     if (!out.text) return error(res, 'AI javob qaytarmadi, qayta urinib ko‘ring', 502);
 
     return success(res, { text: out.text, usage: out.usage, model: ai.MODEL });
   } catch (err) {
     if (err.code === 'AI_NOT_CONFIGURED') return error(res, err.message, 503, { code: err.code });
+    if (err.code === 'AI_QUOTA_EXCEEDED') return error(res, err.message, 429, { code: err.code });
     return error(res, `AI xatosi: ${err.message}`, 502);
   }
 }

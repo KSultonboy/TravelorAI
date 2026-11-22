@@ -105,7 +105,7 @@ function compactPoiContext(poiContext) {
       rating: Number.isFinite(Number(item?.rating)) ? Number(item.rating) : null,
     }))
     .filter((item) => item.name)
-    .slice(0, 1200);
+    .slice(0, 200);
 }
 
 function buildPrompt({ request, basePlan }) {

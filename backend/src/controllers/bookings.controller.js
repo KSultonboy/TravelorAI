@@ -93,12 +93,15 @@ async function create(req, res) {
         ...where,
         active: true,
         approvalStatus: 'approved',
-        OR: [{ agencyId: null }, { agency: { is: { active: true, approvalStatus: 'approved' } } }],
+        // Lid har doim tasdiqlangan, faol agentlikka tushishi shart — egasiz
+        // (agencyId null) yoki rad etilgan agentlik turiga bron qabul qilinmaydi.
+        agencyId: { not: null },
+        agency: { is: { active: true, approvalStatus: 'approved' } },
       },
       include: { agency: true },
     });
 
-    if (!tour) return error(res, 'Tour topilmadi yoki hali public emas', 404);
+    if (!tour || !tour.agencyId) return error(res, 'Tour topilmadi yoki hali public emas', 404);
 
     const userId = req.user?.id || null;
     if (userId) {
@@ -124,7 +127,7 @@ async function create(req, res) {
         travelDate: input.travelDate ? new Date(input.travelDate) : null,
         message: input.message || null,
         totalEstimate,
-        currency: 'USD',
+        currency: tour.priceCurrency || 'USD',
         source: input.source || 'mobile',
         utmSource: input.utmSource || null,
         utmMedium: input.utmMedium || null,

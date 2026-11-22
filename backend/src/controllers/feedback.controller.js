@@ -52,41 +52,6 @@ async function create(req, res) {
   }
 }
 
-async function getAll(req, res) {
-  try {
-    const { category, page = '1', limit = '20' } = req.query;
-    const parsedPage = Math.max(1, parseInt(String(page), 10) || 1);
-    const parsedLimit = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 20));
-
-    const where = {};
-    if (category) where.category = String(category);
-
-    const [items, total] = await Promise.all([
-      prisma.feedback.findMany({
-        where,
-        include: { user: { select: { id: true, name: true, email: true } } },
-        orderBy: { createdAt: 'desc' },
-        skip: (parsedPage - 1) * parsedLimit,
-        take: parsedLimit,
-      }),
-      prisma.feedback.count({ where }),
-    ]);
-
-    return success(res, { items, total, page: parsedPage, limit: parsedLimit });
-  } catch (err) {
-    return error(res, err.message, 500);
-  }
-}
-
-async function remove(req, res) {
-  try {
-    const existing = await prisma.feedback.findUnique({ where: { id: req.params.id } });
-    if (!existing) return error(res, 'Topilmadi', 404);
-    await prisma.feedback.delete({ where: { id: req.params.id } });
-    return success(res, { id: req.params.id });
-  } catch (err) {
-    return error(res, err.message, 500);
-  }
-}
-
-module.exports = { create, getAll, remove };
+// Admin ro'yxati/o'chirish admin.controller.js ichida (/admin/feedback) — bu yerdagi
+// marshrutsiz nusxalar olib tashlandi.
+module.exports = { create };

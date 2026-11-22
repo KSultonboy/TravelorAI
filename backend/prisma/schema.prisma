@@ -47,6 +47,7 @@ model User {
   lastFailedLoginAt        DateTime?
   lockoutUntil             DateTime?
   lockoutLevel             Int             @default(0)
+  tokenVersion             Int             @default(0)
   role                     String          @default("traveler")
   expoPushToken            String?
   emailChangeResendCount   Int             @default(0)
@@ -72,6 +73,7 @@ model AuthCode {
   codeHash  String
   expiresAt DateTime
   usedAt    DateTime?
+  attempts  Int          @default(0)
   createdAt DateTime     @default(now())
 
   @@index([userId, type])
@@ -95,6 +97,7 @@ model AgencyAccount {
   lastFailedLoginAt      DateTime?
   lockoutUntil           DateTime?
   lockoutLevel           Int                 @default(0)
+  tokenVersion           Int                 @default(0)
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
   authCodes              AgencyAuthCode[]
@@ -139,6 +142,7 @@ model AgencyAuthCode {
   codeHash  String
   expiresAt DateTime
   usedAt    DateTime?
+  attempts  Int           @default(0)
   createdAt DateTime      @default(now())
 
   @@index([accountId, type])
@@ -233,6 +237,8 @@ model Trip {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   tripReviews     TripReview[]
+
+  @@index([userId])
 }
 
 model UserPreference {
@@ -763,6 +769,9 @@ model TourBooking {
   @@index([whatsappWaId])
   @@index([agencyId, firstResponseAt, createdAt])
   @@index([csvImportBatchId])
+  @@index([agencyId, telegramChatId])
+  @@index([agencyId, createdAt])
+  @@index([agencyId, pipelineStage, archived])
 }
 
 // SLA va avtomatik biriktirish agentlik kesimida boshqariladi.
@@ -1487,6 +1496,7 @@ model WishlistItem {
 
   @@unique([userId, slug])
   @@index([userId, savedAt])
+  @@index([poiId])
 }
 
 model Feedback {

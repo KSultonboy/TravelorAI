@@ -166,7 +166,7 @@ async function tour(req, res) {
     const ctx = await authAgency(req, res);
     if (!ctx) return;
     const found = await prisma.tour.findFirst({
-      where: { id: String((req.body && req.body.tourId) || ''), agencyId: ctx.agency.id, active: true },
+      where: { id: String((req.body && req.body.tourId) || ''), agencyId: ctx.agency.id, active: true, approvalStatus: 'approved' },
     });
     if (!found) return error(res, 'Tur topilmadi', 404);
     return success(res, fullTour(found));
@@ -228,7 +228,7 @@ async function request(req, res) {
     const chatId = String(user.id);
 
     const found = await prisma.tour.findFirst({
-      where: { id: String((req.body && req.body.tourId) || ''), agencyId: agency.id, active: true },
+      where: { id: String((req.body && req.body.tourId) || ''), agencyId: agency.id, active: true, approvalStatus: 'approved' },
       select: { id: true, title: true },
     });
     if (!found) return error(res, 'Tur topilmadi', 404);

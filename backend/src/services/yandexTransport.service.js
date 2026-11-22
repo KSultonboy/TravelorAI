@@ -1,11 +1,13 @@
 const axios = require('axios');
+const { TtlLruCache } = require('./memoryCache.service');
 
 const YANDEX_SEARCH_URL = 'https://search-maps.yandex.ru/v1/';
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const MAX_RADIUS_KM = 25;
 const MAX_RESULTS_PER_QUERY = 20;
 
-const cache = new Map();
+// Chegaralangan LRU+TTL kesh — eski cheksiz Map xotirani to'ldirishi mumkin edi.
+const cache = new TtlLruCache({ max: 500, ttlMs: CACHE_TTL_MS });
 
 const TYPE_QUERIES = {
   bus: ['bus stop', 'avtobus bekati'],

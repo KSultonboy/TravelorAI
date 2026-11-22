@@ -19,12 +19,22 @@ const automation = require('../controllers/agencyAutomation.controller');
 const integrations = require('../controllers/agencyIntegration.controller');
 const documents = require('../controllers/agencyDocuments.controller');
 const { agencyAuditMiddleware } = require('../middleware/agencyAudit.middleware');
+const { requireRole, requireApprovedAgency, ROLE_GROUPS } = require('../middleware/agencyRole.middleware');
 
-router.post('/auth/register', agency.register);
-router.post('/auth/verify-email', agency.verifyEmail);
-router.post('/auth/login', agency.login);
-router.post('/auth/google', agency.googleAuth);
-router.post('/auth/reset-password', agency.resetPassword);
+// Rol guruhlari (config/agencyPlans.js ROLE_SECTIONS bilan mos):
+const OWNER = requireRole(ROLE_GROUPS.owner);
+const OWNER_MANAGER = requireRole(ROLE_GROUPS.ownerManager);
+const LEAD_ROLES = requireRole(ROLE_GROUPS.leads); // owner, manager, agent
+const PACKAGE_ROLES = requireRole(ROLE_GROUPS.packages); // owner, manager, agent
+const FINANCE_ROLES = requireRole(ROLE_GROUPS.finance); // owner, manager, accountant
+const LEAD_FILE_ROLES = requireRole(ROLE_GROUPS.leadFiles); // pasport fayllari: owner, manager, agent
+
+const authLimit = require('../middleware/rateLimit.middleware').createAuthLimiters();
+router.post('/auth/register', ...authLimit.register, agency.register);
+router.post('/auth/verify-email', ...authLimit.verifyEmail, agency.verifyEmail);
+router.post('/auth/login', ...authLimit.login, agency.login);
+router.post('/auth/google', ...authLimit.google, agency.googleAuth);
+router.post('/auth/reset-password', ...authLimit.reset, agency.resetPassword);
 
 router.use(agencyAuthMiddleware);
 router.use(agencyPlan); // req.agency + req.access (tarif/obuna) — barcha authed route'lar uchun
@@ -46,23 +56,27 @@ router.put('/profile', blockWhenReadOnly, requireOwner, agency.updateAgencyProfi
 // Obuna to'lovi (CLICK) — blockWhenReadOnly ATAYIN YO'Q:
 // obunasi tugagan agentlik aynan to'lov qilishi kerak.
 // Diqqat: `/payments/plans` `/payments/:merchantTransId`dan OLDIN turishi shart.
+// Billingni o'qish rad etilgan/o'chirilgan agentlikka ham ochiq (sababini ko'rishi uchun).
 router.get('/payments/plans', clickPay.listPlans);
 router.get('/payments/history', clickPay.paymentHistory);
-router.post('/payments/checkout', clickPay.checkout);
+router.post('/payments/checkout', requireApprovedAgency, OWNER, clickPay.checkout);
 router.get('/payments/:merchantTransId', clickPay.paymentStatus);
 
+// ── Shu qatordan pastdagi barcha CRM yo'llari faqat admin tasdiqlagan, faol agentlik uchun.
+router.use(requireApprovedAgency);
+
 router.get('/tours', agency.listTours);
-router.post('/tours', blockWhenReadOnly, agency.createTour);
-router.put('/tours/:id', blockWhenReadOnly, agency.updateTour);
-router.post('/tours/:id/submit', blockWhenReadOnly, agency.submitTour);
-router.delete('/tours/:id', blockWhenReadOnly, agency.deleteTour);
+router.post('/tours', blockWhenReadOnly, PACKAGE_ROLES, agency.createTour);
+router.put('/tours/:id', blockWhenReadOnly, PACKAGE_ROLES, agency.updateTour);
+router.post('/tours/:id/submit', blockWhenReadOnly, PACKAGE_ROLES, agency.submitTour);
+router.delete('/tours/:id', blockWhenReadOnly, PACKAGE_ROLES, agency.deleteTour);
 
 // Marshrut nuqtalarini qidirish (OSM Nominatim) — tur tahrirlagichi uchun.
 router.get('/geocode', geocodeCtrl.geocode);
 
 router.get('/bookings', agency.listBookings);
 router.patch('/bookings/:id/status', blockWhenReadOnly, agency.updateBookingStatus);
-router.post('/leads', blockWhenReadOnly, requireCapability('manualLeads'), agency.createManualLead);
+router.post('/leads', blockWhenReadOnly, LEAD_ROLES, requireCapability('manualLeads'), agency.createManualLead);
 router.patch('/bookings/:id/stage', blockWhenReadOnly, agency.updatePipelineStage);
 router.patch('/bookings/:id/birthday', blockWhenReadOnly, agency.setCustomerBirthday);
 router.patch('/bookings/:id', blockWhenReadOnly, agency.updateLead); // lid maydonlarini tahrirlash
@@ -81,9 +95,9 @@ router.post('/crm/bookings/:id/activities', blockWhenReadOnly, crm.addActivity);
 router.patch('/crm/bookings/:id/assignee', blockWhenReadOnly, crm.assignLead);
 router.put('/crm/documents', blockWhenReadOnly, crm.saveDocuments);
 router.post('/crm/import/local', crm.importLocal); // eski localStorage ma'lumotini yo'qotmaslik uchun readOnly'da ham ochiq
-router.post('/crm/import/csv', blockWhenReadOnly, requireCapability('manualLeads'), crm.importCsv);
-router.post('/crm/import/csv/preview', blockWhenReadOnly, requireCapability('manualLeads'), crm.previewCsv);
-router.post('/crm/import/csv/commit', blockWhenReadOnly, requireCapability('manualLeads'), crm.commitCsv);
+router.post('/crm/import/csv', blockWhenReadOnly, LEAD_ROLES, requireCapability('manualLeads'), crm.importCsv);
+router.post('/crm/import/csv/preview', blockWhenReadOnly, LEAD_ROLES, requireCapability('manualLeads'), crm.previewCsv);
+router.post('/crm/import/csv/commit', blockWhenReadOnly, LEAD_ROLES, requireCapability('manualLeads'), crm.commitCsv);
 router.get('/crm/imports', crm.listCsvImports);
 router.post('/crm/imports/:id/rollback', blockWhenReadOnly, requireOwner, crm.rollbackCsv);
 router.get('/crm/settings', crm.getCrmSettings);
@@ -111,6 +125,8 @@ router.post('/crm/integrations/webhooks/:id/test', blockWhenReadOnly, requireOwn
 router.post('/crm/integrations/deliveries/:id/retry', blockWhenReadOnly, requireOwner, requireCapability('integrations'), integrations.retryDelivery);
 
 // Operatsion moliya: kassa/bank, kirim-chiqim, qarzdorlik va bitim foydasi.
+// Moliya — faqat payments bo'limi rollari (owner, manager, accountant); agent kira olmaydi.
+router.use('/crm/finance', FINANCE_ROLES);
 router.get('/crm/finance', finance.listFinance);
 router.get('/crm/finance/exchange-rates', finance.listExchangeRates);
 router.get('/crm/finance/reconciliation', reconciliation.list);
@@ -119,13 +135,13 @@ router.post('/crm/finance/reconciliation/import', blockWhenReadOnly, reconciliat
 router.post('/crm/finance/reconciliation/rows/:id/match', blockWhenReadOnly, reconciliation.match);
 router.post('/crm/finance/reconciliation/rows/:id/create', blockWhenReadOnly, reconciliation.createFromRow);
 router.patch('/crm/finance/reconciliation/rows/:id/ignore', blockWhenReadOnly, reconciliation.ignore);
-router.post('/crm/finance/accounts', blockWhenReadOnly, finance.createAccount);
+router.post('/crm/finance/accounts', blockWhenReadOnly, OWNER, finance.createAccount);
 router.post('/crm/finance/suppliers', blockWhenReadOnly, finance.createSupplier);
 router.patch('/crm/finance/suppliers/:id', blockWhenReadOnly, finance.updateSupplier);
-router.put('/crm/finance/commission-rules/:memberId', blockWhenReadOnly, requireOwner, finance.saveCommissionRule);
+router.put('/crm/finance/commission-rules/:memberId', blockWhenReadOnly, OWNER, finance.saveCommissionRule);
 router.post('/crm/finance/transactions', blockWhenReadOnly, finance.createTransaction);
 router.patch('/crm/finance/transactions/:id', blockWhenReadOnly, finance.updateTransaction);
-router.delete('/crm/finance/transactions/:id', blockWhenReadOnly, requireOwner, finance.deleteTransaction);
+router.delete('/crm/finance/transactions/:id', blockWhenReadOnly, OWNER, finance.deleteTransaction);
 
 // Rahbar paneli: real P&L, 12 haftalik cashflow, payroll va filiallar kesimi.
 router.get('/crm/executive-report', requireOwner, executive.executiveReport);
@@ -149,38 +165,41 @@ router.post('/crm/business-documents/signatures/:signatureId/verify', blockWhenR
 
 // Mijoz sharhlari + reyting (marketplace'да ko'rinadi) — ko'rish hammaga ochiq.
 router.get('/reviews', agency.listReviews);
-router.patch('/reviews/:id', blockWhenReadOnly, agency.setReviewStatus);
+router.patch('/reviews/:id', blockWhenReadOnly, OWNER_MANAGER, agency.setReviewStatus);
 
-// Lid fayllari (pasport / viza / shartnoma) — DB'да, faqat egasiga.
-router.get('/bookings/:id/files', leadFiles.listFiles);
-router.post('/bookings/:id/files', blockWhenReadOnly, leadFiles.uploadFile);
-router.get('/files/:id', leadFiles.downloadFile);
-router.delete('/files/:id', blockWhenReadOnly, leadFiles.deleteFile);
-router.post('/files/:id/ocr', blockWhenReadOnly, requireCapability('ai'), leadFiles.ocrPassport);
+// Lid fayllari (pasport / viza / shartnoma) — DB'да. Faqat lid bilan ishlaydigan
+// rollar (owner, manager, agent); buxgalter pasport skanlarini ko'rmaydi.
+router.get('/bookings/:id/files', LEAD_FILE_ROLES, leadFiles.listFiles);
+router.post('/bookings/:id/files', blockWhenReadOnly, LEAD_FILE_ROLES, leadFiles.uploadFile);
+router.get('/files/:id', LEAD_FILE_ROLES, leadFiles.downloadFile);
+router.delete('/files/:id', blockWhenReadOnly, LEAD_FILE_ROLES, leadFiles.deleteFile);
+router.post('/files/:id/ocr', blockWhenReadOnly, LEAD_FILE_ROLES, requireCapability('ai'), leadFiles.ocrPassport);
 
 // AI yordamchilar — faqat Premium.
 router.get('/ai/status', requireCapability('ai'), aiCtrl.status);
-router.post('/ai/presentation-note', blockWhenReadOnly, requireCapability('ai'), aiCtrl.presentationNote);
+router.post('/ai/presentation-note', blockWhenReadOnly, LEAD_ROLES, requireCapability('ai'), aiCtrl.presentationNote);
 
 // Dinamik takliflar (Pro va yuqori tarif) — ochilish kuzatuvi bilan.
 router.get('/presentations', requireCapability('presentations'), presentation.listPresentations);
-router.post('/presentations', blockWhenReadOnly, requireCapability('presentations'), presentation.createPresentation);
-router.delete('/presentations/:id', blockWhenReadOnly, requireCapability('presentations'), presentation.deletePresentation);
+router.post('/presentations', blockWhenReadOnly, LEAD_ROLES, requireCapability('presentations'), presentation.createPresentation);
+router.delete('/presentations/:id', blockWhenReadOnly, LEAD_ROLES, requireCapability('presentations'), presentation.deletePresentation);
 
 // Telegram bot — Pro va yuqori tarif (requireCapability). Yozuvlar muddat o'tsa ham bloklanadi.
 router.use('/telegram', requireCapability('telegram'));
 router.get('/telegram', telegram.getTelegram);
-router.post('/telegram/connect', blockWhenReadOnly, telegram.connectTelegram);
-router.post('/telegram/disconnect', blockWhenReadOnly, telegram.disconnectTelegram);
-router.put('/telegram/welcome', blockWhenReadOnly, telegram.setWelcome);
-router.put('/telegram/birthday-template', blockWhenReadOnly, telegram.setBirthdayTemplate);
-router.get('/telegram/profile', telegram.getProfile);
-router.put('/telegram/profile', blockWhenReadOnly, telegram.setProfile);
-router.get('/telegram/config', telegram.getConfig);
-router.put('/telegram/config', blockWhenReadOnly, telegram.setConfig);
-router.get('/telegram/messages', telegram.listMessages);
-router.post('/telegram/reply', blockWhenReadOnly, telegram.reply);
-router.post('/telegram/broadcast', blockWhenReadOnly, requireCapability('broadcast'), telegram.broadcast);
+// Botni ulash/uzish va broadcast — faqat egasi; bot sozlamalari — egasi yoki menejer;
+// mijoz bilan yozishma — lid rollari (buxgalter emas).
+router.post('/telegram/connect', blockWhenReadOnly, OWNER, telegram.connectTelegram);
+router.post('/telegram/disconnect', blockWhenReadOnly, OWNER, telegram.disconnectTelegram);
+router.put('/telegram/welcome', blockWhenReadOnly, OWNER_MANAGER, telegram.setWelcome);
+router.put('/telegram/birthday-template', blockWhenReadOnly, OWNER_MANAGER, telegram.setBirthdayTemplate);
+router.get('/telegram/profile', OWNER_MANAGER, telegram.getProfile);
+router.put('/telegram/profile', blockWhenReadOnly, OWNER_MANAGER, telegram.setProfile);
+router.get('/telegram/config', LEAD_ROLES, telegram.getConfig); // shablonlar chat oynasida ham kerak
+router.put('/telegram/config', blockWhenReadOnly, OWNER_MANAGER, telegram.setConfig);
+router.get('/telegram/messages', LEAD_ROLES, telegram.listMessages);
+router.post('/telegram/reply', blockWhenReadOnly, LEAD_ROLES, telegram.reply);
+router.post('/telegram/broadcast', blockWhenReadOnly, OWNER, requireCapability('broadcast'), telegram.broadcast);
 
 // Instagram Direct — Telegram bilan bir xil tarif darajasi ('telegram'
 // capability = «xabar kanallari»). Javob yuborish /telegram/reply orqali
@@ -189,21 +208,21 @@ router.use('/instagram', requireCapability('telegram'));
 router.get('/instagram', instagram.getInstagram);
 router.get('/instagram/authorize', requireOwner, instagram.authorize);
 router.post('/instagram/disconnect', blockWhenReadOnly, requireOwner, instagram.disconnectInstagram);
-router.put('/instagram/welcome', blockWhenReadOnly, instagram.setWelcome);
+router.put('/instagram/welcome', blockWhenReadOnly, OWNER_MANAGER, instagram.setWelcome);
 
 // WhatsApp Cloud API — shu xabar kanallari tarifi ichida.
 router.use('/whatsapp', requireCapability('telegram'));
 router.get('/whatsapp', whatsapp.getWhatsApp);
 router.post('/whatsapp/connect', blockWhenReadOnly, requireOwner, whatsapp.connect);
 router.post('/whatsapp/disconnect', blockWhenReadOnly, requireOwner, whatsapp.disconnect);
-router.put('/whatsapp/welcome', blockWhenReadOnly, whatsapp.setWelcome);
-router.get('/whatsapp/templates', whatsapp.templates);
-router.post('/whatsapp/send', blockWhenReadOnly, whatsapp.send);
+router.put('/whatsapp/welcome', blockWhenReadOnly, OWNER_MANAGER, whatsapp.setWelcome);
+router.get('/whatsapp/templates', LEAD_ROLES, whatsapp.templates);
+router.post('/whatsapp/send', blockWhenReadOnly, LEAD_ROLES, whatsapp.send);
 
-// Jamoa (Business tarif) — ko'rish hammaga, boshqarish faqat egasiga (controller ichida tekshiriladi).
+// Jamoa (Business tarif) — ko'rish hammaga, boshqarish faqat egasiga (yo'lda ham, controller ichida ham).
 router.get('/team', team.listTeam);
-router.post('/team', blockWhenReadOnly, requireCapability('team'), team.addMember);
-router.put('/team/:id', blockWhenReadOnly, requireCapability('team'), team.updateMember);
-router.delete('/team/:id', blockWhenReadOnly, requireCapability('team'), team.removeMember);
+router.post('/team', blockWhenReadOnly, OWNER, requireCapability('team'), team.addMember);
+router.put('/team/:id', blockWhenReadOnly, OWNER, requireCapability('team'), team.updateMember);
+router.delete('/team/:id', blockWhenReadOnly, OWNER, requireCapability('team'), team.removeMember);
 
 module.exports = router;

@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 const dns = require('dns').promises;
 const net = require('net');
+const http = require('http');
+const https = require('https');
 const { prisma } = require('../config/database');
 const { encryptSecret, decryptSecret } = require('./dataEncryption.service');
 
@@ -21,34 +23,160 @@ function normalizeEvents(events) {
   return [...new Set((Array.isArray(events) ? events : []).filter((event) => WEBHOOK_EVENTS.includes(event)))];
 }
 
-function validateWebhookUrl(value) {
-  let url;
-  try { url = new URL(String(value || '')); } catch { throw new Error('Webhook URL yaroqsiz'); }
-  if (url.protocol !== 'https:' && process.env.NODE_ENV === 'production') throw new Error('Production webhook faqat HTTPS bo‘lishi kerak');
-  if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new Error('Webhook URL yaroqsiz');
-  const host = url.hostname.toLowerCase();
-  if (host === 'localhost' || host.endsWith('.localhost') || host === '0.0.0.0' || host === '::1') throw new Error('Ichki webhook manzili taqiqlangan');
-  return url.toString();
+// ── SSRF himoyasi ─────────────────────────────────────────────────────────────
+// Agentlik kiritgan URL'ga server nomidan so'rov yuboriladi, shuning uchun ichki
+// tarmoq, loopback, link-local va bulut metadata manzillari (169.254.169.254,
+// fd00:ec2::254, 100.100.100.200 ...) bloklanadi. IPv4-mapped / NAT64 / 6to4
+// IPv6 ko'rinishidagi IPv4 manzillar avval IPv4'ga normallashtiriladi.
+
+const BLOCKED_V4 = new net.BlockList();
+[
+  ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16],
+  ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.0.2.0', 24], ['192.88.99.0', 24], ['192.168.0.0', 16],
+  ['198.18.0.0', 15], ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
+].forEach(([net4, prefix]) => BLOCKED_V4.addSubnet(net4, prefix, 'ipv4'));
+
+const BLOCKED_V6 = new net.BlockList();
+[
+  ['::', 128], ['::1', 128], ['100::', 64], ['2001::', 23], ['2001:db8::', 32],
+  ['fc00::', 7], ['fe80::', 10], ['fec0::', 10], ['ff00::', 8],
+].forEach(([net6, prefix]) => BLOCKED_V6.addSubnet(net6, prefix, 'ipv6'));
+
+function parseIPv6Groups(input) {
+  let s = String(input).toLowerCase();
+  const dotted = s.match(/^(.*:)(\d{1,3}(?:\.\d{1,3}){3})$/);
+  if (dotted) {
+    if (!net.isIPv4(dotted[2])) return null;
+    const p = dotted[2].split('.').map(Number);
+    s = `${dotted[1]}${((p[0] << 8) | p[1]).toString(16)}:${((p[2] << 8) | p[3]).toString(16)}`;
+  }
+  const halves = s.split('::');
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(':') : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  const fill = halves.length === 2 ? 8 - head.length - tail.length : 0;
+  if (fill < 0) return null;
+  const groups = [...head, ...Array(fill).fill('0'), ...tail].map((h) => (/^[0-9a-f]{1,4}$/.test(h) ? parseInt(h, 16) : NaN));
+  if (groups.length !== 8 || groups.some((g) => !Number.isFinite(g))) return null;
+  return groups;
+}
+
+function v4FromGroups(hi, lo) {
+  return [hi >> 8, hi & 0xff, lo >> 8, lo & 0xff].join('.');
+}
+
+/**
+ * IP manzilni tekshirish uchun kanonik ko'rinishga keltiradi.
+ * IPv6 ichiga joylangan IPv4 (::ffff:a.b.c.d, ::a.b.c.d, 64:ff9b::/96, 2002::/16)
+ * IPv4 sifatida qaytadi — aks holda ::ffff:127.0.0.1 kabi manzil filtrdan o'tib ketadi.
+ */
+function normalizeIp(address) {
+  let raw = String(address || '').trim();
+  if (raw.startsWith('[') && raw.endsWith(']')) raw = raw.slice(1, -1);
+  raw = raw.split('%')[0]; // fe80::1%eth0
+  if (net.isIPv4(raw)) return { address: raw, family: 4 };
+  if (!net.isIPv6(raw)) return null;
+  const g = parseIPv6Groups(raw);
+  if (!g) return null;
+  const zero = (from, to) => g.slice(from, to).every((x) => x === 0);
+  // ::ffff:a.b.c.d (IPv4-mapped)
+  if (zero(0, 5) && g[5] === 0xffff) return { address: v4FromGroups(g[6], g[7]), family: 4 };
+  // ::ffff:0:a.b.c.d (IPv4-translated)
+  if (zero(0, 4) && g[4] === 0xffff && g[5] === 0) return { address: v4FromGroups(g[6], g[7]), family: 4 };
+  // ::a.b.c.d (eskirgan IPv4-compatible); :: va ::1 IPv6 bo'lib qoladi
+  if (zero(0, 6) && (g[6] !== 0 || g[7] > 1)) return { address: v4FromGroups(g[6], g[7]), family: 4 };
+  // 64:ff9b::/96 (NAT64)
+  if (g[0] === 0x64 && g[1] === 0xff9b && zero(2, 6)) return { address: v4FromGroups(g[6], g[7]), family: 4 };
+  // 2002::/16 (6to4) — ichidagi IPv4
+  if (g[0] === 0x2002) return { address: v4FromGroups(g[1], g[2]), family: 4 };
+  return { address: g.map((x) => x.toString(16)).join(':'), family: 6 };
 }
 
 function isPrivateIp(address) {
-  if (net.isIPv4(address)) {
-    const p = address.split('.').map(Number);
-    return p[0] === 10 || p[0] === 127 || p[0] === 0 || (p[0] === 169 && p[1] === 254)
-      || (p[0] === 172 && p[1] >= 16 && p[1] <= 31) || (p[0] === 192 && p[1] === 168)
-      || (p[0] === 100 && p[1] >= 64 && p[1] <= 127) || p[0] >= 224;
-  }
-  if (net.isIPv6(address)) {
-    const a = address.toLowerCase();
-    return a === '::1' || a === '::' || a.startsWith('fc') || a.startsWith('fd') || a.startsWith('fe8') || a.startsWith('fe9') || a.startsWith('fea') || a.startsWith('feb');
-  }
-  return true;
+  const ip = normalizeIp(address);
+  if (!ip) return true; // tanib bo'lmagan manzil — xavfsiz tomonga
+  return ip.family === 4 ? BLOCKED_V4.check(ip.address, 'ipv4') : BLOCKED_V6.check(ip.address, 'ipv6');
 }
 
-async function assertPublicDestination(rawUrl) {
+function isProduction() {
+  return process.env.NODE_ENV === 'production';
+}
+
+function validateWebhookUrl(value) {
+  let url;
+  try { url = new URL(String(value || '')); } catch { throw new Error('Webhook URL yaroqsiz'); }
+  if (url.protocol !== 'https:' && isProduction()) throw new Error('Production webhook faqat HTTPS bo‘lishi kerak');
+  if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new Error('Webhook URL yaroqsiz');
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) {
+    throw new Error('Ichki webhook manzili taqiqlangan');
+  }
+  if (net.isIP(host) && isPrivateIp(host)) throw new Error('Ichki webhook manzili taqiqlangan');
+  return url.toString();
+}
+
+/**
+ * Manzilni BIR MARTA resolve qiladi, hamma javoblarni tekshiradi va so'rov
+ * yuboriladigan IP'ni qaytaradi. So'rov aynan shu IP'ga ulanadi (pin) —
+ * DNS rebinding (tekshiruvda public, ulanishda 127.0.0.1) ishlamaydi.
+ */
+async function resolvePublicDestination(rawUrl) {
   const url = new URL(rawUrl);
-  const addresses = await dns.lookup(url.hostname, { all: true, verbatim: true });
-  if (!addresses.length || addresses.some((row) => isPrivateIp(row.address))) throw new Error('Webhook ichki yoki private tarmoq manziliga yo‘naltirilgan');
+  if (url.protocol !== 'https:' && isProduction()) throw new Error('Production webhook faqat HTTPS bo‘lishi kerak');
+  const host = url.hostname.replace(/^\[|\]$/g, '');
+  if (net.isIP(host)) {
+    if (isPrivateIp(host)) throw new Error('Webhook ichki yoki private tarmoq manziliga yo‘naltirilgan');
+    return { address: host, family: net.isIP(host) };
+  }
+  const addresses = await dns.lookup(host, { all: true, verbatim: true });
+  if (!addresses.length || addresses.some((row) => isPrivateIp(row.address))) {
+    throw new Error('Webhook ichki yoki private tarmoq manziliga yo‘naltirilgan');
+  }
+  return { address: addresses[0].address, family: addresses[0].family || net.isIP(addresses[0].address) };
+}
+
+// Backward-compat nomi (eski chaqiruvlar uchun).
+async function assertPublicDestination(rawUrl) {
+  await resolvePublicDestination(rawUrl);
+}
+
+/**
+ * Oldindan tekshirilgan IP'ga POST yuboradi. Host sarlavhasi va TLS SNI asl
+ * domen bilan qoladi (sertifikat tekshiruvi buzilmaydi), lekin TCP ulanish
+ * faqat `pinned.address`ga ochiladi. Redirect kuzatilmaydi, javob tanasi
+ * O'QILMAYDI — faqat status kodi olinadi.
+ */
+function postToPinnedAddress(rawUrl, pinned, { headers, body, timeoutMs = 10000 }) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(rawUrl);
+    const host = url.hostname.replace(/^\[|\]$/g, '');
+    const client = url.protocol === 'https:' ? https : http;
+    const options = {
+      method: 'POST',
+      protocol: url.protocol,
+      hostname: host,
+      port: url.port || undefined,
+      path: `${url.pathname}${url.search}`,
+      headers: { ...headers, 'content-length': Buffer.byteLength(body) },
+      agent: false,
+    };
+    if (url.protocol === 'https:' && !net.isIP(host)) options.servername = host;
+    if (pinned) {
+      options.lookup = (_hostname, lookupOptions, callback) => {
+        const cb = typeof lookupOptions === 'function' ? lookupOptions : callback;
+        if (lookupOptions && lookupOptions.all) return cb(null, [{ address: pinned.address, family: pinned.family }]);
+        return cb(null, pinned.address, pinned.family);
+      };
+    }
+    const req = client.request(options, (res) => {
+      const status = res.statusCode;
+      res.destroy(); // tanani o'qimaymiz
+      resolve({ status });
+    });
+    req.setTimeout(timeoutMs, () => req.destroy(Object.assign(new Error('Webhook timeout (10s)'), { name: 'AbortError' })));
+    req.on('error', reject);
+    req.end(body);
+  });
 }
 
 async function createWebhookEndpoint({ agencyId, name, url, events, maxAttempts = 6, createdByAccountId }) {
@@ -102,7 +230,9 @@ function retryDelayMs(attempt) {
   return minutes * 60 * 1000;
 }
 
-async function deliverWebhook(delivery, { allowPrivate = false, fetchImpl = fetch } = {}) {
+// transport(url, pinnedAddress, { headers, body, timeoutMs }) -> { status } — testlarda almashtiriladi.
+// allowPrivate faqat lokal smoke skriptlari uchun; productionda e'tiborga olinmaydi.
+async function deliverWebhook(delivery, { allowPrivate = false, transport = postToPinnedAddress } = {}) {
   const claimed = await prisma.webhookDelivery.updateMany({
     where: { id: delivery.id, status: { in: ['pending', 'retry'] }, nextAttemptAt: { lte: new Date() } },
     data: { status: 'sending', attempt: { increment: 1 }, error: null },
@@ -127,12 +257,12 @@ async function deliverWebhook(delivery, { allowPrivate = false, fetchImpl = fetc
   const timestamp = String(Math.floor(Date.now() / 1000));
   const signature = signWebhookPayload(decryptSecret(current.endpoint.secretEncrypted), timestamp, body);
   const startedAt = Date.now();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
+  const skipVetting = allowPrivate && !isProduction();
   try {
-    if (!allowPrivate) await assertPublicDestination(current.endpoint.url);
-    const response = await fetchImpl(current.endpoint.url, {
-      method: 'POST', body, signal: controller.signal,
+    const pinned = skipVetting ? null : await resolvePublicDestination(current.endpoint.url);
+    const response = await transport(current.endpoint.url, pinned, {
+      body,
+      timeoutMs: 10000,
       headers: {
         'content-type': 'application/json',
         'user-agent': 'TravelorAI-Webhooks/1.0',
@@ -141,15 +271,16 @@ async function deliverWebhook(delivery, { allowPrivate = false, fetchImpl = fetc
         'x-travelorai-timestamp': timestamp,
         'x-travelorai-signature': signature,
       },
-      redirect: 'error',
     });
-    const responseBody = (await response.text().catch(() => '')).slice(0, 2000);
-    if (!response.ok) throw Object.assign(new Error(`HTTP ${response.status}`), { responseStatus: response.status, responseBody });
+    const status = Number(response && response.status) || 0;
+    if (status >= 300 && status < 400) throw Object.assign(new Error(`Webhook redirect taqiqlangan (HTTP ${status})`), { responseStatus: status });
+    if (status < 200 || status >= 300) throw Object.assign(new Error(`HTTP ${status}`), { responseStatus: status });
+    // Javob tanasi saqlanmaydi (faqat status) — begona server ma'lumoti bazaga tushmasin.
     await prisma.$transaction([
-      prisma.webhookDelivery.update({ where: { id: current.id }, data: { status: 'success', responseStatus: response.status, responseBody, durationMs: Date.now() - startedAt, deliveredAt: new Date(), error: null } }),
+      prisma.webhookDelivery.update({ where: { id: current.id }, data: { status: 'success', responseStatus: status, responseBody: null, durationMs: Date.now() - startedAt, deliveredAt: new Date(), error: null } }),
       prisma.webhookEndpoint.update({ where: { id: current.endpointId }, data: { lastSuccessAt: new Date() } }),
     ]);
-    return { success: true, status: response.status };
+    return { success: true, status };
   } catch (err) {
     const dead = current.attempt >= current.maxAttempts;
     await prisma.$transaction([
@@ -158,7 +289,7 @@ async function deliverWebhook(delivery, { allowPrivate = false, fetchImpl = fetc
         data: {
           status: dead ? 'dead' : 'retry',
           responseStatus: err.responseStatus || null,
-          responseBody: err.responseBody || null,
+          responseBody: null,
           error: String(err.name === 'AbortError' ? 'Webhook timeout (10s)' : err.message || err).slice(0, 1000),
           durationMs: Date.now() - startedAt,
           nextAttemptAt: dead ? current.nextAttemptAt : new Date(Date.now() + retryDelayMs(current.attempt)),
@@ -167,12 +298,10 @@ async function deliverWebhook(delivery, { allowPrivate = false, fetchImpl = fetc
       prisma.webhookEndpoint.update({ where: { id: current.endpointId }, data: { lastFailureAt: new Date() } }),
     ]);
     return { success: false, dead, error: err.message };
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
-async function runWebhookDeliveryWorker({ agencyId, deliveryId, allowPrivate = false, fetchImpl } = {}) {
+async function runWebhookDeliveryWorker({ agencyId, deliveryId, allowPrivate = false, transport } = {}) {
   const rows = await prisma.webhookDelivery.findMany({
     where: {
       ...(deliveryId ? { id: deliveryId } : {}),
@@ -182,7 +311,7 @@ async function runWebhookDeliveryWorker({ agencyId, deliveryId, allowPrivate = f
     orderBy: { nextAttemptAt: 'asc' }, take: deliveryId ? 1 : 50,
   });
   const results = [];
-  for (const row of rows) results.push(await deliverWebhook(row, { allowPrivate, fetchImpl }));
+  for (const row of rows) results.push(await deliverWebhook(row, { allowPrivate, ...(transport ? { transport } : {}) }));
   return { processed: rows.length, success: results.filter((row) => row.success).length, dead: results.filter((row) => row.dead).length };
 }
 
@@ -208,6 +337,6 @@ function inferWebhookEvent(path = '', method = '') {
 
 module.exports = {
   WEBHOOK_EVENTS, newWebhookSecret, signWebhookPayload, normalizeEvents, validateWebhookUrl,
-  isPrivateIp, createWebhookEndpoint, rotateWebhookSecret, enqueueWebhookEvent,
+  isPrivateIp, normalizeIp, resolvePublicDestination, assertPublicDestination, postToPinnedAddress, createWebhookEndpoint, rotateWebhookSecret, enqueueWebhookEvent,
   deliverWebhook, runWebhookDeliveryWorker, retryWebhookDelivery, inferWebhookEvent,
 };

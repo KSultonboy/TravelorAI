@@ -431,7 +431,8 @@ function buildDataQuality({ selected, days, transportLegs, poiCatalog }) {
     poiCount: selected.reduce((sum, dest) => sum + (poiCatalog[cityKey(dest.name)] || []).length, 0),
     transportRouteCount: transportLegs.filter((leg) => !leg.isEstimated).length,
     hasEstimatedTransport: transportLegs.some((leg) => leg.isEstimated),
-    generatedFrom: ['verified_db', 'manual_transport_routes', 'poi_context', 'gemini_refinement'],
+    // 'gemini_refinement' faqat Gemini haqiqatan ishlaganda qo'shiladi (generateTripPlan).
+    generatedFrom: ['verified_db', 'manual_transport_routes', 'poi_context'],
   };
 
   return {
@@ -632,7 +633,11 @@ async function generateTripPlan(input) {
     request: input,
   });
 
-  return refinedPlan || basePlan;
+  if (!refinedPlan) return basePlan;
+  const baseSummary = basePlan.sourceSummary || {};
+  const summary = refinedPlan.sourceSummary || baseSummary;
+  const generatedFrom = Array.from(new Set([...(summary.generatedFrom || baseSummary.generatedFrom || []), 'gemini_refinement']));
+  return { ...refinedPlan, sourceSummary: { ...summary, generatedFrom } };
 }
 
 function selectDestinations(scored, duration, preferredCity) {

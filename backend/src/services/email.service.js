@@ -1,6 +1,33 @@
 const nodemailer = require('nodemailer');
 const { logger } = require('../config/logger');
+const { allowDevCodes } = require('../config/env');
 const os = require('os');
+
+// Email shablonlaridagi HAR BIR o'zgaruvchi qiymat shu funksiyadan o'tadi
+// (ism, email, kod, havola) — HTML/atribut in'ektsiyasining oldini oladi.
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Kodlar va maxfiy havolalar hech qachon logga yozilmaydi.
+const SENSITIVE_LOG_KEYS = new Set(['code', 'resetUrl', 'token', 'password']);
+function redactLogMeta(meta) {
+  const out = {};
+  for (const [key, value] of Object.entries(meta || {})) {
+    if (!SENSITIVE_LOG_KEYS.has(key)) out[key] = value;
+  }
+  return out;
+}
+
+// devCode faqat ALLOW_DEV_CODES=true va production bo'lmaganda qaytariladi.
+function devCodeExtra(logMeta) {
+  return allowDevCodes() && logMeta?.code ? { devCode: String(logMeta.code) } : {};
+}
 
 const APP_NAME = process.env.APP_NAME || 'TravelorAI';
 const MAIL_FROM = process.env.MAIL_FROM || `"${APP_NAME}" <no-reply@travelorai.local>`;
@@ -48,31 +75,38 @@ function getTransporter() {
   return { transporter: transporterCache, mode: transportModeCache };
 }
 
+// Barcha argumentlar XOM matn sifatida qabul qilinadi va shu yerda escape qilinadi.
 function buildHtml({ heading, intro, code, expiresInMinutes, footer }) {
   return `
     <div style="font-family:Arial,sans-serif;background:#f4f7f5;padding:24px;">
       <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:20px;padding:32px;border:1px solid #eaf0eb;">
-        <p style="margin:0 0 8px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#1a6b3c;">${APP_NAME}</p>
-        <h1 style="margin:0 0 12px;font-size:26px;color:#122117;">${heading}</h1>
-        <p style="margin:0 0 20px;font-size:15px;line-height:1.7;color:#4f6355;">${intro}</p>
+        <p style="margin:0 0 8px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#1a6b3c;">${escapeHtml(APP_NAME)}</p>
+        <h1 style="margin:0 0 12px;font-size:26px;color:#122117;">${escapeHtml(heading)}</h1>
+        <p style="margin:0 0 20px;font-size:15px;line-height:1.7;color:#4f6355;">${escapeHtml(intro)}</p>
         <div style="margin:24px 0;padding:18px 20px;border-radius:16px;background:#e7f5ec;text-align:center;">
-          <div style="font-size:34px;letter-spacing:10px;font-weight:700;color:#1a6b3c;">${code}</div>
+          <div style="font-size:34px;letter-spacing:10px;font-weight:700;color:#1a6b3c;">${escapeHtml(code)}</div>
         </div>
-        <p style="margin:0 0 8px;font-size:14px;line-height:1.7;color:#4f6355;">Kod ${expiresInMinutes} daqiqa ichida amal qiladi.</p>
-        <p style="margin:0;font-size:13px;line-height:1.7;color:#7c8a81;">${footer}</p>
+        <p style="margin:0 0 8px;font-size:14px;line-height:1.7;color:#4f6355;">Kod ${escapeHtml(expiresInMinutes)} daqiqa ichida amal qiladi.</p>
+        <p style="margin:0;font-size:13px;line-height:1.7;color:#7c8a81;">${escapeHtml(footer)}</p>
       </div>
     </div>
   `;
+}
+
+// Ism email sarlavhasi/matnida juda uzun yoki ko'p qatorli bo'lmasin.
+function displayName(name, fallback = 'Salom') {
+  const clean = String(name || '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, 60);
+  return clean || fallback;
 }
 
 async function sendMail({ to, subject, html, text, logMeta }) {
   const { transporter, mode } = getTransporter();
 
   if (!transporter) {
-    logger.info('Email transport fallback: logging auth message', { to, subject, ...logMeta });
+    logger.info('Email transport fallback: auth message not sent (log mode)', { to, subject, ...redactLogMeta(logMeta) });
     return {
       delivery: 'log',
-      ...(process.env.NODE_ENV !== 'production' && logMeta?.code ? { devCode: logMeta.code } : {}),
+      ...devCodeExtra(logMeta),
     };
   }
 
@@ -90,11 +124,11 @@ async function sendMail({ to, subject, html, text, logMeta }) {
       deliveryMode: mode,
       to,
       subject,
-      ...logMeta,
+      ...redactLogMeta(logMeta),
     });
     return {
       delivery: 'log',
-      ...(process.env.NODE_ENV !== 'production' && logMeta?.code ? { devCode: logMeta.code } : {}),
+      ...devCodeExtra(logMeta),
     };
   }
 
@@ -107,7 +141,7 @@ async function sendVerificationCodeEmail({ email, name, code, expiresInMinutes }
     subject: `${APP_NAME} email tasdiqlash kodi`,
     html: buildHtml({
       heading: 'Email manzilingizni tasdiqlang',
-      intro: `${name || 'Salom'}, ro'yxatdan o'tishni yakunlash uchun quyidagi kodni kiriting.`,
+      intro: `${displayName(name)}, ro'yxatdan o'tishni yakunlash uchun quyidagi kodni kiriting.`,
       code,
       expiresInMinutes,
       footer: "Agar bu so'rovni siz yubormagan bo'lsangiz, ushbu emailni e'tiborsiz qoldiring.",
@@ -123,32 +157,33 @@ async function sendEmailChangeCodeEmail({ email, name, code, expiresInMinutes, n
     subject: `${APP_NAME} email almashtirish kodi`,
     html: buildHtml({
       heading: 'Email manzilini almashtirish',
-      intro: `${name || 'Salom'}, akkauntingiz emailini ${safeText(newEmail)} manziliga almashtirish uchun quyidagi kodni kiriting.`,
+      intro: `${displayName(name)}, akkauntingiz emailini ${safeText(newEmail)} manziliga almashtirish uchun quyidagi kodni kiriting.`,
       code,
       expiresInMinutes,
       footer: "Agar bu so'rovni siz yubormagan bo'lsangiz, kodni hech kimga bermang va support bilan bog'laning.",
     }),
     text: `Email almashtirish kodi: ${code}. Yangi email: ${safeText(newEmail)}. Kod ${expiresInMinutes} daqiqa amal qiladi.`,
-    logMeta: { type: 'agency_email_change', code, email, newEmail: safeText(newEmail) },
+    logMeta: { type: 'email_change', code, email, newEmail: safeText(newEmail) },
   });
 }
 
 async function sendPasswordResetCodeEmail({ email, name, code, expiresInMinutes }) {
   const WEB_URL = process.env.PUBLIC_WEB_URL || process.env.SITE_URL || 'https://travelorai.com';
-  const resetUrl = `${WEB_URL}/reset-password?email=${encodeURIComponent(email)}&code=${code}`;
+  const resetUrl = `${WEB_URL}/reset-password?email=${encodeURIComponent(email)}&code=${encodeURIComponent(code)}`;
+  const safeUrl = escapeHtml(resetUrl);
   const html = `
     <div style="font-family:Arial,sans-serif;background:#f4f7f5;padding:24px;">
       <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:20px;padding:32px;border:1px solid #eaf0eb;">
-        <p style="margin:0 0 8px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#1a6b3c;">${APP_NAME}</p>
+        <p style="margin:0 0 8px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#1a6b3c;">${escapeHtml(APP_NAME)}</p>
         <h1 style="margin:0 0 12px;font-size:26px;color:#122117;">Parolni yangilash</h1>
-        <p style="margin:0 0 20px;font-size:15px;line-height:1.7;color:#4f6355;">${name || 'Salom'}, yangi parol o'rnatish uchun quyidagi tugmani bosing:</p>
+        <p style="margin:0 0 20px;font-size:15px;line-height:1.7;color:#4f6355;">${escapeHtml(displayName(name))}, yangi parol o'rnatish uchun quyidagi tugmani bosing:</p>
         <div style="margin:24px 0;text-align:center;">
-          <a href="${resetUrl}" style="display:inline-block;background:#1a6b3c;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 28px;border-radius:12px;">Yangi parol o'rnatish</a>
+          <a href="${safeUrl}" style="display:inline-block;background:#1a6b3c;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 28px;border-radius:12px;">Yangi parol o'rnatish</a>
         </div>
         <p style="margin:0 0 6px;font-size:13px;line-height:1.6;color:#7c8a81;">Yoki mobil ilovada shu kodni kiriting:</p>
-        <div style="margin:6px 0 18px;padding:14px;border-radius:14px;background:#e7f5ec;text-align:center;font-size:28px;letter-spacing:8px;font-weight:700;color:#1a6b3c;">${code}</div>
-        <p style="margin:0 0 8px;font-size:13px;line-height:1.7;color:#7c8a81;">Havola va kod ${expiresInMinutes} daqiqa amal qiladi.</p>
-        <p style="margin:0;font-size:12px;line-height:1.6;color:#9aa79f;word-break:break-all;">Tugma ishlamasa: ${resetUrl}</p>
+        <div style="margin:6px 0 18px;padding:14px;border-radius:14px;background:#e7f5ec;text-align:center;font-size:28px;letter-spacing:8px;font-weight:700;color:#1a6b3c;">${escapeHtml(code)}</div>
+        <p style="margin:0 0 8px;font-size:13px;line-height:1.7;color:#7c8a81;">Havola va kod ${escapeHtml(expiresInMinutes)} daqiqa amal qiladi.</p>
+        <p style="margin:0;font-size:12px;line-height:1.6;color:#9aa79f;word-break:break-all;">Tugma ishlamasa: ${safeUrl}</p>
       </div>
     </div>
   `;
@@ -167,7 +202,7 @@ async function sendAccountDeleteCodeEmail({ email, name, code, expiresInMinutes 
     subject: `${APP_NAME} hisobni o'chirish kodi`,
     html: buildHtml({
       heading: "Hisobni o'chirishni tasdiqlang",
-      intro: `${name || 'Salom'}, akkauntingizni butunlay o'chirish uchun quyidagi kodni kiriting.`,
+      intro: `${displayName(name)}, akkauntingizni butunlay o'chirish uchun quyidagi kodni kiriting.`,
       code,
       expiresInMinutes,
       footer: "Agar bu so'rovni siz yubormagan bo'lsangiz, kodni hech kimga bermang va support bilan bog'laning.",
@@ -178,17 +213,18 @@ async function sendAccountDeleteCodeEmail({ email, name, code, expiresInMinutes 
 }
 
 async function sendAgencyPasswordResetLinkEmail({ email, resetUrl, expiresInMinutes }) {
+  const safeUrl = escapeHtml(resetUrl);
   const html = `
     <div style="font-family:Arial,sans-serif;background:#f4f7f5;padding:24px;">
       <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:20px;padding:32px;border:1px solid #eaf0eb;">
-        <p style="margin:0 0 8px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#1a6b3c;">${APP_NAME} — Agentlik</p>
+        <p style="margin:0 0 8px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#1a6b3c;">${escapeHtml(APP_NAME)} — Agentlik</p>
         <h1 style="margin:0 0 12px;font-size:26px;color:#122117;">Parolni yangilash</h1>
         <p style="margin:0 0 20px;font-size:15px;line-height:1.7;color:#4f6355;">Agentlik hisobingiz parolini yangilash so'raldi. Yangi parol o'rnatish uchun quyidagi tugmani bosing:</p>
         <div style="margin:26px 0;text-align:center;">
-          <a href="${resetUrl}" style="display:inline-block;background:#1a6b3c;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 28px;border-radius:12px;">Yangi parol o'rnatish</a>
+          <a href="${safeUrl}" style="display:inline-block;background:#1a6b3c;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 28px;border-radius:12px;">Yangi parol o'rnatish</a>
         </div>
-        <p style="margin:0 0 8px;font-size:13px;line-height:1.7;color:#7c8a81;">Havola ${expiresInMinutes} daqiqa ichida amal qiladi.</p>
-        <p style="margin:0;font-size:12px;line-height:1.6;color:#9aa79f;word-break:break-all;">Tugma ishlamasa, shu havolani brauzerga nusxalang:<br>${resetUrl}</p>
+        <p style="margin:0 0 8px;font-size:13px;line-height:1.7;color:#7c8a81;">Havola ${escapeHtml(expiresInMinutes)} daqiqa ichida amal qiladi.</p>
+        <p style="margin:0;font-size:12px;line-height:1.6;color:#9aa79f;word-break:break-all;">Tugma ishlamasa, shu havolani brauzerga nusxalang:<br>${safeUrl}</p>
         <p style="margin:16px 0 0;font-size:13px;line-height:1.7;color:#7c8a81;">Agar bu so'rovni siz yubormagan bo'lsangiz, ushbu xatni e'tiborsiz qoldiring — parolingiz o'zgarmaydi.</p>
       </div>
     </div>
@@ -335,26 +371,23 @@ async function sendDocumentSignatureCodeEmail({ email, signerName, documentNumbe
   });
 }
 
-async function sendEmailChangedNoticeEmail({ oldEmail, newEmail }) {
+async function sendEmailChangedNoticeEmail({ oldEmail, newEmail, accountLabel = 'Agency akkauntingiz' }) {
   const html = `
     <div style="font-family:Arial,sans-serif;background:#f4f7f5;padding:24px;">
       <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:20px;padding:32px;border:1px solid #eaf0eb;">
-        <p style="margin:0 0 8px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#1a6b3c;">${APP_NAME}</p>
+        <p style="margin:0 0 8px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#1a6b3c;">${escapeHtml(APP_NAME)}</p>
         <h1 style="margin:0 0 12px;font-size:24px;color:#122117;">Email muvaffaqiyatli o'zgartirildi ✅</h1>
         <p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#4f6355;">
-          Agency akkauntingiz login emaili <b>${safeText(oldEmail)}</b> dan <b>${safeText(newEmail)}</b> ga almashtirildi.
+          ${escapeHtml(accountLabel)} login emaili <b>${escapeHtml(oldEmail)}</b> dan <b>${escapeHtml(newEmail)}</b> ga almashtirildi.
           Endi tizimga yangi email bilan kirasiz.
         </p>
-        <p style="margin:0 0 10px;font-size:13px;line-height:1.7;color:#7c8a81;">
-          Eslatma: Google orqali kirish eski hisobdan uzildi — Google bilan kirish uchun endi yangi emailingizdagi Google akkauntdan foydalaning.
-        </p>
         <p style="margin:0;font-size:13px;line-height:1.7;color:#7c8a81;">
-          Agar bu o'zgarishni siz qilmagan bo'lsangiz, darhol support bilan bog'laning: ${SUPPORT_EMAIL}
+          Agar bu o'zgarishni siz qilmagan bo'lsangiz, darhol support bilan bog'laning: ${escapeHtml(SUPPORT_EMAIL)}
         </p>
       </div>
     </div>
   `;
-  const text = `Agency login emailingiz ${safeText(oldEmail)} dan ${safeText(newEmail)} ga almashtirildi. Bu siz bo'lmasangiz: ${SUPPORT_EMAIL}`;
+  const text = `${accountLabel} login emaili ${safeText(oldEmail)} dan ${safeText(newEmail)} ga almashtirildi. Bu siz bo'lmasangiz: ${SUPPORT_EMAIL}`;
   const results = await Promise.allSettled([
     sendMail({ to: newEmail, subject: `${APP_NAME} — email o'zgartirildi`, html, text, logMeta: { type: 'agency_email_changed_notice', email: newEmail } }),
     sendMail({ to: oldEmail, subject: `${APP_NAME} — email o'zgartirildi`, html, text, logMeta: { type: 'agency_email_changed_notice', email: oldEmail } }),
@@ -375,6 +408,7 @@ async function sendAutomationEmail({ email, subject, body }) {
 }
 
 module.exports = {
+  escapeHtml,
   sendAutomationEmail,
   sendEmailChangedNoticeEmail,
   sendVerificationCodeEmail,

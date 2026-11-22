@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { TtlLruCache, createCachedFetcher } = require('./memoryCache.service');
 
 const YANDEX_SEARCH_URL = 'https://search-maps.yandex.ru/v1/';
 const YANDEX_GEOCODER_URL = 'https://geocode-maps.yandex.ru/1.x/';
@@ -7,7 +8,8 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 const MAX_RADIUS_KM = 60;
 const MAX_RESULTS_PER_QUERY = 50;
 
-const cache = new Map();
+// Chegaralangan LRU+TTL kesh — eski cheksiz Map xotirani to'ldirishi mumkin edi.
+const cache = new TtlLruCache({ max: 500, ttlMs: CACHE_TTL_MS });
 
 const CATEGORY_QUERIES = {
   landmark: {
@@ -577,12 +579,36 @@ async function fetchYandexReverse({ lat, lng, results = 1 }) {
   });
 }
 
+// Suggest / geocode / reverse — pullik Yandex chaqiruvlari. Bir xil so'rov
+// (koordinata ~11 m aniqlikda yaxlitlanadi) 10 daqiqa keshdan qaytadi va
+// parallel bir xil so'rovlar bitta tashqi chaqiruvga birlashadi.
+const cachedYandexCall = createCachedFetcher({
+  max: 2000,
+  ttlMs: CACHE_TTL_MS,
+  shouldCache: (payload) => Boolean(payload) && payload.configured !== false && !payload.warning,
+});
+
+function cacheKeyFor(name, args = {}) {
+  const parts = Object.keys(args || {}).sort().map((key) => {
+    const value = args[key];
+    if (value === undefined || value === null || value === '') return null;
+    if ((key === 'lat' || key === 'lng') && Number.isFinite(Number(value))) return `${key}=${Number(value).toFixed(4)}`;
+    return `${key}=${String(value).trim().toLowerCase().slice(0, 200)}`;
+  }).filter(Boolean);
+  return `${name}|${parts.join('&')}`;
+}
+
+function withCache(name, fn) {
+  return (args = {}) => cachedYandexCall(cacheKeyFor(name, args), () => fn(args));
+}
+
 module.exports = {
   fetchYandexPlacesNearby,
   fetchYandexPlacesSearch,
-  fetchYandexSuggest,
-  fetchYandexGeocode,
-  fetchYandexReverse,
+  fetchYandexSuggest: withCache('suggest', fetchYandexSuggest),
+  fetchYandexGeocode: withCache('geocode', fetchYandexGeocode),
+  fetchYandexReverse: withCache('reverse', fetchYandexReverse),
+  cacheKeyFor,
   getYandexApiKey,
   getYandexGeocoderApiKey,
   getYandexGeosuggestApiKey,

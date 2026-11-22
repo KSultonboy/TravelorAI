@@ -19,7 +19,7 @@ const {
 } = require('../controllers/auth.controller');
 const { authMiddleware, optionalAuth } = require('../middleware/auth.middleware');
 const { validate } = require('../middleware/validate.middleware');
-const { forgotPasswordLimiter } = require('../middleware/rateLimit.middleware');
+const { createAuthLimiters } = require('../middleware/rateLimit.middleware');
 const {
   registerSchema,
   loginSchema,
@@ -36,13 +36,16 @@ const {
   requestAccountDeletionSchema,
 } = require('../schemas/auth.schema');
 
-router.post('/register', validate(registerSchema), register);
-router.post('/verify-email', validate(verifyEmailSchema), verifyEmail);
-router.post('/resend-verification', forgotPasswordLimiter, validate(resendVerificationSchema), resendVerification);
-router.post('/login', validate(loginSchema), login);
-router.post('/forgot-password', forgotPasswordLimiter, validate(forgotPasswordSchema), forgotPassword);
-router.post('/reset-password', validate(resetPasswordSchema), resetPassword);
-router.post('/google', validate(googleAuthSchema), googleAuth);
+// Har bir ochiq auth endpointi uchun alohida limit (IP + email va faqat IP).
+const limit = createAuthLimiters();
+
+router.post('/register', ...limit.register, validate(registerSchema), register);
+router.post('/verify-email', ...limit.verifyEmail, validate(verifyEmailSchema), verifyEmail);
+router.post('/resend-verification', ...limit.resend, validate(resendVerificationSchema), resendVerification);
+router.post('/login', ...limit.login, validate(loginSchema), login);
+router.post('/forgot-password', ...limit.forgot, validate(forgotPasswordSchema), forgotPassword);
+router.post('/reset-password', ...limit.reset, validate(resetPasswordSchema), resetPassword);
+router.post('/google', ...limit.google, validate(googleAuthSchema), googleAuth);
 router.get('/me', authMiddleware, getMe);
 router.get('/session', optionalAuth, getSession);
 router.put('/profile', authMiddleware, validate(profileSchema), updateProfile);

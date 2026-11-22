@@ -137,7 +137,6 @@ async function listMessages(req, res) {
     if (!bookingId) return error(res, 'bookingId kerak', 400);
     const booking = await prisma.tourBooking.findFirst({ where: { id: bookingId, agencyId: agency.id } });
     if (!booking) return error(res, 'Lid topilmadi', 404);
-    if (!text && !booking.whatsappWaId) return error(res, 'Xabar bosh', 400);
     const messages = await prisma.telegramMessage.findMany({
       where: { agencyId: agency.id, bookingId },
       orderBy: { createdAt: 'asc' },
@@ -291,6 +290,14 @@ async function setConfig(req, res) {
 
 /* ============ PUBLIC WEBHOOK (no auth) ============ */
 
+// Doimiy vaqtli solishtirish — sirni belgi-belgi taxmin qilib bo'lmasin.
+function secretMatches(received, expected) {
+  if (typeof received !== 'string' || typeof expected !== 'string' || !expected) return false;
+  const a = crypto.createHash('sha256').update(received).digest();
+  const b = crypto.createHash('sha256').update(expected).digest();
+  return crypto.timingSafeEqual(a, b) && received.length === expected.length;
+}
+
 async function webhook(req, res) {
   try {
     const agencyId = String(req.params.agencyId || '');
@@ -298,7 +305,7 @@ async function webhook(req, res) {
     if (!agency || !agency.telegramBotToken || !agency.telegramBotActive) return res.status(200).json({ ok: true });
 
     const expected = tg.webhookSecret(agency.telegramBotToken);
-    if (req.get('x-telegram-bot-api-secret-token') !== expected) return res.status(403).json({ ok: false });
+    if (!secretMatches(req.get('x-telegram-bot-api-secret-token'), expected)) return res.status(403).json({ ok: false });
 
     // ── Inline tugma bosildi (yo'nalish tanlovi) ──
     const cb = (req.body && req.body.callback_query) || null;

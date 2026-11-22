@@ -3,7 +3,14 @@ const crypto = require('crypto');
 const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { signAgencyToken } = require('../utils/agencyJwt');
-const { verifyGoogleIdToken } = require('../services/auth.service');
+const {
+  verifyGoogleIdToken,
+  generateNumericCode,
+  consumeCodeRecord,
+  internalError,
+} = require('../services/auth.service');
+const { allowDevCodes } = require('../config/env');
+const { logger } = require('../config/logger');
 const { sendEmailChangeCodeEmail, sendEmailChangedNoticeEmail, sendVerificationCodeEmail, sendAgencyPasswordResetLinkEmail } = require('../services/email.service');
 const {
   withDecay,
@@ -50,8 +57,46 @@ function hashCode(code) {
   return crypto.createHash('sha256').update(String(code)).digest('hex');
 }
 
+// Kriptografik tasodifiy 6 xonali kod (crypto.randomInt).
 function generateCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return generateNumericCode();
+}
+
+// ─── Agency auth yordamchilari ───────────────────────────────────────────────
+// Ro'yxatdan o'tishda kodni qayta yuborish oralig'i (har chaqiriqda yangi kod yo'q).
+const REGISTER_CODE_COOLDOWN_SECONDS = 60;
+// Parolsiz tasdiq (faqat Google bog'langan akkaunt) uchun "yaqinda kirgan" oynasi.
+const RECENT_LOGIN_SECONDS = 15 * 60;
+
+function agencyToken(account) {
+  return signAgencyToken({
+    id: account.id,
+    email: account.email,
+    role: 'agency',
+    tv: account.tokenVersion || 0,
+  });
+}
+
+// Zod xatosi → 400 (aniq xabar); boshqa har qanday xato → 500 umumiy xabar + log.
+function agencyAuthFailure(res, err, context) {
+  if (err && (err.name === 'ZodError' || Array.isArray(err.issues))) {
+    const first = (err.errors || err.issues || [])[0];
+    return error(res, first?.message || "Ma'lumotlar noto'g'ri", 400);
+  }
+  return internalError(res, err, context);
+}
+
+function agencyCodeError(res, err, invalidMessage = 'Kod xato yoki muddati tugagan') {
+  if (err.message === 'CODE_TOO_MANY_ATTEMPTS') {
+    return error(res, 'Juda ko‘p noto‘g‘ri urinish. Kod bekor qilindi — yangisini so‘rang.', 400, {
+      attemptsRemaining: 0,
+      requiresNewCode: true,
+    });
+  }
+  if (['CODE_INVALID', 'CODE_NOT_FOUND', 'CODE_EXPIRED'].includes(err.message)) {
+    return error(res, invalidMessage, 400, typeof err.attemptsRemaining === 'number' ? { attemptsRemaining: err.attemptsRemaining } : {});
+  }
+  return internalError(res, err, 'agency.code');
 }
 
 function publicAccount(account) {
@@ -213,16 +258,17 @@ async function issueAgencyCode(account, type = 'EMAIL_VERIFICATION') {
   const WEB_URL = process.env.PUBLIC_WEB_URL || process.env.SITE_URL || 'https://travelorai.com';
   let sendFn;
   if (type === 'EMAIL_CHANGE') {
+    // Kod YANGI manzilga (pendingEmail) yuboriladi — yangi email egaligi isbotlanadi.
     sendFn = () =>
       sendEmailChangeCodeEmail({
-        email: account.email,
+        email: account.pendingEmail,
         name: account.email,
         newEmail: account.pendingEmail,
         code,
         expiresInMinutes: CODE_EXPIRES_MINUTES,
       });
   } else if (type === 'PASSWORD_RESET') {
-    const resetUrl = `${WEB_URL}/agency/reset-password?email=${encodeURIComponent(account.email)}&code=${code}`;
+    const resetUrl = `${WEB_URL}/agency/reset-password?email=${encodeURIComponent(account.email)}&code=${encodeURIComponent(code)}`;
     sendFn = () =>
       sendAgencyPasswordResetLinkEmail({
         email: account.email,
@@ -244,9 +290,8 @@ async function issueAgencyCode(account, type = 'EMAIL_VERIFICATION') {
   Promise.resolve()
     .then(sendFn)
     .catch((err) =>
-      require('../config/logger').logger.error('Agency email send failed (async)', {
+      logger.error('Agency email send failed (async)', {
         type,
-        email: account.email,
         message: err.message,
       })
     );
@@ -254,28 +299,26 @@ async function issueAgencyCode(account, type = 'EMAIL_VERIFICATION') {
   const willSendEmail = Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT);
   return {
     delivery: willSendEmail ? 'smtp' : 'log',
-    ...(process.env.NODE_ENV !== 'production' && !willSendEmail ? { devCode: code } : {}),
+    // devCode faqat ALLOW_DEV_CODES=true va production bo'lmaganda.
+    ...(allowDevCodes() && !willSendEmail ? { devCode: code } : {}),
   };
 }
 
+// Kod tekshiruvi (5 ta noto'g'ri urinishdan keyin kod bekor qilinadi).
+// Xato bo'lsa CODE_* xatosini tashlaydi — chaqiruvchi agencyCodeError() bilan javob beradi.
 async function consumeAgencyCode(accountId, code, type = 'EMAIL_VERIFICATION') {
-  const item = await prisma.agencyAuthCode.findFirst({
-    where: {
-      accountId,
-      type,
-      usedAt: null,
-      expiresAt: { gt: new Date() },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  return consumeCodeRecord(prisma.agencyAuthCode, { accountId, type }, code);
+}
 
-  if (!item || item.codeHash !== hashCode(code)) return false;
-
-  await prisma.agencyAuthCode.update({
-    where: { id: item.id },
-    data: { usedAt: new Date() },
-  });
-  return true;
+// Agency akkaunt egaligini qayta tasdiqlash: joriy parol, yoki (faqat Google
+// bog'langan akkauntda) yaqinda kirilgan token.
+async function verifyAgencyReauth(req, account) {
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  if (password) {
+    return bcrypt.compare(password, account.passwordHash).catch(() => false);
+  }
+  const issuedAt = Number(req.agencyToken?.iat || 0);
+  return Boolean(account.googleId) && issuedAt > 0 && Date.now() / 1000 - issuedAt <= RECENT_LOGIN_SECONDS;
 }
 
 async function requestEmailChange(req, res) {
@@ -284,8 +327,12 @@ async function requestEmailChange(req, res) {
     const newEmail = input.newEmail.toLowerCase();
     const account = req.agencyAccount;
     if (newEmail === account.email) return error(res, 'Yangi email hozirgi emaildan farq qilishi kerak', 400);
-    if (account.pendingEmail) {
-      return error(res, 'Avval boshlangan email almashtirishni kod bilan tasdiqlang', 409);
+    if (account.pendingEmail === newEmail) {
+      return error(res, 'Bu email uchun kod allaqachon yuborilgan. Kodni kiriting yoki qayta yuborishni so‘rang.', 409);
+    }
+
+    if (!(await verifyAgencyReauth(req, account))) {
+      return error(res, 'Joriy parol noto‘g‘ri yoki kiritilmagan.', 401, { requiresPassword: true });
     }
 
     const conflict = await prisma.agencyAccount.findFirst({
@@ -308,11 +355,13 @@ async function requestEmailChange(req, res) {
     return success(res, {
       account: publicAccount(updated),
       delivery,
-      message: `Tasdiqlash kodi eski emailingizga (${updated.email}) yuborildi.`,
+      codeSentTo: newEmail,
+      message: `Tasdiqlash kodi yangi emailingizga (${newEmail}) yuborildi.`,
       supportEmail: SUPPORT_EMAIL,
     });
   } catch (err) {
-    return error(res, err.errors?.[0]?.message || err.message, 400);
+    if (err?.code === 'P2002') return error(res, 'Bu email boshqa agency akkauntida ishlatilgan', 409);
+    return agencyAuthFailure(res, err, 'agency.requestEmailChange');
   }
 }
 
@@ -335,11 +384,12 @@ async function resendEmailChange(req, res) {
     return success(res, {
       account: publicAccount(updated),
       delivery,
-      message: 'Kod eski emailga qayta yuborildi.',
+      codeSentTo: updated.pendingEmail,
+      message: 'Kod yangi emailga qayta yuborildi.',
       supportEmail: SUPPORT_EMAIL,
     });
   } catch (err) {
-    return error(res, err.message, 400);
+    return agencyAuthFailure(res, err, 'agency.resendEmailChange');
   }
 }
 
@@ -349,13 +399,19 @@ async function confirmEmailChange(req, res) {
     const account = await prisma.agencyAccount.findUnique({ where: { id: req.agencyAccount.id } });
     if (!account?.pendingEmail) return error(res, 'Email almashtirish so‘rovi topilmadi', 404);
 
-    const ok = await consumeAgencyCode(account.id, input.code, 'EMAIL_CHANGE');
-    if (!ok) return error(res, 'Kod xato yoki muddati tugagan', 400);
+    // Kod faqat pendingEmail manziliga yuborilgan — uni kiritish yangi emailga
+    // egalikni isbotlaydi, shundan keyingina emailVerified=true qo'yiladi.
+    try {
+      await consumeAgencyCode(account.id, input.code, 'EMAIL_CHANGE');
+    } catch (codeErr) {
+      return agencyCodeError(res, codeErr);
+    }
 
     const conflict = await prisma.agencyAccount.findFirst({
       where: { id: { not: account.id }, email: account.pendingEmail },
     });
     if (conflict) return error(res, 'Yangi email boshqa akkaunt tomonidan band qilingan', 409);
+    const oldEmail = account.email;
 
     const [updated] = await prisma.$transaction([
       prisma.agencyAccount.update({
@@ -375,14 +431,20 @@ async function confirmEmailChange(req, res) {
       }),
     ]);
 
-    const token = signAgencyToken({ id: updated.id, email: updated.email, role: 'agency' });
+    // Eski va yangi manzilga xabarnoma (fon rejimida — javobni kutdirmaydi).
+    Promise.resolve()
+      .then(() => sendEmailChangedNoticeEmail({ oldEmail, newEmail: updated.email }))
+      .catch((noticeErr) => logger.error('Agency email-changed notice failed', { message: noticeErr.message }));
+
+    const token = agencyToken(updated);
     return success(res, {
       token,
       account: publicAccount(updated),
       message: 'Email muvaffaqiyatli almashtirildi.',
     });
   } catch (err) {
-    return error(res, err.errors?.[0]?.message || err.message, 400);
+    if (err?.code === 'P2002') return error(res, 'Yangi email boshqa akkaunt tomonidan band qilingan', 409);
+    return agencyAuthFailure(res, err, 'agency.confirmEmailChange');
   }
 }
 
@@ -493,17 +555,39 @@ async function register(req, res) {
   try {
     const input = registerSchema.parse(req.body || {});
     const email = input.email.toLowerCase();
-    const passwordHash = await bcrypt.hash(input.password, 10);
     const existing = await prisma.agencyAccount.findUnique({ where: { email } });
 
     if (existing?.emailVerified) {
       return error(res, 'Bu email bilan agency akkaunt mavjud. Login qiling.', 409);
     }
+    if (existing?.status === 'blocked') {
+      return error(res, 'Agency akkaunt bloklangan', 403);
+    }
 
+    // Cooldown: tasdiqlanmagan akkauntga har chaqiriqda yangi kod yuborilmaydi.
+    if (existing) {
+      const since = new Date(Date.now() - REGISTER_CODE_COOLDOWN_SECONDS * 1000);
+      const recentCode = await prisma.agencyAuthCode.findFirst({
+        where: { accountId: existing.id, type: 'EMAIL_VERIFICATION', usedAt: null, createdAt: { gt: since } },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (recentCode) {
+        const elapsed = Math.floor((Date.now() - new Date(recentCode.createdAt).getTime()) / 1000);
+        return success(res, {
+          account: publicAccount(existing),
+          requiresVerification: true,
+          codeAlreadySent: true,
+          retryAfterSeconds: Math.max(1, REGISTER_CODE_COOLDOWN_SECONDS - elapsed),
+          message: 'Tasdiqlash kodi yaqinda yuborilgan. Emailingizni tekshiring.',
+        }, 201);
+      }
+    }
+
+    const passwordHash = await bcrypt.hash(input.password, 10);
     const account = existing
       ? await prisma.agencyAccount.update({
           where: { id: existing.id },
-          data: { passwordHash, status: 'pending' },
+          data: { passwordHash },
         })
       : await prisma.agencyAccount.create({
           data: { email, passwordHash, status: 'pending' },
@@ -516,7 +600,8 @@ async function register(req, res) {
       delivery,
     }, 201);
   } catch (err) {
-    return error(res, err.errors?.[0]?.message || err.message, 400);
+    if (err?.code === 'P2002') return error(res, 'Bu email bilan agency akkaunt mavjud. Login qiling.', 409);
+    return agencyAuthFailure(res, err, 'agency.register');
   }
 }
 
@@ -526,9 +611,17 @@ async function verifyEmail(req, res) {
     const email = input.email.toLowerCase();
     const account = await prisma.agencyAccount.findUnique({ where: { email } });
     if (!account) return error(res, 'Agency akkaunt topilmadi', 404);
+    if (account.status === 'blocked') return error(res, 'Agency akkaunt bloklangan', 403);
+    // Tasdiqlangan akkauntga kodsiz token berilmaydi (login orqali kiradi).
+    if (account.emailVerified) {
+      return error(res, 'Email allaqachon tasdiqlangan. Login qiling.', 409, { alreadyVerified: true });
+    }
 
-    const ok = await consumeAgencyCode(account.id, input.code);
-    if (!ok) return error(res, 'Kod xato yoki muddati tugagan', 400);
+    try {
+      await consumeAgencyCode(account.id, input.code);
+    } catch (codeErr) {
+      return agencyCodeError(res, codeErr);
+    }
 
     const updated = await prisma.agencyAccount.update({
       where: { id: account.id },
@@ -539,10 +632,10 @@ async function verifyEmail(req, res) {
       },
     });
 
-    const token = signAgencyToken({ id: updated.id, email: updated.email, role: 'agency' });
+    const token = agencyToken(updated);
     return success(res, { token, account: publicAccount(updated) });
   } catch (err) {
-    return error(res, err.errors?.[0]?.message || err.message, 400);
+    return agencyAuthFailure(res, err, 'agency.verifyEmail');
   }
 }
 
@@ -555,32 +648,9 @@ async function login(req, res) {
     if (account.status === 'blocked') return error(res, 'Agency akkaunt bloklangan', 403);
 
     const now = new Date();
-
-    // ── Platforma egasi uchun «master» kirish ──────────────────────────────
-    // Egasi istalgan agentlik emaili + master parol bilan o'sha agentlik
-    // portaliga kira oladi (qo'llab-quvvatlash / tekshirish uchun).
-    //
-    // MAXFIYLIK: parolning O'ZI kodda YO'Q. Faqat uning bcrypt-hash'i serverning
-    // .env faylida — OWNER_MASTER_PASSWORD_HASH. Hash qaytariladigan qiymat emas,
-    // shuning uchun .env'ni ko'rgan odam ham parolni bilmaydi. O'rnatilmagan
-    // bo'lsa (bo'sh) — bu funksiya butunlay o'chiq, oddiy login o'zgarmaydi.
-    // Noto'g'ri urinishда hech qanday maxsus xato chiqmaydi — pastdagi oddiy
-    // «Login yoki parol xato» ga tushib ketadi, ya'ni funksiya borligi sezilmaydi.
-    const masterHash = process.env.OWNER_MASTER_PASSWORD_HASH || '';
-    const masterOk = masterHash
-      ? await bcrypt.compare(input.password, masterHash).catch(() => false)
-      : false;
-    if (masterOk) {
-      const updated = await prisma.agencyAccount.update({
-        where: { id: account.id },
-        data: { ...RESET_ON_SUCCESS, lastLoginAt: now },
-      });
-      // Faqat qaysi agentlikka kirilgani qayd etiladi — parol LOGGA yozilmaydi.
-      console.warn(`[owner-access] master login -> ${email} @ ${now.toISOString()}`);
-      const token = signAgencyToken({ id: updated.id, email: updated.email, role: 'agency' });
-      return success(res, { token, account: publicAccount(updated) });
-    }
-    // ───────────────────────────────────────────────────────────────────────
+    // Eslatma: platforma egasining «master parol» bilan istalgan agentlikka kirishi
+    // (OWNER_MASTER_PASSWORD_HASH) xavfsizlik sababli butunlay olib tashlandi.
+    // Qo'llab-quvvatlash uchun admin paneldagi parol tiklash havolasidan foydalaning.
 
     const acc = withDecay(account, now);
 
@@ -591,7 +661,7 @@ async function login(req, res) {
       return error(res, payload.message, payload.status, payload.extra);
     }
 
-    const passwordOk = await bcrypt.compare(input.password, account.passwordHash);
+    const passwordOk = await bcrypt.compare(input.password, account.passwordHash).catch(() => false);
     if (!passwordOk) {
       const failure = registerFailure(acc, now);
       await prisma.agencyAccount.update({ where: { id: account.id }, data: failure.data });
@@ -607,11 +677,11 @@ async function login(req, res) {
       where: { id: account.id },
       data: { ...RESET_ON_SUCCESS, lastLoginAt: now },
     });
-    const token = signAgencyToken({ id: updated.id, email: updated.email, role: 'agency' });
+    const token = agencyToken(updated);
 
     return success(res, { token, account: publicAccount(updated) });
   } catch (err) {
-    return error(res, err.errors?.[0]?.message || err.message, 400);
+    return agencyAuthFailure(res, err, 'agency.login');
   }
 }
 
@@ -625,18 +695,38 @@ async function changePassword(req, res) {
     if (newPassword.length < 6) return error(res, 'Yangi parol kamida 6 belgi bo‘lsin', 400);
     if (newPassword.length > 200) return error(res, 'Parol juda uzun', 400);
 
+    // Joriy parol talab qilinadi — o'g'irlangan token bilan parolni almashtirib
+    // bo'lmasin. Istisno: admin/egasi bergan vaqtinchalik parol (mustChangePassword)
+    // — foydalanuvchi uni hozirgina login'da kiritgan va UI (KvCabinet) uni so'ramaydi.
+    if (!account.mustChangePassword) {
+      const currentPassword = String((req.body && req.body.currentPassword) || '');
+      const currentOk = currentPassword
+        ? await bcrypt.compare(currentPassword, account.passwordHash).catch(() => false)
+        : false;
+      if (!currentOk) {
+        return error(res, 'Joriy parol noto‘g‘ri yoki kiritilmagan', 401, { requiresCurrentPassword: true });
+      }
+    }
+
     // Eski parolni qayta kiritishni taqiqlaymiz (agar bir martalik bo'lsa foydasiz).
     const same = await bcrypt.compare(newPassword, account.passwordHash).catch(() => false);
     if (same) return error(res, 'Yangi parol eskisidan farq qilishi kerak', 400);
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
-    await prisma.agencyAccount.update({
+    // Ixtiyoriy almashtirishda barcha boshqa sessiyalar bekor qilinadi (tokenVersion++).
+    // Vaqtinchalik parol bosqichida emas: website proksi bu javobdagi tokenni
+    // cookie'ga yozmaydi va foydalanuvchi darhol chiqarib yuborilardi.
+    const updated = await prisma.agencyAccount.update({
       where: { id: account.id },
-      data: { passwordHash, mustChangePassword: false },
+      data: {
+        passwordHash,
+        mustChangePassword: false,
+        ...(account.mustChangePassword ? {} : { tokenVersion: { increment: 1 } }),
+      },
     });
-    return success(res, { changed: true });
+    return success(res, { changed: true, token: agencyToken(updated) });
   } catch (err) {
-    return error(res, err.message, 400);
+    return agencyAuthFailure(res, err, 'agency.changePassword');
   }
 }
 
@@ -670,9 +760,22 @@ async function googleAuth(req, res) {
         },
       });
     } else {
+      // Pre-hijack himoyasi: bu emailga parol bilan ochilgan, lekin email
+      // tasdiqlanmagan akkaunt bo'lsa, o'sha parol yaroqsiz qilinadi (passwordHash
+      // NOT NULL — shuning uchun hech kim bilmaydigan tasodifiy hash qo'yiladi).
+      const unverifiedTakeover = !account.emailVerified && account.email === googleProfile.email;
+      const takeoverData = unverifiedTakeover
+        ? {
+            passwordHash: await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10),
+            mustChangePassword: false,
+            tokenVersion: { increment: 1 },
+            ...RESET_ON_SUCCESS,
+          }
+        : {};
       account = await prisma.agencyAccount.update({
         where: { id: account.id },
         data: {
+          ...takeoverData,
           googleId: account.googleId || googleProfile.googleId,
           emailVerified: true,
           emailVerifiedAt: account.emailVerifiedAt || new Date(),
@@ -681,16 +784,22 @@ async function googleAuth(req, res) {
       });
     }
 
-    const token = signAgencyToken({ id: account.id, email: account.email, role: 'agency' });
+    const token = agencyToken(account);
     return success(res, { token, account: publicAccount(account) });
   } catch (err) {
+    if (err.message === 'GOOGLE_NOT_CONFIGURED') {
+      return error(res, 'Google orqali kirish hozircha sozlanmagan. Email va parol bilan kiring.', 503);
+    }
+    if (err.response?.status === 400) {
+      return error(res, 'Google token yaroqsiz yoki muddati tugagan.', 401);
+    }
     if (err.message === 'GOOGLE_AUDIENCE_MISMATCH') {
       return error(res, 'Google client ID mos kelmadi.', 401);
     }
     if (err.message === 'GOOGLE_EMAIL_NOT_VERIFIED') {
       return error(res, 'Google akkauntdagi email tasdiqlanmagan.', 401);
     }
-    return error(res, err.errors?.[0]?.message || err.message, 400);
+    return agencyAuthFailure(res, err, 'agency.google');
   }
 }
 
@@ -700,15 +809,22 @@ async function resetPassword(req, res) {
     const email = input.email.toLowerCase();
     const account = await prisma.agencyAccount.findUnique({ where: { email } });
     if (!account) return error(res, 'Havola xato yoki muddati tugagan', 400);
+    if (account.status === 'blocked') return error(res, 'Agency akkaunt bloklangan', 403);
 
-    const ok = await consumeAgencyCode(account.id, input.code, 'PASSWORD_RESET');
-    if (!ok) return error(res, 'Havola xato yoki muddati tugagan', 400);
+    try {
+      await consumeAgencyCode(account.id, input.code, 'PASSWORD_RESET');
+    } catch (codeErr) {
+      return agencyCodeError(res, codeErr, 'Havola xato yoki muddati tugagan');
+    }
 
     const passwordHash = await bcrypt.hash(input.newPassword, 10);
     await prisma.agencyAccount.update({
       where: { id: account.id },
       data: {
         passwordHash,
+        mustChangePassword: false,
+        // Barcha eski sessiyalar bekor qilinadi.
+        tokenVersion: { increment: 1 },
         // A successful reset also lifts any brute-force lockout.
         failedLoginAttempts: 0,
         lockoutLevel: 0,
@@ -717,9 +833,10 @@ async function resetPassword(req, res) {
       },
     });
 
+    // Token qaytarilmaydi — foydalanuvchi yangi parol bilan login qiladi.
     return success(res, { message: 'Parol yangilandi. Endi yangi parol bilan kiring.' });
   } catch (err) {
-    return error(res, err.errors?.[0]?.message || err.message, 400);
+    return agencyAuthFailure(res, err, 'agency.resetPassword');
   }
 }
 
@@ -744,7 +861,7 @@ async function adminSendPasswordReset(req, res) {
       delivery: delivery?.delivery || 'log',
     });
   } catch (err) {
-    return error(res, err.message, 400);
+    return agencyAuthFailure(res, err, 'agency.adminSendPasswordReset');
   }
 }
 
@@ -1046,11 +1163,26 @@ async function updateBookingStatus(req, res) {
   }
 }
 
+// Profil va holat rad etilgan / o'chirilgan agentlikka ham ko'rinadi — u
+// nima uchun CRM yopilganini (adminNote) shu yerdan biladi.
 async function getAgencyProfile(req, res) {
   try {
-    const agency = await ensureApprovedAgency(req, res);
-    if (!agency) return;
-    return success(res, { agency: publicAgency(agency) });
+    const agency = req.agency;
+    if (!agency) return error(res, 'Agentlik profili hali yaratilmagan — ariza holatini kuting', 404);
+    const approved = agency.active === true
+      && agency.approvalStatus === 'approved'
+      && req.agencyAccount?.status === 'approved';
+    return success(res, {
+      agency: publicAgency(agency),
+      status: {
+        approved,
+        approvalStatus: agency.approvalStatus,
+        active: agency.active,
+        accountStatus: req.agencyAccount?.status || null,
+        adminNote: agency.adminNote || null,
+        rejectedAt: agency.rejectedAt || null,
+      },
+    });
   } catch (err) {
     return error(res, err.message, 500);
   }

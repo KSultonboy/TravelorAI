@@ -23,6 +23,12 @@ function parseDataUrl(dataUrl) {
   return { mime: m[1].toLowerCase(), buffer: Buffer.from(m[2].replace(/\s/g, ''), 'base64') };
 }
 
+// AgencyCrmSettings'da alohida rozilik maydoni yo'q, shuning uchun bulutli OCR
+// butun server uchun env bayrog'i bilan yoqiladi (standart: o'chiq).
+function isCloudOcrAllowed() {
+  return String(process.env.ALLOW_CLOUD_OCR || '').trim().toLowerCase() === 'true';
+}
+
 function ownedBooking(agencyId, bookingId) {
   return prisma.tourBooking.findFirst({ where: { id: bookingId, agencyId } });
 }
@@ -131,11 +137,13 @@ async function ocrPassport(req, res) {
       try {
         ocrData = await extractPassportLocal(Buffer.from(file.data));
       } catch (localErr) {
-        if (!isAiConfigured()) throw localErr;
+        // Pasport skani uchinchi tomon (Anthropic) serveriga FAQAT aniq ruxsat
+        // berilganda yuboriladi: ALLOW_CLOUD_OCR=true (standart — o'chiq).
+        if (!isCloudOcrAllowed() || !isAiConfigured()) throw localErr;
         const result = await generateVision({
           system: 'You are a passport OCR engine. Extract only clearly visible data. Never guess. Return strict JSON and no prose.',
           prompt: 'Extract this passport or identity document. Return JSON with: documentType, countryCode, passportNumber, surname, givenNames, nationality, birthDate (YYYY-MM-DD), sex, issueDate (YYYY-MM-DD), expiryDate (YYYY-MM-DD), personalNumber, mrz, confidence (0..1), warnings (array). Use null for unreadable fields.',
-          mediaType: file.mimeType, data: Buffer.from(file.data).toString('base64'), maxTokens: 900,
+          mediaType: file.mimeType, data: Buffer.from(file.data).toString('base64'), maxTokens: 2000, agencyId: agency.id,
         });
         ocrData = { ...parseOcrJson(result.text), engine: 'anthropic-vision' };
       }
@@ -145,7 +153,10 @@ async function ocrPassport(req, res) {
       await prisma.leadFile.update({ where: { id: file.id }, data: { ocrStatus: 'failed', ocrError: String(ocrErr.message || 'OCR xatosi').slice(0, 500) } });
       throw ocrErr;
     }
-  } catch (err) { return error(res, err.message, err.code === 'AI_NOT_CONFIGURED' ? 503 : 400); }
+  } catch (err) {
+    const status = err.code === 'AI_NOT_CONFIGURED' ? 503 : err.code === 'AI_QUOTA_EXCEEDED' ? 429 : 400;
+    return error(res, err.message, status, err.code ? { code: err.code } : undefined);
+  }
 }
 
-module.exports = { listFiles, uploadFile, downloadFile, deleteFile, ocrPassport };
+module.exports = { listFiles, uploadFile, downloadFile, deleteFile, ocrPassport, isCloudOcrAllowed };

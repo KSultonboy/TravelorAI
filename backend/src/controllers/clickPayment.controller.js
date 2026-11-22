@@ -125,12 +125,6 @@ async function prepare(req, res) {
     const tx = await prisma.clickTransaction.findUnique({ where: { merchantTransId } });
     if (!tx) return clickError(res, ERR.NO_USER);
 
-    // CLICK o'zi xato yubordi — bizda bekor qilamiz
-    if (Number(b.error) < 0) {
-      await cancelTx(tx.id, `CLICK error ${b.error}`);
-      return clickError(res, ERR.CANCELLED);
-    }
-
     if (tx.state === 'paid') {
       return clickReply(res, {
         error: ERR.ALREADY_PAID, error_note: NOTE[ERR.ALREADY_PAID],
@@ -139,13 +133,20 @@ async function prepare(req, res) {
     }
     if (tx.state === 'cancelled') return clickError(res, ERR.CANCELLED);
 
+    // CLICK o'zi xato yubordi — to'lanmagan bo'lsa bekor qilamiz
+    if (Number(b.error) < 0) {
+      await cancelTx(tx.id, `CLICK error ${b.error}`);
+      return clickError(res, ERR.CANCELLED);
+    }
+
     if (!amountMatches(b.amount, tx.amount)) return clickError(res, ERR.AMOUNT);
 
-    // merchant_prepare_id — int bo'lishi kerak (CLICK Complete'da qaytaradi)
-    const prepareId = tx.prepareId || Math.floor(Math.random() * 900000000) + 100000000;
+    // merchant_prepare_id — int bo'lishi kerak (CLICK Complete'da qaytaradi).
+    // Takroriy Prepare (CLICK retry) bir xil id oladi.
+    const prepareId = tx.prepareId || crypto.randomInt(100000000, 1000000000);
 
-    await prisma.clickTransaction.update({
-      where: { id: tx.id },
+    const updated = await prisma.clickTransaction.updateMany({
+      where: { id: tx.id, state: { in: ['created', 'prepared'] } },
       data: {
         state: 'prepared',
         prepareId,
@@ -154,6 +155,7 @@ async function prepare(req, res) {
         preparedAt: new Date(),
       },
     });
+    if (updated.count !== 1) return replyForCurrentState(res, tx.id, b, merchantTransId);
 
     return clickReply(res, {
       error: ERR.OK,
@@ -163,13 +165,17 @@ async function prepare(req, res) {
       merchant_prepare_id: prepareId,
     });
   } catch (e) {
-    console.error('[click:prepare]', e.message);
+    logger.error('[click:prepare]', { message: e.message });
     return clickError(res, ERR.UPDATE_FAILED);
   }
 }
 
 /* ─────────────────────────────── COMPLETE ────────────────────────────────── */
-// action = 1 — pul olindi, xizmatni ochamiz
+// action = 1 — pul olindi, xizmatni ochamiz.
+// Atomarlik: holat `prepared` → `paid` o'tishi bitta `updateMany` bilan
+// "egallanadi" va obuna AYNAN shu tranzaksiya ichida faollashadi. Ikki parallel
+// yoki takroriy Complete kelsa, faqat bittasi count === 1 oladi — obuna ikki
+// marta uzaytirilmaydi.
 async function complete(req, res) {
   try {
     if (!click.isCallbackConfigured()) return clickError(res, ERR.BAD_REQUEST);
@@ -180,23 +186,16 @@ async function complete(req, res) {
     if (!verifySign(b, 1)) return clickError(res, ERR.SIGN);
 
     const merchantTransId = String(b.merchant_trans_id || '').trim();
+    if (!merchantTransId) return clickError(res, ERR.NO_USER);
     const tx = await prisma.clickTransaction.findUnique({ where: { merchantTransId } });
     if (!tx) return clickError(res, ERR.NO_USER);
 
-    if (String(tx.prepareId || '') !== String(b.merchant_prepare_id || '')) {
+    // Prepare bo'lmagan yoki boshqa prepare_id — tranzaksiya yo'q deb javob beramiz.
+    if (!tx.prepareId || String(tx.prepareId) !== String(b.merchant_prepare_id || '')) {
       return clickError(res, ERR.NO_TRANSACTION);
     }
 
-    // CLICK bekor qildi (masalan pul qaytarildi)
-    if (Number(b.error) < 0) {
-      await cancelTx(tx.id, `CLICK error ${b.error}`);
-      return clickReply(res, {
-        error: ERR.CANCELLED, error_note: NOTE[ERR.CANCELLED],
-        click_trans_id: b.click_trans_id, merchant_trans_id: merchantTransId,
-      });
-    }
-
-    // Idempotentlik: takroriy tasdiq
+    // Idempotentlik: takroriy tasdiq (CLICK retry) — avvalgi confirm id bilan.
     if (tx.state === 'paid') {
       return clickReply(res, {
         error: ERR.ALREADY_PAID, error_note: NOTE[ERR.ALREADY_PAID],
@@ -205,31 +204,52 @@ async function complete(req, res) {
       });
     }
     if (tx.state === 'cancelled') return clickError(res, ERR.CANCELLED);
-    if (!amountMatches(b.amount, tx.amount)) return clickError(res, ERR.AMOUNT);
 
-    const confirmId = Math.floor(Math.random() * 900000000) + 100000000;
-
-    // Pul allaqachon olingan — bu yerdan keyin XATO QAYTARMASLIK kerak.
-    // Obunani faollashtirishda muammo bo'lsa ham "muvaffaqiyatli" deb javob
-    // beramiz va qo'lda hal qilish uchun log qoldiramiz (hujjat talabi).
-    let activationFailed = null;
-    try {
-      await activateSubscription(tx);
-    } catch (e) {
-      activationFailed = e.message;
-      console.error('[click:complete] OBUNA FAOLLASHMADI —', merchantTransId, e.message);
+    // CLICK bekor qildi (masalan pul qaytarildi) — to'lanmagan tranzaksiyani bekor qilamiz.
+    if (Number(b.error) < 0) {
+      await cancelTx(tx.id, `CLICK error ${b.error}`);
+      return clickReply(res, {
+        error: ERR.CANCELLED, error_note: NOTE[ERR.CANCELLED],
+        click_trans_id: b.click_trans_id, merchant_trans_id: merchantTransId,
+      });
     }
 
-    await prisma.clickTransaction.update({
-      where: { id: tx.id },
-      data: {
-        state: 'paid',
-        confirmId,
-        clickTransId: b.click_trans_id ? String(b.click_trans_id) : tx.clickTransId,
-        paidAt: new Date(),
-        errorNote: activationFailed ? `ACTIVATION_FAILED: ${activationFailed}` : null,
-      },
-    });
+    if (tx.state !== 'prepared') return clickError(res, ERR.NO_TRANSACTION);
+    if (!amountMatches(b.amount, tx.amount)) return clickError(res, ERR.AMOUNT);
+
+    const confirmId = crypto.randomInt(100000000, 1000000000);
+    const paidData = {
+      state: 'paid',
+      confirmId,
+      clickTransId: b.click_trans_id ? String(b.click_trans_id) : tx.clickTransId,
+      paidAt: new Date(),
+      errorNote: null,
+    };
+
+    let claimed = false;
+    try {
+      claimed = await prisma.$transaction(async (db) => {
+        const result = await db.clickTransaction.updateMany({
+          where: { id: tx.id, state: 'prepared' },
+          data: paidData,
+        });
+        if (result.count !== 1) return false;
+        await activateSubscription(db, tx);
+        return true;
+      });
+    } catch (activationErr) {
+      // Pul allaqachon olingan — CLICK'ga XATO QAYTARMAYMIZ. Tranzaksiya orqaga
+      // qaytdi (obuna o'zgarmadi), shuning uchun to'lovni "paid" deb belgilab,
+      // qo'lda hal qilish uchun ACTIVATION_FAILED izohini qoldiramiz.
+      logger.error('[click:complete] OBUNA FAOLLASHMADI', { merchantTransId, message: activationErr.message });
+      const marked = await prisma.clickTransaction.updateMany({
+        where: { id: tx.id, state: 'prepared' },
+        data: { ...paidData, errorNote: `ACTIVATION_FAILED: ${String(activationErr.message).slice(0, 180)}` },
+      });
+      claimed = marked.count === 1;
+    }
+
+    if (!claimed) return replyForCurrentState(res, tx.id, b, merchantTransId);
 
     return clickReply(res, {
       error: ERR.OK,
@@ -239,14 +259,29 @@ async function complete(req, res) {
       merchant_confirm_id: confirmId,
     });
   } catch (e) {
-    console.error('[click:complete]', e.message);
+    logger.error('[click:complete]', { message: e.message });
     return clickError(res, ERR.UPDATE_FAILED);
   }
 }
 
+// Parallel so'rov holatni bizdan oldin o'zgartirgan bo'lsa — joriy holatga mos javob.
+async function replyForCurrentState(res, id, b, merchantTransId) {
+  const current = await prisma.clickTransaction.findUnique({ where: { id } });
+  if (current && current.state === 'paid') {
+    return clickReply(res, {
+      error: ERR.ALREADY_PAID, error_note: NOTE[ERR.ALREADY_PAID],
+      click_trans_id: b.click_trans_id, merchant_trans_id: merchantTransId,
+      merchant_confirm_id: current.confirmId,
+    });
+  }
+  if (current && current.state === 'cancelled') return clickError(res, ERR.CANCELLED);
+  return clickError(res, ERR.UPDATE_FAILED);
+}
+
 /* ─────────────────────────── obunani faollashtirish ──────────────────────── */
-async function activateSubscription(tx) {
-  const agency = await prisma.tourAgency.findUnique({
+// `db` — $transaction ichidagi klient (yoki oddiy prisma).
+async function activateSubscription(db, tx) {
+  const agency = await db.tourAgency.findUnique({
     where: { id: tx.agencyId },
     select: { id: true, subscriptionUntil: true },
   });
@@ -262,10 +297,10 @@ async function activateSubscription(tx) {
   const data = { subscriptionStatus: 'active', subscriptionUntil: until };
   if (tx.tariffId) data.tariffId = tx.tariffId;
 
-  await prisma.tourAgency.update({ where: { id: agency.id }, data });
+  await db.tourAgency.update({ where: { id: agency.id }, data });
 
   // To'lov tarixi (admin panel "To'lovlar" bo'limi shu jadvaldan o'qiydi)
-  await prisma.agencyPayment.create({
+  await db.agencyPayment.create({
     data: {
       agencyId: agency.id,
       tariffId: tx.tariffId || null,
@@ -278,14 +313,15 @@ async function activateSubscription(tx) {
   });
 }
 
+// Faqat to'lanmagan tranzaksiya bekor qilinadi — `paid` hech qachon `cancelled`ga o'tmaydi.
 async function cancelTx(id, note) {
   try {
-    await prisma.clickTransaction.update({
-      where: { id },
+    await prisma.clickTransaction.updateMany({
+      where: { id, state: { in: ['created', 'prepared'] } },
       data: { state: 'cancelled', cancelledAt: new Date(), errorNote: String(note || '').slice(0, 200) },
     });
   } catch (e) {
-    console.error('[click:cancelTx]', e.message);
+    logger.error('[click:cancelTx]', { message: e.message });
   }
 }
 
@@ -345,7 +381,7 @@ async function checkout(req, res) {
       },
     });
   } catch (e) {
-    console.error('[click:checkout]', e.message);
+    logger.error("[click:checkout]", { message: e.message });
     return error(res, "To'lov havolasini yasab bo'lmadi", 500);
   }
 }

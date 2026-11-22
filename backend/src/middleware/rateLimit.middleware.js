@@ -10,6 +10,10 @@ function keyGenerator(req) {
     return `user:${req.user.id}`;
   }
   // Fall back to IP for unauthenticated requests
+  return clientIp(req);
+}
+
+function clientIp(req) {
   return req.ip || req.socket?.remoteAddress || 'unknown';
 }
 
@@ -36,28 +40,88 @@ const plannerLimiter = rateLimit({
 });
 
 // ─── Email-key extractor for unauthenticated auth flows ───────────────────────
-// Password-reset / verification requests are anonymous, so we key by the target
-// email (when present) combined with the IP. This means one person cannot burn
-// through the quota for everybody on a shared IP, while still capping abuse.
+// Anonymous auth requests are keyed by IP + normalized target email. One person
+// cannot burn through the quota for everybody on a shared IP, and one IP cannot
+// hammer a single account.
+function normalizedBodyEmail(req) {
+  const raw = req.body?.email;
+  return typeof raw === 'string' ? raw.trim().toLowerCase().slice(0, 254) : '';
+}
+
 function emailKeyGenerator(req) {
-  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
-  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const ip = clientIp(req);
+  const email = normalizedBodyEmail(req);
   return email ? `${ip}:${email}` : ip;
 }
 
 // ─── Forgot-password limiter — POST /api/v1/auth/forgot-password ──────────────
 // A user should not be able to request more than 3 reset codes in a short window.
 // Also reused for resend-verification, which has the same abuse profile.
+const FORGOT_MESSAGE =
+  'Parol tiklash so\'rovi juda ko\'p (3 martadan oshdi). 15 daqiqadan so\'ng qayta urinib ko\'ring yoki qo\'llab-quvvatlash bilan bog\'laning.';
+
 const forgotPasswordLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 3,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: emailKeyGenerator,
-  message: {
-    success: false,
-    message: 'Parol tiklash so\'rovi juda ko\'p (3 martadan oshdi). 15 daqiqadan so\'ng qayta urinib ko\'ring yoki qo\'llab-quvvatlash bilan bog\'laning.',
-  },
+  message: { success: false, message: FORGOT_MESSAGE },
 });
 
-module.exports = { rateLimiter, plannerLimiter, forgotPasswordLimiter };
+// ─── Auth endpoint limiters (user + agency) ───────────────────────────────────
+// Har bir endpoint uchun ikki qavat: (1) IP + email — bitta akkauntga hujum,
+// (2) faqat IP — bitta manzildan ko'p akkauntlarni sinash. Xotirada (in-memory);
+// bir nechta instance bo'lsa har biri o'z hisobini yuritadi.
+const MINUTE = 60 * 1000;
+const TOO_MANY = 'Juda ko\'p urinish. Birozdan so\'ng qayta urinib ko\'ring.';
+
+function makeLimiter({ windowMs, max, byEmail, message = TOO_MANY }) {
+  return rateLimit({
+    windowMs,
+    max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: byEmail ? emailKeyGenerator : clientIp,
+    message: { success: false, message },
+  });
+}
+
+// Har bir realm (user / agency) o'z hisoblagichlariga ega bo'lishi uchun factory.
+function createAuthLimiters() {
+  return {
+    login: [
+      makeLimiter({ windowMs: 15 * MINUTE, max: 10, byEmail: true }),
+      makeLimiter({ windowMs: 15 * MINUTE, max: 100, byEmail: false }),
+    ],
+    register: [
+      makeLimiter({ windowMs: 60 * MINUTE, max: 5, byEmail: true }),
+      makeLimiter({ windowMs: 60 * MINUTE, max: 20, byEmail: false }),
+    ],
+    verifyEmail: [
+      makeLimiter({ windowMs: 15 * MINUTE, max: 10, byEmail: true }),
+      makeLimiter({ windowMs: 15 * MINUTE, max: 50, byEmail: false }),
+    ],
+    resend: [
+      makeLimiter({ windowMs: 15 * MINUTE, max: 3, byEmail: true, message: FORGOT_MESSAGE }),
+      makeLimiter({ windowMs: 15 * MINUTE, max: 20, byEmail: false }),
+    ],
+    forgot: [
+      makeLimiter({ windowMs: 15 * MINUTE, max: 3, byEmail: true, message: FORGOT_MESSAGE }),
+      makeLimiter({ windowMs: 15 * MINUTE, max: 20, byEmail: false }),
+    ],
+    reset: [
+      makeLimiter({ windowMs: 15 * MINUTE, max: 10, byEmail: true }),
+      makeLimiter({ windowMs: 15 * MINUTE, max: 50, byEmail: false }),
+    ],
+    google: [makeLimiter({ windowMs: 15 * MINUTE, max: 30, byEmail: false })],
+  };
+}
+
+module.exports = {
+  rateLimiter,
+  plannerLimiter,
+  forgotPasswordLimiter,
+  createAuthLimiters,
+  emailKeyGenerator,
+};

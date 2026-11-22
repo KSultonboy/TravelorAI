@@ -2,6 +2,8 @@ const { prisma } = require('../config/database');
 const { logger } = require('../config/logger');
 const { success, error } = require('../utils/response');
 const { resolveTourImageUrl } = require('../utils/tourImage');
+const { interactionSchema } = require('../schemas/home.schema');
+const { createWindowLimiter } = require('../services/memoryCache.service');
 
 const HOME_TYPES = ['landmark', 'restaurant', 'hotel', 'transport'];
 const LEGACY_PROVIDER_TERMS = ['google', 'mapbox', '2gis', 'manual_curated', 'fallback'];
@@ -53,21 +55,16 @@ function publicAgencyWhere() {
   return { active: true, approvalStatus: 'approved' };
 }
 
-function publicTourWhere({ agencyOnly = false } = {}) {
-  const agencyWhere = publicAgencyWhere();
+// Public katalogda faqat tasdiqlangan, faol agentlikka tegishli turlar ko'rinadi.
+// Egasiz (agencyId null) yoki rad etilgan/o'chirilgan agentlik turlari chiqmaydi —
+// ularga bron qilib bo'lmaydi (bookings.create ham shuni talab qiladi).
+// `agencyOnly` eski API mosligi uchun qoldirildi; endi har doim shu qoida.
+function publicTourWhere() {
   return {
     active: true,
     approvalStatus: 'approved',
-    AND: [
-      agencyOnly
-        ? { agency: { is: agencyWhere } }
-        : {
-            OR: [
-              { agencyId: null },
-              { agency: { is: agencyWhere } },
-            ],
-          },
-    ],
+    agencyId: { not: null },
+    AND: [{ agency: { is: publicAgencyWhere() } }],
   };
 }
 
@@ -541,6 +538,23 @@ async function getTours(req, res) {
   }
 }
 
+// GET /home/tours/:idOrSlug — bitta public tur (ro'yxatdagi bilan bir xil shakl).
+// Avval slug, keyin id bo'yicha; faqat faol, tasdiqlangan agentlikning faol turi.
+async function getTour(req, res) {
+  try {
+    const key = String(req.params.idOrSlug || '').trim();
+    if (!key || key.length > 200) return error(res, 'Tur topilmadi', 404);
+    const query = { include: { agency: true } };
+    const item =
+      (await prisma.tour.findFirst({ ...query, where: { ...publicTourWhere(), slug: key } })) ||
+      (await prisma.tour.findFirst({ ...query, where: { ...publicTourWhere(), id: key } }));
+    if (!item) return error(res, 'Tur topilmadi yoki hozircha mavjud emas', 404);
+    return success(res, formatTour(item));
+  } catch (err) {
+    return error(res, err.message, 500);
+  }
+}
+
 async function getAgencies(req, res) {
   try {
     const sort = String(req.query.sort || 'top') === 'mostTours' ? 'mostTours' : 'top';
@@ -572,20 +586,60 @@ async function getStories(req, res) {
   }
 }
 
+// Reytingni sun'iy oshirishga qarshi: bir IP bir nishon (entity) uchun soatiga
+// ko'pi bilan INTERACTION_PER_TARGET ta hodisa, jami esa INTERACTION_PER_IP ta.
+const INTERACTION_WINDOW_MS = 60 * 60 * 1000;
+const INTERACTION_PER_TARGET = Number(process.env.HOME_INTERACTIONS_PER_TARGET_HOUR || 5);
+const INTERACTION_PER_IP = Number(process.env.HOME_INTERACTIONS_PER_IP_HOUR || 300);
+const targetLimiter = createWindowLimiter({ windowMs: INTERACTION_WINDOW_MS, max: INTERACTION_PER_TARGET });
+const ipLimiter = createWindowLimiter({ windowMs: INTERACTION_WINDOW_MS, max: INTERACTION_PER_IP });
+
+function clientIp(req) {
+  return String(req.ip || req.socket?.remoteAddress || 'unknown');
+}
+
+async function interactionTargetExists(entityType, entityId) {
+  const select = { select: { id: true } };
+  if (entityType === 'agency') {
+    return Boolean(await prisma.tourAgency.findFirst({ where: { id: entityId, ...publicAgencyWhere() }, ...select }));
+  }
+  if (entityType === 'story') {
+    return Boolean(await prisma.travelerStory.findFirst({ where: { id: entityId, active: true }, ...select }));
+  }
+  return Boolean(await prisma.poi.findUnique({ where: { id: entityId }, ...select }));
+}
+
 async function recordInteraction(req, res) {
   try {
-    const entityType = normalizeEntityType(req.body?.entityType);
-    const eventType = normalizeEventType(req.body?.eventType);
-    const entityId = String(req.body?.entityId || '').trim();
+    const parsed = interactionSchema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return error(res, parsed.error.errors?.[0]?.message || 'Invalid interaction payload', 400);
+    }
+    const input = parsed.data;
+    const entityType = normalizeEntityType(input.entityType);
+    const eventType = normalizeEventType(input.eventType);
+    const entityId = input.entityId;
 
     if (!entityType || !eventType || !entityId) {
       return error(res, 'Invalid interaction payload', 400);
     }
 
-    const sessionId = req.body?.sessionId ? String(req.body.sessionId).slice(0, 120) : null;
-    const userId = req.user?.id || (req.body?.userId ? String(req.body.userId).slice(0, 120) : null);
-    const source = req.body?.source ? String(req.body.source).slice(0, 80) : 'website';
-    const metadata = req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : undefined;
+    const ip = clientIp(req);
+    const perIp = ipLimiter.hit(ip);
+    const perTarget = targetLimiter.hit(`${ip}|${entityType}|${entityId}`);
+    if (!perIp.allowed || !perTarget.allowed) {
+      // Mijoz UI'si buzilmasin — 202 qaytaramiz, lekin hodisa reytingga yozilmaydi.
+      return success(res, { ok: true, stored: false, throttled: true }, 202);
+    }
+
+    if (!(await interactionTargetExists(entityType, entityId).catch(() => false))) {
+      return success(res, { ok: true, stored: false }, 202);
+    }
+
+    const sessionId = input.sessionId || null;
+    const userId = req.user?.id || input.userId || null;
+    const source = input.source || 'website';
+    const metadata = input.metadata || undefined;
 
     const interactionData = {
       entityType,
@@ -617,4 +671,12 @@ async function recordInteraction(req, res) {
   }
 }
 
-module.exports = { getHome, getPlaces, getTours, getAgencies, getHeroSlides, getStories, recordInteraction };
+function resetInteractionLimiters() {
+  targetLimiter.reset();
+  ipLimiter.reset();
+}
+
+module.exports = {
+  getHome, getPlaces, getTours, getTour, getAgencies, getHeroSlides, getStories, recordInteraction,
+  publicTourWhere, resetInteractionLimiters,
+};

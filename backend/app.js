@@ -1,5 +1,7 @@
+const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
+const { logger } = require('./src/config/logger');
 const helmet = require('helmet');
 const path = require('path');
 const { loggerMiddleware } = require('./src/middleware/logger.middleware');
@@ -291,18 +293,36 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   fallthrough: false,
   maxAge: process.env.NODE_ENV === 'production' ? '30d' : 0,
 }));
-app.use(express.json({
-  limit: '16mb',
-  // Instagram webhook imzosi (X-Hub-Signature-256) XOM body ustidan hisoblanadi.
-  // JSON.parse qilib qayta yig'ilgan matn imzoga mos kelmaydi (kalitlar tartibi
-  // va probellar farq qiladi), shuning uchun faqat o'sha yo'l uchun xom nusxani
-  // saqlab qo'yamiz — boshqa marshrutlar uchun ortiqcha xotira ishlatmaymiz.
-  verify: (req, _res, buf) => {
-    if (req.originalUrl && (req.originalUrl.startsWith('/api/v1/instagram/webhook') || req.originalUrl.startsWith('/api/v1/whatsapp/webhook'))) {
-      req.rawBody = buf;
-    }
-  },
-}));
+// Instagram webhook imzosi (X-Hub-Signature-256) XOM body ustidan hisoblanadi.
+// JSON.parse qilib qayta yig'ilgan matn imzoga mos kelmaydi (kalitlar tartibi
+// va probellar farq qiladi), shuning uchun faqat o'sha yo'l uchun xom nusxani
+// saqlab qo'yamiz — boshqa marshrutlar uchun ortiqcha xotira ishlatmaymiz.
+function keepRawWebhookBody(req, _res, buf) {
+  if (req.originalUrl && (req.originalUrl.startsWith('/api/v1/instagram/webhook') || req.originalUrl.startsWith('/api/v1/whatsapp/webhook'))) {
+    req.rawBody = buf;
+  }
+}
+
+// Standart JSON limiti 1mb. Faqat base64 rasm/fayl yuboradigan yo'llar uchun 16mb:
+//   /api/v1/agency/* (tur rasmlari/galereya, profil, ariza, lid fayllari, hujjatlar,
+//   CSV/bank importi) — /api/v1/agency/auth/* bundan MUSTASNO (u 1mb);
+//   /api/v1/admin/* (joylar, hero, hikoyalar rasmlari); /api/v1/auth/profile (avatar).
+const LARGE_JSON_LIMIT = '16mb';
+const DEFAULT_JSON_LIMIT = '1mb';
+
+function needsLargeJsonBody(pathname) {
+  if (pathname.startsWith('/api/v1/agency/')) return !pathname.startsWith('/api/v1/agency/auth/');
+  if (pathname.startsWith('/api/v1/admin/')) return true;
+  return pathname === '/api/v1/auth/profile';
+}
+
+const largeJsonParser = express.json({ limit: LARGE_JSON_LIMIT, verify: keepRawWebhookBody });
+const defaultJsonParser = express.json({ limit: DEFAULT_JSON_LIMIT, verify: keepRawWebhookBody });
+
+app.use((req, res, next) => {
+  const parser = needsLargeJsonBody(req.path) ? largeJsonParser : defaultJsonParser;
+  return parser(req, res, next);
+});
 app.use(loggerMiddleware);
 
 app.get(['/account-deletion', '/delete-account'], (req, res) => {
@@ -334,9 +354,34 @@ app.use('/api/v1/instagram', require('./src/routes/instagram.routes'));
 
 app.use('/api/v1', rateLimiter, routes);
 
+// Yakuniy xato ushlagich: 5xx da ichki xabar (Prisma va h.k.) hech qachon
+// mijozga qaytmaydi — faqat requestId bilan logga yoziladi.
 app.use((err, req, res, next) => {
-  const status = err.status || 500;
-  res.status(status).json({ success: false, message: err.message || 'Internal Server Error' });
+  if (res.headersSent) return next(err);
+  const status = Number(err.status || err.statusCode) || 500;
+
+  if (err.type === 'entity.too.large' || status === 413) {
+    return res.status(413).json({ success: false, message: 'So‘rov hajmi juda katta.' });
+  }
+  if (err.type === 'entity.parse.failed') {
+    return res.status(400).json({ success: false, message: 'So‘rov tanasi (JSON) noto‘g‘ri.' });
+  }
+  if (status >= 500) {
+    const requestId = crypto.randomUUID();
+    logger.error('Unhandled request error', {
+      requestId,
+      method: req.method,
+      url: req.originalUrl,
+      message: err.message,
+      stack: err.stack,
+    });
+    return res.status(500).json({
+      success: false,
+      message: 'Serverda xatolik yuz berdi. Birozdan so‘ng qayta urinib ko‘ring.',
+      requestId,
+    });
+  }
+  return res.status(status).json({ success: false, message: err.expose ? err.message : 'So‘rov bajarilmadi.' });
 });
 
 module.exports = app;

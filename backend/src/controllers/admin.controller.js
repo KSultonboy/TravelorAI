@@ -93,6 +93,35 @@ async function uniqueStorySlug(base, currentId) {
   return slug;
 }
 
+// ── Admin API select whitelist'lari ──────────────────────────────────────────
+// Admin javoblarida HECH QACHON parol xeshi, Telegram bot tokeni yoki
+// shifrlangan Instagram/WhatsApp tokenlari qaytmasligi kerak. Shuning uchun
+// `include: { agency: true }` o'rniga aniq maydonlar ro'yxati ishlatiladi.
+const ADMIN_AGENCY_SELECT = Object.freeze({
+  id: true, slug: true, ownerAccountId: true, accessMode: true, name: true, city: true,
+  description: true, specialty: true, rating: true, reviews: true, toursCount: true,
+  phone: true, telegram: true, website: true, imageUrl: true,
+  telegramBotUsername: true, telegramBotActive: true,
+  instagramUsername: true, instagramActive: true, instagramTokenExpiresAt: true,
+  whatsappDisplayPhone: true, whatsappActive: true,
+  tariffId: true, subscriptionStatus: true, subscriptionUntil: true,
+  active: true, source: true, sourceUrl: true, lastVerifiedAt: true, confidenceScore: true,
+  featured: true, manualBoost: true, qualityScore: true, landingSortOrder: true,
+  approvalStatus: true, approvedAt: true, rejectedAt: true, adminNote: true,
+  createdAt: true, updatedAt: true,
+});
+
+const ADMIN_ACCOUNT_SELECT = Object.freeze({
+  id: true, email: true, emailVerified: true, status: true, mustChangePassword: true,
+  lastLoginAt: true, createdAt: true, updatedAt: true,
+});
+
+const ADMIN_USER_SELECT = Object.freeze({
+  id: true, name: true, lastName: true, bio: true, avatarUrl: true, email: true, pendingEmail: true,
+  authProvider: true, emailVerified: true, emailVerifiedAt: true, lastLoginAt: true, blocked: true,
+  failedLoginAttempts: true, lockoutUntil: true, role: true, createdAt: true, updatedAt: true,
+});
+
 const TYPE_ICON = { landmark: '🏛️', hotel: '🏨', restaurant: '🍽️', transport: '🚌' };
 
 // DB type → Uzbek category key (for frontend CategoryPieChart)
@@ -235,7 +264,8 @@ async function getUser(req, res) {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.params.id },
-      include: {
+      select: {
+        ...ADMIN_USER_SELECT,
         trips: { orderBy: { createdAt: 'desc' }, take: 5 },
         preference: true,
         _count: { select: { trips: true, wishlistItems: true, feedback: true } },
@@ -839,7 +869,7 @@ async function getAgencies(req, res) {
   try {
     const items = await prisma.tourAgency.findMany({
       orderBy: [{ featured: 'desc' }, { landingSortOrder: 'asc' }, { rating: 'desc' }],
-      include: { _count: { select: { tours: true } } },
+      select: { ...ADMIN_AGENCY_SELECT, _count: { select: { tours: true } } },
     });
     return success(res, {
       items: items.map((item) => ({ ...item, tourCount: item._count.tours })),
@@ -857,7 +887,7 @@ async function createAgency(req, res) {
     if (data.website && !isValidExternalUrl(data.website)) return error(res, 'website http yoki https URL bolishi kerak', 400);
     if (data.imageUrl && !isValidExternalUrl(data.imageUrl)) return error(res, 'imageUrl http yoki https URL bolishi kerak', 400);
     data.slug = await uniqueAgencySlug(req.body?.slug ? slugify(req.body.slug) : slugify(data.name));
-    const item = await prisma.tourAgency.create({ data });
+    const item = await prisma.tourAgency.create({ data, select: ADMIN_AGENCY_SELECT });
     return success(res, item, 201);
   } catch (err) {
     return error(res, err.message, 500);
@@ -874,7 +904,7 @@ async function updateAgency(req, res) {
     if (data.imageUrl && !isValidExternalUrl(data.imageUrl)) return error(res, 'imageUrl http yoki https URL bolishi kerak', 400);
     if (req.body?.slug) data.slug = await uniqueAgencySlug(slugify(req.body.slug), existing.id);
     else if (data.name && data.name !== existing.name) data.slug = await uniqueAgencySlug(slugify(data.name), existing.id);
-    const item = await prisma.tourAgency.update({ where: { id: existing.id }, data });
+    const item = await prisma.tourAgency.update({ where: { id: existing.id }, data, select: ADMIN_AGENCY_SELECT });
     return success(res, item);
   } catch (err) {
     return error(res, err.message, 500);
@@ -898,8 +928,8 @@ async function getAgencyApplications(req, res) {
     const items = await prisma.agencyApplication.findMany({
       where,
       include: {
-        account: true,
-        agency: true,
+        account: { select: ADMIN_ACCOUNT_SELECT },
+        agency: { select: ADMIN_AGENCY_SELECT },
       },
       orderBy: [
         { status: 'asc' },
@@ -933,7 +963,7 @@ async function approveAgencyApplication(req, res) {
     const { adminNote } = adminReviewSchema.parse(req.body || {});
     const application = await prisma.agencyApplication.findUnique({
       where: { id: req.params.id },
-      include: { account: true, agency: true },
+      include: { account: { select: ADMIN_ACCOUNT_SELECT }, agency: { select: ADMIN_AGENCY_SELECT } },
     });
     if (!application) return error(res, 'Agency ariza topilmadi', 404);
 
@@ -980,7 +1010,7 @@ async function approveAgencyApplication(req, res) {
           reviewedAt: now,
           adminNote: adminNote || null,
         },
-        include: { account: true, agency: true },
+        include: { account: { select: ADMIN_ACCOUNT_SELECT }, agency: { select: ADMIN_AGENCY_SELECT } },
       }),
       prisma.agencyAccount.update({
         where: { id: application.accountId },
@@ -1045,7 +1075,7 @@ async function getAdminTours(req, res) {
     const where = status && status !== 'all' ? { approvalStatus: status } : {};
     const items = await prisma.tour.findMany({
       where,
-      include: { agency: true },
+      include: { agency: { select: ADMIN_AGENCY_SELECT } },
       orderBy: [{ submittedAt: 'desc' }, { updatedAt: 'desc' }],
       take: 200,
     });
@@ -1061,7 +1091,7 @@ async function approveTour(req, res) {
     const now = new Date();
     const existing = await prisma.tour.findUnique({
       where: { id: req.params.id },
-      include: { agency: true },
+      include: { agency: { select: ADMIN_AGENCY_SELECT } },
     });
     if (!existing) return error(res, 'Tour topilmadi', 404);
 
@@ -1076,22 +1106,23 @@ async function approveTour(req, res) {
         rejectedAt: null,
         adminNote: adminNote || null,
       },
-      include: { agency: true },
+      include: { agency: { select: ADMIN_AGENCY_SELECT } },
     });
 
     if (tour.agencyId) {
-      await prisma.tourAgency.update({
-        where: { id: tour.agencyId },
-        data: {
-          active: true,
-          approvalStatus: 'approved',
-          approvedAt: tour.agency?.approvedAt || now,
-          rejectedAt: null,
-          toursCount: await prisma.tour.count({
-            where: { agencyId: tour.agencyId, active: true, approvalStatus: 'approved' },
-          }),
-        },
-      });
+      // Turni tasdiqlash rad etilgan yoki o'chirilgan agentlikni QAYTA
+      // faollashtirmaydi — agentlik holati faqat ariza moderatsiyasida o'zgaradi.
+      const agencyRejected = tour.agency?.approvalStatus === 'rejected';
+      const data = {
+        toursCount: await prisma.tour.count({
+          where: { agencyId: tour.agencyId, active: true, approvalStatus: 'approved' },
+        }),
+      };
+      if (!agencyRejected && tour.agency?.active !== false) {
+        data.approvalStatus = 'approved';
+        data.approvedAt = tour.agency?.approvedAt || now;
+      }
+      await prisma.tourAgency.update({ where: { id: tour.agencyId }, data });
     }
 
     return success(res, tour);
@@ -1114,7 +1145,7 @@ async function rejectTour(req, res) {
         rejectedAt: new Date(),
         adminNote: adminNote || null,
       },
-      include: { agency: true },
+      include: { agency: { select: ADMIN_AGENCY_SELECT } },
     });
 
     return success(res, tour);
@@ -1145,7 +1176,7 @@ async function getBookings(req, res) {
     const where = status && status !== 'all' ? { status } : {};
     const items = await prisma.tourBooking.findMany({
       where,
-      include: { tour: true, agency: true },
+      include: { tour: true, agency: { select: ADMIN_AGENCY_SELECT } },
       orderBy: { createdAt: 'desc' },
       take: 250,
     });
@@ -1171,7 +1202,7 @@ async function updateBookingStatus(req, res) {
     const updated = await prisma.tourBooking.update({
       where: { id: existing.id },
       data: adminBookingStatusData(input),
-      include: { tour: true, agency: true },
+      include: { tour: true, agency: { select: ADMIN_AGENCY_SELECT } },
     });
 
     return success(res, { booking: formatBooking(updated) });
