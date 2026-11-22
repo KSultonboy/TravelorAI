@@ -678,5 +678,5 @@ function resetInteractionLimiters() {
 
 module.exports = {
   getHome, getPlaces, getTours, getTour, getAgencies, getHeroSlides, getStories, recordInteraction,
-  publicTourWhere, resetInteractionLimiters,
+  publicTourWhere, resetInteractionLimiters, formatTour,
 };

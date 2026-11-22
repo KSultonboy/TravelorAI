@@ -495,6 +495,13 @@ model TourAgency {
   branches                AgencyBranch[]
   managerPayrollProfiles  ManagerPayrollProfile[]
   crmPipelineStages       CrmPipelineStage[]
+  // === distribution: Telegram kanal + taklif sahifasidagi to'lov havolasi ===
+  telegramChannelId       String?
+  telegramChannelTitle    String?
+  telegramChannelUsername String?
+  paymentLinkUrl          String?
+  paymentRequisitesText   String?
+  channelPosts            TourChannelPost[]
 
   @@index([active])
   @@index([tariffId])
@@ -683,6 +690,8 @@ model Tour {
   updatedAt           DateTime           @updatedAt
   bookings            TourBooking[]
   presentations       TourPresentation[]
+  // === distribution ===
+  channelPosts        TourChannelPost[]
 
   @@index([active])
   @@index([badge])
@@ -1475,6 +1484,9 @@ model TourPresentation {
   interestedAt  DateTime?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
+  // === distribution: «To‘lash» tugmasi bosilishi (payment_clicked hodisasi) ===
+  paymentClickCount Int       @default(0)
+  paymentClickedAt  DateTime?
 
   @@index([agencyId, createdAt])
   @@index([bookingId])
@@ -1553,4 +1565,21 @@ model TelegramMessage {
   @@index([agencyId])
   @@index([bookingId])
   @@index([agencyId, channel, createdAt])
+}
+
+// === distribution (storefront /a/[slug], Telegram kanalga joylash, to'lov havolasi) ===
+// Turni agentlik Telegram kanaliga joylash tarixi. 10 daqiqa ichida qayta
+// joylash bloklanadi (force: true bo'lmasa) — shu jadval bo'yicha tekshiriladi.
+model TourChannelPost {
+  id                String     @id @default(cuid())
+  agencyId          String
+  agency            TourAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  tourId            String
+  tour              Tour       @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  channelId         String
+  messageId         String
+  postedAt          DateTime   @default(now())
+  postedByAccountId String?
+
+  @@index([agencyId, tourId, postedAt])
 }

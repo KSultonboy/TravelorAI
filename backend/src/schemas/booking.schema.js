@@ -4,6 +4,8 @@ const createBookingSchema = z
   .object({
     tourId: z.string().trim().optional(),
     tourSlug: z.string().trim().optional(),
+    // Storefront (/a/<slug>) «umumiy so'rov»: tur tanlanmagan, faqat agentlik.
+    agencyId: z.string().trim().max(64).optional(),
     customerName: z.string().trim().min(2, 'Ism kamida 2 ta belgidan iborat bo‘lsin'),
     customerEmail: z.string().trim().email('Email noto‘g‘ri').optional().or(z.literal('')),
     customerPhone: z.string().trim().min(5).max(40).optional().or(z.literal('')),
@@ -17,8 +19,8 @@ const createBookingSchema = z
     utmCampaign: z.string().trim().max(120).optional().or(z.literal('')),
     referrer: z.string().trim().max(300).optional().or(z.literal('')),
   })
-  .refine((value) => value.tourId || value.tourSlug, {
-    message: 'tourId yoki tourSlug talab qilinadi',
+  .refine((value) => value.tourId || value.tourSlug || value.agencyId, {
+    message: 'tourId yoki tourSlug (yoki umumiy so‘rov uchun agencyId) talab qilinadi',
     path: ['tourId'],
   })
   .refine((value) => Boolean((value.customerEmail || '').trim()) || Boolean((value.customerPhone || '').trim()), {
