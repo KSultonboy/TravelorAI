@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  forwardClientIp,
+  hasAllowedOrigin,
+  ONE_MB,
+  parseJsonSafe,
+  readBodyLimited,
+  safePathFromSegments,
+} from "@/lib/server/proxyUtils";
 
 type RouteContext = {
-  params: Promise<{ path?: string[] }> | { path?: string[] };
+  params: Promise<{ path?: string[] }>;
 };
 
 const METHODS_WITH_BODY = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const DEFAULT_PROXY_TIMEOUT_MS = 15000;
+// Sayohatchi tomonida fayl yuklash yo'q (bron, sharh, profil — oddiy JSON).
+const MAX_BODY_BYTES = ONE_MB;
 const USER_TOKEN_COOKIE = "travelorai_user_token";
 const USER_SESSION_SECONDS = 60 * 60 * 24 * 7;
 const TOKEN_RESPONSE_PATHS = new Set([
@@ -39,28 +49,29 @@ function clearUserCookie(response: NextResponse) {
   });
 }
 
-function validRequestOrigin(request: NextRequest) {
-  if (!METHODS_WITH_BODY.has(request.method)) return true;
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
-  return origin === request.nextUrl.origin
-    || origin === process.env.NEXT_PUBLIC_SITE_URL;
-}
-
 async function proxyRequest(request: NextRequest, context: RouteContext) {
   const params = await context.params;
-  const path = (params.path || []).map(encodeURIComponent).join("/");
+  const path = safePathFromSegments(params.path || []);
+  if (path === null) {
+    return NextResponse.json({ success: false, message: "Noto‘g‘ri manzil" }, { status: 400 });
+  }
+
+  // Origin tekshiruvi logout'dan OLDIN (CSRF logout bo'lmasin).
+  if (!hasAllowedOrigin(request)) {
+    return NextResponse.json({ success: false, message: "So'rov manbasi ruxsat etilmagan" }, { status: 403 });
+  }
+
+  // Backend'da foydalanuvchi logout endpoint'i yo'q (JWT stateless) —
+  // httpOnly cookie'ni shu yerda o'chiramiz.
   if (path === "auth/logout" && request.method === "POST") {
     const response = NextResponse.json({ success: true, data: { loggedOut: true } });
     clearUserCookie(response);
     return response;
   }
-  if (!validRequestOrigin(request)) {
-    return NextResponse.json({ success: false, message: "So'rov manbasi ruxsat etilmagan" }, { status: 403 });
-  }
 
   const target = `${apiBase(request)}/${path}${request.nextUrl.search}`;
   const headers = new Headers();
+  forwardClientIp(headers, request);
   const cookieToken = request.cookies.get(USER_TOKEN_COOKIE)?.value;
   const authorization = request.headers.get("authorization") || (cookieToken ? `Bearer ${cookieToken}` : null);
   const contentType = request.headers.get("content-type");
@@ -69,8 +80,13 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
 
   const init: RequestInit = { method: request.method, headers, cache: "no-store" };
   if (METHODS_WITH_BODY.has(request.method)) {
-    const body = await request.arrayBuffer();
-    if (body.byteLength) init.body = body;
+    const body = await readBodyLimited(request, MAX_BODY_BYTES);
+    if (!body.ok) {
+      return body.reason === "too_large"
+        ? NextResponse.json({ success: false, message: "So‘rov hajmi juda katta" }, { status: 413 })
+        : NextResponse.json({ success: false, message: "So‘rov tanasini o‘qib bo‘lmadi" }, { status: 400 });
+    }
+    if (body.body) init.body = body.body;
   }
 
   const timeoutCandidate = Number.parseInt(process.env.BACKEND_PROXY_TIMEOUT_MS || "", 10);
@@ -86,7 +102,7 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
     const responseContentType = response.headers.get("content-type") || "application/json";
 
     if (TOKEN_RESPONSE_PATHS.has(path) && response.ok && responseContentType.includes("application/json")) {
-      const payload = JSON.parse(text);
+      const payload = parseJsonSafe(text);
       const token = payload?.data?.token;
       if (token) {
         delete payload.data.token;
@@ -106,7 +122,12 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
       status: response.status,
       headers: { "content-type": responseContentType },
     });
-    if (response.status === 401 && cookieToken) clearUserCookie(nextResponse);
+    // 401 — odatda token yaroqsiz; lekin "parol noto‘g‘ri" (requiresPassword) yoki
+    // "qayta kiring" (requiresReauth) holatlarida sessiyani o'chirmaymiz.
+    if (response.status === 401 && cookieToken) {
+      const payload = parseJsonSafe(text);
+      if (!payload?.requiresPassword && !payload?.requiresReauth) clearUserCookie(nextResponse);
+    }
     return nextResponse;
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === "AbortError";

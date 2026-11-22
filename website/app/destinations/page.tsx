@@ -3,7 +3,7 @@ import Link from "next/link";
 import MarketingShell from "@/components/marketing/MarketingShell";
 import PageHero from "@/components/marketing/PageHero";
 import Reveal from "@/components/marketing/Reveal";
-import { fetchPlaces, fetchTours } from "@/lib/marketingApi";
+import { fetchPlaces, fetchAllTours } from "@/lib/marketingApi";
 import { REGIONS } from "@/lib/travelData";
 import { publicImageSrc } from "@/lib/imageUrls";
 
@@ -20,7 +20,7 @@ const HERO = "https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=
 
 /* eslint-disable @next/next/no-img-element */
 export default async function DestinationsPage() {
-  const [places, tours] = await Promise.all([fetchPlaces(24), fetchTours(60)]);
+  const [places, tours] = await Promise.all([fetchPlaces(24), fetchAllTours()]);
 
   // Har bir region uchun tur sonini hisoblaymiz + namuna rasm.
   // Ro'yxat uzun (60+) — sahifada turi bor yo'nalishlar va mashhurlari ko'rinadi,

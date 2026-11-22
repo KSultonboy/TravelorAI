@@ -5,6 +5,7 @@ import MarketingShell from "@/components/marketing/MarketingShell";
 import PageHero from "@/components/marketing/PageHero";
 import Reveal from "@/components/marketing/Reveal";
 import CountUp from "@/components/marketing/CountUp";
+import { fetchAgenciesCount, fetchToursCount } from "@/lib/marketingApi";
 
 export const metadata: Metadata = {
   title: "Biz haqimizda",
@@ -26,7 +27,8 @@ const ROADMAP = [
   { tag: "Kelajak", cls: "mkt-road--soon", title: "Kirish turizmi", text: "Ko'p tilli AI-gid va integratsiyalar orqali chet elliklarni O'zbekistonga jalb qilamiz." },
 ];
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const [toursCount, agenciesCount] = await Promise.all([fetchToursCount(), fetchAgenciesCount()]);
   return (
     <MarketingShell>
       <PageHero
@@ -44,10 +46,14 @@ export default function AboutPage() {
             <p className="mkt-lead">Biz texnologiya, tasdiqlangan hamkorlar va shaffof ma'lumot orqali turizm bozorini soddalashtiramiz — sayohatchiga vaqt, agentligiga yangi mijozlar, mamlakatga esa daromad olib kelamiz.</p>
           </Reveal>
           <div className="mkt-stats" style={{ marginTop: 12 }}>
-            <Reveal as="div" className="mkt-stat"><div className="mkt-stat__num"><CountUp to={13} suffix="+" /></div><div className="mkt-stat__label">Yo'nalishlar</div></Reveal>
-            <Reveal as="div" delay={80} className="mkt-stat"><div className="mkt-stat__num"><CountUp to={120} suffix="+" /></div><div className="mkt-stat__label">Sayohat turlari</div></Reveal>
-            <Reveal as="div" delay={160} className="mkt-stat"><div className="mkt-stat__num"><CountUp to={5000} suffix="+" /></div><div className="mkt-stat__label">Sayohatchi</div></Reveal>
-            <Reveal as="div" delay={240} className="mkt-stat"><div className="mkt-stat__num">24/7</div><div className="mkt-stat__label">Yordam</div></Reveal>
+            {/* Faqat API'dan olingan haqiqiy raqamlar (soxta "120+ / 5000+" olib tashlandi). */}
+            {toursCount > 0 ? (
+              <Reveal as="div" className="mkt-stat"><div className="mkt-stat__num"><CountUp to={toursCount} /></div><div className="mkt-stat__label">Faol sayohat turlari</div></Reveal>
+            ) : null}
+            {agenciesCount > 0 ? (
+              <Reveal as="div" delay={80} className="mkt-stat"><div className="mkt-stat__num"><CountUp to={agenciesCount} suffix={agenciesCount >= 100 ? "+" : ""} /></div><div className="mkt-stat__label">Tasdiqlangan agentliklar</div></Reveal>
+            ) : null}
+            <Reveal as="div" delay={160} className="mkt-stat"><div className="mkt-stat__num">0 so‘m</div><div className="mkt-stat__label">Sayohatchi uchun xizmat haqi</div></Reveal>
           </div>
         </div>
       </section>

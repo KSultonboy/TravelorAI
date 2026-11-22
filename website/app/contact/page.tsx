@@ -4,6 +4,7 @@ import MarketingShell from "@/components/marketing/MarketingShell";
 import PageHero from "@/components/marketing/PageHero";
 import Reveal from "@/components/marketing/Reveal";
 import ContactForm from "@/components/marketing/ContactForm";
+import { CONTACT, LEGAL_ENTITY } from "@/lib/legalEntity";
 
 export const metadata: Metadata = {
   title: "Aloqa",
@@ -13,11 +14,21 @@ export const metadata: Metadata = {
 
 const HERO = "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1920&q=70";
 
+// Barcha aloqa ma'lumotlari yagona manbadan — lib/legalEntity.ts (soxta
+// "+998 90 000 00 00" o'rniga haqiqiy raqam va yuridik manzil).
+const telegramHandle = "@" + CONTACT.telegram.replace(/^https?:\/\/t\.me\//i, "");
 const CHANNELS = [
-  { icon: Phone, title: "Telefon", value: "+998 90 000 00 00", href: "tel:+998900000000" },
-  { icon: Mail, title: "Email", value: "traveloraai@gmail.com", href: "mailto:traveloraai@gmail.com" },
-  { icon: Send, title: "Telegram", value: "@travelorai", href: "https://t.me/travelorai" },
-  { icon: MapPin, title: "Manzil", value: "Toshkent, O'zbekiston", href: "https://maps.google.com/?q=Tashkent" },
+  { icon: Phone, title: "Telefon", value: CONTACT.phone, href: `tel:${CONTACT.phoneHref}` },
+  { icon: Mail, title: "Email", value: CONTACT.email, href: `mailto:${CONTACT.email}` },
+  { icon: Send, title: "Telegram", value: telegramHandle, href: CONTACT.telegram },
+  ...(LEGAL_ENTITY.address
+    ? [{
+        icon: MapPin,
+        title: "Yuridik manzil",
+        value: LEGAL_ENTITY.address,
+        href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(LEGAL_ENTITY.address)}`,
+      }]
+    : []),
 ];
 
 export default function ContactPage() {
@@ -46,6 +57,11 @@ export default function ContactPage() {
                   );
                 })}
               </div>
+              {LEGAL_ENTITY.legalName ? (
+                <p style={{ color: "var(--muted)", fontSize: "0.88rem", marginTop: 18 }}>
+                  {LEGAL_ENTITY.legalName}{LEGAL_ENTITY.stir ? ` · STIR ${LEGAL_ENTITY.stir}` : ""}
+                </p>
+              ) : null}
             </Reveal>
             <Reveal delay={120}>
               <ContactForm />

@@ -20,8 +20,6 @@ type AgencySessionValue = {
   tours: Tour[];
   bookings: BookingItem[];
   bookingStats: BookingStats | null;
-  /** Har soniyada yangilanadi — countdown'lar uchun */
-  clock: number;
   refresh: (silent?: boolean) => Promise<void>;
   refreshBookings: () => Promise<void>;
   refreshTours: () => Promise<void>;
@@ -36,7 +34,6 @@ export function AgencySessionProvider({ children }: { children: ReactNode }) {
   const [tours, setTours] = useState<Tour[]>([]);
   const [bookings, setBookings] = useState<BookingItem[]>([]);
   const [bookingStats, setBookingStats] = useState<BookingStats | null>(null);
-  const [clock, setClock] = useState(0);
 
   const refreshTours = useCallback(async () => {
     const result = await agencyApi<{ items: Tour[]; total: number }>("/tours");
@@ -99,11 +96,6 @@ export function AgencySessionProvider({ children }: { children: ReactNode }) {
     void refresh(true);
   }, [refresh]);
 
-  useEffect(() => {
-    const timer = window.setInterval(() => setClock((value) => value + 1), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-
   // Yangi lidlar (Telegram, marketplace) avtomatik ko'rinishi uchun davriy yangilash
   useEffect(() => {
     if (phase !== "approved") return;
@@ -112,8 +104,8 @@ export function AgencySessionProvider({ children }: { children: ReactNode }) {
   }, [phase, refreshBookings]);
 
   const value = useMemo(
-    () => ({ phase, me, tours, bookings, bookingStats, clock, refresh, refreshBookings, refreshTours, logout }),
-    [phase, me, tours, bookings, bookingStats, clock, refresh, refreshBookings, refreshTours, logout]
+    () => ({ phase, me, tours, bookings, bookingStats, refresh, refreshBookings, refreshTours, logout }),
+    [phase, me, tours, bookings, bookingStats, refresh, refreshBookings, refreshTours, logout]
   );
 
   return <AgencySessionContext.Provider value={value}>{children}</AgencySessionContext.Provider>;

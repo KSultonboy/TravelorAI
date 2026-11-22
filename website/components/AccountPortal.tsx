@@ -36,6 +36,11 @@ type ApiResult<T> =
       authProvider?: "local" | "google";
       contactAdmin?: boolean;
       attemptsRemaining?: number;
+      /** Parolsiz (Google) akkaunt 15 daqiqadan ko'p oldin kirgan — qayta kirish kerak. */
+      requiresReauth?: boolean;
+      requiresPassword?: boolean;
+      /** Backend 500 javoblarida — qo'llab-quvvatlash uchun so'rov identifikatori. */
+      requestId?: string;
     };
 type User = {
   id: string;
@@ -173,7 +178,20 @@ async function api<T>(path: string, init: RequestInit = {}, token?: string | nul
   if (init.body) headers.set("content-type", "application/json");
   if (token && token !== COOKIE_SESSION) headers.set("authorization", `Bearer ${token}`);
   const response = await fetch(`/api/backend${path}`, { ...init, headers, cache: "no-store" });
-  return response.json();
+  const json = (await response.json().catch(() => null)) as ApiResult<T> | null;
+  if (!json) {
+    return {
+      success: false,
+      message: response.status === 429
+        ? "Juda ko‘p urinish. Birozdan so‘ng qayta urinib ko‘ring."
+        : "Server bilan aloqa bo‘lmadi. Keyinroq urinib ko‘ring.",
+    };
+  }
+  // 500 javoblarida backend umumiy xabar + requestId qaytaradi — murojaat uchun ko'rsatamiz.
+  if (!json.success && json.requestId) {
+    return { ...json, message: `${json.message} (So‘rov ID: ${json.requestId})` };
+  }
+  return json;
 }
 
 function countdown(deadline?: string | null) {
@@ -492,6 +510,8 @@ export default function AccountPortal() {
       setEmailChangeRemaining(result.data.attemptsRemaining);
       if (result.data.devCode) setEmailChangeCode(result.data.devCode);
       setMessage(result.data.devCode ? `${result.data.message} Kod: ${result.data.devCode}` : result.data.message);
+    } else if (result.requiresReauth) {
+      setError("Xavfsizlik uchun hisobdan chiqing va Google bilan qayta kiring, so‘ng emailni almashtirishni yana boshlang.");
     } else {
       setError(result.contactAdmin ? `${result.message} Admin bilan aloqa: Fikr va shikoyatlar bo‘limi.` : result.message);
     }
@@ -843,7 +863,7 @@ export default function AccountPortal() {
               <article className="account-card account-security-card">
                 <p className="account-eyebrow">Akkaunt xavfsizligi</p>
                 <h2>Emailni almashtirish</h2>
-                <small>Tasdiqlash kodi eski emailingizga yuboriladi: {user.email}</small>
+                <small>Tasdiqlash kodi YANGI emailingizga yuboriladi — kodni o‘sha pochtadan oling.</small>
                 <label>
                   Yangi email *
                   <input type="email" value={newEmail} disabled={emailChangeStage === "verify"} onChange={(event) => setNewEmail(event.target.value)} />

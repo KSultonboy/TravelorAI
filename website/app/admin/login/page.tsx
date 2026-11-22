@@ -33,8 +33,8 @@ export default function AdminLoginPage() {
         <p>Davom etish uchun login va parolingizni kiriting.</p>
         {err ? <div className="adm-inline-err">{err}</div> : null}
         <form onSubmit={submitLogin}>
-          <div className="adm-field"><label>Login</label><div style={{ position: "relative" }}><User size={16} style={{ position: "absolute", left: 13, top: 13, color: "var(--subtle)" }} /><input style={{ paddingLeft: 38 }} type="text" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="admin" required /></div></div>
-          <div className="adm-field"><label>Parol</label><div style={{ position: "relative" }}><Lock size={16} style={{ position: "absolute", left: 13, top: 13, color: "var(--subtle)" }} /><input style={{ paddingLeft: 38 }} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required /></div></div>
+          <div className="adm-field"><label htmlFor="admin-username">Login</label><div style={{ position: "relative" }}><User size={16} style={{ position: "absolute", left: 13, top: 13, color: "var(--subtle)" }} /><input id="admin-username" style={{ paddingLeft: 38 }} type="text" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Login" required /></div></div>
+          <div className="adm-field"><label htmlFor="admin-password">Parol</label><div style={{ position: "relative" }}><Lock size={16} style={{ position: "absolute", left: 13, top: 13, color: "var(--subtle)" }} /><input id="admin-password" style={{ paddingLeft: 38 }} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required /></div></div>
           <button className="adm-btn adm-btn--primary" style={{ width: "100%", padding: 13 }} type="submit" disabled={busy}>{busy ? "Kirilyapti..." : "Kirish"}</button>
         </form>
       </div>

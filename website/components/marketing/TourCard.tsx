@@ -11,6 +11,11 @@ export default function TourCard({ tour }: { tour: Tour }) {
   const href = `/tours/${encodeURIComponent(tour.slug || tour.id)}`;
   const { enabled, has, toggle } = useWishlist();
   const saved = has(tour.id);
+  const rating = Number(tour.rating) || 0;
+  const hasRating = rating > 0;
+  // Backend kiritilmagan javob vaqtini 45 deb to'ldiradi (formatTour) — 45 ni
+  // ham "noma'lum" deb hisoblaymiz, chunki uni agentlik tasdiqlamagan.
+  const responseMinutes = tour.responseTimeMinutes && tour.responseTimeMinutes !== 45 ? tour.responseTimeMinutes : 0;
 
   return (
     <Link href={href} className="tcard">
@@ -33,10 +38,14 @@ export default function TourCard({ tour }: { tour: Tour }) {
         <span className="tcard__loc"><MapPin size={14} /> {tour.city}{tour.duration ? ` · ${tour.duration}` : ""}</span>
         <h3 className="tcard__title">{tour.title}</h3>
         <p className="tcard__desc">{tour.subtitle || "Tasdiqlangan agentlik turi"}</p>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <span className="rating"><Star size={14} fill="currentColor" /> {(tour.rating || 0).toFixed(1)}</span>
-          <span className="tcard__loc"><Clock3 size={13} /> {tour.responseTimeMinutes || 45} daqiqada javob</span>
-        </div>
+        {/* Faqat haqiqiy ma'lumot: reyting bo'lmasa "0.0", javob vaqti
+            kiritilmagan bo'lsa soxta "45 daqiqa" ko'rsatilmaydi. */}
+        {hasRating || responseMinutes ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            {hasRating ? <span className="rating"><Star size={14} fill="currentColor" /> {rating.toFixed(1)}</span> : null}
+            {responseMinutes ? <span className="tcard__loc"><Clock3 size={13} /> {responseMinutes} daqiqada javob</span> : null}
+          </div>
+        ) : null}
         <div className="tcard__foot">
           <span className="tcard__price">{tourPrice(tour)}</span>
           <span className="btn btn--gold btn--md" style={{ pointerEvents: "none" }}>Ko‘rish</span>

@@ -5,7 +5,7 @@ import { useAgencySession } from "@/lib/agency/session";
 import { useCrm } from "@/lib/agency/useCrm";
 import { onExternalClick, openExternal, saveFile } from "@/lib/agency/external";
 import { serializeCsv, type CsvColumn } from "@/lib/agency/csv";
-import { agencyApi, formatMoney, formatDate, statusLabel, readImage } from "@/lib/agency/api";
+import { agencyApi, agencyRoleOf, AGENCY_BLOCKED_EVENT, formatMoney, formatDate, statusLabel, readImage } from "@/lib/agency/api";
 import { REGIONS, REGION_GROUPS, regionByKey } from "@/lib/travelData";
 import { getNotifs, markRead, markAllRead, clearNotifs, pushNotif, seedNotifs, type KvNotif } from "@/lib/agency/notify";
 import {
@@ -84,6 +84,52 @@ const I = {
 function Ic({ d, s = 18 }: { d: string; s?: number }) {
   return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
 }
+/**
+ * Joriy foydalanuvchining agentlikdagi roli (owner | manager | agent | accountant).
+ * Backend (agencyRole.middleware) bilan mos cheklovlar:
+ *  - agent: /crm/finance/* (Mijoz to'lovlari bo'limi) yopiq
+ *  - accountant: pasport/hujjat fayllari va OCR yopiq
+ *  - faqat egasi: obuna to'lovi, Telegram ulash/uzish va xabarnoma, moliya hisobi
+ *    yaratish, komissiya qoidalari, jamoa boshqaruvi
+ */
+function useAgencyRole() {
+  const { me } = useAgencySession();
+  const role = agencyRoleOf(me?.access);
+  return { role, isOwner: role === "owner" };
+}
+function roleAllowsSection(role: string, key: string) {
+  if (role === "agent" && key === "payments") return false;
+  return true;
+}
+const OWNER_ONLY_NOTE = "Bu amalni faqat agentlik egasi bajara oladi.";
+
+/** AGENCY_REJECTED / AGENCY_INACTIVE / AGENCY_NOT_APPROVED — holat banneri (GET /agency/profile). */
+function AgencyStatusBanner() {
+  const [state, setState] = useState<{ code: string; message: string; adminNote?: string | null; approvalStatus?: string | null } | null>(null);
+  useEffect(() => {
+    const onBlocked = (event: Event) => {
+      const detail = (event as CustomEvent<{ code: string; message: string }>).detail;
+      if (!detail?.code) return;
+      setState((prev) => (prev?.code === detail.code ? prev : { code: detail.code, message: detail.message }));
+      void agencyApi<{ status?: { approvalStatus?: string; adminNote?: string | null } }>("/profile").then((r) => {
+        if (r.success) setState((prev) => (prev ? { ...prev, adminNote: r.data.status?.adminNote ?? null, approvalStatus: r.data.status?.approvalStatus ?? null } : prev));
+      });
+    };
+    window.addEventListener(AGENCY_BLOCKED_EVENT, onBlocked);
+    return () => window.removeEventListener(AGENCY_BLOCKED_EVENT, onBlocked);
+  }, []);
+  if (!state) return null;
+  const title = state.code === "AGENCY_REJECTED" ? "Agentlik arizasi rad etilgan"
+    : state.code === "AGENCY_INACTIVE" ? "Agentlik vaqtincha faol emas"
+    : "Agentlik hali tasdiqlanmagan";
+  return (
+    <div className="note note-err" role="alert" style={{ margin: "0 0 14px" }}>
+      <b>{title}.</b> {state.message}
+      {state.adminNote ? <div style={{ marginTop: 6 }}>Administrator izohi: {state.adminNote}</div> : null}
+    </div>
+  );
+}
+
 function initials(name: string) {
   return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 }
@@ -309,7 +355,13 @@ function DesktopUpdate() {
       await invoke("install_update"); // muvaffaqiyatli bo'lsa ilova qayta ishga tushadi
       setState("idle");
     } catch (e) {
-      setErr(String((e as Error)?.message || e || "O'rnatib bo'lmadi"));
+      const msg = String((e as Error)?.message || e || "O'rnatib bo'lmadi");
+      // Foydalanuvchi native "Yangilansinmi?" oynasida «Yo'q» ni bosdi — xato emas, jim bekor qilamiz.
+      if (msg.includes("Yangilanish bekor qilindi")) {
+        setState("idle");
+        return;
+      }
+      setErr(msg);
       setState("error");
     }
   }
@@ -582,7 +634,9 @@ export default function KvCabinet() {
   const caps = access?.caps || {};
   const canExport = caps.csvExport !== false;
   const allowedSections = access?.sections || null; // null = cheklovsiz (grandfather / eski agentlik)
+  const memberRole = agencyRoleOf(access);
   const sectionAllowed = (key: string) => {
+    if (!roleAllowsSection(memberRole, key)) return false;
     // DIQQAT: «settings» DOIM ochiq bo'lishi SHART — obuna to'lovi endi
     // Sozlamalar ichida, ya'ni muddat tugaganda ham agentlik to'lay olishi
     // kerak (aks holda kabinetda qamalib qoladi va tiklay olmaydi).
@@ -627,7 +681,7 @@ export default function KvCabinet() {
                 <span className="nav-group-chevron" aria-hidden="true"><Ic d={I.chevronDown} s={15} /></span>
               </button>
               <div className={`nav-group-items${openGroup === g ? " open" : ""}`}>
-              {NAV.filter((n) => n.group === g).map((n) => {
+              {NAV.filter((n) => n.group === g && roleAllowsSection(memberRole, n.key)).map((n) => {
                 const locked = !sectionAllowed(n.key);
                 return (
                   <button key={n.key} className={`nav-item${view === n.key ? " active" : ""}${locked ? " locked" : ""}`} onClick={() => goToView(n.key)} title={locked ? "Yuqoriroq tarifda ochiladi" : undefined}>
@@ -677,7 +731,10 @@ export default function KvCabinet() {
                 <button className="btn btn-primary" onClick={() => goToView("settings")}>Batafsil</button>
               </div>
             ) : null}
-            {!curAllowed ? (
+            <AgencyStatusBanner />
+            {!roleAllowsSection(memberRole, view) ? (
+              <div className="card" style={{ padding: 18 }}><b>Bo&apos;lim yopiq</b><p className="sub" style={{ margin: "6px 0 0" }}>Bu bo&apos;lim sizning rolingiz ({TEAM_ROLE_LABEL[memberRole] || memberRole}) uchun ochiq emas. Agentlik egasiga murojaat qiling.</p></div>
+            ) : !curAllowed ? (
               <UpgradeNotice section={view} planName={access?.planName} go={goToView} />
             ) : (
               <>
@@ -1020,6 +1077,9 @@ type LeadFileMeta = { id: string; name: string; mimeType: string; size: number; 
 function fileSize(n: number) { return n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`; }
 function FilesButton({ lead, readOnly }: { lead: CrmLead; readOnly?: boolean }) {
   const [open, setOpen] = useState(false);
+  const { role } = useAgencyRole();
+  // Buxgalterga pasport fayllari va OCR yopiq (backend 403 qaytaradi).
+  if (role === "accountant") return null;
   return (
     <>
       <button type="button" className="file-btn" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); setOpen(true); }}>
@@ -2570,6 +2630,7 @@ function FinanceCommissionModal({ member, currency, onClose, onSaved }: { member
 }
 
 function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
+  const { isOwner } = useAgencyRole();
   const [payLead, setPayLead] = useState<CrmLead | null>(null);
   const [currency, setCurrency] = useState("USD");
   const [finance, setFinance] = useState<FinancePayload | null>(null);
@@ -2630,7 +2691,7 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
           <label className="finance-control finance-currency"><span>Hisob valyutasi</span><select value={currency} onChange={(e) => setCurrency(e.target.value)}><option>USD</option><option>UZS</option><option>EUR</option></select></label>
           {!readOnly ? <>
             <div className="finance-action-group"><span>Tezkor amallar</span><div><button className="btn btn-primary btn-sm" onClick={() => setEntryKind("income")}>+ Kirim</button><button className="btn btn-ghost btn-sm" onClick={() => setEntryKind("expense")}>− Chiqim</button></div></div>
-            <div className="finance-action-group finance-action-settings"><span>Sozlash</span><div><button className="btn btn-ghost btn-sm" onClick={() => setEntryKind("account")}>+ Hisob</button><button className="btn btn-ghost btn-sm" onClick={() => setSupplierOpen(true)}>+ Hamkor</button></div></div>
+            <div className="finance-action-group finance-action-settings"><span>Sozlash</span><div>{isOwner ? <button className="btn btn-ghost btn-sm" onClick={() => setEntryKind("account")}>+ Hisob</button> : null}<button className="btn btn-ghost btn-sm" onClick={() => setSupplierOpen(true)}>+ Hamkor</button></div></div>
           </> : null}
         </div>
       </div>
@@ -2688,7 +2749,7 @@ function Payments({ show, leads, move, busyId, readOnly, canExport }: any) {
         {finance.summary.accountBalances.length ? <div className="card" style={{ padding: 14, marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>{finance.summary.accountBalances.map((a) => <span className="badge2 b-grey" key={a.id}>{a.name}: <b>{formatCurrencyAmount(a.balance, currency)}</b></span>)}</div> : null}
         <div className="grid g2" style={{ marginTop: 12 }}>
           <div className="card" style={{ padding: 16 }}><b>Turoperator va hamkorlar</b><div className="sub" style={{ margin: "4px 0 10px" }}>Qancha to&apos;landi va qancha qarz qoldi</div>{finance.supplierBalances.length ? finance.supplierBalances.map((s) => <div key={s.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "7px 0", borderTop: "1px solid var(--border)" }}><span>{s.name}</span><span className="money">Qarz: {formatCurrencyAmount(s.payable || 0, currency)}{s.overdue ? <small style={{ color: "#b42318" }}> · kechikkan {formatCurrencyAmount(s.overdue, currency)}</small> : null}</span></div>) : <span className="sub">Hamkor qo&apos;shilmagan</span>}</div>
-          <div className="card" style={{ padding: 16 }}><b>Menejer komissiyasi</b><div className="sub" style={{ margin: "4px 0 10px" }}>To&apos;langan bitimdan avtomatik hisoblanadi</div>{finance.commissions.length ? finance.commissions.map((m) => <div key={m.memberId} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "7px 0", borderTop: "1px solid var(--border)" }}><span>{m.name} <small className="sub">{m.rule ? `${m.rule.percent}% + ${m.rule.fixedAmount}` : "qoida yo'q"}</small></span><span><b>{formatCurrencyAmount(m.payable, currency)}</b>{!readOnly ? <button className="act-btn" style={{ marginLeft: 6 }} onClick={() => setCommissionMember(finance.team.find((x) => x.id === m.memberId) || m as unknown as FinanceTeam)}>Sozlash</button> : null}</span></div>) : <span className="sub">Faol xodim yo&apos;q</span>}</div>
+          <div className="card" style={{ padding: 16 }}><b>Menejer komissiyasi</b><div className="sub" style={{ margin: "4px 0 10px" }}>To&apos;langan bitimdan avtomatik hisoblanadi</div>{finance.commissions.length ? finance.commissions.map((m) => <div key={m.memberId} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "7px 0", borderTop: "1px solid var(--border)" }}><span>{m.name} <small className="sub">{m.rule ? `${m.rule.percent}% + ${m.rule.fixedAmount}` : "qoida yo'q"}</small></span><span><b>{formatCurrencyAmount(m.payable, currency)}</b>{!readOnly && isOwner ? <button className="act-btn" style={{ marginLeft: 6 }} onClick={() => setCommissionMember(finance.team.find((x) => x.id === m.memberId) || m as unknown as FinanceTeam)}>Sozlash</button> : null}</span></div>) : <span className="sub">Faol xodim yo&apos;q</span>}</div>
         </div>
         <div className="card" style={{ padding: 16, marginTop: 12 }}><b>To&apos;lov kalendari</b><div className="sub" style={{ margin: "4px 0 10px" }}>Kelgusi va muddati o&apos;tgan reja to&apos;lovlari</div>{finance.calendar.length ? <div className="tbl-wrap"><table><thead><tr><th>Sana</th><th>To&apos;lov</th><th>Kontragent</th><th className="r">Summa</th></tr></thead><tbody>{finance.calendar.slice(0, 20).map((row) => <tr key={row.id}><td style={{ color: new Date(row.dueAt) < new Date() ? "#b42318" : undefined }}>{formatDate(row.dueAt)}</td><td>{row.category}</td><td>{row.counterparty || "—"}</td><td className="r money">{row.direction === "income" ? "+" : "−"}{formatCurrencyAmount(row.amount, row.currency)}</td></tr>)}</tbody></table></div> : <span className="sub">Rejalashtirilgan to&apos;lov yo&apos;q</span>}</div>
         <div className="section-head" style={{ marginTop: 20 }}><div><h2>Moliya jurnali</h2><div className="sub">Barcha reja va haqiqiy to&apos;lovlar</div></div>{canExport ? <ExportBtn rows={finance.transactions} filename="moliya-jurnali" columns={[{ label: "Kategoriya", get: (r) => r.category }, { label: "Kontragent", get: (r) => r.counterparty || r.booking?.customerName || "" }, { label: "Tur", get: (r) => r.direction }, { label: "Holat", get: (r) => r.status }, { label: "Summa", get: (r) => r.amount }, { label: "Valyuta", get: (r) => r.currency }]} /> : null}</div>
@@ -3024,6 +3085,14 @@ function loadClickSdk(): Promise<void> {
 
 /** Obunani CLICK orqali to'lash — tarif + muddat tanlanadi, havolaga o'tadi. */
 function PayPlan({ heading = "Obunani to'lash" }: { heading?: string }) {
+  const { isOwner } = useAgencyRole();
+  if (!isOwner) {
+    return <div className="card" style={{ padding: 16 }}><b>{heading}</b><p className="sub" style={{ margin: "6px 0 0" }}>Obuna to&apos;lovini faqat agentlik egasi amalga oshiradi.</p></div>;
+  }
+  return <PayPlanInner heading={heading} />;
+}
+
+function PayPlanInner({ heading }: { heading: string }) {
   const [plans, setPlans] = useState<any[]>([]);
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [slug, setSlug] = useState("");
@@ -3104,7 +3173,7 @@ function PayPlan({ heading = "Obunani to'lash" }: { heading?: string }) {
     const d = res.data;
     if (!openExternal(d.payUrl)) {
       // Yangi oyna bloklandi — hech bo'lmaganda to'lov ketsin.
-      window.location.href = d.payUrl;
+      if (/^https:\/\//i.test(String(d.payUrl || ""))) window.location.href = d.payUrl;
       return;
     }
     setInfo("To'lov oynasi ochildi. To'laganingizdan keyin shu yerda avtomatik tasdiqlanadi — oynani yopmang.");
@@ -3131,7 +3200,7 @@ function PayPlan({ heading = "Obunani to'lash" }: { heading?: string }) {
       await loadClickSdk();
     } catch {
       // Kutubxona yuklanmasa to'lovni yo'qotmaymiz — oddiy CLICK sahifasiga o'tamiz.
-      window.location.href = d.payUrl;
+      if (/^https:\/\//i.test(String(d.payUrl || ""))) window.location.href = d.payUrl;
       return;
     }
 
@@ -4854,6 +4923,7 @@ function TelegramBroadcast({ tgLeads, readOnly }: { tgLeads: CrmLead[]; readOnly
 }
 
 function TelegramPage({ show, leads, go, readOnly }: { show: boolean; leads: CrmLead[]; go: (v: string) => void; readOnly?: boolean }) {
+  const { isOwner } = useAgencyRole();
   const [chat, setChat] = useState<CrmLead | null>(null);
   const tgLeads = useMemo(
     () => (leads || []).filter((l) => l.source === "telegram").sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()),
@@ -4868,11 +4938,12 @@ function TelegramPage({ show, leads, go, readOnly }: { show: boolean; leads: Crm
         </div>
       </div>
 
-      <fieldset disabled={readOnly} className="kv-fieldset">
+      {!isOwner ? <div className="note" style={{ marginBottom: 12 }}>{OWNER_ONLY_NOTE} Botni ulash/uzish va ommaviy xabar yuborish egasiga tegishli.</div> : null}
+      <fieldset disabled={readOnly || !isOwner} className="kv-fieldset">
         <TelegramSettings />
       </fieldset>
 
-      <TelegramBroadcast tgLeads={tgLeads} readOnly={readOnly} />
+      {isOwner ? <TelegramBroadcast tgLeads={tgLeads} readOnly={readOnly} /> : null}
 
       <div className="section-head" style={{ marginTop: 10 }}><div><h2>Telegram suhbatlar</h2><div className="sub">{readOnly ? "Faqat o'qish — obuna tugagan" : "Bot orqali kelgan lidlar — bosib javob yozing"}</div></div></div>
       <div className="card tbl-wrap">

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import MarketingShell from "@/components/marketing/MarketingShell";
 import PageHero from "@/components/marketing/PageHero";
 import CatalogClient from "@/components/marketing/CatalogClient";
-import { fetchTours, fetchHeroImage } from "@/lib/marketingApi";
+import { fetchAllTours, fetchHeroImage } from "@/lib/marketingApi";
 import { publicImageSrc } from "@/lib/imageUrls";
 
 export const metadata: Metadata = {
@@ -18,13 +18,17 @@ export const revalidate = 0;
 export default async function ToursPage({
   searchParams,
 }: {
-  searchParams: Promise<{ region?: string }>;
+  searchParams: Promise<{ region?: string | string[]; q?: string | string[] }>;
 }) {
-  const [{ region }, tours, heroImg] = await Promise.all([
+  const [params, tours, heroImg] = await Promise.all([
     searchParams,
-    fetchTours(60),
+    fetchAllTours(),
     fetchHeroImage(),
   ]);
+  const first = (v?: string | string[]) => (Array.isArray(v) ? v[0] : v) || "";
+  const region = first(params.region).slice(0, 60);
+  // ?q= — Google sitelinks qidiruv qutisi (layout JSON-LD SearchAction) shu parametrni yuboradi.
+  const q = first(params.q).slice(0, 120);
 
   return (
     <MarketingShell>
@@ -34,7 +38,7 @@ export default async function ToursPage({
         subtitle="Rasm, narx, agentlik va javob muddati shaffof. Ko‘rib chiqing — bron qilmoqchi bo‘lsangiz hisobingizga kirishingiz so‘raladi."
         image={heroImg ? publicImageSrc(heroImg) : ""}
       />
-      <CatalogClient tours={tours} initialRegion={region || ""} />
+      <CatalogClient tours={tours} initialRegion={region} initialQuery={q} />
     </MarketingShell>
   );
 }

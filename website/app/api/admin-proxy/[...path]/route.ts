@@ -1,44 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminSession } from "@/lib/admin/session";
+import {
+  forwardClientIp,
+  hasAllowedOrigin,
+  ONE_MB,
+  readBodyLimited,
+  safePathFromSegments,
+} from "@/lib/server/proxyUtils";
 
 type RouteContext = {
-  params: Promise<{ path?: string[] }> | { path?: string[] };
+  params: Promise<{ path?: string[] }>;
 };
 
 const METHODS_WITH_BODY = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const DEFAULT_LOCAL_API_BASE = "http://localhost:4000/api/v1";
-const DEFAULT_ADMIN_SECRET = "change_me";
 const DEFAULT_PROXY_TIMEOUT_MS = 15000;
-const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
-
-function resolveRequestHost(request: NextRequest) {
-  const forwardedHost = request.headers.get("x-forwarded-host");
-  const hostHeader = request.headers.get("host");
-  const urlHost = request.nextUrl.host || request.nextUrl.hostname;
-  return (forwardedHost || hostHeader || urlHost || "").split(",")[0].trim().toLowerCase();
-}
-
-function hostWithoutPort(host: string) {
-  return host.split(":")[0].trim();
-}
-
-function isPrivateIpv4Host(host: string) {
-  return /^10\./.test(host)
-    || /^192\.168\./.test(host)
-    || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host);
-}
-
-function isLocalLikeHost(host: string) {
-  if (!host) return false;
-  const bare = hostWithoutPort(host);
-  return (
-    bare === "localhost"
-    || bare === "127.0.0.1"
-    || bare === "::1"
-    || bare.endsWith(".local")
-    || isPrivateIpv4Host(bare)
-  );
-}
+// Admin paneldan base64 rasm (hero, joylar, turlar) yuboriladi — backend
+// express.json limiti ham 16 MB.
+const MAX_BODY_BYTES = 16 * ONE_MB;
 
 function normalizeApiBase(value: string) {
   return value.replace(/\/$/, "");
@@ -54,45 +33,16 @@ function resolveApiBase(value: string) {
   return "https://travelorai.com/api/v1";
 }
 
-function getAdminApiBase(request: NextRequest) {
+function getAdminApiBase() {
   const configured = process.env.ADMIN_API_URL || process.env.NEXT_PUBLIC_API_URL || "";
   if (configured) return resolveApiBase(configured);
-
-  const host = resolveRequestHost(request);
-  if (process.env.NODE_ENV !== "production" || isLocalLikeHost(host)) return DEFAULT_LOCAL_API_BASE;
-
+  if (process.env.NODE_ENV !== "production") return DEFAULT_LOCAL_API_BASE;
   return "https://travelorai.com/api/v1";
 }
 
-function getAdminSecret(request: NextRequest) {
-  if (process.env.ADMIN_SECRET_KEY) return process.env.ADMIN_SECRET_KEY;
-
-  const host = resolveRequestHost(request);
-  if (process.env.NODE_ENV !== "production" || isLocalLikeHost(host)) return DEFAULT_ADMIN_SECRET;
-
-  return "";
-}
-
-function requestOrigin(request: NextRequest) {
-  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0].trim();
-  const protocol = forwardedProto || request.nextUrl.protocol.replace(":", "") || "https";
-  const host = resolveRequestHost(request);
-  return host ? `${protocol}://${host}` : request.nextUrl.origin;
-}
-
-function hasValidOrigin(request: NextRequest) {
-  if (SAFE_METHODS.has(request.method)) return true;
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
-
-  const allowed = new Set([
-    requestOrigin(request),
-    request.nextUrl.origin,
-    process.env.NEXT_PUBLIC_SITE_URL,
-    process.env.ADMIN_SITE_URL,
-  ].filter((value): value is string => Boolean(value)));
-
-  return allowed.has(origin);
+/** Backend admin kaliti — FAQAT env'dan. Standart ("change_me") qiymat yo'q. */
+function getAdminSecret() {
+  return (process.env.ADMIN_SECRET_KEY || "").trim();
 }
 
 async function proxyAdminRequest(request: NextRequest, context: RouteContext) {
@@ -101,23 +51,27 @@ async function proxyAdminRequest(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ success: false, message: "Admin login kerak" }, { status: 401 });
   }
 
-  if (!hasValidOrigin(request)) {
+  if (!hasAllowedOrigin(request, [process.env.ADMIN_SITE_URL])) {
     return NextResponse.json({ success: false, message: "So'rov manbasi ruxsat etilmagan" }, { status: 403 });
   }
 
-  const adminKey = getAdminSecret(request);
+  const adminKey = getAdminSecret();
   if (!adminKey) {
     return NextResponse.json(
       { success: false, message: "ADMIN_SECRET_KEY sozlanmagan" },
-      { status: 500 }
+      { status: 503 }
     );
   }
 
   const params = await context.params;
-  const path = (params.path || []).map(encodeURIComponent).join("/");
-  const target = `${getAdminApiBase(request)}/${path}${request.nextUrl.search}`;
+  const path = safePathFromSegments(params.path || []);
+  if (path === null) {
+    return NextResponse.json({ success: false, message: "Noto‘g‘ri manzil" }, { status: 400 });
+  }
+  const target = `${getAdminApiBase()}/${path}${request.nextUrl.search}`;
   const headers = new Headers();
   headers.set("x-admin-key", adminKey);
+  forwardClientIp(headers, request);
 
   const contentType = request.headers.get("content-type");
   if (contentType) headers.set("content-type", contentType);
@@ -129,8 +83,13 @@ async function proxyAdminRequest(request: NextRequest, context: RouteContext) {
   };
 
   if (METHODS_WITH_BODY.has(request.method)) {
-    const body = await request.arrayBuffer();
-    if (body.byteLength > 0) init.body = body;
+    const body = await readBodyLimited(request, MAX_BODY_BYTES);
+    if (!body.ok) {
+      return body.reason === "too_large"
+        ? NextResponse.json({ success: false, message: "So‘rov hajmi juda katta (16 MB gacha)" }, { status: 413 })
+        : NextResponse.json({ success: false, message: "So‘rov tanasini o‘qib bo‘lmadi" }, { status: 400 });
+    }
+    if (body.body) init.body = body.body;
   }
 
   const timeoutCandidate = Number.parseInt(process.env.ADMIN_PROXY_TIMEOUT_MS || "", 10);

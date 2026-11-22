@@ -33,8 +33,8 @@ const QUICK: { label: string; sort: SortKey }[] = [
   { label: "Qimmat", sort: "price_desc" },
 ];
 
-export default function CatalogClient({ tours, initialRegion = "" }: { tours: Tour[]; initialRegion?: string }) {
-  const [q, setQ] = useState("");
+export default function CatalogClient({ tours, initialRegion = "", initialQuery = "" }: { tours: Tour[]; initialRegion?: string; initialQuery?: string }) {
+  const [q, setQ] = useState(initialQuery);
   const [region, setRegion] = useState(initialRegion);
   const [city, setCity] = useState("");
   const [sort, setSort] = useState<SortKey>("rating");

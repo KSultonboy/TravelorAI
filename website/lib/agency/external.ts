@@ -64,8 +64,12 @@ export function openExternal(url?: string | null): boolean {
  * ilovada hech narsa qilmasdi.
  *
  * YECHIM: desktopda `save_download` buyrug'i faylni «Yuklanmalar» papkasiga
- * yozadi va darhol ochadi (Rust tomonida nom tozalanadi, faqat .html/.csv).
- * Brauzerda esa odatdagi blob + `<a download>` yo'li qoladi.
+ * yozadi (Rust tomonida nom tozalanadi, faqat .html/.csv). Fayl avtomatik
+ * OCHILMAYDI — desktop ilova foydalanuvchidan native oynada «Ochilsinmi?» deb
+ * so'raydi. Brauzerda esa odatdagi blob + `<a download>` yo'li qoladi.
+ *
+ * IPC (`__TAURI__`) desktop ilovada faqat /agency* va /signin* sahifalarida
+ * ruxsat etilgan — boshqa sahifalarda `isDesktopApp()` false bo'lishi mumkin.
  *
  * Natija: saqlangan fayl yo'li (desktop) yoki bo'sh satr (brauzer).
  * Xatolik bo'lsa — `Error` tashlanadi, chaqiruvchi xabar ko'rsatishi mumkin.

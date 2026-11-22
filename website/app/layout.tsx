@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import { connection } from "next/server";
 import AttributionCapture from "@/components/marketing/AttributionCapture";
+import { jsonLdScript } from "@/lib/jsonLd";
 import "./globals.scss";
 import "../styles/landing-v2.scss";
 import "../styles/marketing.scss";
@@ -76,25 +78,16 @@ export const metadata: Metadata = {
     siteName: "TravelorAI",
     type: "website",
     locale: "uz_UZ",
-    alternateLocale: ["ru_RU", "en_US"],
-    images: [
-      {
-        url: "/og-image.svg",
-        width: 1200,
-        height: 630,
-        alt: "TravelorAI — AI sayohat platformasi",
-      },
-    ],
+    // Rasm: app/opengraph-image.tsx (PNG, 1200x630) — fayl konvensiyasi orqali.
   },
   twitter: {
     card: "summary_large_image",
     title: "TravelorAI — AI sayohat platformasi",
     description: "Dunyo bo‘ylab yo‘nalishlar uchun shaxsiy sayohat rejalarini yarating.",
-    images: ["/og-image.svg"],
   },
-  alternates: {
-    canonical: BASE_URL,
-  },
+  // canonical bu yerda BERILMAYDI: root layout'dagi canonical barcha ichki
+  // sahifalarga meros bo'lib, ularni bosh sahifaning dublikati qilib qo'yardi.
+  // Har bir sahifa o'z `alternates.canonical`ini o'zi belgilaydi.
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -117,7 +110,9 @@ export const metadata: Metadata = {
   },
 };
 
-// Ikkita struktura: sayt qidiruv qutisi (Google sitelinks) + tashkilot (sayohat agentligi).
+// Ikkita struktura: sayt qidiruv qutisi (Google sitelinks) + tashkilot.
+// TravelorAI o'zi tur sotmaydi — agentliklar uchun onlayn platforma (oferta:
+// SaaS), shuning uchun TravelAgency emas, OnlineBusiness (Organization).
 const jsonLd = [
   {
     "@context": "https://schema.org",
@@ -133,20 +128,22 @@ const jsonLd = [
   },
   {
     "@context": "https://schema.org",
-    "@type": "TravelAgency",
+    "@type": "OnlineBusiness",
     name: "TravelorAI",
     url: BASE_URL,
+    logo: `${BASE_URL}/icon-512.png`,
     description:
       "O'zbekistondagi sayohat agentliklari uchun onlayn platforma. Chiqish, ichki va kirish turizmi: Umra, Dubay, Turkiya hamda Samarqand, Buxoro, Xiva bo'ylab tur paketlar. AI yordamida rejalashtiring va ishonchli agentlikdan bron qiling.",
-    image: `${BASE_URL}/og-image.svg`,
-    priceRange: "$$",
     areaServed: { "@type": "Country", name: "Uzbekistan" },
-    availableLanguage: ["uz", "ru", "en"],
     sameAs: SOCIAL_LINKS,
   },
 ];
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // CSP nonce (proxy.ts) har so'rovda yangi bo'ladi — shuning uchun barcha
+  // sahifalar so'rov vaqtida render qilinishi SHART (statik HTML'dagi
+  // skriptlarda nonce bo'lmaydi va brauzer ularni bloklaydi).
+  await connection();
   return (
     // suppressHydrationWarning: dark-mode sets `data-theme` on <html> before
     // hydration (and browser extensions inject attributes on <body>) — this keeps
@@ -155,7 +152,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={jsonLdScript(jsonLd)}
         />
       </head>
       <body suppressHydrationWarning>

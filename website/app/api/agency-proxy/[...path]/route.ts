@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  forwardClientIp,
+  hasAllowedOrigin,
+  ONE_MB,
+  parseJsonSafe,
+  readBodyLimited,
+  safePathFromSegments,
+} from "@/lib/server/proxyUtils";
 
 type RouteContext = {
-  params: Promise<{ path?: string[] }> | { path?: string[] };
+  params: Promise<{ path?: string[] }>;
 };
 
 const METHODS_WITH_BODY = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const DEFAULT_PROXY_TIMEOUT_MS = 15000;
+// Agentlik kabineti base64 fayl yuboradi: lid hujjatlari (≤6 MB → ~8 MB base64),
+// tur rasmlari (≤8 MB → ~10.7 MB base64), CSV import (≤8 MB). Backend
+// express.json limiti 16 MB — proxy ham shundan oshirmaydi.
+const MAX_BODY_BYTES = 16 * ONE_MB;
 const AGENCY_TOKEN_COOKIE = "travelorai_agency_token";
 const AGENCY_SESSION_SECONDS = 60 * 60 * 24 * 7;
 const TOKEN_RESPONSE_PATHS = new Set([
@@ -13,6 +25,9 @@ const TOKEN_RESPONSE_PATHS = new Set([
   "agency/auth/google",
   "agency/auth/verify-email",
   "agency/auth/email-change/confirm",
+  // Parol almashtirilganda backend tokenVersion'ni oshiradi va yangi token
+  // qaytaradi — cookie yangilanmasa agentlik darhol tizimdan chiqib qoladi.
+  "agency/auth/change-password",
 ]);
 
 function normalizeApiBase(value: string) {
@@ -54,31 +69,32 @@ function clearAgencyCookie(response: NextResponse) {
   });
 }
 
-function validRequestOrigin(request: NextRequest) {
-  if (!METHODS_WITH_BODY.has(request.method)) return true;
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
-  return origin === request.nextUrl.origin
-    || origin === process.env.NEXT_PUBLIC_SITE_URL
-    || origin === process.env.AGENCY_SITE_URL;
-}
-
 async function proxyAgencyRequest(request: NextRequest, context: RouteContext) {
   const params = await context.params;
   const rawPathParts = params.path || [];
-  const path = rawPathParts.map(encodeURIComponent).join("/");
+  const path = safePathFromSegments(rawPathParts);
+  if (path === null) {
+    return NextResponse.json({ success: false, message: "Noto‘g‘ri manzil" }, { status: 400 });
+  }
+
+  // Origin tekshiruvi logout'dan OLDIN — begona sayt foydalanuvchini
+  // majburan chiqarib yubora olmasin (CSRF logout).
+  if (!hasAllowedOrigin(request, [process.env.AGENCY_SITE_URL])) {
+    return NextResponse.json({ success: false, message: "So'rov manbasi ruxsat etilmagan" }, { status: 403 });
+  }
+
+  // Backend'da agentlik logout endpoint'i yo'q (JWT stateless) — httpOnly
+  // cookie'ni shu yerda o'chiramiz.
   if (path === "agency/auth/logout" && request.method === "POST") {
     const response = NextResponse.json({ success: true, data: { loggedOut: true } });
     clearAgencyCookie(response);
     return response;
   }
-  if (!validRequestOrigin(request)) {
-    return NextResponse.json({ success: false, message: "So'rov manbasi ruxsat etilmagan" }, { status: 403 });
-  }
 
   const target = `${getAgencyApiBase(request)}/${path}${request.nextUrl.search}`;
   const isHealthCheck = rawPathParts.length === 1 && String(rawPathParts[0]).toLowerCase() === "health";
   const headers = new Headers();
+  forwardClientIp(headers, request);
 
   const cookieToken = request.cookies.get(AGENCY_TOKEN_COOKIE)?.value;
   const authorization = request.headers.get("authorization") || (cookieToken ? `Bearer ${cookieToken}` : null);
@@ -94,8 +110,13 @@ async function proxyAgencyRequest(request: NextRequest, context: RouteContext) {
   };
 
   if (METHODS_WITH_BODY.has(request.method)) {
-    const body = await request.arrayBuffer();
-    if (body.byteLength > 0) init.body = body;
+    const body = await readBodyLimited(request, MAX_BODY_BYTES);
+    if (!body.ok) {
+      return body.reason === "too_large"
+        ? NextResponse.json({ success: false, message: "Fayl yoki so‘rov hajmi juda katta (16 MB gacha)" }, { status: 413 })
+        : NextResponse.json({ success: false, message: "So‘rov tanasini o‘qib bo‘lmadi" }, { status: 400 });
+    }
+    if (body.body) init.body = body.body;
   }
 
   const timeoutCandidate = Number.parseInt(process.env.AGENCY_PROXY_TIMEOUT_MS || "", 10);
@@ -134,7 +155,7 @@ async function proxyAgencyRequest(request: NextRequest, context: RouteContext) {
   const text = await backendResponse.text();
   const responseContentType = backendResponse.headers.get("content-type") || "application/json";
   if (TOKEN_RESPONSE_PATHS.has(path) && backendResponse.ok && responseContentType.includes("application/json")) {
-    const payload = JSON.parse(text);
+    const payload = parseJsonSafe(text);
     const token = payload?.data?.token;
     if (token) {
       delete payload.data.token;
@@ -156,7 +177,12 @@ async function proxyAgencyRequest(request: NextRequest, context: RouteContext) {
       "content-type": responseContentType,
     },
   });
-  if (backendResponse.status === 401 && cookieToken) clearAgencyCookie(response);
+  // 401 — odatda token yaroqsiz. Lekin joriy parol xato (change-password) yoki
+  // requiresPassword/requiresReauth holatida sessiyani o'chirmaymiz.
+  if (backendResponse.status === 401 && cookieToken && path !== "agency/auth/change-password") {
+    const payload = parseJsonSafe(text);
+    if (!payload?.requiresPassword && !payload?.requiresReauth) clearAgencyCookie(response);
+  }
   return response;
 }
 

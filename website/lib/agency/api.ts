@@ -1,5 +1,14 @@
 import type { ApiResponse } from "./types";
 
+/** Agentlik holati sabab 403 (backend agencyRole.middleware kodlari). */
+export const AGENCY_STATUS_CODES = new Set(["AGENCY_REJECTED", "AGENCY_INACTIVE", "AGENCY_NOT_APPROVED"]);
+export const AGENCY_BLOCKED_EVENT = "travelorai:agency-blocked";
+
+/** Backend rol cheklovlari bilan mos (agencyRole.middleware). Rol yo'q bo'lsa — egasi. */
+export function agencyRoleOf(access?: { role?: string } | null): string {
+  return access?.role || "owner";
+}
+
 // Barcha so'rovlar cookie-sessiya bilan agency-proxy orqali backendga boradi.
 export async function agencyApi<T>(path: string, init: RequestInit = {}): Promise<ApiResponse<T>> {
   const headers = new Headers(init.headers);
@@ -11,7 +20,31 @@ export async function agencyApi<T>(path: string, init: RequestInit = {}): Promis
       headers,
       cache: "no-store",
     });
-    return (await response.json()) as ApiResponse<T>;
+    const json = (await response.json().catch(() => null)) as (ApiResponse<T> & { requestId?: string }) | null;
+    if (!json) {
+      return {
+        success: false,
+        message: response.status === 429
+          ? "Juda ko‘p urinish. Birozdan so‘ng qayta urinib ko‘ring."
+          : "Server javobini o‘qib bo‘lmadi. Keyinroq qayta urining.",
+      } as ApiResponse<T>;
+    }
+    // 500 javoblarida backend umumiy xabar + requestId qaytaradi.
+    if (json.success === false && json.requestId) {
+      return { ...json, message: `${json.message || "Server xatosi"} (So‘rov ID: ${json.requestId})` };
+    }
+    // 403 + code: rol cheklovi yoki agentlik holati (rad etilgan / faol emas / tasdiqlanmagan).
+    if (json.success === false && response.status === 403) {
+      const code = (json as { code?: string }).code || "";
+      if (code === "ROLE_FORBIDDEN") {
+        return { ...json, message: json.message || "Bu amal sizning rolingiz uchun ruxsat etilmagan. Agentlik egasiga murojaat qiling." };
+      }
+      if (AGENCY_STATUS_CODES.has(code) && typeof window !== "undefined") {
+        // KvCabinet holat bannerini ko'rsatadi (GET /agency/profile → approvalStatus + adminNote).
+        window.dispatchEvent(new CustomEvent(AGENCY_BLOCKED_EVENT, { detail: { code, message: json.message || "" } }));
+      }
+    }
+    return json;
   } catch {
     return { success: false, message: "Server bilan aloqa uzildi. Internetni tekshirib qayta urining." };
   }

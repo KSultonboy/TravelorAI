@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowRight, BadgeCheck, MapPin, Sparkles, Wallet,
-  Compass, Plane, Umbrella, Landmark, Quote, Star,
+  Compass, Plane, Umbrella, Landmark,
 } from "lucide-react";
 import MarketingShell from "@/components/marketing/MarketingShell";
 import Reveal from "@/components/marketing/Reveal";
@@ -10,7 +10,7 @@ import HeroSearch from "@/components/marketing/HeroSearch";
 import CountUp from "@/components/marketing/CountUp";
 import TourCard from "@/components/marketing/TourCard";
 import FaqAccordion from "@/components/marketing/FaqAccordion";
-import { fetchTours, fetchPlaces, fetchHeroImage } from "@/lib/marketingApi";
+import { fetchTours, fetchPlaces, fetchHeroImage, fetchToursCount, fetchAgenciesCount } from "@/lib/marketingApi";
 import { publicImageSrc } from "@/lib/imageUrls";
 
 export const metadata: Metadata = {
@@ -44,12 +44,6 @@ const VALUES = [
   { icon: Wallet, title: "Byudjet nazorati", text: "Taxminiy xarajatlarni ko‘rib turing va uslubingizga mos tanlov qiling." },
 ];
 
-const TESTIMONIALS = [
-  { text: "TravelorAI orqali Turkiyaga tur topdim — narx shaffof, agentlik bilan to‘g‘ridan-to‘g‘ri gaplashdim. Juda qulay!", name: "Dilnoza R.", city: "Toshkent" },
-  { text: "Bir nechta agentlikni taqqoslab, eng yaxshi Buxoro turini tanladim. Vositachisiz va bepul.", name: "Jasur K.", city: "Samarqand" },
-  { text: "Agentlik sifatida mijoz so‘rovlari bevosita menga keladi — reklamaga ortiqcha pul sarflamayman.", name: "Sherzod A.", city: "Xorazm" },
-];
-
 const FAQS = [
   { q: "TravelorAI qanday ishlaydi?", a: "Turlarni ko‘rasiz, narx va muddat bo‘yicha taqqoslaysiz, so‘ng yoqqan agentlikka to‘g‘ridan-to‘g‘ri so‘rov yuborasiz. Vositachi yo‘q — agentlik siz bilan bevosita bog‘lanadi." },
   { q: "Foydalanish pullikmi?", a: "Yo‘q. Sayohatchilar uchun platforma mutlaqo bepul — turlarni ko‘rish, taqqoslash va so‘rov yuborish hech qanday to‘lovsiz." },
@@ -60,25 +54,19 @@ const FAQS = [
 
 /* eslint-disable @next/next/no-img-element */
 export default async function HomePage() {
-  const [tours, places, heroImg] = await Promise.all([fetchTours(8), fetchPlaces(8), fetchHeroImage()]);
+  const [tours, places, heroImg, toursCount, agenciesCount] = await Promise.all([
+    fetchTours(8),
+    fetchPlaces(8),
+    fetchHeroImage(),
+    fetchToursCount(),
+    fetchAgenciesCount(),
+  ]);
   const heroSrc = heroImg ? publicImageSrc(heroImg) : null;
-
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    name: "TravelorAI",
-    url: "https://travelorai.com",
-    potentialAction: {
-      "@type": "SearchAction",
-      target: "https://travelorai.com/tours?region={search_term_string}",
-      "query-input": "required name=search_term_string",
-    },
-  };
+  // WebSite + SearchAction JSON-LD root layout'da (bitta, /tours?q= bilan) —
+  // bu yerdagi ikkinchi, ?region= bilan ziddiyatli nusxa olib tashlandi.
 
   return (
     <MarketingShell transparentHeader>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-
       {/* HERO */}
       <section className="mkt-hero">
         <div className="mkt-hero__bg" aria-hidden="true">
@@ -210,39 +198,18 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* TESTIMONIALS */}
-      <section className="mkt-section">
-        <div className="mkt-wrap">
-          <Reveal className="mkt-section__head mkt-section__head--center">
-            <span className="mkt-eyebrow">Sharhlar</span>
-            <h2 className="mkt-h2">Sayohatchilar nima deydi</h2>
-          </Reveal>
-          <div className="mkt-testi">
-            {TESTIMONIALS.map((t, i) => (
-              <Reveal key={t.name} delay={i * 90} as="div" className="mkt-quote">
-                <Quote className="mkt-quote__mark" size={30} />
-                <blockquote>{t.text}</blockquote>
-                <div className="mkt-quote__cap">
-                  <span className="mkt-quote__av">{t.name.charAt(0)}</span>
-                  <span><b>{t.name}</b><small>{t.city}</small></span>
-                  <span className="mkt-quote__stars">
-                    {[0, 1, 2, 3, 4].map((s) => <Star key={s} size={13} fill="currentColor" />)}
-                  </span>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* STATS */}
+      {/* STATS — faqat API'dan olingan HAQIQIY raqamlar (soxta "120+/30+/5000+"
+          va qo'lda yozilgan sharhlar olib tashlandi). */}
       <section className="mkt-section mkt-section--soft">
         <div className="mkt-wrap">
           <div className="mkt-stats">
-            <Reveal as="div" className="mkt-stat"><div className="mkt-stat__num"><CountUp to={Math.max(tours.length, 120)} suffix="+" /></div><div className="mkt-stat__label">Sayohat turlari</div></Reveal>
-            <Reveal as="div" delay={80} className="mkt-stat"><div className="mkt-stat__num"><CountUp to={30} suffix="+" /></div><div className="mkt-stat__label">Hamkor agentliklar</div></Reveal>
-            <Reveal as="div" delay={160} className="mkt-stat"><div className="mkt-stat__num"><CountUp to={5000} suffix="+" /></div><div className="mkt-stat__label">Mamnun sayohatchi</div></Reveal>
-            <Reveal as="div" delay={240} className="mkt-stat"><div className="mkt-stat__num">24/7</div><div className="mkt-stat__label">Qo‘llab-quvvatlash</div></Reveal>
+            {toursCount > 0 ? (
+              <Reveal as="div" className="mkt-stat"><div className="mkt-stat__num"><CountUp to={toursCount} /></div><div className="mkt-stat__label">Faol sayohat turlari</div></Reveal>
+            ) : null}
+            {agenciesCount > 0 ? (
+              <Reveal as="div" delay={80} className="mkt-stat"><div className="mkt-stat__num"><CountUp to={agenciesCount} suffix={agenciesCount >= 100 ? "+" : ""} /></div><div className="mkt-stat__label">Tasdiqlangan agentliklar</div></Reveal>
+            ) : null}
+            <Reveal as="div" delay={160} className="mkt-stat"><div className="mkt-stat__num">0 so‘m</div><div className="mkt-stat__label">Sayohatchi uchun xizmat haqi</div></Reveal>
           </div>
         </div>
       </section>

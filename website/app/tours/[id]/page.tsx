@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { notFound } from "next/navigation";
 import { BedDouble, Car, Clock3, HeartPulse, MapPin, Plane, ShieldCheck, Star } from "lucide-react";
 import MarketingShell from "@/components/marketing/MarketingShell";
 import Reveal from "@/components/marketing/Reveal";
 import BookingPanel from "@/components/marketing/BookingPanel";
 import { fetchTour, tourPrice, type Tour } from "@/lib/marketingApi";
 import { publicImageSrc } from "@/lib/imageUrls";
+import { jsonLdScript } from "@/lib/jsonLd";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,14 +16,17 @@ const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://travelorai.com").
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const tour = await fetchTour(id);
-  if (!tour) return { title: "Tur topilmadi" };
+  // notFound() shu yerda ham: root loading.tsx tufayli sahifa oqim (stream)
+  // bilan yuboriladi va 200 status ketib qolardi. Botlar uchun metadata bloklovchi —
+  // shu sababli qidiruv tizimlari haqiqiy 404 oladi.
+  if (!tour) notFound();
   const title = tour.title;
   const description = tour.subtitle || `${tour.city} bo‘yicha tasdiqlangan agentlik turi — ${tourPrice(tour)}.`;
   const img = tour.imageUrl ? publicImageSrc(tour.imageUrl) : undefined;
   return {
     title,
     description,
-    alternates: { canonical: `/tours/${id}` },
+    alternates: { canonical: `/tours/${encodeURIComponent(tour.slug || tour.id)}` },
     openGraph: { title: `${title} | TravelorAI`, description, images: img ? [img] : undefined, type: "website" },
   };
 }
@@ -44,21 +48,10 @@ function inclusions(tour: Tour): { icon: typeof BedDouble; label: string }[] {
 /* eslint-disable @next/next/no-img-element */
 export default async function TourDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // fetchTour React cache bilan o'ralgan — generateMetadata bilan bitta so'rov.
   const tour = await fetchTour(id);
-
-  if (!tour) {
-    return (
-      <MarketingShell>
-        <section className="mkt-section" style={{ marginTop: 72, textAlign: "center" }}>
-          <div className="mkt-wrap">
-            <h1 className="mkt-h2">Tur topilmadi</h1>
-            <p className="mkt-lead" style={{ margin: "12px auto 24px" }}>Bu tur mavjud emas yoki o‘chirilgan bo‘lishi mumkin.</p>
-            <Link className="btn btn--gold btn--lg" href="/tours">Barcha turlar</Link>
-          </div>
-        </section>
-      </MarketingShell>
-    );
-  }
+  // Haqiqiy 404 status (ilgari 200 + "topilmadi" matni qaytardi — soft 404).
+  if (!tour) notFound();
 
   const slug = tour.slug || tour.id;
   const baseImg = tour.imageUrl ? publicImageSrc(tour.imageUrl) : "";
@@ -66,7 +59,7 @@ export default async function TourDetailPage({ params }: { params: Promise<{ id:
   const rating = tour.rating || 0;
   const reviewCount = tour.reviewCount || 0;
 
-  const canonical = `${SITE_URL}/tours/${slug}`;
+  const canonical = `${SITE_URL}/tours/${encodeURIComponent(slug)}`;
   const jsonLd = [
     {
       "@context": "https://schema.org",
@@ -76,7 +69,8 @@ export default async function TourDetailPage({ params }: { params: Promise<{ id:
       image: baseImg || undefined,
       category: "Sayohat turi",
       ...(tour.agency?.name ? { brand: { "@type": "TravelAgency", name: tour.agency.name } } : {}),
-      ...(rating > 0 ? { aggregateRating: { "@type": "AggregateRating", ratingValue: rating, reviewCount: Math.max(reviewCount, 1) } } : {}),
+      // Faqat haqiqiy sharhlar soni bo'lsa — soxta reviewCount yozmaymiz.
+      ...(rating > 0 && reviewCount > 0 ? { aggregateRating: { "@type": "AggregateRating", ratingValue: rating, reviewCount } } : {}),
       ...(tour.priceMin
         ? {
             offers: {
@@ -102,7 +96,7 @@ export default async function TourDetailPage({ params }: { params: Promise<{ id:
 
   return (
     <MarketingShell>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(jsonLd)} />
       <section className="mkt-section" style={{ marginTop: 72, paddingTop: 32 }}>
         <div className="mkt-wrap">
           <Reveal className="mkt-gallery">
@@ -116,7 +110,9 @@ export default async function TourDetailPage({ params }: { params: Promise<{ id:
                 <div className="mkt-detail__loc">
                   <span><MapPin size={16} /> {tour.city}{tour.destinationCountry ? `, ${tour.destinationCountry}` : ""}</span>
                   {tour.duration ? <span><Clock3 size={15} /> {tour.duration}</span> : null}
-                  <span className="rating"><Star size={15} fill="currentColor" /> {rating.toFixed(1)} {reviewCount > 0 ? `(${reviewCount} sharh)` : ""}</span>
+                  {rating > 0 ? (
+                    <span className="rating"><Star size={15} fill="currentColor" /> {rating.toFixed(1)} {reviewCount > 0 ? `(${reviewCount} sharh)` : ""}</span>
+                  ) : null}
                   {tour.agency?.name ? <span><ShieldCheck size={15} /> {tour.agency.name}</span> : null}
                 </div>
               </Reveal>
