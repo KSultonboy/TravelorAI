@@ -16,7 +16,11 @@ export function safeNextPath(value: unknown, fallback = "/my-trips"): string {
   try {
     const url = new URL(raw, BASE);
     if (url.origin !== BASE) return fallback;
-    return `${url.pathname}${url.search}${url.hash}`;
+    const result = `${url.pathname}${url.search}${url.hash}`;
+    // Normalisation can turn "/.//evil.com" or "/a/..//evil.com" into "//evil.com",
+    // which the browser treats as protocol-relative — re-check the output.
+    if (!SAFE_PATH.test(result)) return fallback;
+    return result;
   } catch {
     return fallback;
   }

@@ -74,12 +74,13 @@ router.delete('/tours/:id', blockWhenReadOnly, PACKAGE_ROLES, agency.deleteTour)
 // Marshrut nuqtalarini qidirish (OSM Nominatim) — tur tahrirlagichi uchun.
 router.get('/geocode', geocodeCtrl.geocode);
 
+// Ro'yxat va holat/bosqich buxgalterga ham ochiq: CRM'dagi To'lovlar ekrani shularni ishlatadi.
 router.get('/bookings', agency.listBookings);
 router.patch('/bookings/:id/status', blockWhenReadOnly, agency.updateBookingStatus);
 router.post('/leads', blockWhenReadOnly, LEAD_ROLES, requireCapability('manualLeads'), agency.createManualLead);
 router.patch('/bookings/:id/stage', blockWhenReadOnly, agency.updatePipelineStage);
-router.patch('/bookings/:id/birthday', blockWhenReadOnly, agency.setCustomerBirthday);
-router.patch('/bookings/:id', blockWhenReadOnly, agency.updateLead); // lid maydonlarini tahrirlash
+router.patch('/bookings/:id/birthday', blockWhenReadOnly, LEAD_ROLES, agency.setCustomerBirthday);
+router.patch('/bookings/:id', blockWhenReadOnly, LEAD_ROLES, agency.updateLead); // lid maydonlarini tahrirlash
 
 // Server CRM: vazifa, teg, faoliyat, hujjat, menejer va migratsiya/import.
 router.get('/crm/bootstrap', crm.bootstrap);
@@ -90,9 +91,9 @@ router.delete('/crm/pipeline-stages/:id', blockWhenReadOnly, requireOwner, crm.d
 router.post('/crm/tasks', blockWhenReadOnly, crm.createTask);
 router.patch('/crm/tasks/:id', blockWhenReadOnly, crm.updateTask);
 router.delete('/crm/tasks/:id', blockWhenReadOnly, crm.deleteTask);
-router.put('/crm/bookings/:id/tags', blockWhenReadOnly, crm.replaceTags);
-router.post('/crm/bookings/:id/activities', blockWhenReadOnly, crm.addActivity);
-router.patch('/crm/bookings/:id/assignee', blockWhenReadOnly, crm.assignLead);
+router.put('/crm/bookings/:id/tags', blockWhenReadOnly, LEAD_ROLES, crm.replaceTags);
+router.post('/crm/bookings/:id/activities', blockWhenReadOnly, LEAD_ROLES, crm.addActivity);
+router.patch('/crm/bookings/:id/assignee', blockWhenReadOnly, LEAD_ROLES, crm.assignLead);
 router.put('/crm/documents', blockWhenReadOnly, crm.saveDocuments);
 router.post('/crm/import/local', crm.importLocal); // eski localStorage ma'lumotini yo'qotmaslik uchun readOnly'da ham ochiq
 router.post('/crm/import/csv', blockWhenReadOnly, LEAD_ROLES, requireCapability('manualLeads'), crm.importCsv);

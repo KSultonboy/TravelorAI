@@ -90,31 +90,33 @@ function makeLimiter({ windowMs, max, byEmail, message = TOO_MANY }) {
 // Har bir realm (user / agency) o'z hisoblagichlariga ega bo'lishi uchun factory.
 function createAuthLimiters() {
   return {
+    // IP-only caps are deliberately generous: Uzbek mobile carriers put many users
+    // behind one NAT IP. Per-email caps and the 5-attempt code limit stop guessing.
     login: [
       makeLimiter({ windowMs: 15 * MINUTE, max: 10, byEmail: true }),
-      makeLimiter({ windowMs: 15 * MINUTE, max: 100, byEmail: false }),
+      makeLimiter({ windowMs: 15 * MINUTE, max: 300, byEmail: false }),
     ],
     register: [
       makeLimiter({ windowMs: 60 * MINUTE, max: 5, byEmail: true }),
-      makeLimiter({ windowMs: 60 * MINUTE, max: 20, byEmail: false }),
+      makeLimiter({ windowMs: 60 * MINUTE, max: 100, byEmail: false }),
     ],
     verifyEmail: [
       makeLimiter({ windowMs: 15 * MINUTE, max: 10, byEmail: true }),
-      makeLimiter({ windowMs: 15 * MINUTE, max: 50, byEmail: false }),
+      makeLimiter({ windowMs: 15 * MINUTE, max: 150, byEmail: false }),
     ],
     resend: [
       makeLimiter({ windowMs: 15 * MINUTE, max: 3, byEmail: true, message: FORGOT_MESSAGE }),
-      makeLimiter({ windowMs: 15 * MINUTE, max: 20, byEmail: false }),
+      makeLimiter({ windowMs: 15 * MINUTE, max: 80, byEmail: false }),
     ],
     forgot: [
       makeLimiter({ windowMs: 15 * MINUTE, max: 3, byEmail: true, message: FORGOT_MESSAGE }),
-      makeLimiter({ windowMs: 15 * MINUTE, max: 20, byEmail: false }),
+      makeLimiter({ windowMs: 15 * MINUTE, max: 80, byEmail: false }),
     ],
     reset: [
       makeLimiter({ windowMs: 15 * MINUTE, max: 10, byEmail: true }),
-      makeLimiter({ windowMs: 15 * MINUTE, max: 50, byEmail: false }),
+      makeLimiter({ windowMs: 15 * MINUTE, max: 150, byEmail: false }),
     ],
-    google: [makeLimiter({ windowMs: 15 * MINUTE, max: 30, byEmail: false })],
+    google: [makeLimiter({ windowMs: 15 * MINUTE, max: 120, byEmail: false })],
   };
 }
 

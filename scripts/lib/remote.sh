@@ -162,7 +162,7 @@ wait_port_free() {
 swap_to() {
   local image="$1"
   log "swap: podman rm -f $CONTAINER"
-  run podman rm -f -t 15 "$CONTAINER" >/dev/null || warn "podman rm -f returned non-zero"
+  run timeout 90 podman rm -f -t 15 "$CONTAINER" >/dev/null || warn "podman rm -f returned non-zero or timed out"
   if [ "$DRY_RUN" = 0 ] && podman container exists "$CONTAINER"; then
     die "container $CONTAINER still exists after rm -f (podman 'stopping' bug?) — see AGENTS.md recovery"
   fi
@@ -180,7 +180,7 @@ swap_to() {
 snapshot() {
   local tag="$1"
   log "snapshot: podman commit $CONTAINER -> $REPO:$tag"
-  run podman commit --pause=false "$CONTAINER" "$REPO:$tag" >/dev/null
+  run timeout 600 podman commit --pause=false "$CONTAINER" "$REPO:$tag" >/dev/null
 }
 
 prune_tags() {
@@ -198,12 +198,21 @@ prune_tags() {
 }
 
 preflight() {
+  local allow_down="${1:-0}"
   command -v podman >/dev/null || die "podman not found"
   command -v curl >/dev/null || die "curl not found"
   command -v ss >/dev/null || die "ss not found"
 
   local state net restart mounts foreign
   state="$(container_state)"
+  if [ "$allow_down" = 1 ] && [ "$state" != running ]; then
+    # Rollback of a dead service: there is no live container to compare flags with.
+    [ "$state" = stopping ] && die "container $CONTAINER is stuck in 'stopping' — do the AGENTS.md recovery (commit snapshot, rm -f, run) first"
+    foreign="$(foreign_port_pids | tr '\n' ' ')"
+    [ -z "${foreign// /}" ] || die "port $PORT is held by pid(s): $foreign — refusing to start a second holder"
+    warn "$CONTAINER is '$state' — rollback will (re)create it with the canonical flags"
+    return 0
+  fi
   [ "$state" = missing ] && die "container $CONTAINER does not exist — refusing to create one blindly (see AGENTS.md)"
   [ "$state" = running ] || die "container $CONTAINER is '$state', not running — recover first (AGENTS.md: podman 'stopping' recovery)"
 
@@ -311,7 +320,9 @@ APPLY
 
   log "build: $new (base $base)"
   rc=0
-  podman build --network host --pull=never -t "$new" -f "$ctx/Containerfile" "$ctx" || rc=$?
+  # --squash-all: every deploy builds FROM the previous snapshot; without squashing,
+  # the layer count grows with each deploy until overlayfs refuses (~128 layers).
+  timeout 1800 podman build --squash-all --network host --pull=never -t "$new" -f "$ctx/Containerfile" "$ctx" || rc=$?
   rm -rf "$ctx"
   return "$rc"
 }
@@ -321,8 +332,25 @@ APPLY
 # migration hits exactly the database the app will use.
 run_migrations() {
   local image="$1"
-  podman run --rm --network host --name "voyageai_backend_migrate_$TS" "$image" \
-    node -e "require('dotenv').config({ override: true }); require('child_process').execFileSync('npx', ['prisma', 'migrate', 'deploy'], { stdio: 'inherit' });"
+  # Production's _prisma_migrations was empty until it was baselined on 2026-11-22
+  # (AGENTS.md). On an un-baselined database `migrate deploy` would start from
+  # 'init' and fail half-way, leaving a failed row behind — refuse instead.
+  timeout 900 podman run --rm --log-driver=none --network host --name "voyageai_backend_migrate_$TS" "$image" \
+    node -e "
+      require('dotenv').config({ override: true });
+      const { PrismaClient } = require('@prisma/client');
+      const prisma = new PrismaClient();
+      prisma.\$queryRawUnsafe('SELECT count(*)::int AS n FROM _prisma_migrations WHERE finished_at IS NOT NULL')
+        .then(async (rows) => {
+          await prisma.\$disconnect();
+          if (!rows[0] || rows[0].n === 0) {
+            console.error('_prisma_migrations is empty: baseline the database first (AGENTS.md); refusing to run migrate deploy');
+            process.exit(3);
+          }
+          require('child_process').execFileSync('npx', ['prisma', 'migrate', 'deploy'], { stdio: 'inherit' });
+        })
+        .catch((e) => { console.error(e.message); process.exit(1); });
+    "
 }
 
 # --------------------------------------------------------------------------- actions
@@ -418,14 +446,16 @@ do_rollback() {
   podman image exists "$target" || die "image $target not found (see: rollback.sh $COMPONENT --list)"
 
   acquire_lock
-  preflight
+  preflight 1
 
-  local current
-  current="$(podman inspect -f '{{.ImageName}}' "$CONTAINER")"
-  [ "$current" != "$target" ] || die "$CONTAINER already runs $target"
-
-  local snap_tag="pre-rollback-$TS"
-  snapshot "$snap_tag"
+  local current state snap_tag=""
+  state="$(container_state)"
+  current="$(podman inspect -f '{{.ImageName}}' "$CONTAINER" 2>/dev/null || echo none)"
+  if [ "$state" = running ]; then
+    [ "$current" != "$target" ] || die "$CONTAINER already runs $target"
+    snap_tag="pre-rollback-$TS"
+    snapshot "$snap_tag"
+  fi
   log "rollback: $current -> $target"
   if [ "$DRY_RUN" = 1 ]; then
     swap_to "$target"
@@ -434,10 +464,11 @@ do_rollback() {
   fi
 
   if swap_to "$target" && wait_healthy; then
-    record_history "OK rollback to $target (was $current; snapshot $REPO:$snap_tag)"
+    record_history "OK rollback to $target (was $current, state $state; snapshot ${snap_tag:-none})"
     log "rolled back to $target"
     prune_tags pre-rollback-
   else
+    [ -n "$snap_tag" ] || die "rollback target $target is unhealthy and there was no running container to restore — manual action needed NOW"
     warn "rollback target unhealthy — restoring $REPO:$snap_tag"
     if ! { swap_to "$REPO:$snap_tag" && wait_healthy; }; then
       record_history "FAILED rollback; restore unhealthy"

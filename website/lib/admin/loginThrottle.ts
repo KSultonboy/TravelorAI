@@ -2,8 +2,8 @@
  * Admin login uchun brute-force himoyasi (xotirada, bitta Node jarayoni).
  *
  *  - IP bo'yicha: WINDOW ichida IP_MAX_FAILURES ta xato → o'sha IP LOCK_MS ga bloklanadi.
- *  - Global: WINDOW ichida GLOBAL_MAX_FAILURES ta xato (barcha IP'lar) → login
- *    LOCK_MS ga hammaga yopiladi (taqsimlangan / IP almashtirib hujumga qarshi).
+ *  - Global qulf o'chirilgan (GLOBAL_MAX_FAILURES = Infinity) — u hammani bloklash
+ *    uchun suiiste'mol qilinishi mumkin edi.
  *
  * Konteyner qayta ishga tushsa hisoblagich nolga tushadi — bu qabul qilinadi:
  * parol baribir kuchli va tasodifiy bo'lishi shart (lib/admin/config.ts).
@@ -12,7 +12,10 @@
 const WINDOW_MS = 15 * 60 * 1000;
 const LOCK_MS = 15 * 60 * 1000;
 const IP_MAX_FAILURES = 5;
-const GLOBAL_MAX_FAILURES = 50;
+// Global lock disabled: anyone could lock every admin out by spraying wrong passwords
+// from many IPs. The admin password is long and random (lib/admin/config.ts), and
+// per-IP locking + the nginx auth rate limit remain.
+const GLOBAL_MAX_FAILURES = Number.POSITIVE_INFINITY;
 const MAX_TRACKED_IPS = 10_000;
 
 type Bucket = { failures: number; windowStart: number; lockedUntil: number };

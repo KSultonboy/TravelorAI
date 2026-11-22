@@ -26,7 +26,10 @@ const TOKEN_RESPONSE_PATHS = new Set([
 ]);
 
 function apiBase(request: NextRequest) {
-  const configured = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+  // Prefer the server-only internal URL (prod: http://127.0.0.1:4000/api/v1). Going
+  // out through the public URL would make nginx stamp this server's own IP on every
+  // request, so the backend's per-IP auth limits would treat all users as one IP.
+  const configured = (process.env.HOME_API_URL || process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
   if (/^https?:\/\//i.test(configured)) return configured;
   if (request.nextUrl.hostname === "localhost" || request.nextUrl.hostname === "127.0.0.1") {
     return "http://localhost:4000/api/v1";

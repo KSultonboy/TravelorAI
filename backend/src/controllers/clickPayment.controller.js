@@ -143,19 +143,30 @@ async function prepare(req, res) {
 
     // merchant_prepare_id — int bo'lishi kerak (CLICK Complete'da qaytaradi).
     // Takroriy Prepare (CLICK retry) bir xil id oladi.
-    const prepareId = tx.prepareId || crypto.randomInt(100000000, 1000000000);
+    // Concurrent first Prepares: only the one that claims prepareId=null may set it;
+    // the loser re-reads, so both replies carry the same merchant_prepare_id.
+    const candidateId = tx.prepareId || crypto.randomInt(100000000, 1000000000);
 
     const updated = await prisma.clickTransaction.updateMany({
-      where: { id: tx.id, state: { in: ['created', 'prepared'] } },
+      where: tx.prepareId
+        ? { id: tx.id, state: { in: ['created', 'prepared'] }, prepareId: tx.prepareId }
+        : { id: tx.id, state: { in: ['created', 'prepared'] }, prepareId: null },
       data: {
         state: 'prepared',
-        prepareId,
+        prepareId: candidateId,
         clickTransId: b.click_trans_id ? String(b.click_trans_id) : null,
         clickPaydocId: b.click_paydoc_id ? String(b.click_paydoc_id) : null,
         preparedAt: new Date(),
       },
     });
-    if (updated.count !== 1) return replyForCurrentState(res, tx.id, b, merchantTransId);
+    let prepareId = candidateId;
+    if (updated.count !== 1) {
+      const current = await prisma.clickTransaction.findUnique({ where: { id: tx.id } });
+      if (!current || current.state !== 'prepared' || !current.prepareId) {
+        return replyForCurrentState(res, tx.id, b, merchantTransId);
+      }
+      prepareId = current.prepareId;
+    }
 
     return clickReply(res, {
       error: ERR.OK,

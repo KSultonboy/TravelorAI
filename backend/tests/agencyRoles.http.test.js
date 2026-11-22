@@ -89,6 +89,11 @@ describe('rol cheklovlari', () => {
     ['manager', 'post', '/agency/team'],
     ['agent', 'post', '/agency/payments/checkout'],
     ['accountant', 'post', '/agency/tours'],
+    ['accountant', 'patch', '/agency/bookings/b1'],
+    ['accountant', 'patch', '/agency/bookings/b1/birthday'],
+    ['accountant', 'put', '/agency/crm/bookings/b1/tags'],
+    ['accountant', 'post', '/agency/crm/bookings/b1/activities'],
+    ['accountant', 'patch', '/agency/crm/bookings/b1/assignee'],
   ])('%s: %s %s → 403 ROLE_FORBIDDEN', async (who, method, path) => {
     const res = await request(app)[method](path).set(as(who)).send({});
     expect(res.status).toBe(403);
