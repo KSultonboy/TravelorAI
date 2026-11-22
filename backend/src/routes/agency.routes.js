@@ -165,6 +165,7 @@ router.post('/crm/business-documents/:id/approval', blockWhenReadOnly, documents
 router.patch('/crm/business-documents/approvals/:approvalId', blockWhenReadOnly, requireOwner, documents.decideApproval);
 router.post('/crm/business-documents/:id/signature', blockWhenReadOnly, documents.requestSignature);
 router.post('/crm/business-documents/signatures/:signatureId/verify', blockWhenReadOnly, documents.verifySignature);
+router.use('/crm', require('./agencyMoneyGroups.routes')); // to'lov jadvali, qarzdorlik, guruh ro'yxati
 
 // Mijoz sharhlari + reyting (marketplace'да ko'rinadi) — ko'rish hammaga ochiq.
 router.get('/reviews', agency.listReviews);
