@@ -45,6 +45,7 @@ import {
 } from "@/lib/agency/documents";
 import { AuditPage, InsightsPage, WhatsAppPage } from "./CrmCompetitionPages";
 import { ExecutiveReportsPage } from "./ExecutiveReportsPage";
+import { DebtsCard, GroupListButton, PaymentSchedulePanel, useOpenLeadRequest } from "./features/money-groups";
 
 /* ---- tiny inline icons ---- */
 const I = {
@@ -821,6 +822,7 @@ function Dashboard({ show, leads, stats, go, readOnly }: any) {
           </div>
         </div>
       </div>
+      <DebtsCard show={show} go={go} />
       <div className="dashboard-reports">
         <ExecutiveReportsPage show={show} readOnly={readOnly} />
       </div>
@@ -1225,6 +1227,7 @@ function StageSelect({ value, onChange, disabled, stages = CRM_STAGES }: { value
 function Leads({ show, leads, archivedLeads, move, busyId, dragId, setDragId, over, setOver, readOnly, canExport, presByLead, refresh, reloadCrm, members, createTask, stages }: any) {
   const [chat, setChat] = useState<CrmLead | null>(null);
   const [detailId, setDetailId] = useState<string>("");
+  useOpenLeadRequest(setDetailId); // Dashboard «Qarzdorlik» kartasidan lidni ochish
   const [tab, setTab] = useState<"active" | "archive">("active");
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [q, setQ] = useState("");
@@ -1754,6 +1757,7 @@ function LeadDetail({ lead, readOnly, busyId, pres, members, createTask, stages 
               </div>
               {pres ? <div style={{ marginTop: 12 }}><PresBadge p={pres} /></div> : null}
               <div className="ld-tools"><ContactActions lead={lead} /></div>
+              <PaymentSchedulePanel lead={lead} readOnly={readOnly} />
             </> : null}
 
             {detailTab === "activity" ? <div className="ld-workspace">
@@ -2414,6 +2418,7 @@ function Packages({ show, tours, agencyId, refreshTours, readOnly }: any) {
                 {!readOnly && t.approvalStatus === "draft" ? (
                   <button className="btn btn-primary btn-sm" style={{ marginTop: 8, width: "100%" }} disabled={busyId === t.id} onClick={() => void submitTour(t)}>{busyId === t.id ? "E'lon qilinmoqda..." : "Saytda e'lon qilish"}</button>
                 ) : null}
+                <GroupListButton tour={t} />
               </div>
             </div>
           ))}
