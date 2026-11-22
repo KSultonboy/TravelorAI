@@ -1,22 +1,47 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, ImageBackground, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  ImageBackground,
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
+import { useAuth } from '../../auth/AuthContext';
 import { FONTS } from '../../constants/fonts';
 import { SPACING } from '../../constants/spacing';
 import { type AppColors, useAppTheme } from '../../theme/app-theme';
 import { bookingsAPI } from '../../utils/api';
-import { getJSON, KEYS } from '../../utils/storage';
-import { getUserDisplayName, type AuthUser } from '../../utils/auth';
-import { normalizeTours, type HomeTourItem } from '../../utils/homeContent';
+import { getRouteParam, getUserDisplayName } from '../../utils/auth';
+import {
+  formatDateInput,
+  formatUzPhoneInput,
+  isValidEmail,
+  MAX_TRAVELERS,
+  MIN_TRAVELERS,
+  normalizeUzPhone,
+  parseTravelDate,
+  parseTravelers,
+} from '../../utils/bookingValidation';
+import { type HomeTourItem } from '../../utils/homeContent';
+import { fetchTour, getCachedTour } from '../../utils/tourCache';
+import TourWishlistButton from '../TourWishlistButton';
 
 function digitsOnly(value?: string | null) {
   return (value || '').replace(/[^0-9]/g, '');
 }
 
 function formatTourPrice(tour: HomeTourItem) {
+
   if (tour.price?.trim()) return tour.price.trim();
   if (tour.priceMin == null) return "So'rov bo'yicha";
 
@@ -32,36 +57,6 @@ async function openLink(url: string) {
   } catch {
     Alert.alert('Ochib bo‘lmadi', 'Ushbu havolani ochishda xatolik.');
   }
-}
-
-function parseTourParam(value: string | string[] | undefined): HomeTourItem | null {
-  const raw = Array.isArray(value) ? value[0] : value;
-  if (!raw) return null;
-  const tryParse = (s: string): HomeTourItem | null => {
-    try {
-      return normalizeTours([JSON.parse(s)])[0] || null;
-    } catch {
-      return null;
-    }
-  };
-  const tryDecode = (s: string): string | null => {
-    try { return decodeURIComponent(s); } catch { return null; }
-  };
-  // expo-router may pass the param raw, decoded once, or decoded twice
-  // depending on version — accept all of them.
-  let result = tryParse(raw);
-  if (result) return result;
-  const once = tryDecode(raw);
-  if (once) {
-    result = tryParse(once);
-    if (result) return result;
-    const twice = tryDecode(once);
-    if (twice) {
-      result = tryParse(twice);
-      if (result) return result;
-    }
-  }
-  return null;
 }
 
 const MEAL_LABELS: Record<string, string> = {
@@ -92,10 +87,19 @@ const FLIGHT_LABELS: Record<string, string> = {
 
 export function TourDetailsScreen() {
   const { colors } = useAppTheme();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const styles = createStyles(colors);
-  const params = useLocalSearchParams<{ tour?: string }>();
-  const tour = useMemo(() => parseTourParam(params.tour), [params.tour]);
+  const { user } = useAuth();
+  const params = useLocalSearchParams<{ id?: string; slug?: string }>();
+  const tourId = getRouteParam(params.id).trim();
+  const tourSlug = getRouteParam(params.slug).trim();
+
+  // Fast path: card → details reuses the list item from the in-memory cache.
+  const [tour, setTour] = useState<HomeTourItem | null>(() => getCachedTour(tourId) || getCachedTour(tourSlug));
+  const [tourLoading, setTourLoading] = useState(!tour && Boolean(tourId || tourSlug));
+  const [tourError, setTourError] = useState<string | null>(null);
+
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -104,34 +108,85 @@ export function TourDetailsScreen() {
   const [bookingMessage, setBookingMessage] = useState('');
   const [bookingLoading, setBookingLoading] = useState(false);
 
+  const loadTour = useCallback(async () => {
+    if (!tourId && !tourSlug) return;
+    setTourLoading(true);
+    setTourError(null);
+    try {
+      const found = await fetchTour(tourId, tourSlug);
+      setTour(found);
+      if (!found) setTourError(t('tourDetails.notFound'));
+    } catch (err) {
+      setTourError(err instanceof Error ? err.message : t('tourDetails.loadError'));
+    } finally {
+      setTourLoading(false);
+    }
+  }, [t, tourId, tourSlug]);
+
+  useEffect(() => {
+    const cached = getCachedTour(tourId) || getCachedTour(tourSlug);
+    if (cached) {
+      setTour(cached);
+      setTourLoading(false);
+      return;
+    }
+    void loadTour();
+  }, [loadTour, tourId, tourSlug]);
+
   // Prefill contact details from the logged-in user (low-friction lead)
   useEffect(() => {
-    let mounted = true;
-    getJSON<AuthUser>(KEYS.USER)
-      .then((user) => {
-        if (!mounted || !user) return;
-        const name = getUserDisplayName(user);
-        if (name) setCustomerName((prev) => prev || name);
-        if (user.email) setCustomerEmail((prev) => prev || user.email);
-      })
-      .catch(() => {});
-    return () => {
-      mounted = false;
-    };
-  }, []);
+    if (!user) return;
+    const name = getUserDisplayName(user);
+    if (name) setCustomerName((prev) => prev || name);
+    if (user.email) setCustomerEmail((prev) => prev || user.email);
+  }, [user]);
 
   async function submitBooking() {
     if (!tour?.id) {
-      Alert.alert('Tur tanlanmagan', 'So‘rov yuborish uchun katalogdan tur tanlang.');
+      Alert.alert(t('booking.noTourTitle'), t('booking.noTourMsg'));
       return;
     }
     if (!customerName.trim()) {
-      Alert.alert('Ism kerak', 'Iltimos, ismingizni kiriting.');
+      Alert.alert(t('booking.nameRequiredTitle'), t('booking.nameRequiredMsg'));
       return;
     }
-    if (!customerEmail.trim() && !customerPhone.trim()) {
-      Alert.alert('Aloqa kerak', 'Telefon yoki email — kamida bittasini qoldiring.');
+
+    const email = customerEmail.trim();
+    const phoneRaw = customerPhone.trim();
+    if (!email && !phoneRaw) {
+      Alert.alert(t('booking.contactRequiredTitle'), t('booking.contactRequiredMsg'));
       return;
+    }
+    const phone = phoneRaw ? normalizeUzPhone(phoneRaw) : null;
+    if (phoneRaw && !phone) {
+      Alert.alert(t('booking.invalidTitle'), t('booking.phoneInvalid'));
+      return;
+    }
+    if (email && !isValidEmail(email)) {
+      Alert.alert(t('booking.invalidTitle'), t('booking.emailInvalid'));
+      return;
+    }
+
+    const travelerCount = parseTravelers(travelers);
+    if (travelerCount == null) {
+      Alert.alert(t('booking.invalidTitle'), t('booking.travelersInvalid', { min: MIN_TRAVELERS, max: MAX_TRAVELERS }));
+      return;
+    }
+
+    let isoDate: string | undefined;
+    if (travelDate.trim()) {
+      const parsed = parseTravelDate(travelDate);
+      if (!parsed.ok) {
+        const key =
+          parsed.reason === 'past'
+            ? 'booking.datePast'
+            : parsed.reason === 'tooFar'
+              ? 'booking.dateTooFar'
+              : 'booking.dateInvalid';
+        Alert.alert(t('booking.invalidTitle'), t(key));
+        return;
+      }
+      isoDate = parsed.iso;
     }
 
     setBookingLoading(true);
@@ -139,25 +194,21 @@ export function TourDetailsScreen() {
       await bookingsAPI.create({
         tourId: tour.id,
         customerName: customerName.trim(),
-        customerEmail: customerEmail.trim(),
-        customerPhone: customerPhone.trim(),
-        travelers: Math.max(1, Number.parseInt(travelers, 10) || 1),
-        travelDate: travelDate.trim(),
+        customerEmail: email,
+        customerPhone: phone || '',
+        travelers: travelerCount,
+        ...(isoDate ? { travelDate: isoDate } : {}),
         message: bookingMessage.trim(),
         source: 'mobile',
       });
-      Alert.alert(
-        'So‘rov yuborildi',
-        'Agency booking so‘rovingizni ko‘rib chiqadi. Holat web va mobil akkauntingizda bir xil ko‘rinadi.',
-        [
-          { text: 'Yopish' },
-          { text: 'Bookinglarim', onPress: () => router.push('/bookings' as never) },
-        ]
-      );
+      Alert.alert(t('booking.sentTitle'), t('booking.sentMsg'), [
+        { text: t('booking.close') },
+        { text: t('bookings.title'), onPress: () => router.push('/bookings' as never) },
+      ]);
       setBookingMessage('');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Booking yuborilmadi';
-      Alert.alert('Xatolik', message);
+      const message = err instanceof Error ? err.message : t('booking.sendError');
+      Alert.alert(t('booking.errorTitle'), message);
     } finally {
       setBookingLoading(false);
     }
@@ -166,15 +217,35 @@ export function TourDetailsScreen() {
   if (!tour) {
     return (
       <View style={[styles.emptyScreen, { paddingTop: insets.top }]}>
-        <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()} activeOpacity={0.82}>
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => router.back()}
+          activeOpacity={0.82}
+          accessibilityRole="button"
+          accessibilityLabel={t('a11y.close')}
+        >
           <Ionicons name="close" size={17} color={colors.textSecondary} />
         </TouchableOpacity>
-        <Ionicons name="briefcase-outline" size={34} color={colors.success} />
-        <Text style={styles.emptyTitle}>Tour tanlanmagan</Text>
-        <Text style={styles.mutedCenter}>Batafsil sahifa faqat backenddan kelgan tour card orqali ochiladi.</Text>
-        <TouchableOpacity style={styles.primaryWide} onPress={() => router.replace('/home-tours' as any)} activeOpacity={0.84}>
-          <Text style={styles.primaryWideText}>Tour katalogga qaytish</Text>
-        </TouchableOpacity>
+        {tourLoading ? (
+          <>
+            <ActivityIndicator color={colors.primary} />
+            <Text style={styles.mutedCenter}>{t('tourDetails.loading')}</Text>
+          </>
+        ) : (
+          <>
+            <Ionicons name="briefcase-outline" size={34} color={colors.success} />
+            <Text style={styles.emptyTitle}>{t('tourDetails.notFoundTitle')}</Text>
+            <Text style={styles.mutedCenter}>{tourError || t('tourDetails.notFound')}</Text>
+            {tourId || tourSlug ? (
+              <TouchableOpacity style={styles.primaryWide} onPress={() => void loadTour()} activeOpacity={0.84}>
+                <Text style={styles.primaryWideText}>{t('common.retry')}</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity style={styles.primaryWide} onPress={() => router.replace('/home-tours' as any)} activeOpacity={0.84}>
+              <Text style={styles.primaryWideText}>{t('tourDetails.backToCatalog')}</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     );
   }
@@ -220,11 +291,17 @@ export function TourDetailsScreen() {
   return (
     <ScrollView style={[styles.screen, { paddingTop: insets.top }]} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()} activeOpacity={0.82}>
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => router.back()}
+          activeOpacity={0.82}
+          accessibilityRole="button"
+          accessibilityLabel={t('a11y.close')}
+        >
           <Ionicons name="close" size={17} color={colors.textSecondary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tur tafsilotlari</Text>
-        <View style={styles.iconBtnGhost} />
+        <Text style={styles.headerTitle}>{t('tourDetails.title')}</Text>
+        <TourWishlistButton tour={tour} variant="plain" color={colors.textSecondary} style={styles.iconBtn} />
       </View>
 
       {tour.imageUrl ? (
@@ -349,29 +426,64 @@ export function TourDetailsScreen() {
       </View>
 
       <View style={styles.formCard}>
-        <Text style={styles.sectionTitle}>So‘rov qoldiring</Text>
-        <Text style={styles.muted}>
-          Bepul va ro‘yxatdan o‘tish shart emas — ism va telefon kifoya, agentlik o‘zi bog‘lanadi. Akkaunt bilan
-          kirsangiz, so‘rov holatini «Bookinglarim»da kuzatib borasiz.
-        </Text>
-        <Input label="Ism" icon="person-outline" value={customerName} onChangeText={setCustomerName} placeholder="Ismingiz" styles={styles} colors={colors} />
-        <Input label="Email (ixtiyoriy)" icon="mail-outline" value={customerEmail} onChangeText={setCustomerEmail} placeholder="email@example.com" styles={styles} colors={colors} keyboardType="email-address" />
+        <Text style={styles.sectionTitle}>{t('booking.formTitle')}</Text>
+        <Text style={styles.muted}>{t('booking.formHint')}</Text>
+        <Input label={t('booking.nameLabel')} icon="person-outline" value={customerName} onChangeText={setCustomerName} placeholder={t('booking.namePlaceholder')} styles={styles} colors={colors} />
+        <Input label={t('booking.emailLabel')} icon="mail-outline" value={customerEmail} onChangeText={setCustomerEmail} placeholder="email@example.com" styles={styles} colors={colors} keyboardType="email-address" />
         <View style={styles.dateRow}>
-          <Input label="Telefon" icon="call-outline" value={customerPhone} onChangeText={setCustomerPhone} placeholder="+998..." styles={styles} colors={colors} keyboardType="phone-pad" />
-          <Input label="Kishi soni" icon="people-outline" value={travelers} onChangeText={setTravelers} placeholder="1" styles={styles} colors={colors} keyboardType="number-pad" />
+          <Input
+            label={t('booking.phoneLabel')}
+            icon="call-outline"
+            value={customerPhone}
+            onChangeText={(value) => setCustomerPhone(formatUzPhoneInput(value))}
+            placeholder="+998 90 123 45 67"
+            styles={styles}
+            colors={colors}
+            keyboardType="phone-pad"
+            maxLength={17}
+          />
         </View>
-        <Input label="Sayohat sanasi" icon="calendar-outline" value={travelDate} onChangeText={setTravelDate} placeholder="YYYY-MM-DD" styles={styles} colors={colors} />
+        <View style={styles.dateRow}>
+          <Input
+            label={t('booking.travelersLabel', { max: MAX_TRAVELERS })}
+            icon="people-outline"
+            value={travelers}
+            onChangeText={(value) => setTravelers(value.replace(/\D/g, '').slice(0, 2))}
+            placeholder="1"
+            styles={styles}
+            colors={colors}
+            keyboardType="number-pad"
+            maxLength={2}
+          />
+          <Input
+            label={t('booking.dateLabel')}
+            icon="calendar-outline"
+            value={travelDate}
+            onChangeText={(value) => setTravelDate(formatDateInput(value))}
+            placeholder={t('booking.datePlaceholder')}
+            styles={styles}
+            colors={colors}
+            keyboardType="number-pad"
+            maxLength={10}
+          />
+        </View>
         <TextInput
           value={bookingMessage}
           onChangeText={setBookingMessage}
           style={styles.notesInput}
-          placeholder="Qo‘shimcha talablar yoki savollar..."
+          placeholder={t('booking.messagePlaceholder')}
           placeholderTextColor={colors.textMuted}
           multiline
+          maxLength={1000}
         />
-        <TouchableOpacity disabled={bookingLoading} style={[styles.primaryWide, bookingLoading && { opacity: 0.65 }]} onPress={submitBooking}>
+        <TouchableOpacity
+          disabled={bookingLoading}
+          style={[styles.primaryWide, bookingLoading && { opacity: 0.65 }]}
+          onPress={submitBooking}
+          accessibilityRole="button"
+        >
           <Ionicons name="send-outline" size={15} color={colors.textInverse} />
-          <Text style={styles.primaryWideText}>{bookingLoading ? 'Yuborilmoqda...' : 'So‘rov yuborish'}</Text>
+          <Text style={styles.primaryWideText}>{bookingLoading ? t('booking.sending') : t('booking.submit')}</Text>
         </TouchableOpacity>
       </View>
       <View style={{ height: 140 + Math.max(insets.bottom, 22) }} />
@@ -388,6 +500,7 @@ function Input({
   styles,
   colors,
   keyboardType,
+  maxLength,
 }: {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
@@ -397,6 +510,7 @@ function Input({
   styles: ReturnType<typeof createStyles>;
   colors: AppColors;
   keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'number-pad';
+  maxLength?: number;
 }) {
   return (
     <View style={styles.inputGroup}>
@@ -407,6 +521,8 @@ function Input({
           value={value}
           onChangeText={onChangeText}
           keyboardType={keyboardType}
+          maxLength={maxLength}
+          accessibilityLabel={label}
           autoCapitalize={keyboardType === 'email-address' ? 'none' : undefined}
           placeholder={placeholder}
           placeholderTextColor={colors.textMuted}
@@ -479,7 +595,6 @@ function createStyles(colors: AppColors) {
     },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md },
     iconBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-    iconBtnGhost: { width: 34, height: 34 },
     headerTitle: { fontFamily: FONTS.display, fontSize: 13, color: colors.text },
     detailHero: {
       minHeight: 260,

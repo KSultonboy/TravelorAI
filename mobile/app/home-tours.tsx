@@ -11,20 +11,24 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 
 import { StitchHeader } from '../src/components/stitch/StitchMobile';
+import TourWishlistButton from '../src/components/TourWishlistButton';
 import { FONTS } from '../src/constants/fonts';
 import { RADIUS, SPACING } from '../src/constants/spacing';
 import { type AppColors, useAppTheme } from '../src/theme/app-theme';
 import { extractApiData } from '../src/utils/auth';
 import { homeAPI } from '../src/utils/api';
-import { normalizeTours, serializeTourParam, type HomeTourItem } from '../src/utils/homeContent';
+import { normalizeTours, type HomeTourItem } from '../src/utils/homeContent';
+import { rememberTours, tourDetailsHref } from '../src/utils/tourCache';
 
 const PAGE_SIZE = 20;
 type TourFilter = 'all' | 'Latest' | 'Popular';
 
 export default function HomeToursScreen() {
   const { colors } = useAppTheme();
+  const { t } = useTranslation();
   const styles = createStyles(colors);
   const [filter, setFilter] = useState<TourFilter>('all');
   const [searchInput, setSearchInput] = useState('');
@@ -33,11 +37,13 @@ export default function HomeToursScreen() {
   const [total, setTotal] = useState(0);
   const [tours, setTours] = useState<HomeTourItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_SIZE)), [total]);
 
   const loadTours = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const payload = extractApiData<{
         items?: HomeTourItem[];
@@ -54,6 +60,7 @@ export default function HomeToursScreen() {
         })
       );
       const items = normalizeTours(payload?.items || []);
+      rememberTours(items);
       setTours(items);
       setTotal(Number.isFinite(Number(payload?.total)) ? Number(payload?.total) : items.length);
     } finally {
@@ -61,19 +68,21 @@ export default function HomeToursScreen() {
     }
   }, [filter, page, query]);
 
-  useEffect(() => {
-    void loadTours().catch(() => {
+  const reload = useCallback(() => {
+    void loadTours().catch((err: unknown) => {
       setTours([]);
       setTotal(0);
       setLoading(false);
+      setLoadError(err instanceof Error ? err.message : t('tours.loadError'));
     });
-  }, [loadTours]);
+  }, [loadTours, t]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
 
   const openTour = (item: HomeTourItem) => {
-    router.push({
-      pathname: '/tour-details',
-      params: { tour: serializeTourParam(item) },
-    } as any);
+    router.push(tourDetailsHref(item) as any);
   };
 
   const applyFilter = (nextFilter: TourFilter) => {
@@ -90,8 +99,11 @@ export default function HomeToursScreen() {
     <TouchableOpacity style={styles.card} activeOpacity={0.9} onPress={() => openTour(item)}>
       <TourImage imageUrl={item.imageUrl || null} styles={styles} colors={colors}>
         <View style={styles.scrim} />
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{item.badge}</Text>
+        <View style={styles.imageTopRow}>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{item.badge}</Text>
+          </View>
+          <TourWishlistButton tour={item} size={16} style={styles.heart} />
         </View>
       </TourImage>
       <View style={styles.body}>
@@ -102,7 +114,7 @@ export default function HomeToursScreen() {
             <Ionicons name="star" size={11} color={colors.gold} />
             <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
           </View>
-          <Text style={styles.price} numberOfLines={1}>{item.price || 'So‘rovda'}</Text>
+          <Text style={styles.price} numberOfLines={1}>{item.price || t('tours.priceOnRequest')}</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -110,9 +122,9 @@ export default function HomeToursScreen() {
 
   const renderHeader = () => (
     <View style={styles.headerWrap}>
-      <StitchHeader title="TravelorAI" subtitle="Tasdiqlangan tur katalogi" />
-      <Text style={styles.pageTitle}>Barcha agency tourlari</Text>
-      <Text style={styles.pageSub}>Filterlang, qidiring va kerakli tourni batafsil ko‘ring. Har sahifada 20 ta tour chiqadi.</Text>
+      <StitchHeader title="TravelorAI" subtitle={t('tours.headerSub')} />
+      <Text style={styles.pageTitle} accessibilityRole="header">{t('tours.title')}</Text>
+      <Text style={styles.pageSub}>{t('tours.subtitle')}</Text>
 
       <View style={styles.searchRow}>
         <Ionicons name="search-outline" size={18} color={colors.textMuted} />
@@ -120,12 +132,19 @@ export default function HomeToursScreen() {
           value={searchInput}
           onChangeText={setSearchInput}
           onSubmitEditing={applySearch}
-          placeholder="Shahar, tour yoki mavzu..."
+          placeholder={t('tours.searchPlaceholder')}
+          accessibilityLabel={t('tours.searchPlaceholder')}
           placeholderTextColor={colors.textMuted}
           style={styles.searchInput}
           returnKeyType="search"
         />
-        <TouchableOpacity style={styles.searchBtn} onPress={applySearch} activeOpacity={0.84}>
+        <TouchableOpacity
+          style={styles.searchBtn}
+          onPress={applySearch}
+          activeOpacity={0.84}
+          accessibilityRole="button"
+          accessibilityLabel={t('a11y.search')}
+        >
           <Ionicons name="arrow-forward" size={18} color={colors.textInverse} />
         </TouchableOpacity>
       </View>
@@ -135,13 +154,13 @@ export default function HomeToursScreen() {
           const active = item === filter;
           return (
             <TouchableOpacity key={item} style={[styles.filterChip, active && styles.filterChipActive]} onPress={() => applyFilter(item)} activeOpacity={0.84}>
-              <Text style={[styles.filterText, active && styles.filterTextActive]}>{item === 'all' ? 'Barchasi' : item}</Text>
+              <Text style={[styles.filterText, active && styles.filterTextActive]}>{item === 'all' ? t('tours.filterAll') : item === 'Latest' ? t('tours.filterLatest') : t('tours.filterPopular')}</Text>
             </TouchableOpacity>
           );
         })}
       </View>
 
-      <Text style={styles.countText}>{total} ta tour topildi</Text>
+      <Text style={styles.countText}>{t('tours.found', { count: total })}</Text>
     </View>
   );
 
@@ -156,7 +175,7 @@ export default function HomeToursScreen() {
           activeOpacity={0.84}
         >
           <Ionicons name="chevron-back" size={16} color={page <= 1 ? colors.textMuted : colors.text} />
-          <Text style={[styles.pageBtnText, page <= 1 && styles.pageBtnTextDisabled]}>Oldingi</Text>
+          <Text style={[styles.pageBtnText, page <= 1 && styles.pageBtnTextDisabled]}>{t('tours.prev')}</Text>
         </TouchableOpacity>
         <Text style={styles.pageNumber}>{page} / {totalPages}</Text>
         <TouchableOpacity
@@ -165,7 +184,7 @@ export default function HomeToursScreen() {
           onPress={() => setPage((value) => Math.min(totalPages, value + 1))}
           activeOpacity={0.84}
         >
-          <Text style={[styles.pageBtnText, page >= totalPages && styles.pageBtnTextDisabled]}>Keyingi</Text>
+          <Text style={[styles.pageBtnText, page >= totalPages && styles.pageBtnTextDisabled]}>{t('tours.next')}</Text>
           <Ionicons name="chevron-forward" size={16} color={page >= totalPages ? colors.textMuted : colors.text} />
         </TouchableOpacity>
       </View>
@@ -190,13 +209,18 @@ export default function HomeToursScreen() {
             {loading ? (
               <>
                 <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={styles.empty}>Tourlar yuklanmoqda...</Text>
+                <Text style={styles.empty}>{t('tours.loading')}</Text>
               </>
             ) : (
               <>
-                <Ionicons name="briefcase-outline" size={26} color={colors.success} />
-                <Text style={styles.emptyTitle}>Tour topilmadi</Text>
-                <Text style={styles.empty}>Filter yoki qidiruvni o‘zgartirib ko‘ring.</Text>
+                <Ionicons name={loadError ? 'cloud-offline-outline' : 'briefcase-outline'} size={26} color={loadError ? colors.error : colors.success} />
+                <Text style={styles.emptyTitle}>{loadError ? t('tours.loadErrorTitle') : t('tours.emptyTitle')}</Text>
+                <Text style={styles.empty}>{loadError || t('tours.emptyHint')}</Text>
+                {loadError ? (
+                  <TouchableOpacity style={styles.pageBtn} onPress={reload} activeOpacity={0.84}>
+                    <Text style={styles.pageBtnText}>{t('common.retry')}</Text>
+                  </TouchableOpacity>
+                ) : null}
               </>
             )}
           </View>
@@ -301,6 +325,8 @@ function createStyles(colors: AppColors) {
     imageRadius: { borderTopLeftRadius: 22, borderTopRightRadius: 22 },
     placeholder: { backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
     scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(7,15,28,0.28)' },
+    imageTopRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+    heart: { width: 30, height: 30, borderRadius: 15 },
     badge: {
       alignSelf: 'flex-start',
       borderRadius: RADIUS.full,

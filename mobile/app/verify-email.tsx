@@ -21,10 +21,12 @@ import { extractApiData, getRouteParam, persistAuthPayload, type AuthFlowData } 
 export default function VerifyEmailScreen() {
   const { colors } = useStitchMobileStyles();
   const { t } = useTranslation();
-  const params = useLocalSearchParams<{ email?: string; devCode?: string }>();
+  const params = useLocalSearchParams<{ email?: string }>();
   const [email, setEmail] = useState(getRouteParam(params.email));
   const [code, setCode] = useState('');
-  const [devCode, setDevCode] = useState(getRouteParam(params.devCode));
+  // Dev backends return the code in the response; never shown in release builds
+  // and never accepted from route params.
+  const [devCode, setDevCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
 
@@ -58,7 +60,7 @@ export default function VerifyEmailScreen() {
     setResending(true);
     try {
       const data = extractApiData<AuthFlowData>(await authAPI.resendVerification({ email: normalizedEmail }));
-      setDevCode(data.devCode || '');
+      if (__DEV__) setDevCode(data.devCode || '');
       Alert.alert(t('common.ok'), data.message || t('auth.successResend'));
     } catch (error) {
       const message = error instanceof ApiError ? error.message : t('auth.errorResend');
@@ -71,8 +73,8 @@ export default function VerifyEmailScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StitchScrollScreen>
-        <StitchHeader title="Tasdiqlash kodi" subtitle="Emailni tekshirish" back />
-        <StitchHero title="Kod kiriting" subtitle="6 xonali kod emailingizga yuborildi. Kod 10 daqiqa ichida amal qiladi." />
+        <StitchHeader title={t('auth.verifyTitle')} subtitle={t('auth.verifyHeaderSub')} back />
+        <StitchHero title={t('auth.verifyHeroTitle')} subtitle={t('auth.verifyHeroSub')} />
         <StitchCard>
           <StitchInput label={t('auth.emailLabel')} icon="mail-outline" placeholder={t('auth.emailPlaceholder')} keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} />
           <StitchInput
@@ -85,7 +87,7 @@ export default function VerifyEmailScreen() {
             onChangeText={(value) => setCode(value.replace(/[^0-9]/g, ''))}
             style={{ fontFamily: FONTS.display, fontSize: 22, letterSpacing: 8, textAlign: 'center' }}
           />
-          {devCode ? (
+          {__DEV__ && devCode ? (
             <View style={{ borderRadius: 18, backgroundColor: colors.successPale, padding: SPACING.md }}>
               <Text style={{ fontFamily: FONTS.semibold, color: colors.success, fontSize: 12 }}>{t('auth.devCodeLabel')}</Text>
               <Text style={{ fontFamily: FONTS.display, color: colors.text, fontSize: 24, letterSpacing: 6, marginTop: 5 }}>{devCode}</Text>

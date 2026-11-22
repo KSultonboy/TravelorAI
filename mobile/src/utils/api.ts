@@ -1,11 +1,10 @@
-import axios from 'axios';
+import axios, { type AxiosRequestConfig } from 'axios';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { getItem, KEYS } from './storage';
 
-const DEV_API_PORT = process.env.EXPO_PUBLIC_API_PORT || '4000';
-const FALLBACK_LOCAL_API_URL =
-  Platform.OS === 'android' ? `http://10.0.2.2:${DEV_API_PORT}/api/v1` : `http://localhost:${DEV_API_PORT}/api/v1`;
+/** Hard-coded production backend. Release builds never talk to anything else over http. */
+export const PRODUCTION_API_URL = 'https://travelorai.com/api/v1';
 
 function normalizeUrl(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
@@ -27,10 +26,42 @@ function detectMetroHost(): string | undefined {
   return host || undefined;
 }
 
+// EXPO_PUBLIC_* values are inlined at bundle time.
 const ENV_API_URL = normalizeUrl(process.env.EXPO_PUBLIC_API_URL);
-const DETECTED_METRO_HOST = detectMetroHost();
-const DETECTED_API_URL = DETECTED_METRO_HOST ? `http://${DETECTED_METRO_HOST}:${DEV_API_PORT}/api/v1` : undefined;
-const API_URL = ENV_API_URL || DETECTED_API_URL || FALLBACK_LOCAL_API_URL;
+
+// ── Dev-only local backend discovery ──────────────────────────────────────────
+// Everything below is gated by __DEV__, which Metro replaces with `false` in
+// release/OTA bundles, so the LAN/emulator URLs and the retry failover are
+// dropped from production JS entirely.
+const DEV_API_PORT = __DEV__ ? process.env.EXPO_PUBLIC_API_PORT || '4000' : '';
+const DEV_FALLBACK_API_URL = __DEV__
+  ? Platform.OS === 'android'
+    ? `http://10.0.2.2:${DEV_API_PORT}/api/v1`
+    : `http://localhost:${DEV_API_PORT}/api/v1`
+  : undefined;
+const DEV_DETECTED_HOST = __DEV__ ? detectMetroHost() : undefined;
+const DEV_DETECTED_API_URL = __DEV__ && DEV_DETECTED_HOST
+  ? `http://${DEV_DETECTED_HOST}:${DEV_API_PORT}/api/v1`
+  : undefined;
+
+function resolveReleaseApiUrl(): string {
+  // Release: only an https EXPO_PUBLIC_API_URL is accepted; otherwise production.
+  return ENV_API_URL && /^https:\/\//i.test(ENV_API_URL) ? ENV_API_URL : PRODUCTION_API_URL;
+}
+
+export const API_URL: string = __DEV__
+  ? ENV_API_URL || DEV_DETECTED_API_URL || DEV_FALLBACK_API_URL || PRODUCTION_API_URL
+  : resolveReleaseApiUrl();
+
+const RETRY_BASE_URLS: string[] = __DEV__
+  ? Array.from(
+      new Set([DEV_DETECTED_API_URL, DEV_FALLBACK_API_URL].filter((item): item is string => Boolean(item)))
+    ).filter((url) => url !== API_URL)
+  : [];
+
+const NETWORK_HINT = __DEV__
+  ? `Serverga ulanib bo'lmadi. Backend ishlayotganini tekshiring (${API_URL}).`
+  : "Serverga ulanib bo'lmadi. Internet aloqasini tekshirib, qayta urinib ko'ring.";
 
 export function resolveMediaUrl(value?: string | null): string | null {
   const text = String(value || '').trim();
@@ -39,12 +70,6 @@ export function resolveMediaUrl(value?: string | null): string | null {
   const origin = API_URL.replace(/\/api\/v1\/?$/i, '');
   return `${origin}${text.startsWith('/') ? text : `/${text}`}`;
 }
-
-const RETRY_BASE_URLS = Array.from(
-  new Set([DETECTED_API_URL, FALLBACK_LOCAL_API_URL].filter((item): item is string => Boolean(item)))
-).filter((url) => url !== API_URL);
-
-const NETWORK_HINT = `Serverga ulanib bo'lmadi. Backend ishlayotganini tekshiring (${API_URL}).`;
 
 export interface ApiErrorPayload {
   success?: boolean;
@@ -64,6 +89,37 @@ export class ApiError extends Error {
   }
 }
 
+// ── Central 401 handling ──────────────────────────────────────────────────────
+// A 401 on an authenticated request means the stored JWT is expired/invalid.
+// These endpoints legitimately answer 401 for wrong credentials/passwords and
+// must NOT end the session.
+const AUTH_401_EXEMPT_PATHS = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/verify-email',
+  '/auth/resend-verification',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/auth/google',
+  '/auth/email-change/request',
+  '/auth/email-change/verify',
+  '/auth/account-deletion/request',
+  '/auth/account',
+];
+
+type UnauthorizedHandler = () => void;
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
+  unauthorizedHandler = handler;
+}
+
+function isExemptFrom401(url?: string): boolean {
+  if (!url) return false;
+  const path = url.split('?')[0];
+  return AUTH_401_EXEMPT_PATHS.some((exempt) => path === exempt || path.endsWith(exempt));
+}
+
 const api = axios.create({
   baseURL: API_URL,
   timeout: 15000,
@@ -79,170 +135,55 @@ api.interceptors.request.use(async (config) => {
 api.interceptors.response.use(
   (res) => res.data,
   async (err) => {
-    const originalConfig = err.config as any;
-    const retryIndex = Number(originalConfig?.__retryBaseIndex || 0);
-    const canRetry =
-      !err.response &&
-      originalConfig &&
-      !originalConfig?.skipBaseRetry &&
-      retryIndex < RETRY_BASE_URLS.length;
+    const originalConfig = err.config as (AxiosRequestConfig & { __retryBaseIndex?: number }) | undefined;
 
-    if (canRetry) {
-      originalConfig.__retryBaseIndex = retryIndex + 1;
-      originalConfig.baseURL = RETRY_BASE_URLS[retryIndex];
-      try {
-        return await api.request(originalConfig);
-      } catch {
-        // continue to normalized error below
+    if (__DEV__) {
+      const retryIndex = Number(originalConfig?.__retryBaseIndex || 0);
+      const canRetry = !err.response && originalConfig && retryIndex < RETRY_BASE_URLS.length;
+
+      if (canRetry && originalConfig) {
+        originalConfig.__retryBaseIndex = retryIndex + 1;
+        originalConfig.baseURL = RETRY_BASE_URLS[retryIndex];
+        try {
+          return await api.request(originalConfig);
+        } catch {
+          // continue to normalized error below
+        }
       }
     }
 
+    const status: number | undefined = err.response?.status;
     const data = err.response?.data as ApiErrorPayload | undefined;
+    const headers = (originalConfig?.headers || {}) as Record<string, unknown>;
+    const wasAuthenticated = Boolean(headers.Authorization || headers.authorization);
+    // `requiresReauth` = valid session that must re-authenticate for a sensitive
+    // action (e.g. Google-only email change); it is not an expired token.
+    if (
+      status === 401 &&
+      wasAuthenticated &&
+      !data?.requiresReauth &&
+      !isExemptFrom401(originalConfig?.url)
+    ) {
+      try {
+        unauthorizedHandler?.();
+      } catch {
+        // never mask the original error
+      }
+    }
+
     const isNetworkError = !err.response;
-    const msg = isNetworkError ? NETWORK_HINT : data?.message || err.message || 'Tarmoq xatosi';
-    return Promise.reject(new ApiError(msg, err.response?.status, data));
+    // 429 (auth rate limit) and 4xx carry a user-facing server message; 5xx is
+    // a generic message plus a requestId that support can look up.
+    let msg = isNetworkError ? NETWORK_HINT : data?.message || err.message || 'Tarmoq xatosi';
+    const requestId = typeof data?.requestId === 'string' ? data.requestId : undefined;
+    if (!isNetworkError && status && status >= 500 && requestId) {
+      msg = `${msg}\n(ID: ${requestId})`;
+    }
+    return Promise.reject(new ApiError(msg, status, data));
   }
 );
 
 export default api;
-
-export interface TravelPreferencesPayload {
-  style: 'budget' | 'mid' | 'luxury';
-  interests: string[];
-  updatedAt: string | null;
-}
-
-export interface WishlistPayload {
-  id: string;
-  poiId?: string | null;
-  name: string;
-  city: string;
-  slug: string;
-  type: string;
-  icon: string;
-  savedAt: string;
-}
-
-export interface PoiPayload {
-  id: string;
-  name: string;
-  city: string;
-  slug: string;
-  type: string;
-  subtype?: string | null;
-  lat: number;
-  lng: number;
-  info: string;
-  description?: string | null;
-  imageUrl?: string | null;
-  priceLevel?: number | null;
-  price?: number | null;
-  icon: string;
-  rating?: number | null;
-  ratingCount?: number | null;
-  phone?: string | null;
-  website?: string | null;
-  openingHours?: string[] | null;
-  gallery?: string[];
-  source?: string | null;
-  sourceUrl?: string | null;
-  lastVerifiedAt?: string | null;
-  confidenceScore?: number | null;
-  verifiedBy?: string | null;
-  duplicateGroupId?: string | null;
-  priceUpdatedAt?: string | null;
-}
-
-export interface CityCoveragePayload {
-  city: string;
-  destinationCount: number;
-  poiCount: number;
-  transportRouteCount: number;
-  avgConfidence?: number | null;
-  coverageLevel: 'missing' | 'starter' | 'usable' | 'strong';
-  offlinePack?: {
-    version: number;
-    offlineReady: boolean;
-    poiCount: number;
-    destinationCount: number;
-    transportRouteCount: number;
-    emergencyContacts?: Record<string, string>;
-    transportNotes?: Record<string, string>;
-    sourceSummary?: Record<string, unknown>;
-    updatedAt?: string;
-  } | null;
-}
-
-export interface TransportRoutePayload {
-  id: string;
-  fromCity: string;
-  toCity: string;
-  mode: string;
-  provider?: { id: string; name: string; type: string; website?: string | null } | null;
-  priceMin: number;
-  priceMax: number;
-  durationMinutes: number;
-  distanceKm?: number | null;
-  scheduleNote: string;
-  bookingUrl?: string | null;
-  source?: string | null;
-  sourceUrl?: string | null;
-  lastVerifiedAt?: string | null;
-  confidenceScore: number;
-  whyRecommended?: string | null;
-}
-
-export interface YandexPlacePointPayload extends PoiPayload {
-  source?: string | null;
-  sourceUrl?: string | null;
-  lastVerifiedAt?: string | null;
-  confidenceScore?: number | null;
-  distanceKm?: number | null;
-}
-
-export type YandexTransportPointPayload = YandexPlacePointPayload;
-
-export interface PaginatedPayload<T> {
-  items: T[];
-  total: number;
-  page: number;
-  limit?: number;
-}
-
-export interface AchievementStatsPayload {
-  tripCount: number;
-  uniqueCities: number;
-  totalSpent: number;
-  budgetTrips: number;
-  maxDuration: number;
-  maxTravelers: number;
-}
-
-export interface AchievementItemPayload {
-  id: string;
-  title: string;
-  description: string;
-  hint: string;
-  icon: string;
-  accent: string;
-  metric: string;
-  target: number;
-  current: number;
-  unlocked: boolean;
-  progress: number;
-  progressText: string;
-}
-
-export interface AchievementsPayload {
-  items: AchievementItemPayload[];
-  unlocked: AchievementItemPayload[];
-  locked: AchievementItemPayload[];
-  unlockedCount: number;
-  totalCount: number;
-  completionRate: number;
-  nextAchievement: AchievementItemPayload | null;
-  stats: AchievementStatsPayload;
-}
 
 export interface DeleteAccountPayload {
   confirm: true;
@@ -256,35 +197,8 @@ export interface SecurityCodePayload {
   pendingEmail?: string;
   attemptsRemaining: number;
   delivery?: string;
+  /** Only returned by a development backend; shown in __DEV__ builds only. */
   devCode?: string;
-}
-
-export interface FeedbackPayload {
-  category: 'suggestion' | 'complaint' | 'bug' | 'feature' | 'other';
-  subject?: string;
-  message: string;
-  contactEmail?: string;
-  platform?: string;
-  appVersion?: string;
-}
-
-export interface TripReviewPayload {
-  rating: number;
-  comment: string;
-}
-
-export interface TripReviewItemPayload {
-  id: string;
-  tripId: string;
-  rating: number;
-  comment: string;
-  createdAt: string;
-  updatedAt?: string;
-  trip?: {
-    id: string;
-    title: string;
-    createdAt?: string;
-  };
 }
 
 export interface TourBookingPayload {
@@ -333,38 +247,7 @@ export interface TourBookingItemPayload {
   } | null;
 }
 
-export const destinationsAPI = {
-  getAll: (params?: Record<string, unknown>) => api.get('/destinations', { params }),
-  getById: (id: string) => api.get(`/destinations/${id}`),
-};
-
-export const citiesAPI = {
-  getAll: () => api.get('/cities'),
-};
-
-export const transportAPI = {
-  getRoutes: (params?: Record<string, unknown>) => api.get('/transport/routes', { params }),
-  getYandexNearby: (params: { lat: number; lng: number; radiusKm?: number; radius?: number; type?: string; limit?: number }) =>
-    api.get('/transport/yandex/nearby', { params, timeout: 12000 }),
-};
-
-export const yandexAPI = {
-  getPlacesNearby: (params: { lat: number; lng: number; radiusKm?: number; radius?: number; type?: string; subtype?: string; limit?: number }) =>
-    api.get('/yandex/places/nearby', { params, timeout: 12000 }),
-  searchPlaces: (params: { query: string; lat?: number; lng?: number; radiusKm?: number; radius?: number; type?: string }) =>
-    api.get('/yandex/places/search', { params, timeout: 12000 }),
-  suggest: (params: { query: string; lat?: number; lng?: number; results?: number }) =>
-    api.get('/yandex/suggest', { params, timeout: 12000 }),
-  geocode: (params: { query: string; results?: number }) =>
-    api.get('/yandex/geocode', { params, timeout: 12000 }),
-  reverse: (params: { lat: number; lng: number; results?: number }) =>
-    api.get('/yandex/reverse', { params, timeout: 12000 }),
-};
-
 export const homeAPI = {
-  getHome: (params?: { limit?: number }) => api.get('/home', { params, timeout: 18000 }),
-  getHeroSlides: (params?: { limit?: number }) => api.get('/home/hero-slides', { params, timeout: 12000 }),
-  getPlaces: (params?: { type?: string; limit?: number }) => api.get('/home/places', { params, timeout: 18000 }),
   getTours: (params?: {
     badge?: string;
     filter?: string;
@@ -374,33 +257,16 @@ export const homeAPI = {
     search?: string;
     agencyOnly?: boolean;
   }) => api.get('/home/tours', { params, timeout: 12000 }),
-  getAgencies: (params?: { sort?: string; limit?: number }) => api.get('/home/agencies', { params, timeout: 12000 }),
+  /**
+   * Single tour by id or slug. The backend may not expose this yet; callers
+   * must fall back to scanning getTours() (see utils/tourCache.ts).
+   */
+  getTour: (idOrSlug: string) => api.get(`/home/tours/${encodeURIComponent(idOrSlug)}`, { timeout: 12000 }),
 };
 
 export const bookingsAPI = {
   create: (body: TourBookingPayload) => api.post('/bookings', body),
   getMine: () => api.get('/bookings/mine'),
-};
-
-export const plannerAPI = {
-  generate: (body: unknown) => {
-    const config: any = { timeout: 60000 };
-    config.skipBaseRetry = true;
-    return api.post('/planner/generate', body, config);
-  },
-};
-
-export const tripsAPI = {
-  getAll: (params?: { status?: string; q?: string; limit?: number }) => api.get('/trips', { params }),
-  getById: (id: string) => api.get(`/trips/${id}`),
-  save: (plan: unknown) => api.post('/trips', plan),
-  update: (id: string, plan: unknown) => api.put(`/trips/${id}`, plan),
-  updateProgress: (id: string, progress: unknown) => api.patch(`/trips/${id}/progress`, progress),
-  duplicate: (id: string) => api.post(`/trips/${id}/duplicate`),
-  archive: (id: string, archived = true) => api.patch(`/trips/${id}/archive`, { archived }),
-  delete: (id: string) => api.delete(`/trips/${id}`),
-  getReviews: () => api.get('/trips/reviews'),
-  saveReview: (id: string, body: TripReviewPayload) => api.post(`/trips/${id}/reviews`, body),
 };
 
 export const authAPI = {
@@ -412,8 +278,6 @@ export const authAPI = {
   resetPassword: (body: unknown) => api.post('/auth/reset-password', body),
   google: (body: unknown) => api.post('/auth/google', body),
   me: () => api.get('/auth/me'),
-  getPreferences: () => api.get('/auth/preferences'),
-  updatePreferences: (body: { style: 'budget' | 'mid' | 'luxury'; interests: string[] }) => api.put('/auth/preferences', body),
   updateProfile: (body: unknown) => api.put('/auth/profile', body),
   requestEmailChange: (body: { newEmail: string; password?: string }) => api.post('/auth/email-change/request', body),
   verifyEmailChange: (body: { code: string }) => api.post('/auth/email-change/verify', body),
@@ -425,21 +289,4 @@ export const wishlistAPI = {
   getAll: () => api.get('/wishlist'),
   add: (body: { poiId?: string | null; name: string; city: string; slug: string; type: string; icon: string }) => api.post('/wishlist', body),
   remove: (id: string) => api.delete(`/wishlist/${id}`),
-};
-
-export const poiAPI = {
-  getAll: (params?: Record<string, unknown>, timeoutMs = 12000) => {
-    const config: any = { params, timeout: timeoutMs };
-    config.skipBaseRetry = true;
-    return api.get('/poi', config);
-  },
-  getById: (id: string) => api.get(`/poi/${id}`),
-};
-
-export const achievementsAPI = {
-  getMy: () => api.get('/achievements'),
-};
-
-export const feedbackAPI = {
-  submit: (body: FeedbackPayload) => api.post('/feedback', body),
 };

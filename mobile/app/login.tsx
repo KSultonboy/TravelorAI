@@ -88,11 +88,8 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StitchScrollScreen>
-        <StitchHeader title="Tizimga kirish" subtitle="TravelorAI hisobingiz" back />
-        <StitchHero
-          title="Xush kelibsiz!"
-          subtitle="Sayohat rejalaringiz, wishlist va profil ma’lumotlaringizni davom ettiring."
-        />
+        <StitchHeader title={t('auth.loginTitle')} subtitle={t('auth.loginHeaderSub')} back />
+        <StitchHero title={t('auth.loginHeroTitle')} subtitle={t('auth.loginHeroSub')} />
 
         <StitchCard>
           <StitchInput
@@ -112,7 +109,13 @@ export default function LoginScreen() {
             value={password}
             onChangeText={setPassword}
             right={
-              <TouchableOpacity onPress={() => setShowPass((value) => !value)} activeOpacity={0.8}>
+              <TouchableOpacity
+                onPress={() => setShowPass((value) => !value)}
+                activeOpacity={0.8}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel={showPass ? t('a11y.hidePassword') : t('a11y.showPassword')}
+              >
                 <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={18} color={colors.textMuted} />
               </TouchableOpacity>
             }

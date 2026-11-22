@@ -52,8 +52,8 @@ export default function TabLayout() {
       })}
     >
       <Tabs.Screen name="index" options={{ title: t('tabs.home') }} />
-      <Tabs.Screen name="tours" options={{ title: 'Turlar' }} />
-      <Tabs.Screen name="trips" options={{ title: 'Bronlarim' }} />
+      <Tabs.Screen name="tours" options={{ title: t('tabs.tours') }} />
+      <Tabs.Screen name="trips" options={{ title: t('tabs.bookings') }} />
       <Tabs.Screen name="profile" options={{ title: t('tabs.profile') }} />
     </Tabs>
   );

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -23,7 +23,8 @@ import { RADIUS, SPACING } from '../src/constants/spacing';
 import { type AppColors, useAppTheme } from '../src/theme/app-theme';
 import { ApiError, authAPI, type SecurityCodePayload } from '../src/utils/api';
 import { type AuthUser, extractApiData, getUserInitials } from '../src/utils/auth';
-import { KEYS, getJSON, saveAuthSession, saveUserProfile } from '../src/utils/storage';
+import { useAuth } from '../src/auth/AuthContext';
+import { saveAuthSession, saveUserProfile } from '../src/utils/storage';
 
 const MAX_AVATAR_DATA_URI_LENGTH = 750_000;
 
@@ -54,20 +55,23 @@ export default function ProfileEditScreen() {
   const [emailAttemptsRemaining, setEmailAttemptsRemaining] = useState(3);
   const [emailLoading, setEmailLoading] = useState(false);
 
-  useEffect(() => {
-    getJSON<AuthUser>(KEYS.USER).then((value) => {
-      if (!value) {
-        router.replace('/login');
-        return;
-      }
+  const { ready: authReady, user: sessionUser } = useAuth();
+  const formFilled = useRef(false);
 
-      setUser(value);
-      setName(value.name || '');
-      setLastName(value.lastName || '');
-      setBio(value.bio || '');
-      setAvatarUrl(value.avatarUrl || null);
-    });
-  }, []);
+  useEffect(() => {
+    if (!authReady) return;
+    if (!sessionUser) {
+      router.replace('/login');
+      return;
+    }
+    setUser(sessionUser);
+    if (formFilled.current) return;
+    formFilled.current = true;
+    setName(sessionUser.name || '');
+    setLastName(sessionUser.lastName || '');
+    setBio(sessionUser.bio || '');
+    setAvatarUrl(sessionUser.avatarUrl || null);
+  }, [authReady, sessionUser]);
 
   const pickImage = async (source: 'library' | 'camera') => {
     try {
@@ -193,11 +197,22 @@ export default function ProfileEditScreen() {
       }));
       setEmailStage('verify');
       setEmailAttemptsRemaining(data.attemptsRemaining);
-      if (data.devCode) setEmailCode(data.devCode);
-      Alert.alert(t('common.ok'), data.devCode ? `${data.message}\nKod: ${data.devCode}` : data.message);
+      if (__DEV__ && data.devCode) {
+        setEmailCode(data.devCode);
+        Alert.alert(t('common.ok'), `${data.message}\n${t('auth.devCodeLabel')}: ${data.devCode}`);
+      } else {
+        Alert.alert(t('common.ok'), data.message);
+      }
     } catch (error) {
       const apiError = error instanceof ApiError ? error : null;
-      if (apiError?.data?.contactAdmin) {
+      if (apiError?.data?.requiresReauth) {
+        // Google-only account that has not signed in recently: the session stays,
+        // the user just has to re-authenticate before changing the email.
+        Alert.alert(t('auth.reauthTitle'), apiError.message || t('auth.reauthMsg'), [
+          { text: t('profile.cancel'), style: 'cancel' },
+          { text: t('auth.reauthCta'), onPress: () => router.push('/login') },
+        ]);
+      } else if (apiError?.data?.contactAdmin) {
         Alert.alert(t('auth.errorTitle'), apiError.message);
       } else {
         Alert.alert(t('auth.errorTitle'), apiError?.message || 'Kod yuborilmadi.');
@@ -240,7 +255,7 @@ export default function ProfileEditScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button">
           <Ionicons name="chevron-back" size={18} color={colors.primary} />
           <Text style={styles.backTxt}>{t('profileEdit.backBtn')}</Text>
         </TouchableOpacity>
@@ -249,7 +264,13 @@ export default function ProfileEditScreen() {
           <View style={styles.heroGlowPrimary} />
           <View style={styles.heroGlowGold} />
 
-          <TouchableOpacity style={styles.avatarButton} onPress={openPicker} activeOpacity={0.9}>
+          <TouchableOpacity
+            style={styles.avatarButton}
+            onPress={openPicker}
+            activeOpacity={0.9}
+            accessibilityRole="button"
+            accessibilityLabel={t('profileEdit.avatarTitle')}
+          >
             {avatarUrl ? (
               <Image source={{ uri: avatarUrl }} style={styles.avatarImage} resizeMode="cover" />
             ) : (
@@ -317,7 +338,7 @@ export default function ProfileEditScreen() {
         <View style={styles.formCard}>
           <Text style={styles.securityTitle}>Emailni almashtirish</Text>
           <Text style={styles.securitySub}>
-            Tasdiqlash kodi eski emailingizga yuboriladi: {user?.email || '—'}
+            Tasdiqlash kodi yangi email manzilingizga yuboriladi. Joriy email: {user?.email || '—'}
           </Text>
           <Text style={styles.label}>Yangi email</Text>
           <TextInput
@@ -346,7 +367,7 @@ export default function ProfileEditScreen() {
           ) : null}
           {emailStage === 'verify' ? (
             <>
-              <Text style={styles.label}>Eski emailga kelgan kod</Text>
+              <Text style={styles.label}>Yangi emailga kelgan kod</Text>
               <TextInput
                 style={styles.input}
                 value={emailCode}
@@ -362,7 +383,7 @@ export default function ProfileEditScreen() {
             </>
           ) : null}
           <Button
-            title={emailStage === 'request' ? 'Kodni eski emailga yuborish' : 'Emailni tasdiqlash'}
+            title={emailStage === 'request' ? 'Kodni yangi emailga yuborish' : 'Emailni tasdiqlash'}
             onPress={emailStage === 'request' ? requestEmailCode : verifyEmailCode}
             loading={emailLoading}
             style={styles.submitBtn}

@@ -3,128 +3,200 @@ import { ActivityIndicator, Image, RefreshControl, ScrollView, StyleSheet, Text,
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 
+import { useAuth } from '../src/auth/AuthContext';
 import { FONTS } from '../src/constants/fonts';
 import { RADIUS, SPACING } from '../src/constants/spacing';
 import { type AppColors, useAppTheme } from '../src/theme/app-theme';
 import { bookingsAPI, resolveMediaUrl, type TourBookingItemPayload } from '../src/utils/api';
 import { extractApiData } from '../src/utils/auth';
-import { getItem, KEYS } from '../src/utils/storage';
 
-function remaining(deadline?: string | null) {
-  if (!deadline) return 'Deadline belgilanmagan';
+/** Minute-precision countdown; re-rendered by a 30s tick only while something is pending. */
+function remaining(t: TFunction, deadline?: string | null) {
+  if (!deadline) return t('bookings.noDeadline');
   const distance = new Date(deadline).getTime() - Date.now();
-  if (distance <= 0) return 'Javob muddati tugagan';
+  if (!Number.isFinite(distance)) return t('bookings.noDeadline');
+  if (distance <= 0) return t('bookings.deadlinePassed');
   const hours = Math.floor(distance / 3_600_000);
-  const minutes = Math.floor((distance % 3_600_000) / 60_000);
-  const seconds = Math.floor((distance % 60_000) / 1000);
-  return `${hours ? `${hours} soat ` : ''}${minutes} daqiqa ${seconds} soniya`;
+  const minutes = Math.max(1, Math.ceil((distance % 3_600_000) / 60_000));
+  return hours > 0 ? t('bookings.leftHours', { hours, minutes }) : t('bookings.leftMinutes', { minutes });
 }
+
+const STATUS_KEYS: Record<string, string> = {
+  pending: 'bookings.statusPending',
+  new: 'bookings.statusPending',
+  contacted: 'bookings.statusContacted',
+  accepted: 'bookings.statusAccepted',
+  confirmed: 'bookings.statusConfirmed',
+  rejected: 'bookings.statusRejected',
+  declined: 'bookings.statusRejected',
+  cancelled: 'bookings.statusCancelled',
+  canceled: 'bookings.statusCancelled',
+  expired: 'bookings.statusExpired',
+  completed: 'bookings.statusCompleted',
+};
 
 export default function BookingsScreen() {
   const { colors } = useAppTheme();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const styles = createStyles(colors);
+  const { ready, isLoggedIn } = useAuth();
   const [items, setItems] = useState<TourBookingItemPayload[]>([]);
   const [loading, setLoading] = useState(true);
-  const [guest, setGuest] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [, setTick] = useState(0);
 
-  const load = useCallback(async (refresh = false) => {
-    const token = await getItem(KEYS.TOKEN);
-    if (!token) {
-      setGuest(true);
-      setLoading(false);
-      return;
-    }
-    setGuest(false);
-    if (refresh) setRefreshing(true);
-    try {
-      const data = extractApiData<{ items: TourBookingItemPayload[] }>(await bookingsAPI.getMine());
-      setItems(data.items || []);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (refresh = false) => {
+      if (!isLoggedIn) {
+        setItems([]);
+        setLoading(false);
+        return;
+      }
+      if (refresh) setRefreshing(true);
+      setError(null);
+      try {
+        const data = extractApiData<{ items: TourBookingItemPayload[] }>(await bookingsAPI.getMine());
+        setItems(Array.isArray(data?.items) ? data.items : []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : t('bookings.loadError'));
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [isLoggedIn, t]
+  );
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(
+    useCallback(() => {
+      if (ready) void load();
+    }, [load, ready])
+  );
+
+  // Countdown refresh: only while a pending booking with a deadline is shown.
+  const hasPending = items.some((booking) => booking.status === 'pending' && booking.responseDeadlineAt);
   useEffect(() => {
-    const timer = setInterval(() => setTick((value) => value + 1), 1000);
+    if (!hasPending) return;
+    const timer = setInterval(() => setTick((value) => value + 1), 30_000);
     return () => clearInterval(timer);
-  }, []);
+  }, [hasPending]);
+
+  const guest = ready && !isLoggedIn;
+  const showSpinner = !ready || (loading && !guest);
+
+  const retry = () => {
+    setLoading(true);
+    void load();
+  };
 
   return (
     <ScrollView
       style={[styles.screen, { paddingTop: insets.top }]}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />}
+      refreshControl={
+        isLoggedIn ? (
+          <RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.primary} />
+        ) : undefined
+      }
     >
       <View style={styles.header}>
-        <TouchableOpacity style={styles.back} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={styles.back}
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel={t('a11y.back')}
+        >
           <Ionicons name="arrow-back" size={18} color={colors.text} />
         </TouchableOpacity>
         <View>
-          <Text style={styles.eyebrow}>WEB VA MOBIL BIR XIL</Text>
-          <Text style={styles.title}>Mening bookinglarim</Text>
+          <Text style={styles.eyebrow}>{t('bookings.eyebrow')}</Text>
+          <Text style={styles.title} accessibilityRole="header">{t('bookings.title')}</Text>
         </View>
       </View>
 
-      {loading ? <ActivityIndicator color={colors.primary} /> : null}
-      {!loading && guest ? (
+      {showSpinner ? <ActivityIndicator color={colors.primary} /> : null}
+      {guest ? (
         <View style={styles.empty}>
           <Ionicons name="person-circle-outline" size={36} color={colors.primary} />
-          <Text style={styles.emptyTitle}>So‘rovlaringizni kuzatish uchun kiring</Text>
-          <Text style={styles.muted}>
-            Booking yuborish uchun akkaunt shart emas — tur sahifasida ism va telefon kifoya. Lekin yuborgan
-            so‘rovlaringiz holatini (qabul qilindi / javob kutilmoqda) shu yerda ko‘rish uchun kirishingiz kerak.
-          </Text>
+          <Text style={styles.emptyTitle}>{t('bookings.guestTitle')}</Text>
+          <Text style={styles.muted}>{t('bookings.guestHint')}</Text>
           <TouchableOpacity style={styles.primary} onPress={() => router.push('/login' as never)}>
-            <Text style={styles.primaryText}>Kirish yoki ro‘yxatdan o‘tish</Text>
+            <Text style={styles.primaryText}>{t('bookings.loginCta')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.ghostBtn} onPress={() => router.push('/home-tours' as never)}>
-            <Text style={styles.ghostBtnText}>Tourlarni ko‘rish</Text>
+            <Text style={styles.ghostBtnText}>{t('home.browseTours')}</Text>
           </TouchableOpacity>
         </View>
       ) : null}
-      {!loading && !guest && items.length === 0 ? (
+      {!showSpinner && !guest && error ? (
+        <View style={styles.empty}>
+          <Ionicons name="cloud-offline-outline" size={34} color={colors.error} />
+          <Text style={styles.emptyTitle}>{t('bookings.loadErrorTitle')}</Text>
+          <Text style={styles.muted}>{error}</Text>
+          <TouchableOpacity style={styles.primary} onPress={retry}>
+            <Text style={styles.primaryText}>{t('common.retry')}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+      {!showSpinner && !guest && !error && items.length === 0 ? (
         <View style={styles.empty}>
           <Ionicons name="calendar-outline" size={34} color={colors.primary} />
-          <Text style={styles.emptyTitle}>Booking hali yo‘q</Text>
-          <Text style={styles.muted}>Web yoki mobil ilovada shu akkaunt bilan yaratilgan bookinglar shu yerda chiqadi.</Text>
+          <Text style={styles.emptyTitle}>{t('bookings.emptyTitle')}</Text>
+          <Text style={styles.muted}>{t('bookings.emptyHint')}</Text>
           <TouchableOpacity style={styles.primary} onPress={() => router.push('/home-tours' as never)}>
-            <Text style={styles.primaryText}>Tourlarni ko‘rish</Text>
+            <Text style={styles.primaryText}>{t('home.browseTours')}</Text>
           </TouchableOpacity>
         </View>
       ) : null}
 
-      {items.map((booking) => {
-        const imageUrl = resolveMediaUrl(booking.tour?.imageUrl);
-        return (
-          <View style={styles.card} key={booking.id}>
-            {imageUrl ? <Image source={{ uri: imageUrl }} style={styles.image} /> : null}
-            <View style={styles.body}>
-              <View style={styles.statusRow}>
-                <Text style={styles.status}>{booking.status}</Text>
-                <Text style={styles.price}>{booking.totalEstimate ? `${booking.totalEstimate} ${booking.currency}` : 'Narx kelishiladi'}</Text>
-              </View>
-              <Text style={styles.cardTitle}>{booking.tour?.title || 'Tour'}</Text>
-              <Text style={styles.muted}>{booking.tour?.city} · {booking.tour?.duration} · {booking.travelers} kishi</Text>
-              <Text style={styles.detail}>Agentlik: {booking.agency?.name || 'Belgilanmagan'}</Text>
-              <Text style={styles.detail}>Kontakt: {booking.agency?.phone || booking.agency?.website || 'Kutilmoqda'}</Text>
-              <Text style={styles.detail}>Email: {booking.customerEmail}</Text>
-              {booking.message ? <Text style={styles.detail}>Izoh: {booking.message}</Text> : null}
-              {booking.status === 'pending' ? (
-                <View style={styles.countdown}>
-                  <Ionicons name="timer-outline" size={16} color={colors.warning} />
-                  <Text style={styles.countdownText}>{remaining(booking.responseDeadlineAt)}</Text>
+      {!guest && !error
+        ? items.map((booking) => {
+            const imageUrl = resolveMediaUrl(booking.tour?.imageUrl);
+            const statusKey = STATUS_KEYS[String(booking.status || '').toLowerCase()];
+            return (
+              <View style={styles.card} key={booking.id}>
+                {imageUrl ? <Image source={{ uri: imageUrl }} style={styles.image} /> : null}
+                <View style={styles.body}>
+                  <View style={styles.statusRow}>
+                    <Text style={styles.status}>{statusKey ? t(statusKey) : booking.status}</Text>
+                    <Text style={styles.price}>
+                      {booking.totalEstimate ? `${booking.totalEstimate} ${booking.currency}` : t('bookings.priceNegotiable')}
+                    </Text>
+                  </View>
+                  <Text style={styles.cardTitle}>{booking.tour?.title || t('bookings.tourFallback')}</Text>
+                  <Text style={styles.muted}>
+                    {[booking.tour?.city, booking.tour?.duration, t('bookings.travelers', { count: booking.travelers })]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </Text>
+                  <Text style={styles.detail}>
+                    {t('bookings.agency')}: {booking.agency?.name || t('bookings.notAssigned')}
+                  </Text>
+                  <Text style={styles.detail}>
+                    {t('bookings.contact')}: {booking.agency?.phone || booking.agency?.website || t('bookings.waiting')}
+                  </Text>
+                  {booking.customerEmail ? <Text style={styles.detail}>Email: {booking.customerEmail}</Text> : null}
+                  {booking.message ? (
+                    <Text style={styles.detail}>
+                      {t('bookings.note')}: {booking.message}
+                    </Text>
+                  ) : null}
+                  {booking.status === 'pending' ? (
+                    <View style={styles.countdown}>
+                      <Ionicons name="timer-outline" size={16} color={colors.warning} />
+                      <Text style={styles.countdownText}>{remaining(t, booking.responseDeadlineAt)}</Text>
+                    </View>
+                  ) : null}
                 </View>
-              ) : null}
-            </View>
-          </View>
-        );
-      })}
+              </View>
+            );
+          })
+        : null}
       <View style={{ height: Math.max(insets.bottom, 20) + 70 }} />
     </ScrollView>
   );

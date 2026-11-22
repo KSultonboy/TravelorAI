@@ -5,7 +5,6 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  Switch,
   Alert,
   Image,
   RefreshControl,
@@ -20,11 +19,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FONTS } from '../../src/constants/fonts';
 import { RADIUS, SPACING } from '../../src/constants/spacing';
 import { type AppColors, type ThemePreference, useAppTheme } from '../../src/theme/app-theme';
+import { useAuth } from '../../src/auth/AuthContext';
 import { useWishlist } from '../../src/hooks/useWishlist';
 import { ApiError, authAPI, type SecurityCodePayload } from '../../src/utils/api';
 import { type AuthUser, getUserDisplayName, getUserInitials } from '../../src/utils/auth';
 import { extractApiData } from '../../src/utils/auth';
-import { KEYS, clearAll, clearAuthSession, getItem, getJSON, getUserKey, saveItem, saveUserProfile } from '../../src/utils/storage';
+import { signOutGoogleIfSignedIn } from '../../src/utils/googleSession';
+import { KEYS, clearAll, getItem, saveItem, saveUserProfile } from '../../src/utils/storage';
 import { type Language, LANGUAGE_OPTIONS } from '../../src/i18n';
 import { useTranslation } from 'react-i18next';
 import AnimatedBrand from '../../src/components/AnimatedBrand';
@@ -41,12 +42,9 @@ export default function ProfileScreen() {
     { key: 'dark' as ThemePreference, label: t('profile.themeDark'), icon: 'moon-outline' as const },
   ];
 
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [isReady, setIsReady] = useState(false);
+  const { ready: isReady, token, user, signOut } = useAuth();
   const userId = user?.id ?? null;
-  const { wishlist } = useWishlist(userId);
-  const [offline, setOffline] = useState(false);
+  const { wishlist } = useWishlist();
   const [refreshing, setRefreshing] = useState(false);
   const [language, setLanguage] = useState<Language>('uz');
   const [showLangPicker, setShowLangPicker] = useState(false);
@@ -57,74 +55,48 @@ export default function ProfileScreen() {
   const [deleteAttemptsRemaining, setDeleteAttemptsRemaining] = useState(3);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
-  const syncUserFromServer = useCallback(
-    async (fallbackUser: AuthUser | null): Promise<AuthUser | null> => {
-      const [tok, offlineMode] = await Promise.all([getItem(KEYS.TOKEN), getItem(KEYS.OFFLINE_MODE)]);
-      if (!tok || offlineMode === 'true') {
-        return fallbackUser;
+  // Refreshes the profile from the server. A 401 here is handled centrally
+  // (session cleared + redirect to login) by the API interceptor.
+  const syncUserFromServer = useCallback(async () => {
+    try {
+      const response = extractApiData<any>(await authAPI.me());
+      const remoteUser = response?.user as AuthUser | undefined;
+      if (remoteUser?.id) {
+        await saveUserProfile(remoteUser);
       }
-
-      try {
-        const response = extractApiData<any>(await authAPI.me());
-        const remoteUser = response?.user as AuthUser | undefined;
-        if (remoteUser?.id) {
-          setUser(remoteUser);
-          await saveUserProfile(remoteUser);
-          return remoteUser;
-        }
-      } catch {
-        // keep local user fallback
-      }
-
-      return fallbackUser;
-    },
-    []
-  );
+    } catch {
+      // keep local user
+    }
+  }, []);
 
   const refreshProfileData = useCallback(async () => {
     if (!token || !userId) return;
 
     setRefreshing(true);
     try {
-      await syncUserFromServer(user);
+      await syncUserFromServer();
     } finally {
       setRefreshing(false);
     }
-  }, [syncUserFromServer, token, user, userId]);
+  }, [syncUserFromServer, token, userId]);
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
 
       (async () => {
-        const [savedUser, tok, offlineRaw, langRaw] = await Promise.all([
-          getJSON<AuthUser>(KEYS.USER),
-          getItem(KEYS.TOKEN),
-          getItem(KEYS.OFFLINE_MODE),
-          getItem(KEYS.LANGUAGE),
-        ]);
+        const langRaw = await getItem(KEYS.LANGUAGE);
         if (!active) return;
-
-        setUser(savedUser);
-        setToken(tok);
-        setOffline(offlineRaw === 'true');
-        if (langRaw) {
-          setLanguage(langRaw as Language);
-          i18n.changeLanguage(langRaw);
-        }
-        setIsReady(true);
-
-        if (tok) {
-          const syncedUser = await syncUserFromServer(savedUser);
-          if (!active) return;
-          if (syncedUser) {
-            setUser(syncedUser);
-          }
+        if (langRaw === 'uz' || langRaw === 'ru' || langRaw === 'en') {
+          setLanguage(langRaw);
+          if (i18n.language !== langRaw) void i18n.changeLanguage(langRaw);
         }
       })();
 
+      if (token) void syncUserFromServer();
+
       return () => { active = false; };
-    }, [i18n, syncUserFromServer])
+    }, [i18n, syncUserFromServer, token])
   );
 
   const isLoggedIn = Boolean(token);
@@ -166,46 +138,6 @@ export default function ProfileScreen() {
   const name = user ? getUserDisplayName(user) : t('profile.guestName');
   const initials = getUserInitials(user);
 
-  // ── Notification toggle ───────────────────────────────────────────────────
-  // ── Offline mode toggle ───────────────────────────────────────────────────
-  const handleOfflineToggle = async (value: boolean) => {
-    if (value) {
-      const hasCachedRecords = (data: unknown) => {
-        if (Array.isArray(data)) return data.length > 0;
-        if (data && typeof data === 'object') {
-          const items = (data as { items?: unknown }).items;
-          if (Array.isArray(items)) return items.length > 0;
-          return Object.keys(data).length > 0;
-        }
-        return false;
-      };
-      const scopedTripsKey = userId ? getUserKey(userId, KEYS.TRIPS) : KEYS.TRIPS;
-      const [poiCache, homePoiCache, destinationCache, tripsCache] = await Promise.all([
-        getJSON<unknown>(KEYS.POI_CACHE_V2),
-        getJSON<unknown>(KEYS.HOME_CACHE_V2),
-        getJSON<unknown>(KEYS.DESTINATIONS_CACHE_V1),
-        getJSON<unknown>(scopedTripsKey),
-      ]);
-      const hasOfflineData = [poiCache, homePoiCache, destinationCache, tripsCache].some(hasCachedRecords);
-
-      if (!hasOfflineData) {
-        Alert.alert(
-          t('profile.offlineUnavailableTitle', { defaultValue: 'Offline data tayyor emas' }),
-          t('profile.offlineUnavailableMsg', {
-            defaultValue: 'Avval internet bilan Explore yoki Trips sahifalarini ochib, malumotlar cache bolishini kuting.',
-          })
-        );
-        return;
-      }
-    }
-
-    setOffline(value);
-    await saveItem(KEYS.OFFLINE_MODE, String(value));
-    if (value) {
-      Alert.alert(t('profile.offlineTitle'), t('profile.offlineMsg'));
-    }
-  };
-
   // ── Language change ───────────────────────────────────────────────────────
   const handleLanguageChange = async (lang: Language) => {
     setLanguage(lang);
@@ -221,7 +153,7 @@ export default function ProfileScreen() {
         text: t('profile.yes'),
         style: 'destructive',
         onPress: async () => {
-          await clearAuthSession();
+          await signOut();
           router.replace('/login');
         },
       },
@@ -259,8 +191,12 @@ export default function ProfileScreen() {
       }));
       setDeleteStage('verify');
       setDeleteAttemptsRemaining(data.attemptsRemaining);
-      if (data.devCode) setDeleteCode(data.devCode);
-      Alert.alert(t('common.ok'), data.devCode ? `${data.message}\nKod: ${data.devCode}` : data.message);
+      if (__DEV__ && data.devCode) {
+        setDeleteCode(data.devCode);
+        Alert.alert(t('common.ok'), `${data.message}\n${t('auth.devCodeLabel')}: ${data.devCode}`);
+      } else {
+        Alert.alert(t('common.ok'), data.message);
+      }
     } catch (e: any) {
       const apiError = e instanceof ApiError ? e : null;
       if (apiError?.data?.contactAdmin) {
@@ -284,6 +220,7 @@ export default function ProfileScreen() {
     try {
       await authAPI.deleteAccount({ confirm: true, code: deleteCode.trim() });
       await clearAll();
+      await signOutGoogleIfSignedIn();
       setDeleteModalVisible(false);
       Alert.alert(t('profile.deleteSuccessTitle'), t('profile.deleteSuccessMsg'));
       router.replace('/login');
@@ -302,8 +239,8 @@ export default function ProfileScreen() {
     {
       key: 'bookings',
       icon: 'briefcase-outline' as const,
-      title: 'Mening bronlarim',
-      subtitle: 'Sotib olingan turlar',
+      title: t('bookings.title'),
+      subtitle: t('profile.bookingsSub'),
       onPress: () => router.push('/bookings' as any),
       badge: null as number | null,
     },
@@ -460,29 +397,12 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* Offline mode toggle */}
-        <View style={styles.toggleRow}>
-          <View style={styles.rowWithIcon}>
-            <Ionicons name="cloud-offline-outline" size={18} color={colors.primary} />
-            <View>
-              <Text style={styles.toggleLabel}>{t('profile.offline')}</Text>
-              <Text style={styles.toggleSub}>{offline ? t('profile.offlineOn') : t('profile.offlineOff')}</Text>
-            </View>
-          </View>
-          <Switch
-            value={offline}
-            onValueChange={handleOfflineToggle}
-            trackColor={{ false: colors.borderLight, true: colors.primary }}
-            thumbColor={colors.surface}
-          />
-        </View>
-
         <TouchableOpacity style={styles.toggleRow} onPress={() => router.push('/settings' as any)} activeOpacity={0.8}>
           <View style={styles.rowWithIcon}>
             <Ionicons name="settings-outline" size={18} color={colors.primary} />
             <View>
               <Text style={styles.toggleLabel}>{t('profile.settings')}</Text>
-              <Text style={styles.toggleSub}>Bildirishnomalar va ilova sozlamalari</Text>
+              <Text style={styles.toggleSub}>{t('profile.settingsSub')}</Text>
             </View>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />

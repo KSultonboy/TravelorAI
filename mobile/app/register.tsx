@@ -52,12 +52,12 @@ export default function RegisterScreen() {
       }
 
       if (data.requiresVerification) {
+        if (__DEV__ && data.devCode) {
+          Alert.alert(t('auth.devCodeLabel'), data.devCode);
+        }
         router.replace({
           pathname: '/verify-email',
-          params: {
-            email: (data.email || normalizedEmail).toLowerCase(),
-            devCode: data.devCode,
-          },
+          params: { email: (data.email || normalizedEmail).toLowerCase() },
         });
         return;
       }
@@ -81,11 +81,8 @@ export default function RegisterScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StitchScrollScreen>
-        <StitchHeader title="Ro‘yxatdan o‘tish" subtitle="Yangi TravelorAI hisob" back />
-        <StitchHero
-          title="Sayohat profilingizni yarating"
-          subtitle="Wishlist, trip plan va shaxsiy tavsiyalar bitta hisobda saqlanadi."
-        />
+        <StitchHeader title={t('auth.registerTitle')} subtitle={t('auth.registerHeaderSub')} back />
+        <StitchHero title={t('auth.registerHeroTitle')} subtitle={t('auth.registerHeroSub')} />
 
         <StitchCard>
           <StitchInput label={t('auth.nameLabel')} icon="person-outline" placeholder={t('auth.namePlaceholder')} autoCapitalize="words" value={name} onChangeText={setName} />
@@ -98,7 +95,13 @@ export default function RegisterScreen() {
             value={password}
             onChangeText={setPassword}
             right={
-              <TouchableOpacity onPress={() => setShowPass((value) => !value)} activeOpacity={0.8}>
+              <TouchableOpacity
+                onPress={() => setShowPass((value) => !value)}
+                activeOpacity={0.8}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel={showPass ? t('a11y.hidePassword') : t('a11y.showPassword')}
+              >
                 <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={18} color={colors.textMuted} />
               </TouchableOpacity>
             }

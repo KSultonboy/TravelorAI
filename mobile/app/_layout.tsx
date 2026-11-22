@@ -14,6 +14,9 @@ import 'react-native-reanimated';
 import { I18nextProvider } from 'react-i18next';
 import { getItem, KEYS } from '../src/utils/storage';
 import { AppThemeProvider, useAppTheme } from '../src/theme/app-theme';
+import { AuthProvider } from '../src/auth/AuthContext';
+import { WishlistProvider } from '../src/hooks/useWishlist';
+import ErrorBoundary from '../src/components/ErrorBoundary';
 import TestModeBanner from '../src/components/TestModeBanner';
 import i18n from '../src/i18n';
 
@@ -54,11 +57,17 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError && !bootTimedOut) return null;
 
   return (
-    <I18nextProvider i18n={i18n}>
-      <AppThemeProvider>
-        <RootNavigator />
-      </AppThemeProvider>
-    </I18nextProvider>
+    <ErrorBoundary>
+      <I18nextProvider i18n={i18n}>
+        <AppThemeProvider>
+          <AuthProvider>
+            <WishlistProvider>
+              <RootNavigator />
+            </WishlistProvider>
+          </AuthProvider>
+        </AppThemeProvider>
+      </I18nextProvider>
+    </ErrorBoundary>
   );
 }
 
@@ -98,9 +107,6 @@ function RootNavigator() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="home-tours" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="tour-details" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="search-filters" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="checkout" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="payment-methods" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="bookings" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="wishlist" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="login" options={{ animation: 'slide_from_bottom' }} />
@@ -110,7 +116,6 @@ function RootNavigator() {
         <Stack.Screen name="reset-password" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="profile-edit" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="settings" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="side-menu" options={{ animation: 'slide_from_left' }} />
         <Stack.Screen name="language" options={{ animation: 'slide_from_bottom' }} />
       </Stack>
       <TestModeBanner />

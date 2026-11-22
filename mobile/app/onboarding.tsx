@@ -36,70 +36,16 @@ export default function Onboarding() {
     setLanguage(normalizeLanguage(i18n.resolvedLanguage || i18n.language));
   }, [i18n.language, i18n.resolvedLanguage]);
 
+  // Copy lives in i18n (onboarding.*): verified agency tours, free booking
+  // requests, agencies contact you. No AI route-planning promises.
   const slides = useMemo(
-    () =>
-      language === 'en'
-        ? [
-            {
-              id: '1',
-              icon: 'earth-outline',
-              title: 'Discover the world',
-              desc: 'Plan any destination, dates and budget in one app.',
-            },
-            {
-              id: '2',
-              icon: 'wallet-outline',
-              title: 'A plan that fits your budget',
-              desc: 'Enter your budget. AI automatically builds the best route for you.',
-            },
-            {
-              id: '3',
-              icon: 'airplane-outline',
-              title: 'Ready to travel!',
-              desc: 'Daily itinerary, cost breakdown and local tips make travel easy.',
-            },
-          ]
-        : language === 'uz'
-          ? [
-              {
-                id: '1',
-                icon: 'earth-outline',
-                title: 'Dunyoni kashf eting',
-                desc: "Istalgan manzil, sana va budjetni bitta ilova orqali rejalang.",
-              },
-              {
-                id: '2',
-                icon: 'wallet-outline',
-                title: 'Budjetingizga mos reja',
-                desc: "Byudjetingizni kiriting. Sun'iy intellekt eng yaxshi marshrutni avtomatik tuzadi.",
-              },
-              {
-                id: '3',
-                icon: 'airplane-outline',
-                title: 'Sayohatga tayyor!',
-                desc: 'Kunlik reja, xarajat taqsimoti va mahalliy maslahatlar bilan sayohat osonlashadi.',
-              },
-            ]
-        : [
-            {
-              id: '1',
-              icon: 'earth-outline',
-              title: t('onboarding.slide1Title'),
-              desc: t('onboarding.slide1Sub'),
-            },
-            {
-              id: '2',
-              icon: 'wallet-outline',
-              title: t('onboarding.slide2Title'),
-              desc: t('onboarding.slide2Sub'),
-            },
-            {
-              id: '3',
-              icon: 'airplane-outline',
-              title: t('onboarding.slide3Title'),
-              desc: t('onboarding.slide3Sub'),
-            },
-          ],
+    () => [
+      { id: '1', icon: 'shield-checkmark-outline', title: t('onboarding.slide1Title'), desc: t('onboarding.slide1Sub') },
+      { id: '2', icon: 'paper-plane-outline', title: t('onboarding.slide2Title'), desc: t('onboarding.slide2Sub') },
+      { id: '3', icon: 'call-outline', title: t('onboarding.slide3Title'), desc: t('onboarding.slide3Sub') },
+    ],
+    // language is part of the deps so slides re-render right after switching
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [language, t]
   );
 
@@ -171,7 +117,7 @@ export default function Onboarding() {
 
           <View style={styles.bottomRow}>
             {showSkip ? (
-              <TouchableOpacity onPress={() => void finish()} style={styles.skipBtn} activeOpacity={0.82}>
+              <TouchableOpacity onPress={() => void finish()} style={styles.skipBtn} activeOpacity={0.82} accessibilityRole="button">
                 <Text style={styles.skipText}>{t('onboarding.skip')}</Text>
               </TouchableOpacity>
             ) : null}
@@ -185,6 +131,9 @@ export default function Onboarding() {
                     style={[styles.languageChip, active && styles.languageChipActive]}
                     onPress={() => void handleLanguageChange(option.key)}
                     activeOpacity={0.82}
+                    accessibilityRole="button"
+                    accessibilityLabel={option.label}
+                    accessibilityState={{ selected: active }}
                   >
                     <Text style={[styles.languageText, active && styles.languageTextActive]}>
                       {option.key.toUpperCase()}

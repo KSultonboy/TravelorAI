@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Switch, Text, View } from 'react-native';
+import { Alert, Linking, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -24,6 +24,9 @@ import {
   sendLocalNotification,
 } from '../src/utils/notifications';
 
+const PRIVACY_URL = 'https://travelorai.com/privacy';
+const TERMS_URL = 'https://travelorai.com/terms';
+
 export default function SettingsScreen() {
   const { colors } = useStitchMobileStyles();
   const { t } = useTranslation();
@@ -32,6 +35,14 @@ export default function SettingsScreen() {
   useEffect(() => {
     getItem(KEYS.NOTIFICATIONS_ENABLED).then((value) => setNotif(value === 'true'));
   }, []);
+
+  const openUrl = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert(t('settings.linkErrorTitle'), url);
+    }
+  };
 
   const handleNotifToggle = async (value: boolean) => {
     if (value) {
@@ -59,11 +70,8 @@ export default function SettingsScreen() {
 
   return (
     <StitchScrollScreen>
-      <StitchHeader title="Sozlamalar" subtitle="Ilova tajribasini boshqarish" back />
-      <StitchHero
-        title="TravelorAI nazorati"
-        subtitle="Til, bildirishnoma va yordam ekranlari bitta joyda."
-      />
+      <StitchHeader title={t('profile.settings')} subtitle={t('settings.subtitle')} back />
+      <StitchHero title={t('settings.heroTitle')} subtitle={t('settings.heroSub')} />
 
       <StitchCard>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.md }}>
@@ -88,6 +96,7 @@ export default function SettingsScreen() {
           <Switch
             value={notif}
             onValueChange={handleNotifToggle}
+            accessibilityLabel={t('profile.notifications')}
             trackColor={{ false: colors.borderLight, true: colors.success }}
             thumbColor={colors.surface}
           />
@@ -95,22 +104,21 @@ export default function SettingsScreen() {
       </StitchCard>
 
       <StitchCard>
-        <StitchListRow icon="language-outline" title="Tilni tanlash" subtitle="Uzbek, English, Russian" onPress={() => router.push('/language' as any)} />
+        <StitchListRow icon="language-outline" title={t('settings.language')} subtitle="O‘zbek, Русский, English" onPress={() => router.push('/language' as any)} />
       </StitchCard>
 
       <StitchCard>
         <StitchListRow
           icon="shield-checkmark-outline"
           title={t('profile.privacy')}
-          subtitle="Maxfiylik va xavfsizlik siyosati"
-          onPress={() =>
-            Alert.alert(
-              t('profile.privacy'),
-              t('settings.privacyMsg', {
-                defaultValue: 'Maxfiylik siyosati tez orada shu sahifada alohida ko`rinishda bo`ladi.',
-              })
-            )
-          }
+          subtitle={t('settings.privacySub')}
+          onPress={() => void openUrl(PRIVACY_URL)}
+        />
+        <StitchListRow
+          icon="document-text-outline"
+          title={t('settings.terms')}
+          subtitle={t('settings.termsSub')}
+          onPress={() => void openUrl(TERMS_URL)}
         />
         <StitchListRow icon="information-circle-outline" title={t('profile.about')} subtitle={t('profile.aboutMsg')} onPress={() => Alert.alert('TravelorAI', t('profile.aboutMsg'))} />
       </StitchCard>

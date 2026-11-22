@@ -28,11 +28,15 @@ export default function TestModeBanner() {
       <View style={styles.banner}>
         <Ionicons name="flask-outline" size={15} color={colors.warning} />
         <Text style={styles.text}>
-          {t('app.testModeBanner', {
-            defaultValue: 'Test rejimi faol: ilova sinov serverida ishlayapti.',
-          })}
+          {t('app.testModeBanner')}
         </Text>
-        <TouchableOpacity onPress={() => setVisible(false)} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity
+          onPress={() => setVisible(false)}
+          style={styles.closeBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={t('a11y.close')}
+        >
           <Ionicons name="close" size={14} color={colors.warning} />
         </TouchableOpacity>
       </View>

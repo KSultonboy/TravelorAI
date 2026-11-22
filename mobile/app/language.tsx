@@ -20,7 +20,7 @@ import { getItem, KEYS, saveItem } from '../src/utils/storage';
 
 export default function LanguageScreen() {
   const { colors } = useStitchMobileStyles();
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [language, setLanguage] = useState<Language>('uz');
 
   useEffect(() => {
@@ -37,11 +37,8 @@ export default function LanguageScreen() {
 
   return (
     <StitchScrollScreen>
-      <StitchHeader title="Tilni tanlash" subtitle="Ilova tilini sozlang" back />
-      <StitchHero
-        title="Qaysi tilda davom etamiz?"
-        subtitle="TravelorAI siz tanlagan tilda marshrut, maslahat va bildirishnomalarni ko‘rsatadi."
-      />
+      <StitchHeader title={t('settings.language')} subtitle={t('language.headerSub')} back />
+      <StitchHero title={t('language.heroTitle')} subtitle={t('language.heroSub')} />
 
       <StitchCard>
         {LANGUAGE_OPTIONS.map((item) => {

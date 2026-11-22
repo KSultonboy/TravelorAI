@@ -12,18 +12,22 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import { FONTS } from '../../src/constants/fonts';
 import { RADIUS, SPACING } from '../../src/constants/spacing';
 import { type AppColors, useAppTheme } from '../../src/theme/app-theme';
 import { homeAPI } from '../../src/utils/api';
 import { extractApiData } from '../../src/utils/auth';
-import { normalizeTours, serializeTourParam, type HomeTourItem } from '../../src/utils/homeContent';
+import { normalizeTours, type HomeTourItem } from '../../src/utils/homeContent';
+import { rememberTours, tourDetailsHref } from '../../src/utils/tourCache';
 import { STITCH_IMAGES } from '../../src/components/stitch/StitchMobile';
+import TourWishlistButton from '../../src/components/TourWishlistButton';
 
 export default function HomeScreen() {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const styles = createStyles(colors);
 
   const [tours, setTours] = useState<HomeTourItem[]>([]);
@@ -38,7 +42,9 @@ export default function HomeScreen() {
           await homeAPI.getTours({ agencyOnly: true, limit: 6, page: 1 })
         );
         if (!alive) return;
-        setTours(normalizeTours(payload?.items || []));
+        const items = normalizeTours(payload?.items || []);
+        rememberTours(items);
+        setTours(items);
         setTotal(Number.isFinite(Number(payload?.total)) ? Number(payload?.total) : 0);
       } catch {
         if (alive) { setTours([]); setTotal(0); }
@@ -50,8 +56,7 @@ export default function HomeScreen() {
   }, []);
 
   const goTours = () => router.push('/(tabs)/tours' as any);
-  const openTour = (item: HomeTourItem) =>
-    router.push({ pathname: '/tour-details', params: { tour: serializeTourParam(item) } } as any);
+  const openTour = (item: HomeTourItem) => router.push(tourDetailsHref(item) as any);
 
   return (
     <ScrollView
@@ -63,9 +68,15 @@ export default function HomeScreen() {
       <View style={styles.topbar}>
         <View>
           <Text style={styles.brand}>Travelor<Text style={{ color: colors.aiAccent }}>AI</Text></Text>
-          <Text style={styles.brandSub}>Tasdiqlangan turlar bozori</Text>
+          <Text style={styles.brandSub}>{t('home.brandSub')}</Text>
         </View>
-        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.82} onPress={() => router.push('/(tabs)/profile' as any)}>
+        <TouchableOpacity
+          style={styles.iconBtn}
+          activeOpacity={0.82}
+          onPress={() => router.push('/(tabs)/profile' as any)}
+          accessibilityRole="button"
+          accessibilityLabel={t('a11y.profile')}
+        >
           <Ionicons name="person-outline" size={19} color={colors.text} />
         </TouchableOpacity>
       </View>
@@ -79,12 +90,10 @@ export default function HomeScreen() {
         <View style={styles.heroBody}>
           <View style={styles.heroBadge}>
             <Ionicons name="sparkles-outline" size={12} color={colors.onGradient} />
-            <Text style={styles.heroBadgeText}>Bepul · Vositachisiz</Text>
+            <Text style={styles.heroBadgeText}>{t('home.heroBadge')}</Text>
           </View>
-          <Text style={styles.heroTitle}>Ishonchli{'\n'}sayohat turlari</Text>
-          <Text style={styles.heroSub}>
-            Tasdiqlangan agentliklarning eng yaxshi turlarini bir joyda ko‘ring va to‘g‘ridan-to‘g‘ri bog‘laning.
-          </Text>
+          <Text style={styles.heroTitle}>{t('home.heroTitle')}</Text>
+          <Text style={styles.heroSub}>{t('home.heroSub')}</Text>
           <TouchableOpacity style={styles.heroCta} activeOpacity={0.9} onPress={goTours}>
             <LinearGradient
               colors={colors.gradientPrimary as unknown as [string, string]}
@@ -92,7 +101,7 @@ export default function HomeScreen() {
               end={{ x: 1, y: 0 }}
               style={StyleSheet.absoluteFill}
             />
-            <Text style={styles.heroCtaText}>Turlarni ko‘rish</Text>
+            <Text style={styles.heroCtaText}>{t('home.browseTours')}</Text>
             <Ionicons name="arrow-forward" size={17} color={colors.onGradient} />
           </TouchableOpacity>
         </View>
@@ -100,9 +109,9 @@ export default function HomeScreen() {
 
       {/* Featured tours */}
       <View style={styles.sectionRow}>
-        <Text style={styles.h2}>Tavsiya etilgan turlar</Text>
+        <Text style={styles.h2} accessibilityRole="header">{t('home.featuredTitle')}</Text>
         <TouchableOpacity onPress={goTours} activeOpacity={0.7}>
-          <Text style={styles.sectionAction}>Barchasi{total ? ` (${total})` : ''}</Text>
+          <Text style={styles.sectionAction}>{t('home.seeAll')}{total ? ` (${total})` : ''}</Text>
         </TouchableOpacity>
       </View>
 
@@ -111,7 +120,7 @@ export default function HomeScreen() {
       ) : tours.length === 0 ? (
         <View style={styles.emptyBox}>
           <Ionicons name="briefcase-outline" size={24} color={colors.success} />
-          <Text style={styles.emptyText}>Hozircha tur yo‘q. Tez orada qo‘shiladi.</Text>
+          <Text style={styles.emptyText}>{t('home.empty')}</Text>
         </View>
       ) : (
         <ScrollView
@@ -121,7 +130,9 @@ export default function HomeScreen() {
         >
           {tours.map((item) => (
             <TouchableOpacity key={item.id} style={styles.tourCard} activeOpacity={0.9} onPress={() => openTour(item)}>
-              <TourThumb imageUrl={item.imageUrl || null} styles={styles} colors={colors} badge={item.badge} />
+              <TourThumb imageUrl={item.imageUrl || null} styles={styles} colors={colors} badge={item.badge}>
+                <TourWishlistButton tour={item} size={16} style={styles.tourHeart} />
+              </TourThumb>
               <View style={styles.tourBody}>
                 <Text style={styles.tourTitle} numberOfLines={2}>{item.title}</Text>
                 <Text style={styles.tourCity} numberOfLines={1}>{item.city || 'Global'}{item.duration ? ` · ${item.duration}` : ''}</Text>
@@ -130,7 +141,7 @@ export default function HomeScreen() {
                     <Ionicons name="star" size={11} color={colors.gold} />
                     <Text style={styles.tourRatingText}>{Number(item.rating || 0).toFixed(1)}</Text>
                   </View>
-                  <Text style={styles.tourPrice} numberOfLines={1}>{item.price || 'So‘rovda'}</Text>
+                  <Text style={styles.tourPrice} numberOfLines={1}>{item.price || t('tours.priceOnRequest')}</Text>
                 </View>
               </View>
             </TouchableOpacity>
@@ -144,15 +155,19 @@ export default function HomeScreen() {
 }
 
 function TourThumb({
-  imageUrl, styles, colors, badge,
+  imageUrl, styles, colors, badge, children,
 }: {
   imageUrl: string | null;
   styles: ReturnType<typeof createStyles>;
   colors: AppColors;
   badge?: string;
+  children?: React.ReactNode;
 }) {
   const Badge = (
-    <View style={styles.tourBadge}><Text style={styles.tourBadgeText}>{badge || 'Tur'}</Text></View>
+    <View style={styles.tourThumbTop}>
+      <View style={styles.tourBadge}><Text style={styles.tourBadgeText}>{badge || 'Tur'}</Text></View>
+      {children}
+    </View>
   );
   if (imageUrl) {
     return (
@@ -223,6 +238,8 @@ function createStyles(colors: AppColors) {
     tourImgRadius: { borderTopLeftRadius: 22, borderTopRightRadius: 22 },
     tourPlaceholder: { backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
     tourScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(7,15,28,0.26)' },
+    tourThumbTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', alignSelf: 'stretch' },
+    tourHeart: { width: 30, height: 30, borderRadius: 15 },
     tourBadge: {
       alignSelf: 'flex-start', borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.26)',
       paddingHorizontal: 8, paddingVertical: 4,

@@ -55,7 +55,6 @@ interface NativeGoogleSigninModule {
       accessToken: string;
     }>;
     signOut: () => Promise<null>;
-    revokeAccess: () => Promise<null>;
     hasPreviousSignIn: () => boolean;
     getCurrentUser: () => unknown | null;
   };
@@ -211,10 +210,7 @@ async function completeGoogleSignInFlow(
     );
     router.push({
       pathname: '/verify-email',
-      params: {
-        email: String(responseData.email).toLowerCase(),
-        ...(responseData.devCode ? { devCode: responseData.devCode } : {}),
-      },
+      params: { email: String(responseData.email).toLowerCase() },
     });
     return;
   }
@@ -252,6 +248,9 @@ function GoogleButtonBase({
       style={[styles.button, muted && styles.buttonMuted, style]}
       onPress={onPress}
       disabled={loading}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: loading, busy: loading }}
     >
       <View style={styles.iconCircle}>
         <Text style={styles.iconText}>G</Text>
@@ -300,11 +299,15 @@ function ConfiguredNativeGoogleSignInButton({
         await nativeModule.GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       }
 
+      // The user is on a sign-in screen, i.e. picking an account. A leftover
+      // native Google session would silently reuse the previous account, so
+      // sign it out (cheap, keeps consent) to show the account chooser.
+      // We no longer revokeAccess(): that wiped the app's Google consent on
+      // every sign-in and forced the full consent screen each time.
       if (
         nativeModule.GoogleSignin.hasPreviousSignIn?.() ||
         nativeModule.GoogleSignin.getCurrentUser?.()
       ) {
-        await nativeModule.GoogleSignin.revokeAccess?.().catch(() => null);
         await nativeModule.GoogleSignin.signOut?.().catch(() => null);
       }
 
@@ -423,10 +426,7 @@ function ConfiguredOauthGoogleSignInButton({
           Alert.alert(tt('auth.verifyNeededTitle', 'Email verification required'), responseData.message || tt('auth.verifySub', 'Please verify your email.'));
           router.push({
             pathname: '/verify-email',
-            params: {
-              email: String(responseData.email).toLowerCase(),
-              ...(responseData.devCode ? { devCode: responseData.devCode } : {}),
-            },
+            params: { email: String(responseData.email).toLowerCase() },
           });
           return;
         }

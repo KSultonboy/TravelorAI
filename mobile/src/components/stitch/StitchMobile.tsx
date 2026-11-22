@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import { FONTS } from '../../constants/fonts';
 import { RADIUS, SPACING } from '../../constants/spacing';
@@ -57,30 +58,40 @@ export function StitchHeader({
   title = 'TravelorAI',
   subtitle,
   back = false,
-  menu = false,
   right,
 }: {
   title?: string;
   subtitle?: string;
   back?: boolean;
-  menu?: boolean;
   right?: React.ReactNode;
 }) {
   const { colors, styles } = useStitchMobileStyles();
-  const icon = back ? 'chevron-back' : menu ? 'menu' : 'close';
-  const fallbackPress = back ? () => router.back() : menu ? () => router.push('/side-menu' as any) : () => router.back();
+  const { t } = useTranslation();
+  const icon = back ? 'chevron-back' : 'close';
 
   return (
     <View style={styles.header}>
-      <TouchableOpacity style={styles.iconButton} onPress={fallbackPress} activeOpacity={0.82}>
-        <Ionicons name={icon as any} size={19} color={colors.text} />
+      <TouchableOpacity
+        style={styles.iconButton}
+        onPress={() => router.back()}
+        activeOpacity={0.82}
+        accessibilityRole="button"
+        accessibilityLabel={back ? t('a11y.back') : t('a11y.close')}
+      >
+        <Ionicons name={icon} size={19} color={colors.text} />
       </TouchableOpacity>
       <View style={styles.headerCopy}>
-        <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
+        <Text style={styles.headerTitle} numberOfLines={1} accessibilityRole="header">{title}</Text>
         {subtitle ? <Text style={styles.headerSub} numberOfLines={1}>{subtitle}</Text> : null}
       </View>
       {right || (
-        <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/(tabs)/profile' as any)} activeOpacity={0.82}>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => router.push('/(tabs)/profile' as any)}
+          activeOpacity={0.82}
+          accessibilityRole="button"
+          accessibilityLabel={t('a11y.profile')}
+        >
           <Ionicons name="person-outline" size={18} color={colors.text} />
         </TouchableOpacity>
       )}
@@ -119,16 +130,6 @@ export function StitchCard({
 }) {
   const { styles } = useStitchMobileStyles();
   return <View style={[styles.card, style]}>{children}</View>;
-}
-
-export function StitchSectionTitle({ title, action }: { title: string; action?: string }) {
-  const { styles } = useStitchMobileStyles();
-  return (
-    <View style={styles.sectionRow}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {action ? <Text style={styles.sectionAction}>{action}</Text> : null}
-    </View>
-  );
 }
 
 export function StitchInput({
@@ -192,6 +193,8 @@ export function StitchButton({
       onPress={onPress}
       activeOpacity={0.9}
       disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: Boolean(disabled) }}
     >
       {isPrimary ? (
         <LinearGradient
@@ -237,7 +240,12 @@ export function StitchListRow({
   const iconColor = danger ? colors.error : colors.success;
 
   return (
-    <Wrapper style={styles.listRow} onPress={onPress} activeOpacity={0.82}>
+    <Wrapper
+      style={styles.listRow}
+      onPress={onPress}
+      activeOpacity={0.82}
+      accessibilityRole={onPress ? 'button' : undefined}
+    >
       <View style={[styles.listIcon, danger && { backgroundColor: colors.errorPale }]}>
         <Ionicons name={icon} size={18} color={iconColor} />
       </View>
@@ -247,21 +255,6 @@ export function StitchListRow({
       </View>
       {right || (onPress ? <Ionicons name="chevron-forward" size={17} color={colors.textMuted} /> : null)}
     </Wrapper>
-  );
-}
-
-export function StitchStatGrid({ items }: { items: { label: string; value: string; icon?: keyof typeof Ionicons.glyphMap }[] }) {
-  const { colors, styles } = useStitchMobileStyles();
-  return (
-    <View style={styles.statGrid}>
-      {items.map((item) => (
-        <View key={item.label} style={styles.statBox}>
-          {item.icon ? <Ionicons name={item.icon} size={16} color={colors.success} /> : null}
-          <Text style={styles.statValue}>{item.value}</Text>
-          <Text style={styles.statLabel}>{item.label}</Text>
-        </View>
-      ))}
-    </View>
   );
 }
 

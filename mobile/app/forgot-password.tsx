@@ -31,9 +31,12 @@ export default function ForgotPasswordScreen() {
 
     try {
       const data = extractApiData<AuthFlowData>(await authAPI.forgotPassword({ email: normalizedEmail }));
+      if (__DEV__ && data.devCode) {
+        Alert.alert(t('auth.devCodeLabel'), data.devCode);
+      }
       router.replace({
         pathname: '/reset-password',
-        params: { email: normalizedEmail, devCode: data.devCode },
+        params: { email: normalizedEmail },
       });
     } catch (error) {
       const message = error instanceof ApiError ? error.message : t('auth.errorForgot');
@@ -46,8 +49,8 @@ export default function ForgotPasswordScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StitchScrollScreen>
-        <StitchHeader title="Parolni tiklash" subtitle="Email orqali kod oling" back />
-        <StitchHero title="Kirishni tiklaymiz" subtitle="Email manzilingizni kiriting, biz tasdiqlash kodini yuboramiz." />
+        <StitchHeader title={t('auth.forgotTitle')} subtitle={t('auth.forgotHeaderSub')} back />
+        <StitchHero title={t('auth.forgotHeroTitle')} subtitle={t('auth.forgotHeroSub')} />
         <StitchCard>
           <StitchInput label={t('auth.emailLabel')} icon="mail-outline" placeholder="email@example.com" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} />
           <StitchButton title={loading ? t('auth.sending') : t('auth.getCodeBtn')} icon="send-outline" onPress={handleContinue} disabled={loading} />
