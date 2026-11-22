@@ -505,6 +505,13 @@ model TourAgency {
   advancedFeatures        Boolean                   @default(false)
   /// Aktivatsiya ro'yxati 100% bo'lgach yopilgan vaqt.
   activationDismissedAt   DateTime?
+  // === distribution: Telegram kanal + taklif sahifasidagi to'lov havolasi ===
+  telegramChannelId       String?
+  telegramChannelTitle    String?
+  telegramChannelUsername String?
+  paymentLinkUrl          String?
+  paymentRequisitesText   String?
+  channelPosts            TourChannelPost[]
 
   @@index([active])
   @@index([tariffId])
@@ -693,6 +700,8 @@ model Tour {
   updatedAt           DateTime           @updatedAt
   bookings            TourBooking[]
   presentations       TourPresentation[]
+  // === distribution ===
+  channelPosts        TourChannelPost[]
 
   @@index([active])
   @@index([badge])
@@ -786,22 +795,22 @@ model TourBooking {
 
 // SLA va avtomatik biriktirish agentlik kesimida boshqariladi.
 model AgencyCrmSettings {
-  id                   String     @id @default(cuid())
-  agencyId             String     @unique
-  agency               TourAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  firstResponseMinutes Int        @default(30)
-  autoAssignEnabled    Boolean    @default(false)
-  roundRobinCursor     Int        @default(0)
-  reminderEnabled      Boolean    @default(true)
-  createdAt            DateTime   @default(now())
-  updatedAt            DateTime   @updatedAt
+  id                     String     @id @default(cuid())
+  agencyId               String     @unique
+  agency                 TourAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  firstResponseMinutes   Int        @default(30)
+  autoAssignEnabled      Boolean    @default(false)
+  roundRobinCursor       Int        @default(0)
+  reminderEnabled        Boolean    @default(true)
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
   // === engagement: lead alerts + weekly digest ===
-  leadAlertsEnabled      Boolean   @default(true)
-  weeklyDigestEnabled    Boolean   @default(true)
+  leadAlertsEnabled      Boolean    @default(true)
+  weeklyDigestEnabled    Boolean    @default(true)
   weeklyDigestLastSentAt DateTime?
   digestIdleNotifiedAt   DateTime? // "sizni sog'indik" xabari yuborilgan vaqt (faolsizlik 2+ hafta)
   digestTestDay          String? // YYYY-MM-DD (Toshkent) — "Hozir yuborish" limiti uchun
-  digestTestCount        Int       @default(0)
+  digestTestCount        Int        @default(0)
 }
 
 // Agentlik egasi UI orqali tuzadigan no-code trigger -> shart -> amal qoidasi.
@@ -1473,25 +1482,28 @@ model LeadFile {
 // Dinamik taklif (prezentatsiya) — agent mijozga shaxsiy link yuboradi, ochilishi kuzatiladi.
 // Public sahifada mijoz telefoni/emaili KO'RSATILMAYDI — faqat ism (agent o'zi kiritadi).
 model TourPresentation {
-  id            String       @id @default(cuid())
-  token         String       @unique
-  agencyId      String
-  agency        TourAgency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  bookingId     String?
-  booking       TourBooking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
-  tourId        String?
-  tour          Tour?        @relation(fields: [tourId], references: [id], onDelete: SetNull)
-  title         String
-  customerName  String?
-  priceText     String?
-  note          String?
-  status        String       @default("sent") // sent | viewed | interested
-  openCount     Int          @default(0)
-  firstOpenedAt DateTime?
-  lastOpenedAt  DateTime?
-  interestedAt  DateTime?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id                String       @id @default(cuid())
+  token             String       @unique
+  agencyId          String
+  agency            TourAgency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  bookingId         String?
+  booking           TourBooking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  tourId            String?
+  tour              Tour?        @relation(fields: [tourId], references: [id], onDelete: SetNull)
+  title             String
+  customerName      String?
+  priceText         String?
+  note              String?
+  status            String       @default("sent") // sent | viewed | interested
+  openCount         Int          @default(0)
+  firstOpenedAt     DateTime?
+  lastOpenedAt      DateTime?
+  interestedAt      DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  // === distribution: «To‘lash» tugmasi bosilishi (payment_clicked hodisasi) ===
+  paymentClickCount Int          @default(0)
+  paymentClickedAt  DateTime?
 
   @@index([agencyId, createdAt])
   @@index([bookingId])
@@ -1586,4 +1598,21 @@ model ProductEvent {
 
   @@index([name, createdAt])
   @@index([agencyId, createdAt])
+}
+
+// === distribution (storefront /a/[slug], Telegram kanalga joylash, to'lov havolasi) ===
+// Turni agentlik Telegram kanaliga joylash tarixi. 10 daqiqa ichida qayta
+// joylash bloklanadi (force: true bo'lmasa) — shu jadval bo'yicha tekshiriladi.
+model TourChannelPost {
+  id                String     @id @default(cuid())
+  agencyId          String
+  agency            TourAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  tourId            String
+  tour              Tour       @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  channelId         String
+  messageId         String
+  postedAt          DateTime   @default(now())
+  postedByAccountId String?
+
+  @@index([agencyId, tourId, postedAt])
 }

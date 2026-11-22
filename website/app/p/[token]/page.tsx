@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Check, Clock3, MapPin, Moon, Phone, Send, X } from "lucide-react";
 import PresentationActions from "@/components/marketing/PresentationActions";
+import PresentationPayment from "@/components/marketing/PresentationPayment";
 import RouteMap, { type RouteStop } from "@/components/marketing/RouteMap";
 import { fetchPresentation, type Presentation } from "@/lib/marketingApi";
 import { publicImageSrc } from "@/lib/imageUrls";
@@ -215,6 +216,7 @@ export default async function PresentationPage({ params }: { params: Promise<{ t
           </div>
           <ContactButtons agency={agency} />
         </section>
+        {p.payment ? <PresentationPayment token={token} payment={p.payment} /> : null}
 
         {p.note ? (
           <section className="pres-note">

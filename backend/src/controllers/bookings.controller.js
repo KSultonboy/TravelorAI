@@ -89,21 +89,36 @@ function formatBooking(booking) {
 async function create(req, res) {
   try {
     const input = createBookingSchema.parse(req.body || {});
-    const where = input.tourId ? { id: input.tourId } : { slug: input.tourSlug };
-    const tour = await prisma.tour.findFirst({
-      where: {
-        ...where,
-        active: true,
-        approvalStatus: 'approved',
-        // Lid har doim tasdiqlangan, faol agentlikka tushishi shart — egasiz
-        // (agencyId null) yoki rad etilgan agentlik turiga bron qabul qilinmaydi.
-        agencyId: { not: null },
-        agency: { is: { active: true, approvalStatus: 'approved' } },
-      },
-      include: { agency: true },
-    });
+    let tour = null;
+    let agencyId = null;
+    if (input.tourId || input.tourSlug) {
+      const where = input.tourId ? { id: input.tourId } : { slug: input.tourSlug };
+      tour = await prisma.tour.findFirst({
+        where: {
+          ...where,
+          active: true,
+          approvalStatus: 'approved',
+          // Lid har doim tasdiqlangan, faol agentlikka tushishi shart — egasiz
+          // (agencyId null) yoki rad etilgan agentlik turiga bron qabul qilinmaydi.
+          agencyId: { not: null },
+          agency: { is: { active: true, approvalStatus: 'approved' } },
+        },
+        include: { agency: true },
+      });
 
-    if (!tour || !tour.agencyId) return error(res, 'Tour topilmadi yoki hali public emas', 404);
+      if (!tour || !tour.agencyId) return error(res, 'Tour topilmadi yoki hali public emas', 404);
+      // Storefront turni tanlab yuborsa — tur aynan shu agentlikniki bo'lishi shart.
+      if (input.agencyId && tour.agencyId !== input.agencyId) return error(res, 'Tour topilmadi yoki hali public emas', 404);
+      agencyId = tour.agencyId;
+    } else {
+      // Umumiy so'rov (storefront): tur yo'q, lid faqat faol + tasdiqlangan agentlikka tushadi.
+      const agency = await prisma.tourAgency.findFirst({
+        where: { id: input.agencyId, active: true, approvalStatus: 'approved' },
+        select: { id: true },
+      });
+      if (!agency) return error(res, 'Agentlik topilmadi yoki hozircha faol emas', 404);
+      agencyId = agency.id;
+    }
 
     const userId = req.user?.id || null;
     if (userId) {
@@ -112,15 +127,16 @@ async function create(req, res) {
         return error(res, 'Booking emaili akkauntingiz emailiga mos bo‘lishi kerak', 400);
       }
     }
-    const totalEstimate = tour.priceMin ? tour.priceMin * input.travelers : null;
+    const totalEstimate = tour?.priceMin ? tour.priceMin * input.travelers : null;
     const responseDeadlineAt = new Date(
-      Date.now() + Math.max(5, Number(tour.responseTimeMinutes || 45)) * 60 * 1000
+      Date.now() + Math.max(5, Number(tour?.responseTimeMinutes || 45)) * 60 * 1000
     );
-    const autoMember = tour.agencyId ? await assignNextMember(tour.agencyId) : null;
+    const autoMember = agencyId ? await assignNextMember(agencyId) : null;
     const booking = await prisma.tourBooking.create({
       data: {
-        tourId: tour.id,
-        agencyId: tour.agencyId,
+        tourId: tour ? tour.id : null,
+        agencyId,
+        ...(tour ? {} : { leadTour: 'Umumiy so‘rov' }),
         userId,
         customerName: input.customerName,
         customerEmail: input.customerEmail ? input.customerEmail.toLowerCase() : null,
@@ -129,7 +145,7 @@ async function create(req, res) {
         travelDate: input.travelDate ? new Date(input.travelDate) : null,
         message: input.message || null,
         totalEstimate,
-        currency: tour.priceCurrency || 'USD',
+        currency: tour?.priceCurrency || 'USD',
         source: input.source || 'mobile',
         utmSource: input.utmSource || null,
         utmMedium: input.utmMedium || null,
@@ -142,7 +158,7 @@ async function create(req, res) {
       },
       include: { tour: true, agency: { include: { ownerAccount: true } } },
     });
-    if (booking.agencyId) productEvents.track('lead_created', { agencyId: booking.agencyId, props: { source: 'marketplace' } });
+    if (booking.agencyId) productEvents.track('lead_created', { agencyId: booking.agencyId, props: { source: booking.source === 'storefront' ? 'storefront' : 'marketplace' } });
 
     // Notify the agency about the new lead (free) — fire-and-forget
     const agencyEmail = booking.agency?.ownerAccount?.email || null;
@@ -150,7 +166,7 @@ async function create(req, res) {
       sendBookingLeadEmail({
         to: agencyEmail,
         agencyName: booking.agency.name,
-        tourTitle: booking.tour?.title,
+        tourTitle: booking.tour?.title || booking.leadTour || 'Umumiy so‘rov',
         customerName: booking.customerName,
         customerPhone: booking.customerPhone,
         customerEmail: booking.customerEmail,

@@ -48,6 +48,7 @@ import { ExecutiveReportsPage } from "./ExecutiveReportsPage";
 import { TrialBanner, isTrialExpired, EngagementSettings, useSettingsTabRequest } from "./features/engagement";
 import ActivationChecklist from "./features/activation/ActivationChecklist";
 import { useAdvancedFeatures } from "./features/activation/useAdvancedFeatures";
+import { ChannelPostButton, DistributionSettings, PaymentClickBadge } from "./features/distribution";
 
 /* ---- tiny inline icons ---- */
 const I = {
@@ -2341,7 +2342,7 @@ function Presentations({ show, items, leads, tours, reload, readOnly }: any) {
                   <tr key={p.id}>
                     <td><b>{p.title}</b>{p.tourTitle && p.tourTitle !== p.title ? <><br /><small style={{ color: "#8aa398" }}>{p.tourTitle}</small></> : null}</td>
                     <td>{p.customerName || <span style={{ color: "#8aa398" }}>—</span>}</td>
-                    <td><span className={`badge2 ${s.cls}`} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Ic d={s.icon} s={11} /> {s.label}</span></td>
+                    <td><span className={`badge2 ${s.cls}`} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Ic d={s.icon} s={11} /> {s.label}</span><PaymentClickBadge p={p} /></td>
                     <td>{p.openCount || 0}</td>
                     <td>{p.lastOpenedAt ? timeAgo(p.lastOpenedAt) : <span style={{ color: "#8aa398" }}>Ochilmagan</span>}</td>
                     <td>
@@ -2420,6 +2421,7 @@ function Packages({ show, tours, agencyId, refreshTours, readOnly }: any) {
                 {!readOnly && t.approvalStatus === "draft" ? (
                   <button className="btn btn-primary btn-sm" style={{ marginTop: 8, width: "100%" }} disabled={busyId === t.id} onClick={() => void submitTour(t)}>{busyId === t.id ? "E'lon qilinmoqda..." : "Saytda e'lon qilish"}</button>
                 ) : null}
+                <ChannelPostButton tour={t} readOnly={readOnly} />
               </div>
             </div>
           ))}
@@ -3902,6 +3904,7 @@ const SETTINGS_MENU: { key: string; icon: string; label: string; desc: string }[
   { key: "profile", icon: I.box, label: "Agentlik ma'lumotlari", desc: "Nomi, logotipi, telefoni va tavsifi" },
   { key: "links", icon: I.send, label: "Ulanishlar", desc: "Telegram, Instagram Direct va WhatsApp Business" },
   { key: "alerts", icon: I.bell, label: "Xabarnomalar", desc: "Yangi lid haqida Telegram xabari va haftalik hisobot" },
+  { key: "distribution", icon: I.link, label: "Sotuv kanallari", desc: "Do‘kon sahifasi havolasi, Telegram kanal va taklifdagi to‘lov havolasi" },
   { key: "team", icon: I.users, label: "Jamoa va rollar", desc: "Xodimlarni qo'shish, huquqlarni belgilash" },
   { key: "account", icon: I.lock, label: "Hisob", desc: "Tizimdan chiqish" },
 ];
@@ -3960,6 +3963,7 @@ function Settings({ show, agency, go, refresh, logout, access, readOnly }: any) 
               {advanced ? <WhatsappCard go={go} /> : null}
             </div>
           ) : null}
+          {tab === "distribution" ? <DistributionSettings readOnly={readOnly} /> : null}
           {tab === "team" ? <TeamSection access={access} /> : null}
           {tab === "alerts" ? <EngagementSettings canEdit={agencyRoleOf(access) === "owner"} go={go} /> : null}
           {tab === "account" ? (

@@ -7,5 +7,6 @@ const presentation = require('../controllers/presentation.controller');
 router.get('/:token', presentation.publicPresentation);
 router.post('/:token/open', presentation.trackOpen);
 router.post('/:token/interest', presentation.markInterest);
+router.post('/:token/payment-click', require('../controllers/agencyDistribution.controller').trackPaymentClick);
 
 module.exports = router;

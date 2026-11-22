@@ -6,6 +6,7 @@ const { success, error } = require('../utils/response');
 const { ensureApprovedAgency } = require('./agency.controller');
 const tg = require('../services/telegram.service');
 const productEvents = require('../services/productEvents.service');
+const { publicPayment } = require('../services/distribution.service');
 
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://travelorai.com').replace(/\/$/, '');
 
@@ -37,6 +38,8 @@ function shape(p) {
     bookingId: p.bookingId || null,
     tourId: p.tourId || null,
     tourTitle: p.tour ? p.tour.title : null,
+    paymentClickCount: p.paymentClickCount || 0, // payment_clicked hodisasi (distribution)
+    paymentClickedAt: p.paymentClickedAt || null,
   };
 }
 
@@ -149,7 +152,10 @@ async function publicPresentation(req, res) {
       where: { token: String(req.params.token) },
       include: {
         agency: {
-          select: { name: true, city: true, phone: true, telegram: true, imageUrl: true, slug: true },
+          select: {
+            name: true, city: true, phone: true, telegram: true, imageUrl: true, slug: true,
+            paymentLinkUrl: true, paymentRequisitesText: true,
+          },
         },
         tour: {
           select: {
@@ -164,6 +170,7 @@ async function publicPresentation(req, res) {
     });
     if (!p) return error(res, 'Taklif topilmadi', 404);
 
+    const { paymentLinkUrl, paymentRequisitesText, ...agency } = p.agency || {};
     return success(res, {
       title: p.title,
       customerName: p.customerName || null,
@@ -171,8 +178,9 @@ async function publicPresentation(req, res) {
       note: p.note || null,
       interested: p.status === 'interested',
       createdAt: p.createdAt,
-      agency: p.agency,
+      agency: p.agency ? agency : null,
       tour: p.tour,
+      payment: publicPayment({ paymentLinkUrl, paymentRequisitesText }),
     });
   } catch (err) {
     return error(res, err.message, 500);
