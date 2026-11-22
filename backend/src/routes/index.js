@@ -56,7 +56,7 @@ router.get('/health', async (req, res) => {
   } catch {}
 
   try {
-    if (redisClient.isOpen) cacheStatus = 'connected';
+    if (redisClient.isReady) cacheStatus = 'connected';
   } catch {}
 
   res.json({
