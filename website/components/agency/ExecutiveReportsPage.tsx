@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { agencyApi } from "@/lib/agency/api";
+import { useAdvancedFeatures } from "./features/activation/useAdvancedFeatures";
 
 type Branch = { id: string; name: string; city?: string | null; address?: string | null; active: boolean };
 type Member = { id: string; name: string; role: string; status: string; branchId?: string | null; payrollProfile?: PayrollProfile | null };
@@ -49,6 +50,7 @@ function shortDate(value: string) {
 
 export function ExecutiveReportsPage({ show, readOnly }: { show: boolean; readOnly: boolean }) {
   const [tab, setTab] = useState<Tab>("pnl");
+  const advanced = useAdvancedFeatures(); // payroll + filiallar — kengaytirilgan modul
   const [month, setMonth] = useState(monthValue());
   const [currency, setCurrency] = useState("USD");
   const [data, setData] = useState<Payload | null>(null);
@@ -87,12 +89,12 @@ export function ExecutiveReportsPage({ show, readOnly }: { show: boolean; readOn
       </div>
       {error ? <div className="note note-err">{error}</div> : null}
       {notice ? <div className="note" style={{ color: "var(--primary)" }}>{notice}</div> : null}
-      <div className="exec-tabs">{(Object.keys(TAB_LABEL) as Tab[]).map((key) => <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>{TAB_LABEL[key]}</button>)}</div>
+      <div className="exec-tabs">{(Object.keys(TAB_LABEL) as Tab[]).filter((key) => advanced || (key !== "payroll" && key !== "branches")).map((key) => <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>{TAB_LABEL[key]}</button>)}</div>
       {!data && loading ? <div className="card exec-empty">Hisobot hisoblanmoqda…</div> : null}
       {data && tab === "pnl" ? <Pnl data={data} currency={currency} maxMonth={maxMonth} /> : null}
       {data && tab === "cashflow" ? <Cashflow data={data} currency={currency} /> : null}
-      {data && tab === "payroll" ? <Payroll data={data} currency={currency} readOnly={readOnly} mutate={mutate} /> : null}
-      {data && tab === "branches" ? <Branches data={data} currency={currency} readOnly={readOnly} mutate={mutate} /> : null}
+      {data && advanced && tab === "payroll" ? <Payroll data={data} currency={currency} readOnly={readOnly} mutate={mutate} /> : null}
+      {data && advanced && tab === "branches" ? <Branches data={data} currency={currency} readOnly={readOnly} mutate={mutate} /> : null}
       <style jsx>{`
         .exec-head{gap:16px;align-items:flex-end}.exec-filters{display:flex;gap:8px;flex-wrap:wrap}.exec-filters input,.exec-filters select{height:38px;width:auto;min-width:100px}
         .exec-tabs{display:flex;gap:6px;padding:5px;background:var(--surface,#fff);border:1px solid var(--border);border-radius:13px;margin:14px 0;overflow:auto}.exec-tabs button{border:0;background:transparent;padding:9px 14px;border-radius:9px;font:inherit;font-weight:600;color:var(--muted);white-space:nowrap;cursor:pointer}.exec-tabs button.active{background:var(--primary);color:#fff}

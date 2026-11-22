@@ -10,8 +10,10 @@ import HeroSearch from "@/components/marketing/HeroSearch";
 import CountUp from "@/components/marketing/CountUp";
 import TourCard from "@/components/marketing/TourCard";
 import FaqAccordion from "@/components/marketing/FaqAccordion";
-import { fetchTours, fetchPlaces, fetchHeroImage, fetchToursCount, fetchAgenciesCount } from "@/lib/marketingApi";
+import ProductEventPing from "@/components/marketing/ProductEventPing";
+import { fetchTours, fetchPlaces, fetchHeroImage, fetchToursCount, fetchAgenciesCount, fetchTariffs } from "@/lib/marketingApi";
 import { publicImageSrc } from "@/lib/imageUrls";
+import { agencyOfferLine } from "@/lib/agencyPricing";
 
 export const metadata: Metadata = {
   title: "TravelorAI — AI sayohat platformasi",
@@ -49,24 +51,31 @@ const FAQS = [
   { q: "Foydalanish pullikmi?", a: "Yo‘q. Sayohatchilar uchun platforma mutlaqo bepul — turlarni ko‘rish, taqqoslash va so‘rov yuborish hech qanday to‘lovsiz." },
   { q: "Agentliklar ishonchlimi?", a: "Ha. Platformada faqat tasdiqlangan (verified) turagentliklar turlari ko‘rsatiladi — shaffof narx, reyting va javob muddati bilan." },
   { q: "Qanday bron qilaman?", a: "Yoqqan turni tanlab, ism va aloqa ma’lumotingizni qoldirasiz. So‘rovingiz to‘g‘ridan-to‘g‘ri agentlikka boradi va ular siz bilan bog‘lanadi." },
-  { q: "Agentlik bo‘lib qo‘shilsam bo‘ladimi?", a: "Albatta! /partners sahifasi orqali ariza qoldiring. Tasdiqlangach o‘z kabinetingizda turlaringizni joylaysiz va bepul mijoz so‘rovlarini olasiz." },
 ];
 
 /* eslint-disable @next/next/no-img-element */
 export default async function HomePage() {
-  const [tours, places, heroImg, toursCount, agenciesCount] = await Promise.all([
+  const [tours, places, heroImg, toursCount, agenciesCount, tariffs] = await Promise.all([
     fetchTours(8),
     fetchPlaces(8),
     fetchHeroImage(),
     fetchToursCount(),
     fetchAgenciesCount(),
+    fetchTariffs(),
   ]);
   const heroSrc = heroImg ? publicImageSrc(heroImg) : null;
+  // Agentliklar uchun halol pozitsiya — narx backenddagi eng arzon tarifdan.
+  const offerLine = agencyOfferLine(tariffs);
+  const faqs = [
+    ...FAQS,
+    { q: "Agentlik bo‘lib qo‘shilsam bo‘ladimi?", a: `Albatta! /partners sahifasi orqali ariza qoldiring. ${offerLine} Tasdiqlangach turlaringizni joylaysiz va sayohatchilar so‘rovlarini olasiz.` },
+  ];
   // WebSite + SearchAction JSON-LD root layout'da (bitta, /tours?q= bilan) —
   // bu yerdagi ikkinchi, ?region= bilan ziddiyatli nusxa olib tashlandi.
 
   return (
     <MarketingShell transparentHeader>
+      <ProductEventPing name="landing_view" />
       {/* HERO */}
       <section className="mkt-hero">
         <div className="mkt-hero__bg" aria-hidden="true">
@@ -224,7 +233,7 @@ export default async function HomePage() {
               <p className="mkt-lead">Bron va platforma haqida qisqa javoblar.</p>
             </Reveal>
             <Reveal delay={100} as="div">
-              <FaqAccordion items={FAQS} />
+              <FaqAccordion items={faqs} />
             </Reveal>
           </div>
         </div>
@@ -237,6 +246,21 @@ export default async function HomePage() {
             <h2>Keyingi sayohatingizni bugun rejalashtiring</h2>
             <p>AI yordamida shaxsiy marshrut tuzing yoki tasdiqlangan agentlik turini bron qiling — bir necha daqiqada.</p>
             <Link className="btn btn--gold btn--lg" href="/tours">Turlarni ko‘rish <ArrowRight size={18} /></Link>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* AGENTLIKLAR UCHUN — halol narx pozitsiyasi */}
+      <section className="mkt-section">
+        <div className="mkt-wrap">
+          <Reveal className="mkt-section__head mkt-section__head--center">
+            <span className="mkt-eyebrow">Turagentliklar uchun</span>
+            <h2 className="mkt-h2">Turlaringizni joylang, mijozlarni CRMda yuriting</h2>
+            <p className="mkt-lead" style={{ margin: "14px auto 0" }}>{offerLine}</p>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginTop: 24 }}>
+              <Link className="btn btn--navy btn--md" href="/partners">Agentlik sifatida qo‘shilish <ArrowRight size={16} /></Link>
+              <Link className="btn btn--ghost btn--md" href="/pricing">Tariflar</Link>
+            </div>
           </Reveal>
         </div>
       </section>

@@ -18,7 +18,7 @@ export default function OfferPage() {
   return (
     <LegalDoc
       title="Ommaviy oferta"
-      updated="2026-yil iyul"
+      updated="2026-yil noyabr"
       intro="Ushbu hujjat TravelorAI platformasidan (keyingi o'rinlarda — Platforma) obuna asosida foydalanish bo'yicha ommaviy oferta hisoblanadi. Ro'yxatdan o'tish yoki to'lovni amalga oshirish orqali siz quyidagi shartlarni to'liq va so'zsiz qabul qilgan hisoblanasiz."
       sections={[
         {
@@ -60,7 +60,7 @@ export default function OfferPage() {
           body: [
             "Amaldagi tariflar va ularning narxlari travelorai.com/pricing sahifasida O'zbekiston so'mida e'lon qilinadi va ushbu ofertaning ajralmas qismi hisoblanadi.",
             "To'lov oldindan (avans) tartibida, tanlangan obuna muddati uchun to'liq amalga oshiriladi. Obuna standart muddati — 1 (bir) oy, agar boshqa muddat tanlanmagan bo'lsa.",
-            "To'lov O'zbekiston Respublikasida ro'yxatdan o'tgan to'lov tizimlari (CLICK, Payme) yoki bank o'tkazmasi orqali qabul qilinadi. To'lov tizimlari xizmatlari uchun komissiya (agar mavjud bo'lsa) to'lov tizimi qoidalari bo'yicha belgilanadi.",
+            "To'lov O'zbekiston Respublikasida ro'yxatdan o'tgan to'lov tizimi (CLICK) yoki bank o'tkazmasi orqali qabul qilinadi. To'lov tizimlari xizmatlari uchun komissiya (agar mavjud bo'lsa) to'lov tizimi qoidalari bo'yicha belgilanadi.",
             "To'lov Ijrochi hisobiga tushgan lahzadan obuna avtomatik faollashadi va Platformada obuna muddati ko'rsatiladi.",
             "Obuna muddati tugagach va yangi to'lov amalga oshirilmasa, Platforma «faqat o'qish» rejimiga o'tadi: ma'lumotlar saqlanadi, lekin yangi yozuvlar kiritish cheklanadi. Ma'lumotlar obuna tugaganidan keyin kamida 6 (olti) oy saqlanadi.",
             "Ijrochi tariflarni o'zgartirish huquqiga ega. Narx o'zgarishi allaqachon to'langan obuna muddatiga taalluqli emas va saytda kamida 15 (o'n besh) kun oldin e'lon qilinadi.",

@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { connection } from "next/server";
+import { headers } from "next/headers";
 import AttributionCapture from "@/components/marketing/AttributionCapture";
+import UmamiAnalytics from "@/components/marketing/UmamiAnalytics";
+import { umamiConfig } from "@/lib/umami";
 import { jsonLdScript } from "@/lib/jsonLd";
 import "./globals.scss";
 import "../styles/landing-v2.scss";
@@ -144,6 +147,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // sahifalar so'rov vaqtida render qilinishi SHART (statik HTML'dagi
   // skriptlarda nonce bo'lmaydi va brauzer ularni bloklaydi).
   await connection();
+  // Ixtiyoriy Umami (faqat ommaviy sahifalar, CSP nonce bilan) — env bo'lmasa o'chiq.
+  const umami = umamiConfig();
+  const nonce = umami ? (await headers()).get("x-nonce") || undefined : undefined;
   return (
     // suppressHydrationWarning: dark-mode sets `data-theme` on <html> before
     // hydration (and browser extensions inject attributes on <body>) — this keeps
@@ -157,6 +163,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body suppressHydrationWarning>
         <AttributionCapture />
+        {umami ? <UmamiAnalytics src={umami.src} websiteId={umami.websiteId} nonce={nonce} /> : null}
         {children}
       </body>
     </html>

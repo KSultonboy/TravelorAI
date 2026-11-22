@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { BarChart3, Globe2, ShieldCheck, Wallet } from "lucide-react";
 import MarketingShell from "@/components/marketing/MarketingShell";
 import PageHero from "@/components/marketing/PageHero";
 import Reveal from "@/components/marketing/Reveal";
 import PartnerForm from "@/components/marketing/PartnerForm";
+import { fetchTariffs } from "@/lib/marketingApi";
+import { agencyOfferLine } from "@/lib/agencyPricing";
 
 export const metadata: Metadata = {
   title: "Hamkorlar uchun",
-  description: "Turagentligi sifatida TravelorAI platformasiga qo'shiling — yangi mijozlar, raqamli kanal va shaffof bozor. Hoziroq ariza qoldiring.",
+  description: "Turagentligi sifatida TravelorAI platformasiga qo'shiling. Saytda joylashtirish bepul, CRM — 14 kun bepul sinov. Hoziroq ariza qoldiring.",
   alternates: { canonical: "/partners" },
 };
 
@@ -17,7 +20,7 @@ const BENEFITS = [
   { icon: Globe2, title: "Yangi mijoz oqimi", text: "Minglab faol sayohatchilar sizning turlaringizni TravelorAI orqali topadi." },
   { icon: BarChart3, title: "Raqamli kanal", text: "Turlaringizni qo'shing, bron va so'rovlarni bitta paneldan boshqaring." },
   { icon: ShieldCheck, title: "Ishonch belgisi", text: "Tasdiqlangan hamkor sifatida reyting va sharhlar bilan ishonch qozoning." },
-  { icon: Wallet, title: "Shaffof bozor", text: "Komissiyasiz model — mijoz siz bilan to'g'ridan-to'g'ri bog'lanadi." },
+  { icon: Wallet, title: "Shaffof narx", text: "Komissiyasiz model — mijoz siz bilan to'g'ridan-to'g'ri bog'lanadi. CRM uchun faqat oylik obuna." },
 ];
 
 const STEPS = [
@@ -27,13 +30,14 @@ const STEPS = [
   { n: 4, title: "Mijoz qabul qiling", text: "So'rovlarni qabul qiling va sayohatchilar bilan ishlang." },
 ];
 
-export default function PartnersPage() {
+export default async function PartnersPage() {
+  const offerLine = agencyOfferLine(await fetchTariffs());
   return (
     <MarketingShell>
       <PageHero
         eyebrow="Hamkorlar uchun"
         title="Turagentligingizni raqamlashtiring"
-        subtitle="TravelorAI tasdiqlangan turagentliklarini sayohatchilar bilan bog'laydi. Yangi mijozlar, kuchli brend va oson boshqaruv — bir platformada."
+        subtitle={`TravelorAI tasdiqlangan turagentliklarini sayohatchilar bilan bog'laydi. ${offerLine}`}
         image={HERO}
       />
 
@@ -83,6 +87,7 @@ export default function PartnersPage() {
               <span className="mkt-eyebrow">Boshlang</span>
               <h2 className="mkt-h2" style={{ marginBottom: 14 }}>Hoziroq ariza qoldiring</h2>
               <p className="mkt-lead">Ariza yuborilgach, emailingizga tasdiqlash kodi keladi. Hisob tasdiqlanib, admin ko'rib chiqqach, agentlik portaliga to'liq kirish ochiladi.</p>
+              <p className="mkt-lead" style={{ marginTop: 10 }}><b>{offerLine}</b> <Link href="/pricing">Tariflar →</Link></p>
             </Reveal>
             <Reveal delay={120}>
               <PartnerForm />
