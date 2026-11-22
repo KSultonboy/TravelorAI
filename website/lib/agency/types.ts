@@ -164,6 +164,9 @@ export type AgencyAccess = {
   daysLeft: number | null;
   sections: string[];
   caps: Record<string, boolean>;
+  // engagement: grandfathered | trial | trial_expired | active | expired
+  accessState?: string;
+  trialEndsAt?: string | null;
 };
 
 export type MeData = {
