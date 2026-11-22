@@ -18,5 +18,6 @@ router.get('/tours/:idOrSlug', getTour); // bitta public tur (slug, keyin id)
 router.get('/agencies', getAgencies);
 router.get('/stories', getStories);
 router.post('/interactions', recordInteraction);
+router.post('/events', require('../controllers/productEvents.controller').publicEvent); // landing_view, agency_signup_started
 
 module.exports = router;

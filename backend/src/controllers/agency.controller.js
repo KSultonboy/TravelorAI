@@ -24,6 +24,7 @@ const { resolveTourImageUrl } = require('../utils/tourImage');
 const { bookingStatusSchema } = require('../schemas/booking.schema');
 const { formatBooking } = require('./bookings.controller');
 const reviewService = require('../services/review.service');
+const productEvents = require('../services/productEvents.service');
 const { assignNextMember } = require('../services/crmAutomation.service');
 const { ensurePipelineStages, findPipelineStage, stageTransitionData } = require('../services/crmPipeline.service');
 const {
@@ -141,6 +142,7 @@ function publicAgency(agency) {
     imageUrl: agency.imageUrl,
     active: agency.active,
     approvalStatus: agency.approvalStatus,
+    advancedFeatures: agency.advancedFeatures !== false,
   };
 }
 
@@ -594,6 +596,7 @@ async function register(req, res) {
         });
 
     const delivery = await issueAgencyCode(account);
+    if (!existing) productEvents.track('agency_registered', { userId: account.id, props: { method: 'email' } });
     return success(res, {
       account: publicAccount(account),
       requiresVerification: true,
@@ -632,6 +635,7 @@ async function verifyEmail(req, res) {
       },
     });
 
+    productEvents.track('agency_email_verified', { userId: updated.id, props: { method: 'email' } });
     const token = agencyToken(updated);
     return success(res, { token, account: publicAccount(updated) });
   } catch (err) {
@@ -759,7 +763,10 @@ async function googleAuth(req, res) {
           status: 'pending',
         },
       });
+      productEvents.track('agency_registered', { userId: account.id, props: { method: 'google' } });
+      productEvents.track('agency_email_verified', { userId: account.id, props: { method: 'google' } });
     } else {
+      if (!account.emailVerified) productEvents.track('agency_email_verified', { userId: account.id, props: { method: 'google' } });
       // Pre-hijack himoyasi: bu emailga parol bilan ochilgan, lekin email
       // tasdiqlanmagan akkaunt bo'lsa, o'sha parol yaroqsiz qilinadi (passwordHash
       // NOT NULL — shuning uchun hech kim bilmaydigan tasodifiy hash qo'yiladi).
@@ -978,6 +985,7 @@ async function submitApplication(req, res) {
       data: { status: 'pending' },
     });
 
+    productEvents.track('agency_application_submitted', { userId: req.agencyAccount.id });
     return success(res, { application: publicApplication(updated) });
   } catch (err) {
     return error(res, err.errors?.[0]?.message || err.message, 400);
@@ -1106,6 +1114,7 @@ async function submitTour(req, res) {
       include: { agency: true },
     });
 
+    productEvents.trackOnce('first_tour_published', { agencyId: agency.id, userId: req.agencyAccount.id, props: { via: 'agency' } });
     return success(res, publicTour(tour));
   } catch (err) {
     return error(res, err.message, 500);
@@ -1156,6 +1165,7 @@ async function updateBookingStatus(req, res) {
       data: bookingStatusData(input),
       include: { tour: true, agency: true },
     });
+    if (input.status === 'confirmed' && existing.status !== 'confirmed') productEvents.trackLeadWon(updated, { userId: req.agencyAccount.id });
 
     return success(res, { booking: formatBooking(updated), stats: await getBookingStats(agency.id) });
   } catch (err) {
@@ -1262,6 +1272,7 @@ async function createManualLead(req, res) {
       data: { agencyId: agency.id, bookingId: booking.id, actorAccountId: req.agencyAccount.id, type: 'created', text: "Lid qo'lda yaratildi" },
     });
     require('../services/leadAlert.service').notifyNewLead(booking, { source: 'manual' });
+    productEvents.track('lead_created', { agencyId: agency.id, userId: req.agencyAccount.id, props: { source: booking.source } });
     return success(res, { booking: formatBooking(booking) }, 201);
   } catch (err) {
     return error(res, err.message, 400);
@@ -1317,6 +1328,7 @@ async function updatePipelineStage(req, res) {
       data: { agencyId: agency.id, bookingId: existing.id, actorAccountId: req.agencyAccount.id, type: 'stage', text: `Bosqich: ${stage.name}` },
     });
     // Sayohat "yakunlandi"ga o'tdi — mijozdan Telegram orqali baho so'raymiz (fire-and-forget).
+    if ((stage.systemType || stage.key) === 'won' && existing.pipelineStage !== stage.key) productEvents.trackLeadWon(updated, { userId: req.agencyAccount.id });
     if ((stage.systemType || stage.key) === 'completed' && existing.pipelineStage !== stage.key) {
       reviewService.sendReviewRequest(updated.agency, updated).catch(() => {});
     }

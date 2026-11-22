@@ -499,6 +499,12 @@ model TourAgency {
   // NULL = grandfathered (migratsiyadan oldingi agentliklar, sinov yo'q).
   trialEndsAt             DateTime?
   trialReminderStage      Int                       @default(0) // 0 hech narsa, 1 = "3 kun qoldi", 2 = "tugadi" yuborilgan
+  /// Kengaytirilgan modullar (API/webhook, avtomatizatsiya, bank solishtirish, payroll,
+  /// filiallar, hujjat tasdiq/e-imzo, WhatsApp, AI izoh). Migratsiya mavjud agentliklar
+  /// uchun TRUE qo'ygan; yangi agentliklar FALSE — admin yoqadi.
+  advancedFeatures        Boolean                   @default(false)
+  /// Aktivatsiya ro'yxati 100% bo'lgach yopilgan vaqt.
+  activationDismissedAt   DateTime?
 
   @@index([active])
   @@index([tariffId])
@@ -1564,4 +1570,20 @@ model TelegramMessage {
   @@index([agencyId])
   @@index([bookingId])
   @@index([agencyId, channel, createdAt])
+}
+
+// === Activation & product analytics ===
+/// Server tomonidagi mahsulot voronkasi hodisalari (uchinchi tomon trekeri yo'q).
+/// PII yozilmaydi: props har bir hodisa uchun ruxsat etilgan kalitlar bilan cheklangan.
+/// Relation YO'Q — agentlik o'chirilsa ham voronka tarixi saqlanadi.
+model ProductEvent {
+  id        String   @id @default(cuid())
+  name      String
+  agencyId  String?
+  userId    String?
+  props     Json?
+  createdAt DateTime @default(now())
+
+  @@index([name, createdAt])
+  @@index([agencyId, createdAt])
 }

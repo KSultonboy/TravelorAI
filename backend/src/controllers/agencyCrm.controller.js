@@ -4,6 +4,7 @@ const { success, error } = require('../utils/response');
 const { inspectCsv, mapCsv } = require('../services/crmCsv.service');
 const { assignNextMember, getSettings, markFirstResponse, OPEN_STAGES } = require('../services/crmAutomation.service');
 const { customStageKey, ensurePipelineStages, stageDto, stageTransitionData } = require('../services/crmPipeline.service');
+const productEvents = require('../services/productEvents.service');
 
 function agencyOr404(req, res) {
   if (!req.agency?.id) { error(res, 'Agentlik topilmadi', 404); return null; }
@@ -450,6 +451,7 @@ async function commitCsv(req, res) {
       return { batchId: batch.id, imported };
     });
     require('../services/leadAlert.service').notifyLeadImport(agency.id, { count: result.imported, fileName: req.body?.fileName, source: 'csv' });
+    if (result && result.imported > 0) productEvents.track('lead_created', { agencyId: agency.id, userId: req.agencyAccount.id, props: { source: 'csv', count: result.imported } });
     return success(res, {
       ...result,
       skipped: analysis.duplicateRows + analysis.parsed.errors.length,

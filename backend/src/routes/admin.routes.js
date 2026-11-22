@@ -7,6 +7,7 @@ const integrations = require('../controllers/adminIntegration.controller');
 
 router.use(adminAuthMiddleware);
 router.use('/engagement', require('./adminEngagement.routes')); // sinov muddatlari (ko'rish/uzaytirish)
+router.use(require('./adminGrowth.routes')); // GET /funnel, PATCH /agencies/:id/advanced-features
 
 router.get('/stats', admin.getStats);
 

@@ -4,6 +4,7 @@ const { recordAudit } = require('../services/audit.service');
 const { enqueueWebhookEvent } = require('../services/webhookDelivery.service');
 const { ensurePipelineStages, findPipelineStage, stageTransitionData } = require('../services/crmPipeline.service');
 const leadAlert = require('../services/leadAlert.service');
+const productEvents = require('../services/productEvents.service');
 
 const LEAD_SELECT = {
   id: true, customerName: true, customerEmail: true, customerPhone: true, travelers: true,
@@ -72,6 +73,7 @@ async function createLead(req, res) {
       enqueueWebhookEvent({ agencyId: req.agency.id, type: 'lead.created', entityType: 'lead', entityId: lead.id, payload: lead }),
     ]);
     leadAlert.notifyNewLead({ ...lead, agencyId: req.agency.id }, { source: 'api' });
+    productEvents.track('lead_created', { agencyId: req.agency.id, props: { source: 'api' } });
     return success(res, lead, 201);
   } catch (err) { return error(res, err.message, 400); }
 }

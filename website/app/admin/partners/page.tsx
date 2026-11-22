@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { api } from "@/lib/adminApi";
 import { StatusBadge, Spinner, EmptyState, Toast } from "@/components/admin/ui";
+import AdvancedFeaturesToggle from "@/components/admin/AdvancedFeaturesToggle";
 
 type Partner = {
   id: string;
@@ -14,6 +15,7 @@ type Partner = {
   phone?: string;
   submittedAt?: string;
   account?: { email?: string } | null;
+  agency?: { id: string; advancedFeatures?: boolean } | null;
 };
 
 function fmt(d?: string) { try { return d ? new Date(d).toLocaleDateString("uz-UZ", { day: "numeric", month: "short", year: "numeric" }) : "—"; } catch { return "—"; } }
@@ -65,7 +67,7 @@ export default function PartnersPage() {
       ) : (
         <div className="adm-table-wrap">
           <table className="adm-table">
-            <thead><tr><th>Agentlik</th><th>Email</th><th>Shahar</th><th>Holat</th><th>Sana</th><th>Amallar</th></tr></thead>
+            <thead><tr><th>Agentlik</th><th>Email</th><th>Shahar</th><th>Holat</th><th>Sana</th><th title="Kengaytirilgan modullar">Modullar</th><th>Amallar</th></tr></thead>
             <tbody>
               {items.map((p) => (
                 <tr key={p.id}>
@@ -74,6 +76,7 @@ export default function PartnersPage() {
                   <td>{p.city || "—"}</td>
                   <td><StatusBadge status={p.status} /></td>
                   <td>{fmt(p.submittedAt)}</td>
+                  <td><AdvancedFeaturesToggle agencyId={p.agency?.id} initial={p.agency?.advancedFeatures} onError={setToast} /></td>
                   <td>
                     <div className="adm-actions">
                       {p.status !== "approved" ? <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => review(p.id, "approve", "approved")}>Tasdiqlash</button> : null}

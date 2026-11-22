@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Bell, Building2, ClipboardList, CreditCard, LayoutDashboard, LogOut, Menu, MessageSquareWarning,
+  Bell, Building2, ClipboardList, CreditCard, Funnel, LayoutDashboard, LogOut, Menu, MessageSquareWarning,
   PackageSearch, Search, TrendingUp, Users, Wallet,
 } from "lucide-react";
 import { adminLogout, fetchMe, type AdminUser } from "@/lib/adminApi";
@@ -17,6 +17,7 @@ const NAV = [
   { href: "/admin/listings", label: "Turlar (listing)", icon: PackageSearch },
   { href: "/admin/bookings", label: "Bronlar", icon: ClipboardList },
   { href: "/admin/reports", label: "Hisobotlar", icon: TrendingUp },
+  { href: "/admin/funnel", label: "Voronka", icon: Funnel },
   { href: "/admin/users", label: "Foydalanuvchilar", icon: Users },
   { href: "/admin/feedback", label: "Fikr & shikoyat", icon: MessageSquareWarning },
 ];
@@ -26,6 +27,7 @@ const TITLES: Record<string, string> = {
   "/admin/billing": "To'lovlar & obuna", "/admin/tariffs": "Tariflar",
   "/admin/listings": "Turlar (listing)", "/admin/bookings": "Bronlar", "/admin/reports": "Hisobotlar",
   "/admin/users": "Foydalanuvchilar", "/admin/feedback": "Fikr & shikoyat",
+  "/admin/funnel": "Mahsulot voronkasi",
 };
 
 export default function AdminShell({ children }: { children: ReactNode }) {

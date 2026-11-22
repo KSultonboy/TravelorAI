@@ -8,6 +8,7 @@ const { success, error } = require('../utils/response');
 const { resolveTourImageUrl } = require('../utils/tourImage');
 const tg = require('../services/telegram.service');
 const leadAlert = require('../services/leadAlert.service');
+const productEvents = require('../services/productEvents.service');
 
 const MAX_AGE_SEC = 24 * 60 * 60; // eski initData qabul qilinmaydi
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://travelorai.com').replace(/\/$/, '');
@@ -269,6 +270,7 @@ async function request(req, res) {
           pipelineStage: 'new',
         },
       });
+      productEvents.track('lead_created', { agencyId: agency.id, props: { source: 'telegram_miniapp' } });
     }
 
     await prisma.telegramMessage.create({

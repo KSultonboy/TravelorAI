@@ -5,11 +5,12 @@ import MarketingShell from "@/components/marketing/MarketingShell";
 import PageHero from "@/components/marketing/PageHero";
 import Reveal from "@/components/marketing/Reveal";
 import { fetchTariffs, type PublicTariff } from "@/lib/marketingApi";
+import { CRM_TRIAL_DAYS, agencyOfferLine } from "@/lib/agencyPricing";
 
 export const metadata: Metadata = {
   title: "Tariflar",
   description:
-    "TravelorAI CRM tariflari — Starter, Pro va Premium. Narxlar O'zbekiston so'mida, to'lov CLICK yoki Payme orqali.",
+    "TravelorAI CRM tariflari — Starter, Pro va Premium. CRM 14 kun bepul, keyin oylik obuna. Narxlar O'zbekiston so'mida, to'lov CLICK orqali.",
   alternates: { canonical: "/pricing" },
 };
 
@@ -43,13 +44,14 @@ export default async function PricingPage() {
   const all = fetched.length ? fetched : FALLBACK;
   const plans = all.filter((t) => t.slug !== "enterprise" && t.priceMonthlyUzs > 0);
   const list = plans.length ? plans : FALLBACK;
+  const offerLine = agencyOfferLine(list);
 
   return (
     <MarketingShell>
       <PageHero
         eyebrow="Agentliklar uchun"
         title="Tariflar"
-        subtitle="Bir oylik obuna — hech qanday yashirin to'lov yo'q. Istalgan vaqtda tarifni o'zgartirasiz."
+        subtitle={`${offerLine} Yashirin to'lov yo'q, tarifni istalgan vaqtda o'zgartirasiz.`}
         image={HERO}
       />
 
@@ -70,7 +72,7 @@ export default async function PricingPage() {
                       <b>{som(t.priceMonthlyUzs)}</b>
                       <span>so&apos;m / oy</span>
                     </div>
-                    <p className="mkt-plan__usd">QQS bilan · istalgan vaqtda bekor qilasiz</p>
+                    <p className="mkt-plan__usd">Birinchi {CRM_TRIAL_DAYS} kun bepul · QQS bilan · istalgan vaqtda bekor qilasiz</p>
 
                     <ul className="mkt-plan__list">
                       {feats.map((f) => (
@@ -90,7 +92,9 @@ export default async function PricingPage() {
             </div>
 
             <div className="mkt-pay-note">
-              <span>To&apos;lov usullari: <strong>CLICK</strong> · <strong>Payme</strong> · bank o&apos;tkazmasi</span>
+              <span>CRM <strong>{CRM_TRIAL_DAYS} kun bepul</strong> — karta talab qilinmaydi</span>
+              <span>·</span>
+              <span>To&apos;lov usuli: <strong>CLICK</strong> · bank o&apos;tkazmasi</span>
               <span>·</span>
               <span>Barcha narxlar QQS bilan, O&apos;zbekiston so&apos;mida</span>
             </div>
@@ -108,6 +112,10 @@ export default async function PricingPage() {
             </p>
 
             <h2>Ko&apos;p beriladigan savollar</h2>
+            <p>
+              <b>Bepul nima?</b> Turlaringizni saytda joylashtirish va sayohatchilardan so&apos;rov olish — bepul.
+              CRM kabineti birinchi {CRM_TRIAL_DAYS} kun bepul; keyin tanlangan tarif bo&apos;yicha oylik obuna.
+            </p>
             <p>
               <b>Obuna qanday faollashadi?</b> To&apos;lov o&apos;tgan zahoti agentlik kabinetida obuna avtomatik
               faollashadi — kutish kerak emas.

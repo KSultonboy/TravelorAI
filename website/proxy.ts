@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isPublicMarketingPath, umamiConfig } from "@/lib/umami";
 
 /**
  * Content-Security-Policy — har so'rovga yangi nonce.
@@ -35,6 +36,8 @@ function isTelegramMiniApp(pathname: string) {
 function buildCsp(nonce: string, pathname: string) {
   const isDev = process.env.NODE_ENV !== "production";
   const api = apiOrigin();
+  // Umami xosti CSP'ga faqat sozlanganda va faqat ommaviy sahifalarda qo'shiladi.
+  const umamiHost = isPublicMarketingPath(pathname) ? umamiConfig()?.origin || "" : "";
 
   const directives: Record<string, string[]> = {
     "default-src": ["'self'"],
@@ -45,6 +48,7 @@ function buildCsp(nonce: string, pathname: string) {
       `${GOOGLE_ACCOUNTS}/gsi/client`,
       TELEGRAM_SCRIPT,
       CLICK,
+      ...(umamiHost ? [umamiHost] : []),
       ...(isDev ? ["'unsafe-eval'"] : []),
     ],
     "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", `${GOOGLE_ACCOUNTS}/gsi/style`],
@@ -61,6 +65,7 @@ function buildCsp(nonce: string, pathname: string) {
       "ipc:",
       "http://ipc.localhost",
       ...(api ? [api] : []),
+      ...(umamiHost ? [umamiHost] : []),
       ...(isDev ? ["ws:", "http://localhost:4000"] : []),
     ],
     "frame-src": [

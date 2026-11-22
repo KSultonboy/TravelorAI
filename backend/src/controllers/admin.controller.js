@@ -5,6 +5,7 @@ const { adminReviewSchema } = require('../schemas/agency.schema');
 const { bookingStatusSchema } = require('../schemas/booking.schema');
 const { formatBooking } = require('./bookings.controller');
 const { resolveTourImageUrl } = require('../utils/tourImage');
+const productEvents = require('../services/productEvents.service');
 const crypto = require('crypto');
 const fs = require('fs/promises');
 const path = require('path');
@@ -108,7 +109,7 @@ const ADMIN_AGENCY_SELECT = Object.freeze({
   active: true, source: true, sourceUrl: true, lastVerifiedAt: true, confidenceScore: true,
   featured: true, manualBoost: true, qualityScore: true, landingSortOrder: true,
   approvalStatus: true, approvedAt: true, rejectedAt: true, adminNote: true,
-  createdAt: true, updatedAt: true,
+  createdAt: true, updatedAt: true, advancedFeatures: true,
 });
 
 const ADMIN_ACCOUNT_SELECT = Object.freeze({
@@ -1019,6 +1020,7 @@ async function approveAgencyApplication(req, res) {
       }),
     ]);
 
+    if (application.status !== 'approved') productEvents.track('agency_approved', { agencyId: agency.id, userId: application.accountId });
     return success(res, updated);
   } catch (err) {
     return error(res, err.errors?.[0]?.message || err.message, 400);
@@ -1124,6 +1126,7 @@ async function approveTour(req, res) {
         data.approvedAt = tour.agency?.approvedAt || now;
       }
       await prisma.tourAgency.update({ where: { id: tour.agencyId }, data });
+      productEvents.trackOnce('first_tour_published', { agencyId: tour.agencyId, props: { via: 'admin' } });
     }
 
     return success(res, tour);

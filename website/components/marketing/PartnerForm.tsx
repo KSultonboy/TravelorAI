@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { Building2, CheckCircle2, FileText, Lock, Mail, MapPin, Phone, ShieldCheck, User } from "lucide-react";
 import { normalizeUzPhone } from "./BookingPanel";
+import { trackPublicEventOnce } from "@/lib/productEvents";
 
 /** Agentlik xizmat turlari — backend `serviceTypes` (string[], 1..12, har biri ≥2 belgi). */
 const SERVICE_TYPES = [
@@ -178,7 +179,7 @@ export default function PartnerForm() {
   }
 
   return (
-    <form className="mkt-form-card" onSubmit={onRegister} noValidate>
+    <form className="mkt-form-card" onSubmit={onRegister} onFocusCapture={() => trackPublicEventOnce("agency_signup_started")} noValidate>
       <h3 style={{ margin: "0 0 4px" }}>Hamkorlik arizasi</h3>
       <p style={{ color: "var(--muted)", margin: "0 0 6px", fontSize: "0.9rem" }}>To‘ldiring — jamoamiz 1 ish kuni ichida bog‘lanadi.</p>
       {err ? <div className="mkt-alert mkt-alert--error" role="alert">{err}</div> : null}
