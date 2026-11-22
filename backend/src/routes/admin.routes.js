@@ -6,6 +6,7 @@ const agency = require('../controllers/agency.controller');
 const integrations = require('../controllers/adminIntegration.controller');
 
 router.use(adminAuthMiddleware);
+router.use(require('./adminGrowth.routes')); // GET /funnel, PATCH /agencies/:id/advanced-features
 
 router.get('/stats', admin.getStats);
 

@@ -9,6 +9,7 @@ const instagram = require('./instagram.controller');
 const whatsapp = require('./whatsapp.controller');
 const { DEFAULT_BIRTHDAY, fillBirthday } = require('../services/scheduler.service');
 const reviewService = require('../services/review.service');
+const productEvents = require('../services/productEvents.service');
 const { assignNextMember, markFirstResponse } = require('../services/crmAutomation.service');
 
 const PUBLIC_BASE = process.env.PUBLIC_API_URL || 'https://travelorai.com/api/v1';
@@ -81,6 +82,7 @@ async function connectTelegram(req, res) {
         telegramBotActive: true,
       },
     });
+    productEvents.track('telegram_bot_connected', { agencyId: agency.id, userId: req.agencyAccount && req.agencyAccount.id });
     return success(res, { connected: true, username: updated.telegramBotUsername });
   } catch (err) {
     return error(res, err.message, 400);
@@ -458,6 +460,7 @@ async function webhook(req, res) {
           branchId: autoMember?.branchId || null,
         },
       });
+      productEvents.track('lead_created', { agencyId: agency.id, props: { source: 'telegram' } });
     }
 
     await prisma.telegramMessage.create({

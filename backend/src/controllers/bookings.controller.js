@@ -4,6 +4,7 @@ const { createBookingSchema } = require('../schemas/booking.schema');
 const { sendBookingLeadEmail } = require('../services/email.service');
 const { resolveTourImageUrl } = require('../utils/tourImage');
 const { assignNextMember } = require('../services/crmAutomation.service');
+const productEvents = require('../services/productEvents.service');
 
 function formatBooking(booking) {
   if (!booking) return null;
@@ -140,6 +141,7 @@ async function create(req, res) {
       },
       include: { tour: true, agency: { include: { ownerAccount: true } } },
     });
+    if (booking.agencyId) productEvents.track('lead_created', { agencyId: booking.agencyId, props: { source: 'marketplace' } });
 
     // Notify the agency about the new lead (free) — fire-and-forget
     const agencyEmail = booking.agency?.ownerAccount?.email || null;

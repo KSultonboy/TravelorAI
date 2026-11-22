@@ -5,6 +5,7 @@ const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { ensureApprovedAgency } = require('./agency.controller');
 const tg = require('../services/telegram.service');
+const productEvents = require('../services/productEvents.service');
 
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://travelorai.com').replace(/\/$/, '');
 
@@ -103,6 +104,7 @@ async function createPresentation(req, res) {
       include: { tour: { select: { title: true } } },
     });
 
+    productEvents.track('offer_sent', { agencyId: agency.id, userId: req.agencyAccount && req.agencyAccount.id });
     return success(res, shape(created), 201);
   } catch (err) {
     return error(res, err.message, 400);
@@ -203,6 +205,7 @@ async function trackOpen(req, res) {
 
     // Faqat BIRINCHI ochilishda xabar beramiz — har qayta ochilishda spam bo'lmasin.
     if (!p.firstOpenedAt) {
+      productEvents.track('offer_opened', { agencyId: p.agency && p.agency.id });
       notifyAgent(
         p.agency,
         `👁 ${p.customerName || 'Mijoz'} taklifni hozir ochdi\n«${p.title}»\n\nEng yaxshi payt — hoziroq bogʻlaning.`

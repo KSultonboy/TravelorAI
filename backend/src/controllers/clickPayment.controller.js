@@ -19,6 +19,7 @@ const { prisma } = require('../config/database');
 const { logger } = require('../config/logger');
 const { success, error } = require('../utils/response');
 const click = require('../config/click');
+const productEvents = require('../services/productEvents.service');
 
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://travelorai.com').replace(/\/$/, '');
 
@@ -250,6 +251,7 @@ async function complete(req, res) {
     }
 
     if (!claimed) return replyForCurrentState(res, tx.id, b, merchantTransId);
+    productEvents.track('subscription_paid', { agencyId: tx.agencyId, props: { plan: tx.tariffSlug, months: tx.months } });
 
     return clickReply(res, {
       error: ERR.OK,
@@ -362,6 +364,7 @@ async function checkout(req, res) {
       },
     });
 
+    productEvents.track('checkout_started', { agencyId: agency.id, userId: req.agencyAccount && req.agencyAccount.id, props: { plan: tariff.slug, months } });
     const payUrl = click.buildPayUrl({
       merchantTransId,
       amount,
