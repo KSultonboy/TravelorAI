@@ -208,6 +208,7 @@ function startScheduler() {
     try { await runAutoArchive(); } catch { /* ignore */ }
     try { await runInstagramTokenRefresh(); } catch { /* ignore */ }
     try { await runSlaMonitor(); } catch { /* ignore */ }
+    try { await require('./paymentSchedule.service').runPaymentScheduleJobs(); } catch { /* ignore */ } // 10:00+ Toshkent, idempotent
   };
   setTimeout(tick, 45_000); // boot'дан 45s keyin bir marta
   setInterval(tick, 30 * 60 * 1000); // keyin har 30 daqiqada

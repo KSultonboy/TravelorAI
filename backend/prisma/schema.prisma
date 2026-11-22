@@ -1554,3 +1554,32 @@ model TelegramMessage {
   @@index([bookingId])
   @@index([agencyId, channel, createdAt])
 }
+
+// === Money & groups: mijoz to'lov jadvali (avans / bo'lib to'lash) ===
+// Lid (TourBooking) bo'yicha rejalashtirilgan to'lov bo'laklari. Summa —
+// FinanceTransaction kabi butun son (valyuta birligida), valyuta alohida.
+// Bo'lak to'langanda moliya bo'limiga bitta `income` FinanceTransaction
+// yoziladi (financeTransactionId @unique — ikki marta yozilmaydi).
+// Bog'lanishsiz (skalyar id'lar) — divergent prod DB uchun xavfsiz (LeadFile kabi).
+model PaymentInstalment {
+  id                   String    @id @default(cuid())
+  agencyId             String
+  bookingId            String
+  title                String
+  amount               Int
+  currency             String    @default("USD")
+  dueDate              DateTime // kalendar sanasi, UTC yarim tun (YYYY-MM-DDT00:00:00Z)
+  status               String    @default("planned") // planned | paid | cancelled
+  paidAt               DateTime?
+  paidAmount           Int?
+  financeTransactionId String?   @unique
+  note                 String?
+  position             Int       @default(0)
+  createdByAccountId   String?
+  reminderSentAt       DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([agencyId, status, dueDate])
+  @@index([bookingId])
+}
