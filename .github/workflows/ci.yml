@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  backend:
+    name: Backend (jest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      NODE_ENV: test
+      # Dummy values only — tests must not touch real services.
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci_db
+      JWT_SECRET: ci-only-jwt-secret-not-used-anywhere
+      REDIS_URL: redis://127.0.0.1:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx jest --coverage=false
+
+  website:
+    name: Website (tsc + next build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: website
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      NEXT_PUBLIC_API_URL: https://travelorai.com/api/v1
+      NEXT_PUBLIC_SITE_URL: https://travelorai.com
+      NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID: 401741517790-11c61fghvchvld521kdi0fu4ee1mo2af.apps.googleusercontent.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx next build
+
+  website-lint:
+    name: Website lint (non-blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # KvCabinet.tsx has many pre-existing `any` — report, don't block.
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: npm ci
+      - run: npx eslint .
+
+  mobile:
+    name: Mobile (tsc)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit

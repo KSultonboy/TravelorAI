@@ -1,5 +1,22 @@
-node_modules
-npm-debug.log
-.env
+# VCS / tooling
 .git
+.gitignore
+.dockerignore
+Dockerfile
+
+# dependencies are installed inside the image
+node_modules
+npm-debug.log*
+
+# secrets — runtime env comes from the container (/app/.env on the server or compose env)
+.env
+.env.*
+
+# tests and local artefacts
+tests
+coverage
+tmp
+uploads
+scripts/_*
 *.md
+*.log

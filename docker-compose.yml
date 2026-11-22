@@ -1,99 +1,128 @@
-version: '3.9'
+# TravelorAI — LOCAL DEVELOPMENT ONLY.
+#
+# Production does NOT use this file (production = two podman containers on
+# 178.18.245.174, deployed with scripts/deploy-*.sh — see AGENTS.md §3).
+#
+# Usage (see README.md "Run locally"):
+#   cp .env.example .env        # then fill ADMIN_* values
+#   docker compose up -d        # postgres + redis + backend + website
+#   docker compose up -d postgres redis   # only DB/cache, run apps natively
+#
+# All host ports bind to 127.0.0.1 and are configurable from the root .env.
+# Admin credentials have NO defaults — compose refuses to start without them.
+
+name: travelorai-dev
 
 services:
-
   postgres:
     image: postgres:16-alpine
-    container_name: travelorai_postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: travelorai_db
       POSTGRES_USER: travelorai
-      POSTGRES_PASSWORD: travelorai_pass
+      POSTGRES_PASSWORD: ${TRAVELORAI_PG_PASSWORD:-travelorai_pass}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - '5433:5432'
+      - '127.0.0.1:${TRAVELORAI_PG_PORT:-5435}:5432'
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U travelorai -d travelorai_db']
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   redis:
     image: redis:7-alpine
-    container_name: travelorai_redis
     restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
     ports:
-      - '6380:6379'
+      - '127.0.0.1:${TRAVELORAI_REDIS_PORT:-6381}:6379'
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: travelorai_backend
+      target: dev
     restart: unless-stopped
-    env_file: ./backend/.env
+    # Optional: your backend/.env (API keys etc.). Values in `environment:`
+    # below win. backend/.env itself is NOT mounted into the container, because
+    # server.js loads /app/.env with override:true and would replace the
+    # container DATABASE_URL/REDIS_URL with your host values.
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
-      PORT: 4000
-      DATABASE_URL: postgresql://travelorai:travelorai_pass@postgres:5432/travelorai_db
+      NODE_ENV: development
+      PORT: '4000'
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://travelorai:${TRAVELORAI_PG_PASSWORD:-travelorai_pass}@postgres:5432/travelorai_db
       REDIS_URL: redis://redis:6379
-      ALLOWED_ORIGINS: http://localhost,http://127.0.0.1,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8081,http://localhost:19006,https://travelorai.com,https://www.travelorai.com
+      ADMIN_SECRET_KEY: ${ADMIN_SECRET_KEY:?Set ADMIN_SECRET_KEY in the root .env (see .env.example)}
+      ALLOWED_ORIGINS: http://localhost:${TRAVELORAI_WEBSITE_PORT:-3000},http://127.0.0.1:${TRAVELORAI_WEBSITE_PORT:-3000},http://localhost:8081,http://localhost:19006
+    # Source is bind-mounted file-by-file so the image's Linux node_modules
+    # stay in place. After changing package.json/package-lock.json run:
+    #   docker compose build backend
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/prisma:/app/prisma
+      - ./backend/scripts:/app/scripts
+      - ./backend/tests:/app/tests
+      - ./backend/uploads:/app/uploads
+      - ./backend/server.js:/app/server.js:ro
+      - ./backend/app.js:/app/app.js:ro
+      - ./backend/package.json:/app/package.json:ro
+    command: sh -c "npx prisma generate && exec npx nodemon --legacy-watch server.js"
     ports:
-      - '4000:4000'
+      # Set TRAVELORAI_BACKEND_BIND=0.0.0.0 to reach the API from a phone on the LAN.
+      - '${TRAVELORAI_BACKEND_BIND:-127.0.0.1}:${TRAVELORAI_BACKEND_PORT:-4000}:4000'
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
 
   website:
-    build:
-      context: ./website
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_SITE_URL: https://travelorai.com
-    container_name: travelorai_website
+    image: node:20-bookworm-slim
     restart: unless-stopped
-    env_file:
-      - ./backend/.env
+    working_dir: /app
     environment:
-      NEXT_PUBLIC_SITE_URL: https://travelorai.com
-      NEXT_PUBLIC_API_URL: https://travelorai.com/api/v1
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: '1'
+      WATCHPACK_POLLING: 'true'
+      NEXT_PUBLIC_SITE_URL: http://localhost:${TRAVELORAI_WEBSITE_PORT:-3000}
+      NEXT_PUBLIC_API_URL: http://localhost:${TRAVELORAI_BACKEND_PORT:-4000}/api/v1
+      NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID:-}
       ADMIN_API_URL: http://backend:4000/api/v1
       AGENCY_API_URL: http://backend:4000/api/v1
-      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-travelorai_admin_session_change_me}
-      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
-      NODE_ENV: production
-    depends_on:
-      - backend
-    expose:
-      - '3000'
-
-  nginx:
-    build:
-      context: ./nginx
-      dockerfile: Dockerfile
-    container_name: travelorai_nginx
-    restart: unless-stopped
+      HOME_API_URL: http://backend:4000/api/v1
+      ADMIN_SECRET_KEY: ${ADMIN_SECRET_KEY:?Set ADMIN_SECRET_KEY in the root .env (see .env.example)}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:?Set ADMIN_USERNAME in the root .env (see .env.example)}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in the root .env (see .env.example)}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:?Set ADMIN_SESSION_SECRET in the root .env (see .env.example)}
+    # node_modules and .next live in named volumes: the Windows host's
+    # node_modules contain win32 native binaries that do not run in Linux.
+    volumes:
+      - ./website:/app
+      - website_node_modules:/app/node_modules
+      - website_next:/app/.next
+    command: >-
+      sh -c "if [ ! -x node_modules/.bin/next ] || ! cmp -s package-lock.json node_modules/.ci-lock;
+      then npm ci && cp package-lock.json node_modules/.ci-lock; fi
+      && exec npx next dev -H 0.0.0.0 -p 3000"
     ports:
-      - '80:80'
+      - '127.0.0.1:${TRAVELORAI_WEBSITE_PORT:-3000}:3000'
     depends_on:
       - backend
-      - website
 
 volumes:
   postgres_data:
   redis_data:
+  website_node_modules:
+  website_next:

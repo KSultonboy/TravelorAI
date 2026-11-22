@@ -1,16 +1,18 @@
 {
   "identifier": "default",
-  "description": "TravelorAI CRM asosiy oyna. Remote (travelorai.com) sahifaga faqat IPC va o'z buyruqlarimiz (check_update / install_update / open_external / save_download) ochiladi — fayl tizimi, shell va boshqa pluginlar BERILMAYDI.",
+  "description": "TravelorAI CRM asosiy oyna. IPC faqat agentlik CRM (/agency...) va kirish (/signin...) sahifalariga ochiladi va faqat ilovaning o'z buyruqlari (check_update / install_update / open_external / save_download). core:* (oyna, menyu, tray, event, path...), fayl tizimi, shell va boshqa pluginlar BERILMAYDI — window.__TAURI__.core.invoke o'z buyruqlarimiz uchun hech qanday core ruxsatini talab qilmaydi.",
   "windows": [
     "main"
   ],
   "permissions": [
-    "core:default",
     "allow-update-commands"
   ],
   "remote": {
     "urls": [
-      "https://travelorai.com/*"
+      "https://travelorai.com/agency",
+      "https://travelorai.com/agency/*",
+      "https://travelorai.com/signin",
+      "https://travelorai.com/signin/*"
     ]
   }
 }

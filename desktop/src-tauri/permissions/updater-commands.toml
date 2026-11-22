@@ -8,7 +8,10 @@
 # (buyruq bajarish) va boshqa hech narsa berilmaydi.
 #
 # save_download — faylni «Yuklanmalar» papkasiga saqlaydi (nom tozalanadi,
-# faqat .html/.csv, 8 MB chegara). Boshqa papkaga yozib bo'lmaydi.
+# faqat .html/.csv, 8 MB chegara). Boshqa papkaga yozib bo'lmaydi. Fayl
+# avtomatik OCHILMAYDI — faqat native "Ochilsinmi?" oynasida «Ha» bosilsa.
+#
+# install_update — faqat native "Ha/Yo'q" tasdiq oynasidan keyin o'rnatadi.
 #
 # open_external — tashqi havolani tizim brauzeri/ilovasida ochadi. Rust
 # tomonida sxema qat'iy tekshiriladi (https/http/tel/mailto), shuning uchun

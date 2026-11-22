@@ -66,6 +66,11 @@ mobile/metro*.log
 website/next
 website/website@0.1.0
 
+# desktop installers are published to GitHub Releases (desktop/publish-update.sh);
+# only website/public/desktop/latest.json stays in git
+website/public/desktop/*.exe
+website/public/desktop/*.exe.sig
+
 # editor / OS
 .idea/
 .vscode/
@@ -75,3 +80,8 @@ Thumbs.db
 mobile/fcm-service-account.json
 **/*service-account*.json
 **/serviceAccountKey*.json
+
+# business files with partner contacts/credentials — never commit
+TravelorAI-Hamkor*.docx
+TravelorAI-Hamkor*.xlsx
+outputs/

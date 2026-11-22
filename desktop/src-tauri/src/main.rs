@@ -2,13 +2,25 @@
 // Hostlangan CRMni (travelorai.com) native oynada ochadi; login/kontent o'sha
 // saytdan keladi — sayt yangilansa app ham yangilanadi.
 //
-// YANGILANISH (updater): native qobiqni yangilash uchun ikkita buyruq ochilgan.
-// Remote sahifaga BUTUN Tauri API berilmaydi — faqat quyidagilar:
+// REMOTE SAHIFAGA OCHILGAN BUYRUQLAR (capabilities/default.json — faqat
+// https://travelorai.com/agency... va /signin... sahifalari uchun):
 //   check_update()   -> joriy/oxirgi versiya, yangilanish bormi
-//   install_update() -> yuklab o'rnatadi va ilovani qayta ishga tushiradi
+//   install_update() -> NATIVE "Ha/Yo'q" oynasida foydalanuvchi tasdiqlasa,
+//                       yuklab o'rnatadi va ilovani qayta ishga tushiradi
 //   open_external()  -> tashqi havolani TIZIM brauzeri/ilovasida ochadi
-// Fayl tizimi, shell (buyruq bajarish) va boshqa pluginlar OCHILMAGAN.
+//                       (faqat https/http/tel/mailto)
+//   save_download()  -> faylni «Yuklanmalar»ga saqlaydi; faylni OCHISH faqat
+//                       native tasdiq oynasida «Ha» bosilsa
+// Fayl tizimi, shell (buyruq bajarish), core:* (oyna/menyu/tray) va boshqa
+// pluginlar remote sahifaga OCHILMAGAN.
+//
+// Nega native oyna: remote sahifada XSS bo'lsa ham, hujumchi foydalanuvchi
+// bosmasdan yangilanishni o'rnatib/ilovani qayta ishga tushira olmaydi va
+// yozilgan faylni avtomatik ocha olmaydi. Native MessageBox'ni webview
+// ichidagi JS bosa olmaydi.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri_plugin_updater::UpdaterExt;
 
@@ -23,6 +35,79 @@ struct UpdateInfo {
     /// Yangilanish izohi (release notes)
     notes: Option<String>,
 }
+
+// ---------------------------------------------------------------------------
+// Native tasdiqlash oynasi (Windows MessageBox). Yangi dependency emas: `windows`
+// crate'i tauri'ning o'zi ishlatadigan versiya va feature'lar bilan ulangan.
+// ---------------------------------------------------------------------------
+
+/// Bir vaqtda faqat bitta tasdiq oynasi. Sahifa buyruqni ketma-ket chaqirib
+/// oynalarni "spam" qila olmasligi uchun — ikkinchi chaqiruv darhol rad etiladi.
+static DIALOG_OPEN: AtomicBool = AtomicBool::new(false);
+
+/// Foydalanuvchidan native "Ha/Yo'q" so'raydi. Faqat «Ha» bosilsa `true`.
+/// Standart tugma — «Yo'q» (Enter tasodifan tasdiqlamaydi).
+async fn confirm_native(app: &tauri::AppHandle, title: String, text: String) -> bool {
+    if DIALOG_OPEN.swap(true, Ordering::SeqCst) {
+        return false;
+    }
+    let owner = owner_hwnd(app);
+    let answer = tauri::async_runtime::spawn_blocking(move || native_yes_no(owner, &title, &text))
+        .await
+        .unwrap_or(false);
+    DIALOG_OPEN.store(false, Ordering::SeqCst);
+    answer
+}
+
+#[cfg(windows)]
+fn owner_hwnd(app: &tauri::AppHandle) -> isize {
+    use tauri::Manager;
+    app.get_webview_window("main")
+        .and_then(|w| w.hwnd().ok())
+        .map(|h| h.0 as isize)
+        .unwrap_or(0)
+}
+
+#[cfg(not(windows))]
+fn owner_hwnd(_app: &tauri::AppHandle) -> isize {
+    0
+}
+
+#[cfg(windows)]
+fn native_yes_no(owner: isize, title: &str, text: &str) -> bool {
+    use windows::core::HSTRING;
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        MessageBoxW, IDYES, MB_DEFBUTTON2, MB_ICONQUESTION, MB_SETFOREGROUND, MB_YESNO,
+    };
+
+    let hwnd = if owner == 0 {
+        None
+    } else {
+        Some(HWND(owner as *mut core::ffi::c_void))
+    };
+    let text = HSTRING::from(text);
+    let title = HSTRING::from(title);
+    let result = unsafe {
+        MessageBoxW(
+            hwnd,
+            &text,
+            &title,
+            MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2 | MB_SETFOREGROUND,
+        )
+    };
+    result == IDYES
+}
+
+/// Windows'dan boshqa platformada native oyna yo'q — xavfsiz tomonga: rad.
+#[cfg(not(windows))]
+fn native_yes_no(_owner: isize, _title: &str, _text: &str) -> bool {
+    false
+}
+
+// ---------------------------------------------------------------------------
+// Buyruqlar
+// ---------------------------------------------------------------------------
 
 #[tauri::command]
 async fn check_update(app: tauri::AppHandle) -> Result<UpdateInfo, String> {
@@ -46,6 +131,8 @@ async fn check_update(app: tauri::AppHandle) -> Result<UpdateInfo, String> {
     }
 }
 
+/// Yangilanishni o'rnatadi — FAQAT foydalanuvchi native oynada «Ha» bossa.
+/// Paket imzosi updater pubkey bilan tekshiriladi (tauri.conf.json).
 #[tauri::command]
 async fn install_update(app: tauri::AppHandle) -> Result<bool, String> {
     let updater = app.updater().map_err(|e| e.to_string())?;
@@ -53,6 +140,21 @@ async fn install_update(app: tauri::AppHandle) -> Result<bool, String> {
 
     match found {
         Some(update) => {
+            let current = app.package_info().version.to_string();
+            let confirmed = confirm_native(
+                &app,
+                "TravelorAI CRM — yangilanish".to_string(),
+                format!(
+                    "TravelorAI CRM {} versiyasini o'rnatishni tasdiqlaysizmi?\n\n\
+                     Joriy versiya: {}\n\
+                     O'rnatilgach ilova qayta ishga tushadi — saqlanmagan ma'lumotlarni avval saqlang.",
+                    update.version, current
+                ),
+            )
+            .await;
+            if !confirmed {
+                return Err("Yangilanish bekor qilindi".into());
+            }
             update
                 .download_and_install(|_chunk, _total| {}, || {})
                 .await
@@ -88,7 +190,7 @@ async fn open_external(url: String) -> Result<(), String> {
     open::that_detached(u).map_err(|e| e.to_string())
 }
 
-/// Faylni foydalanuvchining «Yuklanmalar» papkasiga saqlaydi va ochadi.
+/// Faylni foydalanuvchining «Yuklanmalar» papkasiga saqlaydi.
 ///
 /// NEGA KERAK: Tauri webview'da `<a download>` orqali fayl yuklab olish
 /// ishlamaydi — brauzerdagidek yuklanmalar paneli yo'q, fayl jimgina
@@ -100,9 +202,17 @@ async fn open_external(url: String) -> Result<(), String> {
 ///   * fayl nomidan papka belgilari (/ \ : .. va boshq.) tozalanadi,
 ///   * faqat .html va .csv kengaytmalariga ruxsat,
 ///   * hajm 8 MB bilan cheklangan,
-///   * mavjud fayl ustiga yozmaydi — nomiga (2), (3) qo'shadi.
+///   * mavjud fayl ustiga yozmaydi — nomiga (2), (3) qo'shadi,
+///   * fayl AVTOMATIK OCHILMAYDI: saqlangach native oynada «Ochilsinmi?»
+///     so'raladi (standart javob — «Yo'q»). Remote sahifa buni bosa olmaydi.
+///
+/// Natija (o'zgarmagan kontrakt): saqlangan fayl yo'li.
 #[tauri::command]
-async fn save_download(filename: String, content: String) -> Result<String, String> {
+async fn save_download(
+    app: tauri::AppHandle,
+    filename: String,
+    content: String,
+) -> Result<String, String> {
     use std::path::PathBuf;
 
     if content.len() > 8 * 1024 * 1024 {
@@ -140,8 +250,17 @@ async fn save_download(filename: String, content: String) -> Result<String, Stri
 
     std::fs::write(&path, content).map_err(|e| e.to_string())?;
     let shown = path.to_string_lossy().to_string();
-    // Saqlangan faylni darhol ochamiz — foydalanuvchi natijani ko'radi
-    let _ = open::that_detached(&path);
+
+    // Ochish — faqat foydalanuvchi native oynada rozi bo'lsa (opt-in).
+    let open_it = confirm_native(
+        &app,
+        "TravelorAI CRM — fayl saqlandi".to_string(),
+        format!("Fayl «Yuklanmalar» papkasiga saqlandi:\n{shown}\n\nHozir ochilsinmi?"),
+    )
+    .await;
+    if open_it {
+        let _ = open::that_detached(&path);
+    }
     Ok(shown)
 }
 

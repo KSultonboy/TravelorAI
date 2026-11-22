@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily TravelorAI PostgreSQL backup at 03:30 Asia/Tashkent
+
+[Timer]
+# Explicit time zone: correct regardless of the server's local TZ.
+OnCalendar=*-*-* 03:30:00 Asia/Tashkent
+Persistent=true
+RandomizedDelaySec=5min
+Unit=travelorai-pg-backup.service
+
+[Install]
+WantedBy=timers.target
