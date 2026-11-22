@@ -244,6 +244,8 @@ export type Presentation = {
     slug?: string | null;
   } | null;
   tour: PresentationTour | null;
+  /** Agentlikning o'z to'lov havolasi / rekvizitlari (sozlanmagan bo'lsa null). */
+  payment?: { url?: string | null; requisites?: string | null } | null;
 };
 
 export async function fetchPresentation(token: string): Promise<Presentation | null> {

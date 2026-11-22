@@ -1,0 +1,62 @@
+// Taklif sahifasi (/p/[token]) — agentlik to'lov havolasi va rekvizitlari.
+// presentation.scss o'zgaruvchilaridan foydalanadi (.pres scope).
+.pres-pay {
+  margin: 18px 0 0;
+  padding: 18px 20px;
+  border: 1px solid var(--gold-line, #f0dfae);
+  border-radius: 20px;
+  background: var(--gold-050, #fdf6e3);
+  display: grid;
+  gap: 14px;
+}
+
+.pres-pay__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+
+.pres-pay__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 13px 26px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  background: var(--gold-500, #d9a108);
+  color: #2a1d00;
+  box-shadow: 0 10px 24px rgba(160, 108, 7, 0.25);
+  transition: transform 0.2s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+  }
+}
+
+.pres-pay__hint {
+  color: var(--muted, #5c6f66);
+  font-size: 13px;
+}
+
+.pres-pay__req {
+  p {
+    margin: 6px 0 0;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    color: var(--ink, #10201a);
+    font-size: 14.5px;
+    line-height: 1.6;
+  }
+}
+
+.pres-pay__req-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink-2, #33473d);
+}

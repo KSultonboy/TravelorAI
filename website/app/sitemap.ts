@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { fetchAllTours } from "@/lib/marketingApi";
+import { fetchPublicAgencySlugs } from "@/lib/storefrontApi";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://travelorai.com";
 
@@ -49,5 +50,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     tourRoutes = [];
   }
 
-  return [...staticRoutes, ...tourRoutes];
+  // Agentlik storefront'lari (/a/[slug]) — faqat faol, tasdiqlangan agentliklar.
+  const agencyRoutes: MetadataRoute.Sitemap = (await fetchPublicAgencySlugs()).map((slug) => ({
+    url: `${BASE_URL}/a/${encodeURIComponent(slug)}`,
+    priority: 0.6,
+    changeFrequency: "weekly" as const,
+  }));
+
+  return [...staticRoutes, ...tourRoutes, ...agencyRoutes];
 }
