@@ -107,16 +107,17 @@ History: `/root/travelorai-deploy/history.log` on the server.
   (NOT `65326209075-...` — that Google project is inaccessible).
 - Migrations are not reverted by a rollback: every migration must be
   backward compatible with the previous release (expand → deploy → contract).
-- **Migration baseline (production).** Until 2026-11-22 the production
-  `_prisma_migrations` table was empty although the schema already matched the
-  repo (tables were created by hand / `db push`). On 2026-11-22 the three
-  `20261122*` migrations were applied with psql and every migration folder was
-  marked applied with `prisma migrate resolve --applied`. From then on
-  `migrate deploy` only runs new folders. The deploy script refuses to migrate a
-  database whose `_prisma_migrations` is empty. Production also has extra columns
-  not in `schema.prisma` (`Tour.discount`, `priceBasisPeople`, `priceLockMinutes`,
-  `priceLockUntil`, `Feedback.status`): never generate a migration that drops them
-  without checking the data first (`prisma migrate diff` from the prod URL shows them).
+- **Production migration state (checked 2026-11-22).** `_prisma_migrations` has
+  every repo migration up to `20260827143000` plus 7 that exist only in the DB
+  (`20260609143000_agency_google_auth`, `20260613090000_agency_google_id`,
+  `20260613110000_user_push_token`, `20260616100000_tour_v2_fields`,
+  `20260620100000_user_role`, `20260620110000_feedback_status`,
+  `20260703110000_agency_must_change_password`). `migrate deploy` tolerates those
+  and only applies new folders. Never commit an empty migration folder (P3015).
+  The deploy script refuses to migrate a database whose `_prisma_migrations` is empty.
+  Production also has extra columns not in `schema.prisma` (`Tour.discount`,
+  `priceBasisPeople`, `priceLockMinutes`, `priceLockUntil`, `Feedback.status`):
+  never generate a migration that drops them without checking the data first.
 - **Website admin env** (`/root/travelorai-admin.env`, passed with `--env-file`):
   `ADMIN_USERNAME` ≥ 12 chars, `ADMIN_PASSWORD` ≥ 12 chars, `ADMIN_SESSION_SECRET`
   ≥ 32 random chars, none of them a known default — otherwise the admin login

@@ -332,9 +332,9 @@ APPLY
 # migration hits exactly the database the app will use.
 run_migrations() {
   local image="$1"
-  # Production's _prisma_migrations was empty until it was baselined on 2026-11-22
-  # (AGENTS.md). On an un-baselined database `migrate deploy` would start from
-  # 'init' and fail half-way, leaving a failed row behind — refuse instead.
+  # Safety net: on a database whose _prisma_migrations is empty (never baselined),
+  # `migrate deploy` would start from 'init' and fail half-way, leaving a failed
+  # row behind — refuse instead (AGENTS.md: production migration state).
   timeout 900 podman run --rm --log-driver=none --network host --name "voyageai_backend_migrate_$TS" "$image" \
     node -e "
       require('dotenv').config({ override: true });
