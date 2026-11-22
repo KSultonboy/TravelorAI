@@ -449,6 +449,7 @@ async function commitCsv(req, res) {
       await tx.csvImportBatch.update({ where: { id: batch.id }, data: { importedRows: imported } });
       return { batchId: batch.id, imported };
     });
+    require('../services/leadAlert.service').notifyLeadImport(agency.id, { count: result.imported, fileName: req.body?.fileName, source: 'csv' });
     return success(res, {
       ...result,
       skipped: analysis.duplicateRows + analysis.parsed.errors.length,

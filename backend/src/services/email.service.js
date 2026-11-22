@@ -407,8 +407,28 @@ async function sendAutomationEmail({ email, subject, body }) {
   });
 }
 
+// Sinov muddati eslatmasi (engagement). Barcha qiymatlar escapeHtml'dan o'tadi.
+async function sendTrialReminderEmail({ email, agencyName, heading, body, ctaUrl }) {
+  if (!email) return { delivery: 'skipped' };
+  const subject = `${APP_NAME} — ${String(heading || '').replace(/[\r\n]+/g, ' ').slice(0, 140)}`;
+  const html = `
+    <div style="font-family:Arial,sans-serif;background:#f4f7f5;padding:24px;">
+      <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:20px;padding:32px;border:1px solid #eaf0eb;">
+        <p style="margin:0 0 8px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#1a6b3c;">${escapeHtml(APP_NAME)}</p>
+        <h1 style="margin:0 0 12px;font-size:22px;color:#122117;">${escapeHtml(heading)}</h1>
+        <p style="margin:0 0 6px;font-size:14px;color:#4f6355;">${escapeHtml(displayName(agencyName, 'Hurmatli hamkor'))},</p>
+        <p style="margin:0 0 20px;font-size:15px;line-height:1.7;color:#334d3c;white-space:pre-line;">${escapeHtml(body)}</p>
+        <a href="${escapeHtml(ctaUrl)}" style="display:inline-block;padding:12px 20px;border-radius:12px;background:#1a6b3c;color:#ffffff;text-decoration:none;font-weight:700;">Tarif tanlash</a>
+      </div>
+    </div>
+  `;
+  const text = `${heading}\n\n${body}\n\n${ctaUrl}`;
+  return sendMail({ to: email, subject, html, text, logMeta: { type: 'trial_reminder', email } });
+}
+
 module.exports = {
   escapeHtml,
+  sendTrialReminderEmail,
   sendAutomationEmail,
   sendEmailChangedNoticeEmail,
   sendVerificationCodeEmail,

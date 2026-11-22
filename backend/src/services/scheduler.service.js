@@ -217,6 +217,10 @@ function startScheduler() {
   const webhookTick = () => runWebhookDeliveryWorker().catch(() => {});
   setTimeout(webhookTick, 75_000);
   setInterval(webhookTick, 60_000);
+  // Engagement: sinov eslatmalari (10:00) + haftalik hisobot (dushanba 09:00), Toshkent.
+  const engagementTick = () => require('./engagementJobs.service').runEngagementJobs().catch(() => {});
+  setTimeout(engagementTick, 90_000);
+  setInterval(engagementTick, 10 * 60 * 1000);
 }
 
 module.exports = { startScheduler, runBirthdayGreetings, runTripReminders, runAutoArchive, runInstagramTokenRefresh, runSlaMonitor, runAutomationMonitor, runWebhookDeliveryWorker, DEFAULT_BIRTHDAY, fillBirthday };

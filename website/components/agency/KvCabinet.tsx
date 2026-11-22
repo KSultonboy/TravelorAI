@@ -45,6 +45,7 @@ import {
 } from "@/lib/agency/documents";
 import { AuditPage, InsightsPage, WhatsAppPage } from "./CrmCompetitionPages";
 import { ExecutiveReportsPage } from "./ExecutiveReportsPage";
+import { TrialBanner, isTrialExpired, EngagementSettings, useSettingsTabRequest } from "./features/engagement";
 
 /* ---- tiny inline icons ---- */
 const I = {
@@ -721,7 +722,7 @@ export default function KvCabinet() {
           </header>
 
           <div className="content">
-            {readOnly ? (
+            {readOnly && !isTrialExpired(access) ? (
               <div className="kv-lockbar">
                 <span className="kv-lockbar__ic"><Ic d={I.clock} s={18} /></span>
                 <div className="kv-lockbar__tx">
@@ -731,6 +732,7 @@ export default function KvCabinet() {
                 <button className="btn btn-primary" onClick={() => goToView("settings")}>Batafsil</button>
               </div>
             ) : null}
+            <TrialBanner access={access} go={goToView} />
             <AgencyStatusBanner />
             {!roleAllowsSection(memberRole, view) ? (
               <div className="card" style={{ padding: 18 }}><b>Bo&apos;lim yopiq</b><p className="sub" style={{ margin: "6px 0 0" }}>Bu bo&apos;lim sizning rolingiz ({TEAM_ROLE_LABEL[memberRole] || memberRole}) uchun ochiq emas. Agentlik egasiga murojaat qiling.</p></div>
@@ -3893,6 +3895,7 @@ const SETTINGS_MENU: { key: string; icon: string; label: string; desc: string }[
   { key: "plan", icon: I.money, label: "Obuna va to'lov", desc: "Joriy tarif, amal muddati, hisobni to'ldirish va to'lov tarixi" },
   { key: "profile", icon: I.box, label: "Agentlik ma'lumotlari", desc: "Nomi, logotipi, telefoni va tavsifi" },
   { key: "links", icon: I.send, label: "Ulanishlar", desc: "Telegram, Instagram Direct va WhatsApp Business" },
+  { key: "alerts", icon: I.bell, label: "Xabarnomalar", desc: "Yangi lid haqida Telegram xabari va haftalik hisobot" },
   { key: "team", icon: I.users, label: "Jamoa va rollar", desc: "Xodimlarni qo'shish, huquqlarni belgilash" },
   { key: "account", icon: I.lock, label: "Hisob", desc: "Tizimdan chiqish" },
 ];
@@ -3903,6 +3906,7 @@ function Settings({ show, agency, go, refresh, logout, access, readOnly }: any) 
 
   // Bo'limdan chiqilganda menyuga qaytamiz (masalan boshqa bo'limga o'tib kelsa)
   useEffect(() => { if (!show) setTab(""); }, [show]);
+  useSettingsTabRequest(setTab); // masalan sinov banneri → «Obuna va to'lov»
 
   return (
     <section className={`view${show ? " active" : ""}`}>
@@ -3950,6 +3954,7 @@ function Settings({ show, agency, go, refresh, logout, access, readOnly }: any) 
             </div>
           ) : null}
           {tab === "team" ? <TeamSection access={access} /> : null}
+          {tab === "alerts" ? <EngagementSettings canEdit={agencyRoleOf(access) === "owner"} go={go} /> : null}
           {tab === "account" ? (
             <div className="card" style={{ padding: 18, display: "grid", gap: 12 }}>
               <div style={{ color: "var(--t2)", fontSize: 13.5, lineHeight: 1.6 }}>

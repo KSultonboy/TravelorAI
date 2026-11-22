@@ -997,6 +997,7 @@ async function approveAgencyApplication(req, res) {
       : await prisma.tourAgency.create({
           data: {
             ...agencyData,
+            trialEndsAt: require('../services/trial.service').newTrialEndsAt(now), // yangi agentlik → 14 kunlik sinov
             slug: await uniqueAgencySlug(slugify(application.companyName)),
           },
         });

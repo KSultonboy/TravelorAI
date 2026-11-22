@@ -10,6 +10,7 @@ const whatsapp = require('./whatsapp.controller');
 const { DEFAULT_BIRTHDAY, fillBirthday } = require('../services/scheduler.service');
 const reviewService = require('../services/review.service');
 const { assignNextMember, markFirstResponse } = require('../services/crmAutomation.service');
+const leadAlert = require('../services/leadAlert.service');
 
 const PUBLIC_BASE = process.env.PUBLIC_API_URL || 'https://travelorai.com/api/v1';
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://travelorai.com').replace(/\/$/, '');
@@ -309,6 +310,7 @@ async function webhook(req, res) {
 
     // ── Inline tugma bosildi (yo'nalish tanlovi) ──
     const cb = (req.body && req.body.callback_query) || null;
+    if (cb && await leadAlert.handleLeadAcceptCallback(agency, cb)) return res.status(200).json({ ok: true });
     if (cb) {
       const data = String(cb.data || '');
       const cbChat = String((cb.message && cb.message.chat && cb.message.chat.id) || '');
@@ -458,6 +460,7 @@ async function webhook(req, res) {
           branchId: autoMember?.branchId || null,
         },
       });
+      leadAlert.notifyNewLead(booking, { source: 'telegram' });
     }
 
     await prisma.telegramMessage.create({

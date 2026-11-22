@@ -495,6 +495,10 @@ model TourAgency {
   branches                AgencyBranch[]
   managerPayrollProfiles  ManagerPayrollProfile[]
   crmPipelineStages       CrmPipelineStage[]
+  // === engagement: trial ===
+  // NULL = grandfathered (migratsiyadan oldingi agentliklar, sinov yo'q).
+  trialEndsAt             DateTime?
+  trialReminderStage      Int                       @default(0) // 0 hech narsa, 1 = "3 kun qoldi", 2 = "tugadi" yuborilgan
 
   @@index([active])
   @@index([tariffId])
@@ -785,6 +789,13 @@ model AgencyCrmSettings {
   reminderEnabled      Boolean    @default(true)
   createdAt            DateTime   @default(now())
   updatedAt            DateTime   @updatedAt
+  // === engagement: lead alerts + weekly digest ===
+  leadAlertsEnabled      Boolean   @default(true)
+  weeklyDigestEnabled    Boolean   @default(true)
+  weeklyDigestLastSentAt DateTime?
+  digestIdleNotifiedAt   DateTime? // "sizni sog'indik" xabari yuborilgan vaqt (faolsizlik 2+ hafta)
+  digestTestDay          String? // YYYY-MM-DD (Toshkent) — "Hozir yuborish" limiti uchun
+  digestTestCount        Int       @default(0)
 }
 
 // Agentlik egasi UI orqali tuzadigan no-code trigger -> shart -> amal qoidasi.

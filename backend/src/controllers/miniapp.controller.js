@@ -7,6 +7,7 @@ const { prisma } = require('../config/database');
 const { success, error } = require('../utils/response');
 const { resolveTourImageUrl } = require('../utils/tourImage');
 const tg = require('../services/telegram.service');
+const leadAlert = require('../services/leadAlert.service');
 
 const MAX_AGE_SEC = 24 * 60 * 60; // eski initData qabul qilinmaydi
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://travelorai.com').replace(/\/$/, '');
@@ -239,6 +240,7 @@ async function request(req, res) {
     let booking = await prisma.tourBooking.findFirst({
       where: { agencyId: agency.id, telegramChatId: chatId },
     });
+    const isNew = !booking;
 
     if (booking) {
       booking = await prisma.tourBooking.update({
@@ -280,7 +282,8 @@ async function request(req, res) {
     });
 
     // Agentga darhol xabar (kutilmaydi — mijoz javobni tez olsin)
-    if (agency.notifyChatId) {
+    if (isNew) leadAlert.notifyNewLead({ ...booking, tour: { title: found.title } }, { source: 'miniapp' });
+    else if (agency.notifyChatId) {
       tg.sendMessage(
         agency.telegramBotToken,
         agency.notifyChatId,

@@ -37,11 +37,14 @@ async function agencyPlan(req, res, next) {
 // To'lov muddati o'tган bo'lsa — yozuv operatsiyalarini bloklaydi (faqat o'qish).
 function blockWhenReadOnly(req, res, next) {
   if (req.access && req.access.readOnly) {
+    const trialEnded = req.access.accessState === 'trial_expired';
     return error(
       res,
-      "Obuna muddati tugagan — faqat o'qish rejimi. Davom etish uchun to'lovni yangilang.",
+      trialEnded
+        ? "Sinov muddati tugadi — ma'lumotlaringiz saqlangan, davom etish uchun tarif tanlang."
+        : "Obuna muddati tugagan — faqat o'qish rejimi. Davom etish uchun to'lovni yangilang.",
       402,
-      { code: 'SUBSCRIPTION_EXPIRED' }
+      { code: 'SUBSCRIPTION_EXPIRED', ...(trialEnded ? { reason: 'TRIAL_EXPIRED' } : {}) }
     );
   }
   next();

@@ -64,6 +64,7 @@ router.get('/payments/:merchantTransId', clickPay.paymentStatus);
 
 // ── Shu qatordan pastdagi barcha CRM yo'llari faqat admin tasdiqlagan, faol agentlik uchun.
 router.use(requireApprovedAgency);
+router.use('/engagement', require('./agencyEngagement.routes')); // lid xabarnomalari, haftalik hisobot
 
 router.get('/tours', agency.listTours);
 router.post('/tours', blockWhenReadOnly, PACKAGE_ROLES, agency.createTour);

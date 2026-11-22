@@ -4,6 +4,7 @@ const { success, error } = require('../utils/response');
 const { ensureApprovedAgency } = require('./agency.controller');
 const ig = require('../services/instagram.service');
 const { assignNextMember } = require('../services/crmAutomation.service');
+const leadAlert = require('../services/leadAlert.service');
 
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://travelorai.com').replace(/\/$/, '');
 
@@ -198,6 +199,7 @@ async function handleMessage(agency, event) {
         branchId: autoMember?.branchId || null,
       },
     });
+    leadAlert.notifyNewLead(booking, { source: 'instagram' });
   }
 
   await prisma.telegramMessage.create({

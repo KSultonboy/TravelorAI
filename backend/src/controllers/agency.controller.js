@@ -1261,6 +1261,7 @@ async function createManualLead(req, res) {
     await prisma.leadActivity.create({
       data: { agencyId: agency.id, bookingId: booking.id, actorAccountId: req.agencyAccount.id, type: 'created', text: "Lid qo'lda yaratildi" },
     });
+    require('../services/leadAlert.service').notifyNewLead(booking, { source: 'manual' });
     return success(res, { booking: formatBooking(booking) }, 201);
   } catch (err) {
     return error(res, err.message, 400);

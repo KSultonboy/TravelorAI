@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Wallet, TrendingUp, Users, CheckCircle2, Plus } from "lucide-react";
 import { api } from "@/lib/adminApi";
 import { StatCard, Spinner, EmptyState, Toast } from "@/components/admin/ui";
+import { TrialAdminPanel } from "@/components/agency/features/engagement/TrialAdminPanel";
 
 type Stats = { totalRevenue: number; last30: number; mrr: number; activeCount: number; agencyCount: number; paymentsCount: number; byStatus: Record<string, number> };
 type Sub = { id: string; name: string; city?: string; phone?: string; tariffId?: string | null; subscriptionStatus: string; subscriptionUntil?: string | null; tariff?: { id: string; name: string; priceMonthly: number } | null; totalPaid: number };
@@ -105,6 +106,8 @@ export default function BillingPage() {
           </table>
         </div>
       )}
+
+      <TrialAdminPanel />
 
       {pay ? (
         <div style={{ position: "fixed", inset: 0, background: "rgba(11,42,30,.42)", backdropFilter: "blur(3px)", zIndex: 60, display: "grid", placeItems: "center", padding: 16 }} onClick={() => setPay(null)}>
