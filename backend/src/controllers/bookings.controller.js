@@ -4,6 +4,7 @@ const { createBookingSchema } = require('../schemas/booking.schema');
 const { sendBookingLeadEmail } = require('../services/email.service');
 const { resolveTourImageUrl } = require('../utils/tourImage');
 const { assignNextMember } = require('../services/crmAutomation.service');
+const leadAlert = require('../services/leadAlert.service');
 
 function formatBooking(booking) {
   if (!booking) return null;
@@ -156,6 +157,8 @@ async function create(req, res) {
         message: booking.message,
       }).catch(() => {});
     }
+
+    leadAlert.notifyNewLead(booking, { source: leadAlert.normalizeBookingSource(booking.source) }); // Telegram — kutilmaydi, xato tashlamaydi
 
     return success(res, { booking: formatBooking(booking) }, 201);
   } catch (err) {

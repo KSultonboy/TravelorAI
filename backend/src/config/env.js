@@ -181,7 +181,15 @@ function acceptLegacyTokens() {
   return process.env.AUTH_ACCEPT_LEGACY_TOKENS !== 'false';
 }
 
+// Yangi agentliklar uchun bepul sinov muddati (kun). Noto'g'ri qiymat → 14.
+const trialDaysSchema = z.coerce.number().int().min(1).max(365);
+function trialDays(env = process.env) {
+  const parsed = trialDaysSchema.safeParse(blankToUndefined({ v: env.TRIAL_DAYS }).v ?? 14);
+  return parsed.success ? parsed.data : 14;
+}
+
 module.exports = {
+  trialDays,
   MIN_SECRET_LENGTH,
   KNOWN_WEAK_SECRETS,
   DEV_FALLBACKS,

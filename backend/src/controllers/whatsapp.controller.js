@@ -3,6 +3,7 @@ const { success, error } = require('../utils/response');
 const { ensureApprovedAgency } = require('./agency.controller');
 const wa = require('../services/whatsapp.service');
 const { assignNextMember, markFirstResponse } = require('../services/crmAutomation.service');
+const leadAlert = require('../services/leadAlert.service');
 
 async function getWhatsApp(req, res) {
   try {
@@ -100,6 +101,7 @@ async function handleIncoming(agency, value) {
     if (!booking) {
       const member = await assignNextMember(agency.id);
       booking = await prisma.tourBooking.create({ data: { agencyId: agency.id, customerName: contactNames.get(waId) || 'WhatsApp mijoz', customerPhone: waId, leadWhatsapp: waId, whatsappWaId: waId, message: messageText(incoming), travelers: 1, currency: 'USD', source: 'whatsapp', utmSource: 'whatsapp', utmMedium: 'cloud_api', status: 'pending', pipelineStage: 'new', assignedMemberId: member?.id || null, branchId: member?.branchId || null } });
+      leadAlert.notifyNewLead(booking, { source: 'whatsapp' });
     }
     await prisma.telegramMessage.create({ data: { agencyId: agency.id, bookingId: booking.id, channel: 'whatsapp', direction: 'in', text: messageText(incoming), fromName: contactNames.get(waId) || waId, externalId, senderId: waId, recipientId: agency.whatsappPhoneNumberId, status: 'received', metadata: { type: incoming.type, timestamp: incoming.timestamp } } });
     if (isNew && agency.whatsappWelcome) {

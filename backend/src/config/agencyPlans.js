@@ -78,31 +78,57 @@ function resolveAccess(agency, role = 'owner') {
   else if (agency && agency.tariffId) planKey = DEFAULT_TARIFF_PLAN;
   else planKey = 'unlimited';
 
+  // Sinov muddati (engagement): faqat to'lovli obunasi YO'Q va trialEndsAt
+  // qo'yilgan (yangi) agentliklarga tegishli. To'lov har doim ustun.
+  const trial = trialState(agency, now);
+  if (trial) planKey = 'pro';
+
   const plan = PLANS[planKey];
 
-  // readOnly — FAQAT to'lov muddati o'tганда (foydalanuvchi tanlovi: "faqat o'qish").
-  const readOnly = expired;
+  // readOnly — FAQAT to'lov (yoki sinov) muddati o'tганда ("faqat o'qish").
+  const readOnly = trial ? trial.expired : expired;
 
-  const daysLeft = hasUntil ? Math.ceil((until - now) / 86400000) : null;
+  const daysLeft = trial ? trial.daysLeft : (hasUntil ? Math.ceil((until - now) / 86400000) : null);
 
   // Rol → ko'rinadigan bo'limlar (tarif bilan kesishadi).
   const effRole = ROLE_SECTIONS[role] ? role : 'owner';
   const sections = plan.sections.filter((s) => ROLE_SECTIONS[effRole].includes(s));
 
+  let accessState;
+  if (trial) accessState = trial.expired ? 'trial_expired' : 'trial';
+  else if (planKey === 'unlimited' && !hasUntil) accessState = 'grandfathered';
+  else accessState = expired ? 'expired' : 'active';
+
   return {
     plan: planKey,
-    planName: (agency && agency.tariff && agency.tariff.name) || (planKey === 'unlimited' ? 'Cheklovsiz' : planKey),
-    status,
+    planName: trial ? 'Sinov (Pro)' : ((agency && agency.tariff && agency.tariff.name) || (planKey === 'unlimited' ? 'Cheklovsiz' : planKey)),
+    status: trial ? 'trial' : status,
     role: effRole,
     canManageTeam: effRole === 'owner',
     active: !readOnly,
     readOnly,
-    expired,
-    until: untilRaw || null,
+    expired: trial ? trial.expired : expired,
+    until: trial ? trial.endsAt : (untilRaw || null),
     daysLeft,
     sections,
     caps: plan.caps,
+    accessState,
+    trialEndsAt: trial ? trial.endsAt : null,
   };
 }
 
-module.exports = { PLANS, ALL_SECTIONS, ROLE_SECTIONS, resolveAccess, DEFAULT_TARIFF_PLAN };
+// Agentlik sinov holati yoki null (grandfathered / to'lovli obuna).
+// To'lovli obuna = tarif biriktirilgan YOKI subscriptionUntil qo'yilgan.
+function trialState(agency, now = Date.now()) {
+  if (!agency || !agency.trialEndsAt) return null;
+  if (agency.tariffId || agency.subscriptionUntil) return null;
+  const end = new Date(agency.trialEndsAt).getTime();
+  if (Number.isNaN(end)) return null;
+  return {
+    endsAt: new Date(end).toISOString(),
+    expired: end <= now,
+    daysLeft: Math.max(0, Math.ceil((end - now) / 86400000)),
+  };
+}
+
+module.exports = { PLANS, ALL_SECTIONS, ROLE_SECTIONS, resolveAccess, trialState, DEFAULT_TARIFF_PLAN };
