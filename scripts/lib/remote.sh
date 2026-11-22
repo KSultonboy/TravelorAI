@@ -170,7 +170,9 @@ swap_to() {
     die "port $PORT still in use after removing $CONTAINER (pids: $(port_pids | tr '\n' ' ')) — NOT starting a second holder"
   fi
   log "swap: podman run $CONTAINER from $image"
-  if ! run podman run -d --name "$CONTAINER" "${RUN_FLAGS[@]}" "$image" >/dev/null; then
+  # 9>&-: don't let the long-lived conmon process inherit the deploy lock's fd,
+  # otherwise the lock stays held for as long as the new container runs.
+  if ! run podman run -d --name "$CONTAINER" "${RUN_FLAGS[@]}" "$image" >/dev/null 9>&-; then
     warn "podman run from $image failed"
     podman rm -f "$CONTAINER" >/dev/null 2>&1 || true
     return 1
